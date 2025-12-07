@@ -2,12 +2,14 @@
 
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 
 import httpx
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from . import __version__
 from .config import settings
@@ -18,6 +20,9 @@ from .models import (
 from .process_manager import ProcessManager
 from .recipe_manager import RecipeManager
 from .model_indexer import ModelIndexer
+
+# Static files path
+STATIC_DIR = Path(__file__).parent.parent / "static"
 
 
 # Global managers
@@ -345,3 +350,54 @@ async def proxy_to_backend(path: str, request):
             raise HTTPException(status_code=503, detail="Backend not available")
         except httpx.TimeoutException:
             raise HTTPException(status_code=504, detail="Backend timeout")
+
+
+# =============================================================================
+# Logs
+# =============================================================================
+
+@app.get("/logs/{recipe_id}")
+async def get_logs(recipe_id: str, lines: int = 100):
+    """Get recent logs for a recipe."""
+    log_file = Path(f"/tmp/vllm_{recipe_id}.log")
+    if not log_file.exists():
+        return {"logs": [], "file": str(log_file)}
+
+    try:
+        with open(log_file, 'r') as f:
+            all_lines = f.readlines()
+            recent = all_lines[-lines:] if len(all_lines) > lines else all_lines
+            return {"logs": [line.rstrip() for line in recent], "file": str(log_file)}
+    except Exception as e:
+        return {"logs": [], "error": str(e)}
+
+
+@app.get("/logs")
+async def list_log_files():
+    """List available log files."""
+    log_dir = Path("/tmp")
+    logs = list(log_dir.glob("vllm_*.log"))
+    return {
+        "logs": [
+            {"name": log.name, "recipe_id": log.stem.replace("vllm_", ""), "size": log.stat().st_size}
+            for log in logs
+        ]
+    }
+
+
+# =============================================================================
+# Web UI
+# =============================================================================
+
+@app.get("/", response_class=HTMLResponse)
+async def serve_ui():
+    """Serve the web UI."""
+    index_file = STATIC_DIR / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
+    return HTMLResponse("<h1>vLLM Studio</h1><p>UI not found. Check static/index.html</p>")
+
+
+# Mount static files (must be after all other routes)
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
