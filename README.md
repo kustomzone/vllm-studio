@@ -1,51 +1,60 @@
 # vLLM Studio
 
-Model management API for vLLM and SGLang inference servers. Launch, switch, and manage LLM models via HTTP API with a web dashboard.
+Model management API for vLLM and SGLang inference servers. Launch, switch, and manage LLM models via HTTP API with a modern web dashboard.
 
 ## Features
 
-- **Web Dashboard** - Visual model management at http://localhost:8080
+- **Modern Web Dashboard** - OpenWebUI-style dark theme with sidebar navigation
 - **Recipe System** - JSON-based launch configurations
 - **Hot Switching** - Switch models without stopping the server
+- **Auto-Switching** - Automatically switch models based on API request
+- **Built-in Chat** - Chat with models directly in the dashboard
+- **Real-time Logs** - View and monitor model logs
 - **Proxy Integration** - Anthropic/OpenAI format translation
-- **OpenWebUI Ready** - Chat with models via web interface
 
 ## Quick Start
 
 ```bash
-# Setup
-./setup.sh
-
-# Run
-./run.sh
+# One-command startup
+./start.sh
 
 # Open dashboard
 open http://localhost:8080
+```
 
-# (Optional) Start chat UI
-docker-compose up -d
-open http://localhost:3000
+### Start Options
+
+```bash
+# Development mode (foreground with auto-reload)
+./start.sh --dev
+
+# Custom port
+./start.sh --port 9000
+
+# With ngrok tunnel for remote access
+./start.sh --ngrok
 ```
 
 ## Web Dashboard
 
-Access the dashboard at **http://localhost:8080** to:
+Access the dashboard at **http://localhost:8080**:
 
-- View currently running model with stats
-- See all recipes with running/stopped status
-- Launch/switch models with one click
-- Create, edit, and delete recipes
-- Monitor system health
+### Views
 
-## Chat Interface (OpenWebUI)
+| View | Description |
+|------|-------------|
+| **Dashboard** | Model status, system health, quick launch |
+| **Chat** | Chat with the running model (streaming) |
+| **Logs** | Real-time log viewer with filtering |
+| **Recipes** | Full CRUD management of recipes |
 
-Start the chat UI with Docker:
+### Features
 
-```bash
-docker-compose up -d
-```
-
-Open http://localhost:3000 to chat with your models. OpenWebUI connects to vLLM Studio's proxy endpoint automatically.
+- Dark theme (OpenWebUI-style)
+- Sidebar navigation with keyboard shortcuts (Ctrl+1-4)
+- Toast notifications for all actions
+- Auto-refresh every 10 seconds
+- Mobile responsive
 
 ## Configuration
 

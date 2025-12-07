@@ -4,623 +4,255 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>vLLM Studio</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0f0f0f;
-            color: #e0e0e0;
-            min-height: 100vh;
-        }
-        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 0;
-            border-bottom: 1px solid #333;
-            margin-bottom: 30px;
-        }
-        h1 { color: #fff; font-size: 24px; }
-        .status-bar {
-            display: flex;
-            gap: 20px;
-            align-items: center;
-        }
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 14px;
-        }
-        .dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-        }
-        .dot.green { background: #22c55e; }
-        .dot.red { background: #ef4444; }
-        .dot.yellow { background: #eab308; }
-
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        @media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
-
-        .card {
-            background: #1a1a1a;
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px solid #333;
-        }
-        .card h2 {
-            font-size: 16px;
-            color: #888;
-            margin-bottom: 15px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .current-model {
-            background: linear-gradient(135deg, #1e3a5f 0%, #1a1a1a 100%);
-        }
-        .model-name {
-            font-size: 20px;
-            color: #fff;
-            margin-bottom: 10px;
-            word-break: break-all;
-        }
-        .model-info { color: #888; font-size: 14px; }
-        .model-actions {
-            margin-top: 15px;
-            display: flex;
-            gap: 10px;
-        }
-
-        button {
-            background: #2563eb;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background 0.2s;
-        }
-        button:hover { background: #1d4ed8; }
-        button.danger { background: #dc2626; }
-        button.danger:hover { background: #b91c1c; }
-        button.secondary { background: #374151; }
-        button.secondary:hover { background: #4b5563; }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .recipe-list { display: flex; flex-direction: column; gap: 10px; }
-        .recipe-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 15px;
-            background: #252525;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        .recipe-item:hover { background: #333; }
-        .recipe-item.running { border-left: 3px solid #22c55e; }
-        .recipe-item.selected { background: #2563eb33; border: 1px solid #2563eb; }
-        .recipe-name { font-weight: 500; }
-        .recipe-meta { font-size: 12px; color: #888; }
-        .recipe-status {
-            font-size: 12px;
-            padding: 4px 8px;
-            border-radius: 4px;
-            background: #333;
-        }
-        .recipe-status.running { background: #22c55e33; color: #22c55e; }
-
-        .logs-container {
-            background: #0a0a0a;
-            border-radius: 8px;
-            padding: 15px;
-            height: 300px;
-            overflow-y: auto;
-            font-family: 'Monaco', 'Menlo', monospace;
-            font-size: 12px;
-            line-height: 1.5;
-        }
-        .log-line { color: #888; }
-        .log-line.error { color: #ef4444; }
-        .log-line.info { color: #3b82f6; }
-        .log-line.success { color: #22c55e; }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.8);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-        }
-        .modal.active { display: flex; }
-        .modal-content {
-            background: #1a1a1a;
-            border-radius: 12px;
-            padding: 30px;
-            width: 90%;
-            max-width: 600px;
-            max-height: 80vh;
-            overflow-y: auto;
-        }
-        .modal h3 {
-            margin-bottom: 20px;
-            font-size: 20px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            color: #888;
-            font-size: 14px;
-        }
-        .form-group input, .form-group select {
-            width: 100%;
-            padding: 10px;
-            background: #252525;
-            border: 1px solid #333;
-            border-radius: 6px;
-            color: #fff;
-            font-size: 14px;
-        }
-        .form-group input:focus, .form-group select:focus {
-            outline: none;
-            border-color: #2563eb;
-        }
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-        .modal-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            padding: 15px 25px;
-            background: #1a1a1a;
-            border-radius: 8px;
-            border: 1px solid #333;
-            z-index: 2000;
-            animation: slideIn 0.3s ease;
-        }
-        .toast.success { border-color: #22c55e; }
-        .toast.error { border-color: #ef4444; }
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        .quick-actions {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        .openwebui-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            color: #3b82f6;
-            text-decoration: none;
-            font-size: 14px;
-        }
-        .openwebui-link:hover { text-decoration: underline; }
-    </style>
+    <link rel="stylesheet" href="/static/css/reset.css">
+    <link rel="stylesheet" href="/static/css/theme.css">
+    <link rel="stylesheet" href="/static/css/components.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>vLLM Studio</h1>
-            <div class="status-bar">
-                <div class="status-indicator">
-                    <span class="dot" id="backendDot"></span>
-                    <span>Backend</span>
-                </div>
-                <div class="status-indicator">
-                    <span class="dot" id="proxyDot"></span>
-                    <span>Proxy</span>
-                </div>
-                <a href="http://localhost:3000" target="_blank" class="openwebui-link">
-                    Open Chat UI
-                </a>
-            </div>
-        </header>
-
-        <div class="quick-actions">
-            <button onclick="refreshAll()">Refresh</button>
-            <button onclick="openRecipeModal()" class="secondary">+ New Recipe</button>
-            <button onclick="evictModel()" class="danger">Evict Model</button>
-        </div>
-
-        <div class="grid">
-            <div class="card current-model">
-                <h2>Current Model</h2>
-                <div id="currentModel">
-                    <div class="model-name">No model running</div>
-                    <div class="model-info"></div>
-                </div>
-                <div class="model-actions">
-                    <button onclick="waitForReady()" id="waitBtn" disabled>Wait for Ready</button>
-                </div>
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <span class="sidebar-logo">vLLM Studio</span>
             </div>
 
-            <div class="card">
-                <h2>System Status</h2>
-                <div id="systemStatus">
-                    <p>Loading...</p>
+            <nav class="sidebar-nav">
+                <div class="nav-item active" data-view="dashboard">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    <span>Dashboard</span>
                 </div>
-            </div>
-        </div>
+                <div class="nav-item" data-view="chat">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span>Chat</span>
+                </div>
+                <div class="nav-item" data-view="logs">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    <span>Logs</span>
+                </div>
+                <div class="nav-item" data-view="recipes">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                    <span>Recipes</span>
+                </div>
+            </nav>
 
-        <div class="grid" style="margin-top: 20px;">
-            <div class="card">
-                <h2>Recipes</h2>
-                <div class="recipe-list" id="recipeList">
-                    <p>Loading recipes...</p>
+            <div class="sidebar-footer">
+                <div class="flex items-center gap-2 text-sm text-muted">
+                    <span class="status-dot" id="status-dot"></span>
+                    <span id="status-text">Connecting...</span>
                 </div>
             </div>
+        </aside>
 
-            <div class="card">
-                <h2>Logs</h2>
-                <div class="logs-container" id="logsContainer">
-                    <div class="log-line">Waiting for logs...</div>
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="main-header">
+                <button class="btn btn-ghost btn-icon" id="menuToggle">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </button>
+                <div class="flex items-center gap-3">
+                    <button class="btn btn-secondary" onclick="App.refresh()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                        Refresh
+                    </button>
+                    <button class="btn btn-danger" onclick="App.evictModel()">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><rect x="6" y="6" width="12" height="12"/></svg>
+                        Evict
+                    </button>
+                </div>
+            </header>
+
+            <div class="main-body">
+                <!-- Dashboard View -->
+                <div id="dashboard-view" class="view">
+                    <div class="grid grid-2 mb-4">
+                        <div class="card card-highlight">
+                            <div class="card-header">
+                                <h2 class="card-title">Current Model</h2>
+                            </div>
+                            <div id="current-model">
+                                <div class="model-name text-muted">Loading...</div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">System Status</h2>
+                            </div>
+                            <div id="system-status">
+                                <p class="text-muted">Loading...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Quick Launch</h2>
+                            <button class="btn btn-sm btn-secondary" onclick="App.showView('recipes')">
+                                View All
+                            </button>
+                        </div>
+                        <div class="recipe-list" id="recipe-quick-list">
+                            <p class="text-muted">Loading recipes...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat View -->
+                <div id="chat-view" class="view hidden">
+                    <div class="chat-container">
+                        <div class="chat-messages" id="chat-messages">
+                            <div class="text-center text-muted" style="padding: 2rem;">
+                                <p>Start a conversation with the model</p>
+                            </div>
+                        </div>
+                        <div class="chat-input-container">
+                            <form id="chat-form" class="chat-input-wrapper">
+                                <textarea
+                                    id="chat-input"
+                                    class="chat-input"
+                                    placeholder="Type a message..."
+                                    rows="1"
+                                ></textarea>
+                                <button type="submit" class="chat-send-btn">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Logs View -->
+                <div id="logs-view" class="view hidden">
+                    <div class="grid grid-2">
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">Log Files</h2>
+                            </div>
+                            <div class="recipe-list" id="log-files">
+                                <p class="text-muted">Loading...</p>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">Log Output</h2>
+                            </div>
+                            <div class="logs-container" id="log-content">
+                                <div class="log-line text-muted">Select a log file to view</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recipes View -->
+                <div id="recipes-view" class="view hidden">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Recipes</h2>
+                            <button class="btn btn-primary" onclick="Recipes.openModal()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                New Recipe
+                            </button>
+                        </div>
+                        <div class="recipe-list" id="recipes-list">
+                            <p class="text-muted">Loading recipes...</p>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- Recipe Modal -->
-    <div class="modal" id="recipeModal">
-        <div class="modal-content">
-            <h3 id="modalTitle">New Recipe</h3>
-            <form id="recipeForm">
+    <div class="modal-overlay" id="recipe-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="recipe-modal-title">New Recipe</h3>
+                <button class="modal-close" onclick="Recipes.closeModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+
+            <form id="recipe-form" onsubmit="event.preventDefault(); Recipes.save();">
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Recipe ID</label>
-                        <input type="text" name="id" required placeholder="my-model">
+                        <label class="form-label">Recipe ID</label>
+                        <input type="text" name="id" class="form-input" required placeholder="my-model">
                     </div>
                     <div class="form-group">
-                        <label>Display Name</label>
-                        <input type="text" name="name" required placeholder="My Model">
+                        <label class="form-label">Display Name</label>
+                        <input type="text" name="name" class="form-input" required placeholder="My Model">
                     </div>
                 </div>
+
                 <div class="form-group">
-                    <label>Model Path</label>
-                    <input type="text" name="model_path" required placeholder="/mnt/llm_models/...">
+                    <label class="form-label">Model Path</label>
+                    <input type="text" name="model_path" class="form-input" required placeholder="/mnt/llm_models/...">
                 </div>
+
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Backend</label>
-                        <select name="backend">
+                        <label class="form-label">Backend</label>
+                        <select name="backend" class="form-select">
                             <option value="vllm">vLLM</option>
                             <option value="sglang">SGLang</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Tensor Parallel</label>
-                        <input type="number" name="tensor_parallel_size" value="1" min="1" max="8">
+                        <label class="form-label">Tensor Parallel</label>
+                        <input type="number" name="tensor_parallel_size" class="form-input" value="1" min="1" max="8">
                     </div>
                 </div>
+
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Pipeline Parallel</label>
-                        <input type="number" name="pipeline_parallel_size" value="1" min="1" max="8">
+                        <label class="form-label">Pipeline Parallel</label>
+                        <input type="number" name="pipeline_parallel_size" class="form-input" value="1" min="1" max="8">
                     </div>
                     <div class="form-group">
-                        <label>Max Model Length</label>
-                        <input type="number" name="max_model_len" value="32768">
+                        <label class="form-label">Max Model Length</label>
+                        <input type="number" name="max_model_len" class="form-input" value="32768">
                     </div>
                 </div>
+
                 <div class="form-row">
                     <div class="form-group">
-                        <label>GPU Memory Utilization</label>
-                        <input type="number" name="gpu_memory_utilization" value="0.85" step="0.01" min="0.1" max="0.99">
+                        <label class="form-label">GPU Memory Utilization</label>
+                        <input type="number" name="gpu_memory_utilization" class="form-input" value="0.85" step="0.01" min="0.1" max="0.99">
                     </div>
                     <div class="form-group">
-                        <label>KV Cache Dtype</label>
-                        <select name="kv_cache_dtype">
+                        <label class="form-label">KV Cache Dtype</label>
+                        <select name="kv_cache_dtype" class="form-select">
                             <option value="auto">auto</option>
                             <option value="fp8">fp8</option>
                             <option value="fp8_e4m3">fp8_e4m3</option>
                         </select>
                     </div>
                 </div>
+
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Tool Call Parser</label>
-                        <input type="text" name="tool_call_parser" placeholder="hermes, mistral, etc.">
+                        <label class="form-label">Tool Call Parser</label>
+                        <input type="text" name="tool_call_parser" class="form-input" placeholder="hermes, mistral, etc.">
                     </div>
                     <div class="form-group">
-                        <label>Quantization</label>
-                        <input type="text" name="quantization" placeholder="auto-round, awq, etc.">
+                        <label class="form-label">Quantization</label>
+                        <input type="text" name="quantization" class="form-input" placeholder="auto-round, awq, etc.">
                     </div>
                 </div>
-                <div class="modal-actions">
-                    <button type="button" onclick="closeModal()" class="secondary">Cancel</button>
-                    <button type="button" onclick="deleteRecipe()" class="danger" id="deleteBtn" style="display:none">Delete</button>
-                    <button type="submit">Save</button>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="Recipes.closeModal()">Cancel</button>
+                    <button type="button" class="btn btn-danger hidden" id="recipe-delete-btn" onclick="Recipes.delete()">Delete</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <script>
-        const API = '';  // Same origin
-        let currentRecipeId = null;
-        let isEditing = false;
-
-        async function fetchAPI(endpoint, options = {}) {
-            try {
-                const resp = await fetch(API + endpoint, {
-                    headers: { 'Content-Type': 'application/json' },
-                    ...options
-                });
-                if (!resp.ok) {
-                    const err = await resp.json();
-                    throw new Error(err.detail || 'Request failed');
-                }
-                return resp.json();
-            } catch (e) {
-                showToast(e.message, 'error');
-                throw e;
-            }
-        }
-
-        function showToast(message, type = 'success') {
-            const toast = document.createElement('div');
-            toast.className = `toast ${type}`;
-            toast.textContent = message;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
-
-        async function refreshAll() {
-            await Promise.all([loadHealth(), loadStatus(), loadRecipes()]);
-        }
-
-        async function loadHealth() {
-            try {
-                const health = await fetchAPI('/health');
-                document.getElementById('backendDot').className = `dot ${health.backend_reachable ? 'green' : 'red'}`;
-                document.getElementById('proxyDot').className = `dot ${health.proxy_reachable ? 'green' : 'red'}`;
-                document.getElementById('waitBtn').disabled = !health.running_model;
-            } catch (e) {}
-        }
-
-        async function loadStatus() {
-            try {
-                const status = await fetchAPI('/status');
-                const modelDiv = document.getElementById('currentModel');
-
-                if (status.running_process) {
-                    const modelName = status.running_process.model_path.split('/').pop();
-                    modelDiv.innerHTML = `
-                        <div class="model-name">${modelName}</div>
-                        <div class="model-info">
-                            PID: ${status.running_process.pid} |
-                            Backend: ${status.running_process.backend} |
-                            Port: ${status.running_process.port} |
-                            Memory: ${status.running_process.memory_gb.toFixed(2)} GB
-                        </div>
-                    `;
-                } else {
-                    modelDiv.innerHTML = '<div class="model-name">No model running</div>';
-                }
-
-                document.getElementById('systemStatus').innerHTML = `
-                    <p>vLLM Port: ${status.vllm_port}</p>
-                    <p>Proxy Port: ${status.proxy_port}</p>
-                    <p>Recipes: ${status.recipes_count}</p>
-                    ${status.matched_recipe ? `<p>Matched Recipe: ${status.matched_recipe.id}</p>` : ''}
-                `;
-            } catch (e) {}
-        }
-
-        async function loadRecipes() {
-            try {
-                const recipes = await fetchAPI('/recipes');
-                const list = document.getElementById('recipeList');
-
-                if (recipes.length === 0) {
-                    list.innerHTML = '<p>No recipes found. Create one!</p>';
-                    return;
-                }
-
-                list.innerHTML = recipes.map(r => `
-                    <div class="recipe-item ${r.status === 'running' ? 'running' : ''}"
-                         onclick="selectRecipe('${r.id}')"
-                         ondblclick="editRecipe('${r.id}')">
-                        <div>
-                            <div class="recipe-name">${r.name}</div>
-                            <div class="recipe-meta">TP${r.tensor_parallel_size} PP${r.pipeline_parallel_size} | ${r.backend}</div>
-                        </div>
-                        <div>
-                            <span class="recipe-status ${r.status}">${r.status}</span>
-                            ${r.status !== 'running' ? `<button onclick="event.stopPropagation(); switchModel('${r.id}')">Launch</button>` : ''}
-                        </div>
-                    </div>
-                `).join('');
-            } catch (e) {
-                document.getElementById('recipeList').innerHTML = '<p>Failed to load recipes</p>';
-            }
-        }
-
-        async function switchModel(recipeId) {
-            try {
-                showToast('Switching model...', 'info');
-                const result = await fetchAPI('/switch', {
-                    method: 'POST',
-                    body: JSON.stringify({ recipe_id: recipeId, force: true })
-                });
-                showToast(result.message);
-                addLog(`Model switch: ${result.message}`, 'success');
-                await refreshAll();
-            } catch (e) {
-                addLog(`Switch failed: ${e.message}`, 'error');
-            }
-        }
-
-        async function evictModel() {
-            if (!confirm('Evict the current model?')) return;
-            try {
-                const result = await fetchAPI('/evict?force=true', { method: 'POST' });
-                showToast('Model evicted');
-                addLog('Model evicted', 'success');
-                await refreshAll();
-            } catch (e) {
-                addLog(`Evict failed: ${e.message}`, 'error');
-            }
-        }
-
-        async function waitForReady() {
-            try {
-                showToast('Waiting for model to be ready...');
-                addLog('Waiting for model ready...', 'info');
-                const result = await fetchAPI('/wait-ready?timeout=300');
-                showToast('Model is ready!');
-                addLog('Model ready!', 'success');
-                await refreshAll();
-            } catch (e) {
-                addLog(`Wait failed: ${e.message}`, 'error');
-            }
-        }
-
-        function selectRecipe(id) {
-            document.querySelectorAll('.recipe-item').forEach(el => el.classList.remove('selected'));
-            event.currentTarget.classList.add('selected');
-            currentRecipeId = id;
-        }
-
-        async function editRecipe(id) {
-            try {
-                const recipe = await fetchAPI(`/recipes/${id}`);
-                isEditing = true;
-                currentRecipeId = id;
-                document.getElementById('modalTitle').textContent = 'Edit Recipe';
-                document.getElementById('deleteBtn').style.display = 'block';
-
-                const form = document.getElementById('recipeForm');
-                form.id.value = recipe.id;
-                form.id.disabled = true;
-                form.name.value = recipe.name;
-                form.model_path.value = recipe.model_path;
-                form.backend.value = recipe.backend;
-                form.tensor_parallel_size.value = recipe.tensor_parallel_size;
-                form.pipeline_parallel_size.value = recipe.pipeline_parallel_size;
-                form.max_model_len.value = recipe.max_model_len;
-                form.gpu_memory_utilization.value = recipe.gpu_memory_utilization;
-                form.kv_cache_dtype.value = recipe.kv_cache_dtype;
-                form.tool_call_parser.value = recipe.tool_call_parser || '';
-                form.quantization.value = recipe.quantization || '';
-
-                document.getElementById('recipeModal').classList.add('active');
-            } catch (e) {}
-        }
-
-        function openRecipeModal() {
-            isEditing = false;
-            currentRecipeId = null;
-            document.getElementById('modalTitle').textContent = 'New Recipe';
-            document.getElementById('deleteBtn').style.display = 'none';
-            document.getElementById('recipeForm').reset();
-            document.getElementById('recipeForm').id.disabled = false;
-            document.getElementById('recipeModal').classList.add('active');
-        }
-
-        function closeModal() {
-            document.getElementById('recipeModal').classList.remove('active');
-        }
-
-        async function deleteRecipe() {
-            if (!currentRecipeId || !confirm('Delete this recipe?')) return;
-            try {
-                await fetchAPI(`/recipes/${currentRecipeId}`, { method: 'DELETE' });
-                showToast('Recipe deleted');
-                closeModal();
-                await loadRecipes();
-            } catch (e) {}
-        }
-
-        document.getElementById('recipeForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const form = e.target;
-            const data = {
-                id: form.id.value,
-                name: form.name.value,
-                model_path: form.model_path.value,
-                backend: form.backend.value,
-                tensor_parallel_size: parseInt(form.tensor_parallel_size.value),
-                pipeline_parallel_size: parseInt(form.pipeline_parallel_size.value),
-                max_model_len: parseInt(form.max_model_len.value),
-                gpu_memory_utilization: parseFloat(form.gpu_memory_utilization.value),
-                kv_cache_dtype: form.kv_cache_dtype.value,
-                tool_call_parser: form.tool_call_parser.value || null,
-                quantization: form.quantization.value || null
-            };
-
-            try {
-                if (isEditing) {
-                    await fetchAPI(`/recipes/${currentRecipeId}`, {
-                        method: 'PUT',
-                        body: JSON.stringify(data)
-                    });
-                    showToast('Recipe updated');
-                } else {
-                    await fetchAPI('/recipes', {
-                        method: 'POST',
-                        body: JSON.stringify(data)
-                    });
-                    showToast('Recipe created');
-                }
-                closeModal();
-                await loadRecipes();
-            } catch (e) {}
-        });
-
-        function addLog(message, type = '') {
-            const container = document.getElementById('logsContainer');
-            const line = document.createElement('div');
-            line.className = `log-line ${type}`;
-            line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-            container.appendChild(line);
-            container.scrollTop = container.scrollHeight;
-
-            // Keep only last 100 lines
-            while (container.children.length > 100) {
-                container.removeChild(container.firstChild);
-            }
-        }
-
-        // Initial load
-        refreshAll();
-        addLog('UI loaded', 'info');
-
-        // Auto-refresh every 10 seconds
-        setInterval(refreshAll, 10000);
-
-        // Close modal on escape
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') closeModal();
-        });
-    </script>
+    <!-- Scripts -->
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/app.js"></script>
 </body>
 </html>

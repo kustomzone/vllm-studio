@@ -449,6 +449,134 @@ async def list_log_files():
 
 
 # =============================================================================
+# GPU Info
+# =============================================================================
+
+@app.get("/gpus")
+async def get_gpu_info():
+    """Get GPU status including memory and temperature."""
+    import subprocess
+    import xml.etree.ElementTree as ET
+
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "-q", "-x"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode != 0:
+            return {"gpus": [], "error": "nvidia-smi failed"}
+
+        root = ET.fromstring(result.stdout)
+        gpus = []
+
+        for gpu in root.findall("gpu"):
+            gpu_info = {
+                "id": len(gpus),
+                "name": gpu.find("product_name").text if gpu.find("product_name") is not None else "Unknown",
+                "uuid": gpu.find("uuid").text if gpu.find("uuid") is not None else None,
+            }
+
+            # Temperature
+            temp_elem = gpu.find("temperature")
+            if temp_elem is not None:
+                temp_gpu = temp_elem.find("gpu_temp")
+                if temp_gpu is not None and temp_gpu.text:
+                    gpu_info["temp_c"] = int(temp_gpu.text.replace(" C", ""))
+
+            # Memory
+            mem_elem = gpu.find("fb_memory_usage")
+            if mem_elem is not None:
+                total = mem_elem.find("total")
+                used = mem_elem.find("used")
+                free = mem_elem.find("free")
+
+                if total is not None and total.text:
+                    gpu_info["memory_total_mb"] = int(total.text.replace(" MiB", ""))
+                if used is not None and used.text:
+                    gpu_info["memory_used_mb"] = int(used.text.replace(" MiB", ""))
+                if free is not None and free.text:
+                    gpu_info["memory_free_mb"] = int(free.text.replace(" MiB", ""))
+
+            # Utilization
+            util_elem = gpu.find("utilization")
+            if util_elem is not None:
+                gpu_util = util_elem.find("gpu_util")
+                if gpu_util is not None and gpu_util.text:
+                    gpu_info["utilization_pct"] = int(gpu_util.text.replace(" %", ""))
+
+            # Power
+            power_elem = gpu.find("gpu_power_readings")
+            if power_elem is not None:
+                power_draw = power_elem.find("power_draw")
+                if power_draw is not None and power_draw.text:
+                    try:
+                        gpu_info["power_w"] = float(power_draw.text.replace(" W", ""))
+                    except:
+                        pass
+
+            gpus.append(gpu_info)
+
+        return {"gpus": gpus}
+    except subprocess.TimeoutExpired:
+        return {"gpus": [], "error": "nvidia-smi timeout"}
+    except FileNotFoundError:
+        return {"gpus": [], "error": "nvidia-smi not found"}
+    except Exception as e:
+        return {"gpus": [], "error": str(e)}
+
+
+# =============================================================================
+# Performance Metrics
+# =============================================================================
+
+@app.get("/metrics")
+async def get_performance_metrics():
+    """Get performance metrics from vLLM backend."""
+    import re
+
+    metrics = {
+        "avg_prompt_throughput": None,
+        "avg_generation_throughput": None,
+        "running_requests": None,
+        "pending_requests": None,
+        "gpu_cache_usage": None,
+        "cpu_cache_usage": None,
+    }
+
+    try:
+        # Try to get metrics from vLLM's prometheus endpoint
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"http://localhost:{settings.vllm_port}/metrics",
+                timeout=5.0
+            )
+            if response.status_code == 200:
+                text = response.text
+
+                # Parse prometheus metrics
+                patterns = {
+                    "avg_prompt_throughput": r'vllm:avg_prompt_throughput_toks_per_s\{[^}]*\}\s+([\d.]+)',
+                    "avg_generation_throughput": r'vllm:avg_generation_throughput_toks_per_s\{[^}]*\}\s+([\d.]+)',
+                    "running_requests": r'vllm:num_requests_running\{[^}]*\}\s+([\d.]+)',
+                    "pending_requests": r'vllm:num_requests_waiting\{[^}]*\}\s+([\d.]+)',
+                    "gpu_cache_usage": r'vllm:gpu_cache_usage_perc\{[^}]*\}\s+([\d.]+)',
+                    "cpu_cache_usage": r'vllm:cpu_cache_usage_perc\{[^}]*\}\s+([\d.]+)',
+                }
+
+                for key, pattern in patterns.items():
+                    match = re.search(pattern, text)
+                    if match:
+                        metrics[key] = float(match.group(1))
+
+    except Exception as e:
+        metrics["error"] = str(e)
+
+    return metrics
+
+
+# =============================================================================
 # Web UI
 # =============================================================================
 

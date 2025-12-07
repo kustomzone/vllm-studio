@@ -5,3 +5,13 @@ __pycache__/
 *.log
 .pkl_memoize_py3/
 *.egg-info/
+
+# OpenWebUI artifacts
+openwebui-src/node_modules/
+openwebui-src/.venv/
+openwebui-src/build/
+openwebui-src/.svelte-kit/
+openwebui-src/backend/data/
+openwebui-src/backend/static/
+openwebui-src/*.db
+openwebui-src/data/
