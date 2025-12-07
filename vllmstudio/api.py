@@ -318,12 +318,76 @@ async def wait_for_ready(timeout: int = 300):
 
 
 # =============================================================================
-# Proxy passthrough
+# Proxy passthrough with auto-switching
 # =============================================================================
+
+async def _auto_switch_if_needed(body: bytes) -> bool:
+    """Check if we need to switch models based on the request. Returns True if switched."""
+    import json
+
+    try:
+        data = json.loads(body)
+        requested_model = data.get("model")
+        if not requested_model:
+            return False
+
+        # Get current running model
+        current = ProcessManager.get_current_process(settings.vllm_port)
+        if current and current.model_path == requested_model:
+            return False  # Already running the right model
+
+        # Find a recipe that matches this model
+        recipe = recipe_manager.find_recipe_for_model(requested_model)
+        if not recipe:
+            # Try to find by recipe ID (in case model name is the recipe ID)
+            recipe = recipe_manager.get_recipe(requested_model)
+
+        if not recipe:
+            return False  # No matching recipe, let vLLM handle the error
+
+        # Check if this recipe's model is already running
+        if current and current.model_path == recipe.model_path:
+            return False
+
+        # Need to switch! Acquire lock
+        if switching_lock.locked():
+            raise HTTPException(status_code=409, detail="Model switch already in progress")
+
+        async with switching_lock:
+            # Evict current model if running
+            if current:
+                await ProcessManager.evict_current_model(port=settings.vllm_port, force=True)
+
+            # Launch new model
+            success, pid, message = await ProcessManager.launch_model(recipe)
+            if not success:
+                raise HTTPException(status_code=500, detail=f"Failed to launch model: {message}")
+
+            # Wait for model to be ready
+            ready = await ProcessManager.wait_for_model_ready(port=settings.vllm_port, timeout=300)
+            if not ready:
+                raise HTTPException(status_code=504, detail="Model failed to become ready")
+
+        return True
+    except json.JSONDecodeError:
+        return False
+    except HTTPException:
+        raise
+    except Exception:
+        return False
+
 
 @app.api_route("/v1/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy_to_backend(path: str, request: Request):
-    """Proxy requests to the backend inference server."""
+    """Proxy requests to the backend inference server. Auto-switches models if needed."""
+    body = b""
+    if request.method != "GET":
+        body = await request.body()
+
+        # Auto-switch models for chat/completions endpoints
+        if path in ("chat/completions", "completions"):
+            await _auto_switch_if_needed(body)
+
     async with httpx.AsyncClient() as client:
         url = f"http://localhost:{settings.vllm_port}/v1/{path}"
 
@@ -331,7 +395,6 @@ async def proxy_to_backend(path: str, request: Request):
             if request.method == "GET":
                 response = await client.get(url, timeout=120.0)
             else:
-                body = await request.body()
                 response = await client.request(
                     method=request.method,
                     url=url,
