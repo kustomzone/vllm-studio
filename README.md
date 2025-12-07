@@ -1,6 +1,14 @@
 # vLLM Studio
 
-Model management API for vLLM and SGLang inference servers. Launch, switch, and manage LLM models via HTTP API.
+Model management API for vLLM and SGLang inference servers. Launch, switch, and manage LLM models via HTTP API with a web dashboard.
+
+## Features
+
+- **Web Dashboard** - Visual model management at http://localhost:8080
+- **Recipe System** - JSON-based launch configurations
+- **Hot Switching** - Switch models without stopping the server
+- **Proxy Integration** - Anthropic/OpenAI format translation
+- **OpenWebUI Ready** - Chat with models via web interface
 
 ## Quick Start
 
@@ -11,9 +19,33 @@ Model management API for vLLM and SGLang inference servers. Launch, switch, and 
 # Run
 ./run.sh
 
-# Or with options
-python -m vllmstudio.cli --port 8080 --vllm-port 8000
+# Open dashboard
+open http://localhost:8080
+
+# (Optional) Start chat UI
+docker-compose up -d
+open http://localhost:3000
 ```
+
+## Web Dashboard
+
+Access the dashboard at **http://localhost:8080** to:
+
+- View currently running model with stats
+- See all recipes with running/stopped status
+- Launch/switch models with one click
+- Create, edit, and delete recipes
+- Monitor system health
+
+## Chat Interface (OpenWebUI)
+
+Start the chat UI with Docker:
+
+```bash
+docker-compose up -d
+```
+
+Open http://localhost:3000 to chat with your models. OpenWebUI connects to vLLM Studio's proxy endpoint automatically.
 
 ## Configuration
 
