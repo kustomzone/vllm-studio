@@ -1,0 +1,16 @@
+{
+  "id": "minimax-m2-sglang",
+  "name": "MiniMax-M2 AWQ 4bit (SGLang TP8)",
+  "model_path": "/mnt/llm_models/MiniMax-M2-AWQ-4bit",
+  "backend": "sglang",
+  "tensor_parallel_size": 8,
+  "max_model_len": 196608,
+  "gpu_memory_utilization": 0.80,
+  "trust_remote_code": true,
+  "host": "0.0.0.0",
+  "port": 8000,
+  "extra_args": {
+    "kv-cache-dtype": "auto",
+    "chunked-prefill-size": 4096
+  }
+}

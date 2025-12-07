@@ -1,0 +1,7 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+*.log
+.pkl_memoize_py3/
+*.egg-info/
