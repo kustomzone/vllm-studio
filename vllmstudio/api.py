@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -322,7 +322,7 @@ async def wait_for_ready(timeout: int = 300):
 # =============================================================================
 
 @app.api_route("/v1/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
-async def proxy_to_backend(path: str, request):
+async def proxy_to_backend(path: str, request: Request):
     """Proxy requests to the backend inference server."""
     async with httpx.AsyncClient() as client:
         url = f"http://localhost:{settings.vllm_port}/v1/{path}"
