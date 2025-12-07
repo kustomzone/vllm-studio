@@ -366,11 +366,11 @@
 				<div class="space-y-2">
 					<div class="flex items-center justify-between">
 						<span class="text-sm text-gray-600 dark:text-gray-400">Prompt Throughput</span>
-						<span class="text-sm font-medium text-gray-900 dark:text-white">{formatThroughput(metrics.avg_prompt_throughput)}</span>
+						<span class="text-sm font-medium text-gray-900 dark:text-white">{formatThroughput(metrics.prompt_throughput)}</span>
 					</div>
 					<div class="flex items-center justify-between">
 						<span class="text-sm text-gray-600 dark:text-gray-400">Generation</span>
-						<span class="text-sm font-medium text-gray-900 dark:text-white">{formatThroughput(metrics.avg_generation_throughput)}</span>
+						<span class="text-sm font-medium text-gray-900 dark:text-white">{formatThroughput(metrics.generation_throughput)}</span>
 					</div>
 					<div class="flex items-center justify-between">
 						<span class="text-sm text-gray-600 dark:text-gray-400">Running / Pending</span>
@@ -378,10 +378,22 @@
 							{metrics.running_requests ?? 0} / {metrics.pending_requests ?? 0}
 						</span>
 					</div>
-					{#if metrics.gpu_cache_usage !== null && metrics.gpu_cache_usage !== undefined}
+					{#if metrics.kv_cache_usage !== null && metrics.kv_cache_usage !== undefined}
 						<div class="flex items-center justify-between">
 							<span class="text-sm text-gray-600 dark:text-gray-400">KV Cache</span>
-							<span class="text-sm font-medium text-gray-900 dark:text-white">{(metrics.gpu_cache_usage * 100).toFixed(1)}%</span>
+							<span class="text-sm font-medium text-gray-900 dark:text-white">{metrics.kv_cache_usage.toFixed(1)}%</span>
+						</div>
+					{/if}
+					{#if metrics.avg_ttft_ms}
+						<div class="flex items-center justify-between">
+							<span class="text-sm text-gray-600 dark:text-gray-400">Avg TTFT</span>
+							<span class="text-sm font-medium text-gray-900 dark:text-white">{metrics.avg_ttft_ms.toFixed(0)} ms</span>
+						</div>
+					{/if}
+					{#if metrics.prefix_cache_hit_rate !== null && metrics.prefix_cache_hit_rate !== undefined}
+						<div class="flex items-center justify-between">
+							<span class="text-sm text-gray-600 dark:text-gray-400">Prefix Cache Hit</span>
+							<span class="text-sm font-medium text-gray-900 dark:text-white">{metrics.prefix_cache_hit_rate.toFixed(1)}%</span>
 						</div>
 					{/if}
 				</div>

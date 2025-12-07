@@ -280,3 +280,265 @@ async def get_performance_metrics():
             return resp.json()
         except Exception as e:
             raise HTTPException(status_code=503, detail=str(e))
+
+
+# ============================================
+# Model Browser
+# ============================================
+
+@router.get("/browser")
+async def browse_models(path: str = None):
+    """Browse models in the models directory."""
+    async with httpx.AsyncClient() as client:
+        try:
+            params = {"path": path} if path else {}
+            resp = await client.get(f"{VLLM_STUDIO_URL}/browser", params=params, timeout=30.0)
+            return resp.json()
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+
+# ============================================
+# Recipe Import/Export
+# ============================================
+
+@router.get("/recipes/{recipe_id}/export")
+async def export_recipe(recipe_id: str, format: str = "json"):
+    """Export a recipe as JSON or YAML."""
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(
+                f"{VLLM_STUDIO_URL}/recipes/{recipe_id}/export",
+                params={"format": format},
+                timeout=5.0
+            )
+            return resp.json()
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.post("/recipes/import")
+async def import_recipe(data: dict, format: str = "json"):
+    """Import a recipe from JSON or YAML."""
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(
+                f"{VLLM_STUDIO_URL}/recipes/import",
+                json=data,
+                params={"format": format},
+                timeout=5.0
+            )
+            if resp.status_code == 409:
+                raise HTTPException(status_code=409, detail="Recipe already exists")
+            return resp.json()
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.get("/recipes/export-all")
+async def export_all_recipes(format: str = "json"):
+    """Export all recipes as a bundle."""
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(
+                f"{VLLM_STUDIO_URL}/recipes/export-all",
+                params={"format": format},
+                timeout=10.0
+            )
+            return resp.json()
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+
+# ============================================
+# Auto Recipe Generator
+# ============================================
+
+@router.post("/generate-recipe")
+async def generate_recipe(model_path: str, name: str = None):
+    """Auto-generate an optimized recipe for a model."""
+    async with httpx.AsyncClient() as client:
+        try:
+            params = {"model_path": model_path}
+            if name:
+                params["name"] = name
+            resp = await client.post(
+                f"{VLLM_STUDIO_URL}/generate-recipe",
+                params=params,
+                timeout=30.0
+            )
+            return resp.json()
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+
+# ============================================
+# FP8 KV Cache Advisor
+# ============================================
+
+@router.get("/fp8-advisor")
+async def fp8_kv_advisor(model_path: str = None):
+    """Get FP8 KV cache recommendations."""
+    async with httpx.AsyncClient() as client:
+        try:
+            params = {"model_path": model_path} if model_path else {}
+            resp = await client.get(
+                f"{VLLM_STUDIO_URL}/fp8-advisor",
+                params=params,
+                timeout=10.0
+            )
+            return resp.json()
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+
+# ============================================
+# VRAM Calculator
+# ============================================
+
+@router.get("/vram-calculator")
+async def calculate_vram(
+    model_path: str = None,
+    context_length: int = 32768,
+    batch_size: int = 12,
+    tp_size: int = 1,
+    quantization: str = "auto"
+):
+    """Estimate VRAM usage for a model configuration."""
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(
+                f"{VLLM_STUDIO_URL}/vram-calculator",
+                params={
+                    "model_path": model_path,
+                    "context_length": context_length,
+                    "batch_size": batch_size,
+                    "tp_size": tp_size,
+                    "quantization": quantization
+                },
+                timeout=10.0
+            )
+            return resp.json()
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+
+# ============================================
+# Model Compatibility
+# ============================================
+
+@router.get("/compatibility")
+async def check_compatibility(model_path: str):
+    """Check model compatibility with backends."""
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(
+                f"{VLLM_STUDIO_URL}/compatibility",
+                params={"model_path": model_path},
+                timeout=10.0
+            )
+            return resp.json()
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+
+# ============================================
+# Quick Launch Presets
+# ============================================
+
+@router.get("/presets")
+async def list_presets():
+    """List available quick-launch presets."""
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(f"{VLLM_STUDIO_URL}/presets", timeout=5.0)
+            return resp.json()
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.post("/recipes/{recipe_id}/apply-preset")
+async def apply_preset(recipe_id: str, preset_name: str):
+    """Apply a preset to a recipe."""
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(
+                f"{VLLM_STUDIO_URL}/recipes/{recipe_id}/apply-preset",
+                params={"preset_name": preset_name},
+                timeout=5.0
+            )
+            return resp.json()
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+
+# ============================================
+# Benchmark
+# ============================================
+
+@router.post("/benchmark")
+async def run_benchmark(
+    prompt: str = "Write a detailed essay about artificial intelligence.",
+    max_tokens: int = 256,
+    num_requests: int = 5,
+    concurrent: int = 1
+):
+    """Run inference benchmark on current model."""
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(
+                f"{VLLM_STUDIO_URL}/benchmark",
+                params={
+                    "prompt": prompt,
+                    "max_tokens": max_tokens,
+                    "num_requests": num_requests,
+                    "concurrent": concurrent
+                },
+                timeout=300.0  # Long timeout for benchmark
+            )
+            return resp.json()
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+
+# ============================================
+# Health Monitor
+# ============================================
+
+@router.get("/health-history")
+async def get_health_history(limit: int = 100):
+    """Get health/metrics history."""
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(
+                f"{VLLM_STUDIO_URL}/health-history",
+                params={"limit": limit},
+                timeout=5.0
+            )
+            return resp.json()
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.post("/health-sample")
+async def record_health_sample():
+    """Record a health sample."""
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(f"{VLLM_STUDIO_URL}/health-sample", timeout=10.0)
+            return resp.json()
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.get("/health-summary")
+async def get_health_summary():
+    """Get health summary."""
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(f"{VLLM_STUDIO_URL}/health-summary", timeout=5.0)
+            return resp.json()
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=str(e))
