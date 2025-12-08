@@ -80,6 +80,10 @@
 	let compatCheck: CompatibilityCheck | null = null;
 	let toolsModelPath = '';
 	let toolsLoading = false;
+	let toolsTpSize = 8; // Default to 8 GPUs, will auto-detect
+	let toolsContextLen = 32768;
+	let toolsBatchSize = 12;
+	let toolsKvCacheDtype: 'fp16' | 'fp8' = 'fp16';
 
 	// Presets state
 	let presets: Record<string, Preset> = {};
@@ -155,6 +159,10 @@
 			logFiles = logsData?.logs || [];
 			gpus = gpuData?.gpus || [];
 			metrics = metricsData;
+			// Auto-set TP size based on detected GPUs
+			if (gpus.length > 0) {
+				toolsTpSize = gpus.length;
+			}
 		} catch (error) {
 			console.error('Failed to load data:', error);
 		} finally {
@@ -332,7 +340,7 @@
 		try {
 			const [fp8, vram, compat] = await Promise.all([
 				getFP8Advice(localStorage.token || '', toolsModelPath).catch(() => null),
-				calculateVRAM(localStorage.token || '', toolsModelPath).catch(() => null),
+				calculateVRAM(localStorage.token || '', toolsModelPath, toolsContextLen, toolsBatchSize, toolsTpSize, 'auto', toolsKvCacheDtype).catch(() => null),
 				checkCompatibility(localStorage.token || '', toolsModelPath).catch(() => null)
 			]);
 			fp8Advice = fp8;
@@ -342,6 +350,16 @@
 			toast.error($i18n.t('Failed to analyze model'));
 		} finally {
 			toolsLoading = false;
+		}
+	}
+
+	// Reactive recalculation when settings change
+	async function recalculateVRAM() {
+		if (!toolsModelPath || !vramCalc) return;
+		try {
+			vramCalc = await calculateVRAM(localStorage.token || '', toolsModelPath, toolsContextLen, toolsBatchSize, toolsTpSize, 'auto', toolsKvCacheDtype);
+		} catch (error) {
+			console.error('Failed to recalculate VRAM:', error);
 		}
 	}
 
@@ -892,12 +910,12 @@
 		{/if}
 	</div>
 {:else if activeTab === 'tools'}
-	<!-- Tools Tab -->
-	<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-		<!-- Model Analyzer -->
+	<!-- Tools Tab - LMStudio-style VRAM Estimator -->
+	<div class="space-y-4">
+		<!-- Model Selection & Configuration -->
 		<div class="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30 p-4">
-			<div class="text-sm font-medium text-gray-900 dark:text-white mb-4">Model Analyzer</div>
-			<div class="space-y-3">
+			<div class="text-sm font-medium text-gray-900 dark:text-white mb-4">VRAM Estimator</div>
+			<div class="space-y-4">
 				<div>
 					<label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Model Path</label>
 					<input
@@ -907,19 +925,271 @@
 						class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white text-sm"
 					/>
 				</div>
-				<button
-					on:click={analyzeModel}
-					disabled={!toolsModelPath || toolsLoading}
-					class="w-full px-3 py-2 bg-black text-white dark:bg-white dark:text-black rounded-xl font-medium text-sm hover:opacity-80 transition disabled:opacity-50"
-				>
-					{toolsLoading ? 'Analyzing...' : 'Analyze Model'}
-				</button>
-			</div>
 
+				<!-- Interactive Sliders -->
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+					<!-- Context Length Slider -->
+					<div>
+						<div class="flex items-center justify-between mb-2">
+							<label class="text-sm text-gray-600 dark:text-gray-400">Context Length</label>
+							<span class="text-sm font-medium text-gray-900 dark:text-white">{(toolsContextLen / 1024).toFixed(0)}k tokens</span>
+						</div>
+						<input
+							type="range"
+							bind:value={toolsContextLen}
+							min="4096"
+							max="262144"
+							step="4096"
+							on:change={recalculateVRAM}
+							class="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+						/>
+						<div class="flex justify-between text-xs text-gray-400 mt-1">
+							<span>4k</span>
+							<span>32k</span>
+							<span>64k</span>
+							<span>128k</span>
+							<span>256k</span>
+						</div>
+					</div>
+
+					<!-- GPU Count Slider -->
+					<div>
+						<div class="flex items-center justify-between mb-2">
+							<label class="text-sm text-gray-600 dark:text-gray-400">GPUs (Tensor Parallel)</label>
+							<span class="text-sm font-medium text-gray-900 dark:text-white">{toolsTpSize} GPU{toolsTpSize > 1 ? 's' : ''}</span>
+						</div>
+						<input
+							type="range"
+							bind:value={toolsTpSize}
+							min="1"
+							max="8"
+							step="1"
+							on:change={recalculateVRAM}
+							class="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+						/>
+						<div class="flex justify-between text-xs text-gray-400 mt-1">
+							<span>1</span>
+							<span>2</span>
+							<span>4</span>
+							<span>6</span>
+							<span>8</span>
+						</div>
+					</div>
+				</div>
+
+				<div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+					<!-- Batch Size -->
+					<div>
+						<label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Batch Size (max_num_seqs)</label>
+						<input
+							type="number"
+							bind:value={toolsBatchSize}
+							min="1"
+							max="256"
+							on:change={recalculateVRAM}
+							class="w-full px-2 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm"
+						/>
+					</div>
+
+					<!-- KV Cache Dtype Toggle -->
+					<div>
+						<label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">KV Cache Precision</label>
+						<div class="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+							<button
+								on:click={() => { toolsKvCacheDtype = 'fp16'; recalculateVRAM(); }}
+								class="flex-1 px-3 py-1.5 text-xs font-medium transition {toolsKvCacheDtype === 'fp16' ? 'bg-blue-600 text-white' : 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}"
+							>
+								FP16
+							</button>
+							<button
+								on:click={() => { toolsKvCacheDtype = 'fp8'; recalculateVRAM(); }}
+								class="flex-1 px-3 py-1.5 text-xs font-medium transition {toolsKvCacheDtype === 'fp8' ? 'bg-green-600 text-white' : 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}"
+							>
+								FP8 (50% less)
+							</button>
+						</div>
+					</div>
+
+					<!-- Analyze Button -->
+					<div class="flex items-end">
+						<button
+							on:click={analyzeModel}
+							disabled={!toolsModelPath || toolsLoading}
+							class="w-full px-3 py-1.5 bg-black text-white dark:bg-white dark:text-black rounded-lg font-medium text-sm hover:opacity-80 transition disabled:opacity-50"
+						>
+							{toolsLoading ? 'Analyzing...' : 'Analyze'}
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		{#if vramCalc}
+			<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+				<!-- VRAM Breakdown -->
+				<div class="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30 p-4">
+					<div class="flex items-center justify-between mb-4">
+						<div class="text-sm font-medium text-gray-900 dark:text-white">VRAM Breakdown</div>
+						<span class="px-2 py-0.5 text-xs font-medium rounded-full {vramCalc.fits ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}">
+							{vramCalc.fits ? 'Fits in VRAM' : 'Exceeds VRAM'}
+						</span>
+					</div>
+
+					<!-- Visual VRAM Bar -->
+					<div class="mb-4">
+						<div class="h-8 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden flex">
+							{@const weightsPercent = ((vramCalc.breakdown?.model_weights_gb || 0) / (vramCalc.breakdown?.total_gb || 1)) * Math.min(vramCalc.utilization_percent, 100)}
+							{@const kvPercent = ((vramCalc.breakdown?.kv_cache_gb || 0) / (vramCalc.breakdown?.total_gb || 1)) * Math.min(vramCalc.utilization_percent, 100)}
+							{@const actPercent = ((vramCalc.breakdown?.activations_gb || 0) / (vramCalc.breakdown?.total_gb || 1)) * Math.min(vramCalc.utilization_percent, 100)}
+							<div class="bg-blue-500 h-full" style="width: {weightsPercent}%" title="Model Weights"></div>
+							<div class="bg-purple-500 h-full" style="width: {kvPercent}%" title="KV Cache"></div>
+							<div class="bg-orange-500 h-full" style="width: {actPercent}%" title="Activations"></div>
+						</div>
+						<div class="flex items-center justify-center gap-4 mt-2 text-xs">
+							<div class="flex items-center gap-1"><div class="w-3 h-3 bg-blue-500 rounded"></div> Weights</div>
+							<div class="flex items-center gap-1"><div class="w-3 h-3 bg-purple-500 rounded"></div> KV Cache</div>
+							<div class="flex items-center gap-1"><div class="w-3 h-3 bg-orange-500 rounded"></div> Activations</div>
+						</div>
+					</div>
+
+					<div class="space-y-2 text-sm">
+						<div class="flex justify-between">
+							<span class="text-gray-500">Model Weights</span>
+							<span class="text-gray-900 dark:text-white font-medium">{vramCalc.breakdown?.model_weights_gb?.toFixed(1)} GB</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-gray-500">KV Cache ({toolsKvCacheDtype.toUpperCase()})</span>
+							<span class="text-gray-900 dark:text-white font-medium">{vramCalc.breakdown?.kv_cache_gb?.toFixed(1)} GB</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-gray-500">Activations</span>
+							<span class="text-gray-900 dark:text-white font-medium">{vramCalc.breakdown?.activations_gb?.toFixed(1)} GB</span>
+						</div>
+						<div class="flex justify-between font-medium border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
+							<span class="text-gray-700 dark:text-gray-300">Total Required</span>
+							<span class="text-gray-900 dark:text-white">{vramCalc.breakdown?.total_gb?.toFixed(1)} GB</span>
+						</div>
+						<div class="flex justify-between text-xs bg-gray-50 dark:bg-gray-800 rounded-lg p-2">
+							<span class="text-gray-500">Per GPU ({vramCalc.tp_size} x RTX 3090)</span>
+							<span class="{(vramCalc.breakdown?.per_gpu_gb || 0) > (vramCalc.gpu_info?.memory_per_gpu_gb || 24) ? 'text-red-500 font-bold' : 'text-green-600 dark:text-green-400 font-medium'}">
+								{vramCalc.breakdown?.per_gpu_gb?.toFixed(1)} GB / {vramCalc.gpu_info?.memory_per_gpu_gb || 24} GB
+							</span>
+						</div>
+					</div>
+
+					<!-- Utilization Gauge -->
+					<div class="mt-4">
+						<div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+							<span>GPU Utilization</span>
+							<span class="{vramCalc.utilization_percent > 95 ? 'text-red-500' : vramCalc.utilization_percent > 85 ? 'text-yellow-500' : 'text-green-500'} font-medium">
+								{vramCalc.utilization_percent?.toFixed(1)}%
+							</span>
+						</div>
+						<div class="h-3 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+							<div
+								class="h-full rounded-full transition-all {vramCalc.utilization_percent > 95 ? 'bg-red-500' : vramCalc.utilization_percent > 85 ? 'bg-yellow-500' : 'bg-green-500'}"
+								style="width: {Math.min(vramCalc.utilization_percent, 100)}%"
+							></div>
+						</div>
+					</div>
+
+					{#if vramCalc.recommendations && vramCalc.recommendations.length > 0}
+						<div class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+							<div class="text-xs font-medium text-blue-700 dark:text-blue-400 mb-1">Recommendations</div>
+							<ul class="text-xs text-blue-600 dark:text-blue-300 space-y-1">
+								{#each vramCalc.recommendations as rec}
+									<li>• {rec}</li>
+								{/each}
+							</ul>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Context Length Comparison Table (LMStudio-style) -->
+				<div class="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30 p-4">
+					<div class="text-sm font-medium text-gray-900 dark:text-white mb-4">Context Length Options</div>
+
+					{#if vramCalc.context_configs && vramCalc.context_configs.length > 0}
+						<div class="overflow-x-auto">
+							<table class="w-full text-sm">
+								<thead>
+									<tr class="text-xs text-gray-500 border-b border-gray-200 dark:border-gray-700">
+										<th class="text-left py-2 font-medium">Context</th>
+										<th class="text-right py-2 font-medium">KV Cache</th>
+										<th class="text-right py-2 font-medium">Total</th>
+										<th class="text-right py-2 font-medium">Per GPU</th>
+										<th class="text-center py-2 font-medium">Status</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each vramCalc.context_configs as config}
+										<tr class="border-b border-gray-100 dark:border-gray-800 {config.context_length === toolsContextLen ? 'bg-blue-50 dark:bg-blue-900/20' : ''} hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer"
+											on:click={() => { toolsContextLen = config.context_length; recalculateVRAM(); }}
+										>
+											<td class="py-2 font-medium text-gray-900 dark:text-white">
+												{(config.context_length / 1024).toFixed(0)}k
+												{#if config.context_length === toolsContextLen}
+													<span class="ml-1 text-xs text-blue-500">selected</span>
+												{/if}
+											</td>
+											<td class="py-2 text-right text-gray-600 dark:text-gray-400">{config.kv_cache_gb.toFixed(1)} GB</td>
+											<td class="py-2 text-right text-gray-600 dark:text-gray-400">{config.total_gb.toFixed(1)} GB</td>
+											<td class="py-2 text-right {config.per_gpu_gb > (vramCalc.gpu_info?.memory_per_gpu_gb || 24) ? 'text-red-500 font-medium' : 'text-gray-600 dark:text-gray-400'}">{config.per_gpu_gb.toFixed(1)} GB</td>
+											<td class="py-2 text-center">
+												{#if config.fits}
+													<span class="inline-flex items-center justify-center w-5 h-5 bg-green-100 dark:bg-green-900/30 rounded-full">
+														<svg class="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+														</svg>
+													</span>
+												{:else}
+													<span class="inline-flex items-center justify-center w-5 h-5 bg-red-100 dark:bg-red-900/30 rounded-full">
+														<svg class="w-3 h-3 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12" />
+														</svg>
+													</span>
+												{/if}
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{:else}
+						<div class="text-center py-4 text-gray-500 text-sm">
+							Context configurations will appear after analysis
+						</div>
+					{/if}
+
+					<!-- Model Info -->
+					{#if vramCalc.model_info}
+						<div class="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+							<div class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Model Architecture</div>
+							<div class="grid grid-cols-2 gap-2 text-xs text-gray-500">
+								<div>Layers: {vramCalc.model_info.num_layers}</div>
+								<div>Hidden: {vramCalc.model_info.hidden_size}</div>
+								<div>KV Heads: {vramCalc.model_info.num_kv_heads}</div>
+								<div>Head Dim: {vramCalc.model_info.head_dim}</div>
+								{#if vramCalc.model_info.num_experts && vramCalc.model_info.num_experts > 1}
+									<div>Experts: {vramCalc.model_info.num_experts}</div>
+								{/if}
+								<div>Max Context: {(vramCalc.model_info.max_context / 1024).toFixed(0)}k</div>
+							</div>
+							<div class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500">
+								KV bytes/token ({toolsKvCacheDtype.toUpperCase()}): {vramCalc.model_info.kv_bytes_per_token?.toLocaleString()} bytes
+							</div>
+						</div>
+					{/if}
+				</div>
+			</div>
+		{/if}
+
+		<!-- FP8 Advice & Compatibility Row -->
+		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 			<!-- FP8 Advice -->
 			{#if fp8Advice}
-				<div class="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
-					<div class="font-medium text-sm mb-2 {fp8Advice.fp8_kv_recommended ? 'text-green-600' : 'text-yellow-600'}">
+				<div class="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30 p-4">
+					<div class="font-medium text-sm mb-3 {fp8Advice.fp8_kv_recommended ? 'text-green-600' : 'text-yellow-600'}">
 						FP8 KV Cache: {fp8Advice.fp8_kv_recommended ? 'Recommended' : 'Not Recommended'}
 					</div>
 					{#if fp8Advice.reasons && fp8Advice.reasons.length > 0}
@@ -939,92 +1209,42 @@
 
 			<!-- Compatibility -->
 			{#if compatCheck}
-				<div class="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
-					<div class="font-medium text-sm mb-2">Backend Compatibility</div>
-					<div class="grid grid-cols-2 gap-2 text-xs">
-						<div class="flex items-center gap-2">
-							<div class="w-2 h-2 rounded-full {compatCheck.vllm_compatible ? 'bg-green-500' : 'bg-red-500'}"></div>
-							vLLM: {compatCheck.vllm_compatible ? 'Yes' : 'No'}
+				<div class="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30 p-4">
+					<div class="font-medium text-sm mb-3 text-gray-900 dark:text-white">Backend Compatibility</div>
+					<div class="grid grid-cols-2 gap-3 text-sm">
+						<div class="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
+							<div class="w-3 h-3 rounded-full {compatCheck.vllm_compatible ? 'bg-green-500' : 'bg-red-500'}"></div>
+							<span class="text-gray-700 dark:text-gray-300">vLLM</span>
 						</div>
-						<div class="flex items-center gap-2">
-							<div class="w-2 h-2 rounded-full {compatCheck.sglang_compatible ? 'bg-green-500' : 'bg-red-500'}"></div>
-							SGLang: {compatCheck.sglang_compatible ? 'Yes' : 'No'}
+						<div class="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
+							<div class="w-3 h-3 rounded-full {compatCheck.sglang_compatible ? 'bg-green-500' : 'bg-red-500'}"></div>
+							<span class="text-gray-700 dark:text-gray-300">SGLang</span>
 						</div>
 					</div>
 					{#if compatCheck.recommended_backend}
-						<div class="text-xs text-gray-500 mt-2">
-							Recommended: {compatCheck.recommended_backend}
+						<div class="text-xs text-gray-500 mt-3">
+							Recommended: <span class="font-medium text-blue-600">{compatCheck.recommended_backend}</span>
 						</div>
 					{/if}
 				</div>
 			{/if}
-		</div>
 
-		<!-- VRAM Calculator -->
-		<div class="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30 p-4">
-			<div class="text-sm font-medium text-gray-900 dark:text-white mb-4">VRAM Estimation</div>
-			{#if vramCalc}
-				<div class="space-y-3">
-					<div class="flex items-center justify-between">
-						<span class="text-sm text-gray-600 dark:text-gray-400">Status</span>
-						<span class="px-2 py-0.5 text-xs font-medium rounded-full {vramCalc.fits ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}">
-							{vramCalc.fits ? 'Fits' : 'Does Not Fit'}
-						</span>
-					</div>
-					<div class="space-y-2 text-sm">
-						<div class="flex justify-between">
-							<span class="text-gray-500">Model Weights</span>
-							<span class="text-gray-900 dark:text-white">{vramCalc.breakdown?.model_weights_gb?.toFixed(1)} GB</span>
+			<!-- Presets -->
+			<div class="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30 p-4">
+				<div class="text-sm font-medium text-gray-900 dark:text-white mb-3">Quick Presets</div>
+				<div class="space-y-2">
+					{#each Object.entries(presets).slice(0, 3) as [key, preset]}
+						<div class="p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
+							<div class="font-medium text-xs text-gray-900 dark:text-white">{preset.name}</div>
+							<div class="text-xs text-gray-500 truncate">{preset.description}</div>
 						</div>
-						<div class="flex justify-between">
-							<span class="text-gray-500">KV Cache</span>
-							<span class="text-gray-900 dark:text-white">{vramCalc.breakdown?.kv_cache_gb?.toFixed(1)} GB</span>
+					{/each}
+					{#if Object.keys(presets).length === 0}
+						<div class="text-center py-2 text-gray-500 text-xs">
+							No presets available
 						</div>
-						<div class="flex justify-between">
-							<span class="text-gray-500">Activations</span>
-							<span class="text-gray-900 dark:text-white">{vramCalc.breakdown?.activations_gb?.toFixed(1)} GB</span>
-						</div>
-						<div class="flex justify-between font-medium border-t border-gray-200 dark:border-gray-700 pt-2">
-							<span class="text-gray-700 dark:text-gray-300">Total</span>
-							<span class="text-gray-900 dark:text-white">{vramCalc.breakdown?.total_gb?.toFixed(1)} GB</span>
-						</div>
-						<div class="flex justify-between text-xs">
-							<span class="text-gray-500">Per GPU ({vramCalc.tp_size} GPUs)</span>
-							<span class="text-gray-600 dark:text-gray-400">{vramCalc.breakdown?.per_gpu_gb?.toFixed(1)} GB / {vramCalc.gpu_info?.memory_per_gpu_gb} GB</span>
-						</div>
-					</div>
-					<div class="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-						<div
-							class="h-full rounded-full transition-all {vramCalc.utilization_percent > 90 ? 'bg-red-500' : vramCalc.utilization_percent > 70 ? 'bg-yellow-500' : 'bg-green-500'}"
-							style="width: {Math.min(vramCalc.utilization_percent, 100)}%"
-						></div>
-					</div>
-					<div class="text-xs text-center text-gray-500">
-						{vramCalc.utilization_percent?.toFixed(1)}% utilization
-					</div>
+					{/if}
 				</div>
-			{:else}
-				<div class="text-center py-8 text-gray-500 text-sm">
-					Enter a model path and click Analyze to see VRAM estimation
-				</div>
-			{/if}
-		</div>
-
-		<!-- Presets -->
-		<div class="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30 p-4">
-			<div class="text-sm font-medium text-gray-900 dark:text-white mb-4">Quick Launch Presets</div>
-			<div class="grid grid-cols-1 gap-2">
-				{#each Object.entries(presets) as [key, preset]}
-					<div class="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
-						<div class="font-medium text-sm text-gray-900 dark:text-white">{preset.name}</div>
-						<div class="text-xs text-gray-500 mt-1">{preset.description}</div>
-					</div>
-				{/each}
-				{#if Object.keys(presets).length === 0}
-					<div class="text-center py-4 text-gray-500 text-sm">
-						No presets available
-					</div>
-				{/if}
 			</div>
 		</div>
 	</div>

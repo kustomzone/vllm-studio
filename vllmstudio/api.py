@@ -1018,9 +1018,10 @@ async def calculate_vram(
     context_length: int = 32768,
     batch_size: int = 12,
     tp_size: int = 1,
-    quantization: str = "auto"
+    quantization: str = "auto",
+    kv_cache_dtype: str = "fp16"  # fp16, fp8
 ):
-    """Estimate VRAM usage for a model configuration."""
+    """Estimate VRAM usage for a model configuration (LMStudio-style)."""
     import json as json_lib
     from pathlib import Path
 
@@ -1044,79 +1045,109 @@ async def calculate_vram(
     vocab_size = config.get("vocab_size", 32000)
     intermediate_size = config.get("intermediate_size", hidden_size * 4)
     num_experts = config.get("num_experts") or config.get("num_local_experts", 0)
-    head_dim = hidden_size // num_heads
+    head_dim = config.get("head_dim", hidden_size // num_heads)
+    max_position_embeddings = config.get("max_position_embeddings", 32768)
 
     # Detect quantization from model name
     name_lower = model_dir.name.lower()
     if quantization == "auto":
         if "awq" in name_lower or "int4" in name_lower or "w4a16" in name_lower:
             quantization = "int4"
-        elif "int8" in name_lower:
+        elif "gptq" in name_lower:
+            quantization = "gptq"
+        elif "int8" in name_lower or "w8a8" in name_lower:
             quantization = "int8"
         elif "fp8" in name_lower:
             quantization = "fp8"
         else:
             quantization = "fp16"
 
-    bytes_per_param = {"int4": 0.5, "int8": 1, "fp8": 1, "fp16": 2, "bf16": 2, "fp32": 4}.get(quantization, 2)
+    bytes_per_param = {"int4": 0.5, "gptq": 0.5, "int8": 1, "fp8": 1, "fp16": 2, "bf16": 2, "fp32": 4}.get(quantization, 2)
 
-    # Calculate model weights size
-    # Attention: Q, K, V, O projections
-    attention_params = num_layers * (4 * hidden_size * hidden_size)
-    # MLP: gate, up, down
-    mlp_params = num_layers * (3 * hidden_size * intermediate_size)
-    if num_experts > 0:
-        mlp_params *= num_experts
-    # Embeddings
-    embedding_params = vocab_size * hidden_size * 2  # input + output
+    # Calculate model weights size using actual file size if available
+    model_files = list(model_dir.glob("*.safetensors")) + list(model_dir.glob("*.bin"))
+    if model_files:
+        actual_model_size_gb = sum(f.stat().st_size for f in model_files) / (1024**3)
+    else:
+        # Estimate from parameters
+        attention_params = num_layers * (4 * hidden_size * hidden_size)
+        mlp_params = num_layers * (3 * hidden_size * intermediate_size)
+        if num_experts > 0:
+            mlp_params *= num_experts
+        embedding_params = vocab_size * hidden_size * 2
+        total_params = attention_params + mlp_params + embedding_params
+        actual_model_size_gb = (total_params * bytes_per_param) / (1024**3)
 
-    total_params = attention_params + mlp_params + embedding_params
-    model_size_gb = (total_params * bytes_per_param) / (1024**3)
+    # Calculate KV cache size (formula: 2 * num_layers * num_kv_heads * head_dim * bytes_per_element)
+    # The "2" accounts for both K and V tensors
+    kv_bytes_per_element = 1 if kv_cache_dtype == "fp8" else 2  # FP8 = 1 byte, FP16 = 2 bytes
+    kv_bytes_per_token = 2 * num_layers * num_kv_heads * head_dim * kv_bytes_per_element
 
-    # Calculate KV cache size
-    kv_bytes_per_token = 2 * num_layers * num_kv_heads * head_dim * 2  # 2 bytes for FP16
+    # Total KV cache = per_token * context_length * max_concurrent_sequences
     kv_cache_size_gb = (kv_bytes_per_token * context_length * batch_size) / (1024**3)
 
-    # Activation memory (rough estimate)
-    activation_gb = (hidden_size * context_length * batch_size * 2 * 4) / (1024**3)  # 4 layers of activations
+    # Activation memory (more accurate estimate based on batch size and hidden size)
+    # Activations are typically 2-4x hidden_size per token during forward pass
+    activation_gb = (hidden_size * batch_size * 4 * 2) / (1024**3)  # Much smaller than before
 
-    # CUDA kernels and overhead
-    overhead_gb = 2.0
+    # CUDA kernels, graph memory, and runtime overhead
+    overhead_gb = 1.5 + (0.2 * tp_size)  # Base + per-GPU overhead
 
-    total_vram = model_size_gb + kv_cache_size_gb + activation_gb + overhead_gb
+    total_vram = actual_model_size_gb + kv_cache_size_gb + activation_gb + overhead_gb
     per_gpu_vram = total_vram / tp_size
 
     # Get available GPU memory
     gpu_info = await get_gpu_info()
     gpus = gpu_info.get("gpus", [])
-    available_per_gpu = gpus[0].get("memory_total_mb", 48000) / 1024 if gpus else 48
+    available_per_gpu = gpus[0].get("memory_total_mb", 24000) / 1024 if gpus else 24
 
     # Calculate if it fits
-    fits = per_gpu_vram < available_per_gpu * 0.92
+    fits = per_gpu_vram < available_per_gpu * 0.95
 
     # Recommendations
     recommendations = []
     if not fits:
         if tp_size < len(gpus):
             recommendations.append(f"Increase TP to {min(len(gpus), tp_size * 2)} GPUs")
+        if kv_cache_dtype == "fp16":
+            savings = kv_cache_size_gb / 2
+            recommendations.append(f"Use FP8 KV cache (saves ~{savings:.1f} GB)")
         if context_length > 32768:
             recommendations.append(f"Reduce context length to {context_length // 2}")
         if quantization == "fp16":
-            recommendations.append("Use AWQ/GPTQ quantized version (INT4)")
+            recommendations.append("Use AWQ/GPTQ quantized version")
         if batch_size > 4:
-            recommendations.append(f"Reduce batch size to {batch_size // 2}")
+            recommendations.append(f"Reduce max_num_seqs to {batch_size // 2}")
+
+    # Calculate configs for different context lengths (LMStudio-style comparison)
+    context_options = [4096, 8192, 16384, 32768, 65536, 131072]
+    context_configs = []
+    for ctx in context_options:
+        if ctx <= max_position_embeddings:
+            ctx_kv = (kv_bytes_per_token * ctx * batch_size) / (1024**3)
+            ctx_total = actual_model_size_gb + ctx_kv + activation_gb + overhead_gb
+            ctx_per_gpu = ctx_total / tp_size
+            context_configs.append({
+                "context_length": ctx,
+                "kv_cache_gb": round(ctx_kv, 2),
+                "total_gb": round(ctx_total, 2),
+                "per_gpu_gb": round(ctx_per_gpu, 2),
+                "fits": ctx_per_gpu < available_per_gpu * 0.95,
+                "utilization_pct": round((ctx_per_gpu / available_per_gpu) * 100, 1)
+            })
 
     return {
         "model_path": model_path,
         "quantization": quantization,
+        "kv_cache_dtype": kv_cache_dtype,
         "context_length": context_length,
         "batch_size": batch_size,
         "tp_size": tp_size,
         "breakdown": {
-            "model_weights_gb": round(model_size_gb, 2),
+            "model_weights_gb": round(actual_model_size_gb, 2),
             "kv_cache_gb": round(kv_cache_size_gb, 2),
             "activations_gb": round(activation_gb, 2),
-            "overhead_gb": overhead_gb,
+            "overhead_gb": round(overhead_gb, 2),
             "total_gb": round(total_vram, 2),
             "per_gpu_gb": round(per_gpu_vram, 2),
         },
@@ -1128,11 +1159,15 @@ async def calculate_vram(
         "fits": fits,
         "utilization_percent": round((per_gpu_vram / available_per_gpu) * 100, 1),
         "recommendations": recommendations,
+        "context_configs": context_configs,
         "model_info": {
-            "total_params_b": round(total_params / 1e9, 2),
             "num_layers": num_layers,
             "hidden_size": hidden_size,
+            "num_kv_heads": num_kv_heads,
+            "head_dim": head_dim,
             "num_experts": num_experts,
+            "max_context": max_position_embeddings,
+            "kv_bytes_per_token": kv_bytes_per_token,
         }
     }
 

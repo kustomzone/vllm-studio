@@ -157,9 +157,19 @@ export interface FP8Advice {
 	};
 }
 
+export interface ContextConfig {
+	context_length: number;
+	kv_cache_gb: number;
+	total_gb: number;
+	per_gpu_gb: number;
+	fits: boolean;
+	utilization_pct: number;
+}
+
 export interface VRAMCalculation {
 	model_path: string;
 	quantization: string;
+	kv_cache_dtype: string;
 	context_length: number;
 	batch_size: number;
 	tp_size: number;
@@ -179,11 +189,15 @@ export interface VRAMCalculation {
 	fits: boolean;
 	utilization_percent: number;
 	recommendations: string[];
+	context_configs: ContextConfig[];
 	model_info: {
-		total_params_b: number;
 		num_layers: number;
 		hidden_size: number;
+		num_kv_heads: number;
+		head_dim: number;
 		num_experts: number;
+		max_context: number;
+		kv_bytes_per_token: number;
 	};
 }
 
@@ -552,14 +566,16 @@ export const calculateVRAM = async (
 	contextLength: number = 32768,
 	batchSize: number = 12,
 	tpSize: number = 1,
-	quantization: string = 'auto'
+	quantization: string = 'auto',
+	kvCacheDtype: string = 'fp16'
 ): Promise<VRAMCalculation> => {
 	const params = new URLSearchParams({
 		model_path: modelPath,
 		context_length: contextLength.toString(),
 		batch_size: batchSize.toString(),
 		tp_size: tpSize.toString(),
-		quantization
+		quantization,
+		kv_cache_dtype: kvCacheDtype
 	});
 	const res = await fetch(`${VLLM_STUDIO_API}/vram-calculator?${params}`, {
 		method: 'GET',
