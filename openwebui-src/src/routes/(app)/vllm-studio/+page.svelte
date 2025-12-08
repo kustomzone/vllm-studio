@@ -15,12 +15,30 @@
 		deleteRecipe,
 		getGpuInfo,
 		getMetrics,
+		browseModels,
+		generateRecipe,
+		getFP8Advice,
+		calculateVRAM,
+		checkCompatibility,
+		exportRecipe,
+		importRecipe,
+		exportAllRecipes,
+		getPresets,
+		applyPreset,
+		runBenchmark,
 		type Recipe,
 		type HealthStatus,
 		type SystemStatus,
 		type LogFile,
 		type GpuInfo,
-		type PerformanceMetrics
+		type PerformanceMetrics,
+		type BrowseModel,
+		type GeneratedRecipe,
+		type FP8Advice,
+		type VRAMCalculation,
+		type CompatibilityCheck,
+		type Preset,
+		type BenchmarkResult
 	} from '$lib/apis/vllm-studio';
 	import { WEBUI_NAME, user } from '$lib/stores';
 
@@ -40,6 +58,46 @@
 	let loaded = false;
 	let refreshInterval: ReturnType<typeof setInterval>;
 	let switching = false;
+
+	// Tab state
+	let activeTab: 'overview' | 'models' | 'tools' = 'overview';
+
+	// Model Browser state
+	let availableModels: BrowseModel[] = [];
+	let modelsLoading = false;
+	let modelSearchQuery = '';
+
+	// Auto-Recipe Generator state
+	let showGenerateModal = false;
+	let generateModelPath = '';
+	let generateName = '';
+	let generatedRecipe: GeneratedRecipe | null = null;
+	let generating = false;
+
+	// Tools state
+	let fp8Advice: FP8Advice | null = null;
+	let vramCalc: VRAMCalculation | null = null;
+	let compatCheck: CompatibilityCheck | null = null;
+	let toolsModelPath = '';
+	let toolsLoading = false;
+
+	// Presets state
+	let presets: Record<string, Preset> = {};
+	let showPresetsModal = false;
+	let selectedRecipeForPreset = '';
+
+	// Benchmark state
+	let showBenchmarkModal = false;
+	let benchmarkPrompt = 'Write a detailed essay about artificial intelligence.';
+	let benchmarkMaxTokens = 256;
+	let benchmarkNumRequests = 5;
+	let benchmarkConcurrent = 1;
+	let benchmarkResult: BenchmarkResult | null = null;
+	let benchmarking = false;
+
+	// Import/Export state
+	let showImportModal = false;
+	let importData = '';
 
 	// Modal state
 	let showRecipeModal = false;
@@ -210,6 +268,155 @@
 		}
 	}
 
+	// Model Browser functions
+	async function loadModels() {
+		modelsLoading = true;
+		try {
+			const result = await browseModels(localStorage.token || '');
+			availableModels = result.models || [];
+		} catch (error: any) {
+			toast.error($i18n.t('Failed to load models'));
+		} finally {
+			modelsLoading = false;
+		}
+	}
+
+	$: filteredModels = availableModels.filter(m =>
+		m.name.toLowerCase().includes(modelSearchQuery.toLowerCase()) ||
+		(m.architecture && m.architecture.toLowerCase().includes(modelSearchQuery.toLowerCase()))
+	);
+
+	// Auto-Recipe Generator functions
+	async function handleGenerateRecipe() {
+		if (!generateModelPath) return;
+		generating = true;
+		generatedRecipe = null;
+		try {
+			const result = await generateRecipe(localStorage.token || '', generateModelPath, generateName || undefined);
+			generatedRecipe = result;
+			toast.success($i18n.t('Recipe generated'));
+		} catch (error: any) {
+			toast.error(error.detail || $i18n.t('Failed to generate recipe'));
+		} finally {
+			generating = false;
+		}
+	}
+
+	async function handleSaveGeneratedRecipe() {
+		if (!generatedRecipe?.recipe) return;
+		try {
+			await createRecipe(localStorage.token || '', generatedRecipe.recipe as Recipe);
+			toast.success($i18n.t('Recipe saved'));
+			showGenerateModal = false;
+			generatedRecipe = null;
+			await loadData();
+		} catch (error: any) {
+			toast.error(error.detail || $i18n.t('Failed to save recipe'));
+		}
+	}
+
+	function openGenerateFromModel(model: BrowseModel) {
+		generateModelPath = model.path;
+		generateName = model.name;
+		generatedRecipe = null;
+		showGenerateModal = true;
+	}
+
+	// Tools functions
+	async function analyzeModel() {
+		if (!toolsModelPath) return;
+		toolsLoading = true;
+		fp8Advice = null;
+		vramCalc = null;
+		compatCheck = null;
+		try {
+			const [fp8, vram, compat] = await Promise.all([
+				getFP8Advice(localStorage.token || '', toolsModelPath).catch(() => null),
+				calculateVRAM(localStorage.token || '', toolsModelPath).catch(() => null),
+				checkCompatibility(localStorage.token || '', toolsModelPath).catch(() => null)
+			]);
+			fp8Advice = fp8;
+			vramCalc = vram;
+			compatCheck = compat;
+		} catch (error: any) {
+			toast.error($i18n.t('Failed to analyze model'));
+		} finally {
+			toolsLoading = false;
+		}
+	}
+
+	// Presets functions
+	async function loadPresets() {
+		try {
+			const result = await getPresets(localStorage.token || '');
+			presets = result.presets || {};
+		} catch (error) {
+			console.error('Failed to load presets');
+		}
+	}
+
+	async function handleApplyPreset(presetName: string) {
+		if (!selectedRecipeForPreset) return;
+		try {
+			await applyPreset(localStorage.token || '', selectedRecipeForPreset, presetName);
+			toast.success($i18n.t('Preset applied'));
+			showPresetsModal = false;
+			await loadData();
+		} catch (error: any) {
+			toast.error(error.detail || $i18n.t('Failed to apply preset'));
+		}
+	}
+
+	// Benchmark functions
+	async function handleRunBenchmark() {
+		benchmarking = true;
+		benchmarkResult = null;
+		try {
+			benchmarkResult = await runBenchmark(
+				localStorage.token || '',
+				benchmarkPrompt,
+				benchmarkMaxTokens,
+				benchmarkNumRequests,
+				benchmarkConcurrent
+			);
+			toast.success($i18n.t('Benchmark complete'));
+		} catch (error: any) {
+			toast.error(error.detail || $i18n.t('Benchmark failed'));
+		} finally {
+			benchmarking = false;
+		}
+	}
+
+	// Import/Export functions
+	async function handleExportAll() {
+		try {
+			const result = await exportAllRecipes(localStorage.token || '', 'json');
+			const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = 'vllm-studio-recipes.json';
+			a.click();
+			URL.revokeObjectURL(url);
+			toast.success($i18n.t('Recipes exported'));
+		} catch (error: any) {
+			toast.error(error.detail || $i18n.t('Failed to export recipes'));
+		}
+	}
+
+	async function handleImportRecipes() {
+		try {
+			const data = JSON.parse(importData);
+			await importRecipe(localStorage.token || '', data, 'json');
+			toast.success($i18n.t('Recipes imported'));
+			showImportModal = false;
+			importData = '';
+			await loadData();
+		} catch (error: any) {
+			toast.error(error.detail || $i18n.t('Failed to import recipes'));
+		}
+	}
+
 	function getModelName(path: string): string {
 		return path?.split('/').pop() || 'Unknown';
 	}
@@ -231,6 +438,8 @@
 
 	onMount(() => {
 		loadData();
+		loadModels();
+		loadPresets();
 		refreshInterval = setInterval(loadData, 5000);
 	});
 
@@ -263,7 +472,27 @@
 					<div class="self-center font-medium">Refresh</div>
 				</button>
 
+				<button
+					class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-200 transition"
+					on:click={handleExportAll}
+				>
+					<div class="self-center font-medium">Export</div>
+				</button>
+
+				<button
+					class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-200 transition"
+					on:click={() => (showImportModal = true)}
+				>
+					<div class="self-center font-medium">Import</div>
+				</button>
+
 				{#if status?.running_process}
+					<button
+						class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-400 transition"
+						on:click={() => (showBenchmarkModal = true)}
+					>
+						<div class="self-center font-medium">Benchmark</div>
+					</button>
 					<button
 						class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-400 transition disabled:opacity-50"
 						on:click={handleEvict}
@@ -284,8 +513,31 @@
 				</button>
 			</div>
 		</div>
+
+		<!-- Tabs -->
+		<div class="flex gap-1 mt-2 border-b border-gray-200 dark:border-gray-800">
+			<button
+				class="px-4 py-2 text-sm font-medium transition {activeTab === 'overview' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}"
+				on:click={() => (activeTab = 'overview')}
+			>
+				Overview
+			</button>
+			<button
+				class="px-4 py-2 text-sm font-medium transition {activeTab === 'models' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}"
+				on:click={() => (activeTab = 'models')}
+			>
+				Models ({availableModels.length})
+			</button>
+			<button
+				class="px-4 py-2 text-sm font-medium transition {activeTab === 'tools' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}"
+				on:click={() => (activeTab = 'tools')}
+			>
+				Tools
+			</button>
+		</div>
 	</div>
 
+	{#if activeTab === 'overview'}
 	<!-- GPU Status Cards -->
 	{#if gpus.length > 0}
 		<div class="mb-4">
@@ -554,6 +806,229 @@
 			</div>
 		</div>
 	</div>
+{:else if activeTab === 'models'}
+	<!-- Models Browser Tab -->
+	<div class="mb-4">
+		<div class="flex items-center justify-between mb-4">
+			<div class="text-sm font-medium text-gray-500 dark:text-gray-400">
+				Browse available models in /mnt/llm_models
+			</div>
+			<button
+				class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-200 transition"
+				on:click={loadModels}
+				disabled={modelsLoading}
+			>
+				<div class="self-center font-medium">{modelsLoading ? 'Loading...' : 'Refresh Models'}</div>
+			</button>
+		</div>
+
+		<!-- Search -->
+		<div class="mb-4">
+			<input
+				type="text"
+				bind:value={modelSearchQuery}
+				placeholder="Search models by name or architecture..."
+				class="w-full px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-gray-900 dark:text-white"
+			/>
+		</div>
+
+		<!-- Models Grid -->
+		{#if modelsLoading}
+			<div class="flex justify-center py-8">
+				<Spinner className="size-6" />
+			</div>
+		{:else if filteredModels.length > 0}
+			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+				{#each filteredModels as model}
+					<div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100/30 dark:border-gray-850/30 p-4">
+						<div class="flex items-start justify-between mb-2">
+							<div class="font-medium text-gray-900 dark:text-white truncate flex-1" title={model.name}>
+								{model.name}
+							</div>
+							{#if model.has_recipe}
+								<span class="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-full ml-2 shrink-0">
+									Recipe
+								</span>
+							{/if}
+						</div>
+						<div class="space-y-1 text-xs text-gray-500 mb-3">
+							{#if model.architecture}
+								<div>Arch: {model.architecture}</div>
+							{/if}
+							{#if model.quantization}
+								<div>Quant: <span class="px-1 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded">{model.quantization}</span></div>
+							{/if}
+							{#if model.context_length}
+								<div>Context: {(model.context_length / 1024).toFixed(0)}k</div>
+							{/if}
+							{#if model.size_gb && model.size_gb > 0}
+								<div>Size: {model.size_gb.toFixed(1)} GB</div>
+							{/if}
+							{#if model.num_experts}
+								<div>Experts: {model.num_experts}</div>
+							{/if}
+						</div>
+						<div class="flex gap-2">
+							<button
+								on:click={() => openGenerateFromModel(model)}
+								class="flex-1 px-2 py-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs font-medium rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition"
+							>
+								Generate Recipe
+							</button>
+							<button
+								on:click={() => { toolsModelPath = model.path; activeTab = 'tools'; }}
+								class="px-2 py-1.5 bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 text-xs font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+							>
+								Analyze
+							</button>
+						</div>
+					</div>
+				{/each}
+			</div>
+		{:else}
+			<div class="text-center py-8 text-gray-500">
+				{modelSearchQuery ? 'No models match your search' : 'No models found'}
+			</div>
+		{/if}
+	</div>
+{:else if activeTab === 'tools'}
+	<!-- Tools Tab -->
+	<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+		<!-- Model Analyzer -->
+		<div class="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30 p-4">
+			<div class="text-sm font-medium text-gray-900 dark:text-white mb-4">Model Analyzer</div>
+			<div class="space-y-3">
+				<div>
+					<label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Model Path</label>
+					<input
+						type="text"
+						bind:value={toolsModelPath}
+						placeholder="/mnt/llm_models/..."
+						class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white text-sm"
+					/>
+				</div>
+				<button
+					on:click={analyzeModel}
+					disabled={!toolsModelPath || toolsLoading}
+					class="w-full px-3 py-2 bg-black text-white dark:bg-white dark:text-black rounded-xl font-medium text-sm hover:opacity-80 transition disabled:opacity-50"
+				>
+					{toolsLoading ? 'Analyzing...' : 'Analyze Model'}
+				</button>
+			</div>
+
+			<!-- FP8 Advice -->
+			{#if fp8Advice}
+				<div class="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+					<div class="font-medium text-sm mb-2 {fp8Advice.fp8_kv_recommended ? 'text-green-600' : 'text-yellow-600'}">
+						FP8 KV Cache: {fp8Advice.fp8_kv_recommended ? 'Recommended' : 'Not Recommended'}
+					</div>
+					{#if fp8Advice.reasons && fp8Advice.reasons.length > 0}
+						<ul class="text-xs text-gray-500 space-y-1">
+							{#each fp8Advice.reasons as reason}
+								<li>• {reason}</li>
+							{/each}
+						</ul>
+					{/if}
+					{#if fp8Advice.expected_memory_savings}
+						<div class="text-xs text-gray-500 mt-2">
+							Expected savings: ~{fp8Advice.expected_memory_savings}
+						</div>
+					{/if}
+				</div>
+			{/if}
+
+			<!-- Compatibility -->
+			{#if compatCheck}
+				<div class="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+					<div class="font-medium text-sm mb-2">Backend Compatibility</div>
+					<div class="grid grid-cols-2 gap-2 text-xs">
+						<div class="flex items-center gap-2">
+							<div class="w-2 h-2 rounded-full {compatCheck.vllm_compatible ? 'bg-green-500' : 'bg-red-500'}"></div>
+							vLLM: {compatCheck.vllm_compatible ? 'Yes' : 'No'}
+						</div>
+						<div class="flex items-center gap-2">
+							<div class="w-2 h-2 rounded-full {compatCheck.sglang_compatible ? 'bg-green-500' : 'bg-red-500'}"></div>
+							SGLang: {compatCheck.sglang_compatible ? 'Yes' : 'No'}
+						</div>
+					</div>
+					{#if compatCheck.recommended_backend}
+						<div class="text-xs text-gray-500 mt-2">
+							Recommended: {compatCheck.recommended_backend}
+						</div>
+					{/if}
+				</div>
+			{/if}
+		</div>
+
+		<!-- VRAM Calculator -->
+		<div class="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30 p-4">
+			<div class="text-sm font-medium text-gray-900 dark:text-white mb-4">VRAM Estimation</div>
+			{#if vramCalc}
+				<div class="space-y-3">
+					<div class="flex items-center justify-between">
+						<span class="text-sm text-gray-600 dark:text-gray-400">Status</span>
+						<span class="px-2 py-0.5 text-xs font-medium rounded-full {vramCalc.fits ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}">
+							{vramCalc.fits ? 'Fits' : 'Does Not Fit'}
+						</span>
+					</div>
+					<div class="space-y-2 text-sm">
+						<div class="flex justify-between">
+							<span class="text-gray-500">Model Weights</span>
+							<span class="text-gray-900 dark:text-white">{vramCalc.breakdown?.model_weights_gb?.toFixed(1)} GB</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-gray-500">KV Cache</span>
+							<span class="text-gray-900 dark:text-white">{vramCalc.breakdown?.kv_cache_gb?.toFixed(1)} GB</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-gray-500">Activations</span>
+							<span class="text-gray-900 dark:text-white">{vramCalc.breakdown?.activations_gb?.toFixed(1)} GB</span>
+						</div>
+						<div class="flex justify-between font-medium border-t border-gray-200 dark:border-gray-700 pt-2">
+							<span class="text-gray-700 dark:text-gray-300">Total</span>
+							<span class="text-gray-900 dark:text-white">{vramCalc.breakdown?.total_gb?.toFixed(1)} GB</span>
+						</div>
+						<div class="flex justify-between text-xs">
+							<span class="text-gray-500">Per GPU ({vramCalc.tp_size} GPUs)</span>
+							<span class="text-gray-600 dark:text-gray-400">{vramCalc.breakdown?.per_gpu_gb?.toFixed(1)} GB / {vramCalc.gpu_info?.memory_per_gpu_gb} GB</span>
+						</div>
+					</div>
+					<div class="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+						<div
+							class="h-full rounded-full transition-all {vramCalc.utilization_percent > 90 ? 'bg-red-500' : vramCalc.utilization_percent > 70 ? 'bg-yellow-500' : 'bg-green-500'}"
+							style="width: {Math.min(vramCalc.utilization_percent, 100)}%"
+						></div>
+					</div>
+					<div class="text-xs text-center text-gray-500">
+						{vramCalc.utilization_percent?.toFixed(1)}% utilization
+					</div>
+				</div>
+			{:else}
+				<div class="text-center py-8 text-gray-500 text-sm">
+					Enter a model path and click Analyze to see VRAM estimation
+				</div>
+			{/if}
+		</div>
+
+		<!-- Presets -->
+		<div class="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30 p-4">
+			<div class="text-sm font-medium text-gray-900 dark:text-white mb-4">Quick Launch Presets</div>
+			<div class="grid grid-cols-1 gap-2">
+				{#each Object.entries(presets) as [key, preset]}
+					<div class="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+						<div class="font-medium text-sm text-gray-900 dark:text-white">{preset.name}</div>
+						<div class="text-xs text-gray-500 mt-1">{preset.description}</div>
+					</div>
+				{/each}
+				{#if Object.keys(presets).length === 0}
+					<div class="text-center py-4 text-gray-500 text-sm">
+						No presets available
+					</div>
+				{/if}
+			</div>
+		</div>
+	</div>
+{/if}
 {:else}
 	<div class="w-full h-full flex justify-center items-center py-20">
 		<Spinner className="size-5" />
@@ -784,6 +1259,179 @@
 					</button>
 				</div>
 			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- Generate Recipe Modal -->
+{#if showGenerateModal}
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+	<div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" on:click|self={() => (showGenerateModal = false)}>
+		<div class="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-800">
+			<div class="p-4 border-b border-gray-200 dark:border-gray-800">
+				<h3 class="text-lg font-medium text-gray-900 dark:text-white">Generate Recipe</h3>
+			</div>
+			<div class="p-4 space-y-4">
+				<div>
+					<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Model Path</label>
+					<input
+						type="text"
+						bind:value={generateModelPath}
+						class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white text-sm"
+						placeholder="/mnt/llm_models/..."
+					/>
+				</div>
+				<div>
+					<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Recipe Name (optional)</label>
+					<input
+						type="text"
+						bind:value={generateName}
+						class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white text-sm"
+						placeholder="Auto-generated from model name"
+					/>
+				</div>
+				<button
+					on:click={handleGenerateRecipe}
+					disabled={generating || !generateModelPath}
+					class="w-full px-3 py-2 bg-black text-white dark:bg-white dark:text-black rounded-xl font-medium text-sm hover:opacity-80 transition disabled:opacity-50"
+				>
+					{generating ? 'Generating...' : 'Generate Recipe'}
+				</button>
+
+				{#if generatedRecipe}
+					<div class="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+						<div class="font-medium text-sm mb-2 text-gray-900 dark:text-white">Generated Recipe</div>
+						<div class="space-y-1 text-xs text-gray-500">
+							<div>ID: {generatedRecipe.recipe?.id}</div>
+							<div>Name: {generatedRecipe.recipe?.name}</div>
+							<div>Backend: {generatedRecipe.recipe?.backend}</div>
+							<div>TP: {generatedRecipe.recipe?.tensor_parallel_size} | Max Len: {generatedRecipe.recipe?.max_model_len}</div>
+							{#if generatedRecipe.analysis}
+								<div class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+									<div class="font-medium">Analysis:</div>
+									<div>Architecture: {generatedRecipe.analysis.architecture}</div>
+									<div>Estimated Size: {generatedRecipe.analysis.estimated_size_gb?.toFixed(1)} GB</div>
+									<div>Recommended TP: {generatedRecipe.analysis.recommended_tp}</div>
+								</div>
+							{/if}
+						</div>
+						<button
+							on:click={handleSaveGeneratedRecipe}
+							class="w-full mt-3 px-3 py-2 bg-green-600 text-white rounded-xl font-medium text-sm hover:bg-green-700 transition"
+						>
+							Save Recipe
+						</button>
+					</div>
+				{/if}
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Benchmark Modal -->
+{#if showBenchmarkModal}
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+	<div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" on:click|self={() => (showBenchmarkModal = false)}>
+		<div class="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-800">
+			<div class="p-4 border-b border-gray-200 dark:border-gray-800">
+				<h3 class="text-lg font-medium text-gray-900 dark:text-white">Inference Benchmark</h3>
+			</div>
+			<div class="p-4 space-y-4">
+				<div>
+					<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Prompt</label>
+					<textarea
+						bind:value={benchmarkPrompt}
+						rows="3"
+						class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white text-sm"
+					></textarea>
+				</div>
+				<div class="grid grid-cols-3 gap-3">
+					<div>
+						<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Max Tokens</label>
+						<input type="number" bind:value={benchmarkMaxTokens} class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white text-sm" />
+					</div>
+					<div>
+						<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Requests</label>
+						<input type="number" bind:value={benchmarkNumRequests} class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white text-sm" />
+					</div>
+					<div>
+						<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Concurrent</label>
+						<input type="number" bind:value={benchmarkConcurrent} class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white text-sm" />
+					</div>
+				</div>
+				<button
+					on:click={handleRunBenchmark}
+					disabled={benchmarking}
+					class="w-full px-3 py-2 bg-purple-600 text-white rounded-xl font-medium text-sm hover:bg-purple-700 transition disabled:opacity-50"
+				>
+					{benchmarking ? 'Running Benchmark...' : 'Run Benchmark'}
+				</button>
+
+				{#if benchmarkResult}
+					<div class="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+						<div class="font-medium text-sm mb-3 text-gray-900 dark:text-white">Results</div>
+						<div class="grid grid-cols-2 gap-3 text-sm">
+							<div class="p-2 bg-white dark:bg-gray-900 rounded-lg">
+								<div class="text-xs text-gray-500">Tokens/sec</div>
+								<div class="font-medium text-gray-900 dark:text-white">{benchmarkResult.tokens_per_second?.toFixed(1)}</div>
+							</div>
+							<div class="p-2 bg-white dark:bg-gray-900 rounded-lg">
+								<div class="text-xs text-gray-500">Avg Latency</div>
+								<div class="font-medium text-gray-900 dark:text-white">{benchmarkResult.avg_latency_ms?.toFixed(0)} ms</div>
+							</div>
+							<div class="p-2 bg-white dark:bg-gray-900 rounded-lg">
+								<div class="text-xs text-gray-500">Avg TTFT</div>
+								<div class="font-medium text-gray-900 dark:text-white">{benchmarkResult.avg_ttft_ms?.toFixed(0)} ms</div>
+							</div>
+							<div class="p-2 bg-white dark:bg-gray-900 rounded-lg">
+								<div class="text-xs text-gray-500">Total Tokens</div>
+								<div class="font-medium text-gray-900 dark:text-white">{benchmarkResult.total_tokens}</div>
+							</div>
+						</div>
+						{#if benchmarkResult.error}
+							<div class="mt-2 text-xs text-red-500">{benchmarkResult.error}</div>
+						{/if}
+					</div>
+				{/if}
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Import Modal -->
+{#if showImportModal}
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+	<div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" on:click|self={() => (showImportModal = false)}>
+		<div class="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-800">
+			<div class="p-4 border-b border-gray-200 dark:border-gray-800">
+				<h3 class="text-lg font-medium text-gray-900 dark:text-white">Import Recipes</h3>
+			</div>
+			<div class="p-4 space-y-4">
+				<div>
+					<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Paste JSON</label>
+					<textarea
+						bind:value={importData}
+						rows="10"
+						class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white text-sm font-mono"
+						placeholder="Paste JSON recipe data here..."
+					></textarea>
+				</div>
+				<div class="flex gap-2">
+					<button
+						on:click={() => (showImportModal = false)}
+						class="flex-1 px-3 py-2 bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 rounded-xl font-medium text-sm hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+					>
+						Cancel
+					</button>
+					<button
+						on:click={handleImportRecipes}
+						disabled={!importData}
+						class="flex-1 px-3 py-2 bg-black text-white dark:bg-white dark:text-black rounded-xl font-medium text-sm hover:opacity-80 transition disabled:opacity-50"
+					>
+						Import
+					</button>
+				</div>
+			</div>
 		</div>
 	</div>
 {/if}
