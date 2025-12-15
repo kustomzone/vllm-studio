@@ -263,7 +263,7 @@ export function ToolBelt({
         )}
 
         {/* Main Input Area */}
-        <div className="relative flex flex-col">
+        <div className="relative flex flex-col border border-[var(--border)] rounded-lg bg-[var(--card)]">
           {/* Textarea */}
           <textarea
             ref={textareaRef}
@@ -273,12 +273,12 @@ export function ToolBelt({
             placeholder={disabled ? 'No model running' : placeholder}
             disabled={disabled || isLoading}
             rows={1}
-            className="w-full px-2 py-1 bg-transparent text-sm resize-none focus:outline-none disabled:opacity-50 placeholder:text-[var(--muted)]"
-            style={{ minHeight: '32px', maxHeight: '150px' }}
+            className="w-full px-3 py-2 bg-transparent text-sm resize-none focus:outline-none disabled:opacity-50 placeholder:text-[var(--muted)]"
+            style={{ minHeight: '36px', maxHeight: '150px' }}
           />
 
           {/* Tool Bar */}
-          <div className="flex items-center justify-between px-1">
+          <div className="flex items-center justify-between px-2 py-1 border-t border-[var(--border)]">
             <div className="flex items-center">
               {/* File Upload */}
               <input
