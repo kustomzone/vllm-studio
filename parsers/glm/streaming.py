@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 
-from ..reasoning import split_think
+from ..reasoning import split_think, strip_box_tags
 from .tools import parse_glm_tool_calls
 
 
@@ -47,7 +47,8 @@ class GLMStreamingParser:
 
         delta = reasoning_segment[self.reasoning_len_sent:]
         self.reasoning_len_sent = len(reasoning_segment)
-        return delta
+        # Strip box tags from reasoning
+        return strip_box_tags(delta)
 
     def process_chunk(self, chunk: str) -> Optional[Dict[str, Any]]:
         """
@@ -60,6 +61,8 @@ class GLMStreamingParser:
             - reasoning_delta: Reasoning text delta
             - tool_calls: Parsed tool call payload when available
         """
+        # Strip box tags from incoming chunk before buffering
+        chunk = strip_box_tags(chunk)
         self.buffer += chunk
         reasoning_delta = self._compute_reasoning_delta()
 

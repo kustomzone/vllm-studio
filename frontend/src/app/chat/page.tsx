@@ -86,7 +86,7 @@ export default function ChatPage() {
         const modelId =
           status.running_process.served_model_name ||
           status.matched_recipe?.served_model_name ||
-          status.matched_recipe?.id ||
+          status.running_process.model_path ||
           'default';
         setRunningModel(modelId);
         setModelName(

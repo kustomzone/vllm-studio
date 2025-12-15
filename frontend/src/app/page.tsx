@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Play, Cpu, Zap, HardDrive, Activity, Clock, Hash, Thermometer, MemoryStick } from 'lucide-react';
+import { Search, Play, Cpu, Zap, HardDrive, Activity, Clock, Hash, Thermometer, MemoryStick, Settings } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import type { GPU, RecipeWithStatus, ProcessInfo, Metrics } from '@/lib/types';
 
@@ -16,6 +17,7 @@ export default function Dashboard() {
   const [searchResults, setSearchResults] = useState<RecipeWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [launching, setLaunching] = useState(false);
+  const router = useRouter();
 
   const loadData = useCallback(async () => {
     try {
@@ -351,18 +353,41 @@ export default function Dashboard() {
           </section>
 
           <section className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-6">
-            <h2 className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wide mb-3">Recipes</h2>
-            <div className="space-y-2">
-              {recipes.slice(0, 8).map((recipe) => (
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wide">Recipes ({recipes.length})</h2>
+              <button
+                onClick={() => router.push('/configs')}
+                className="text-xs text-[var(--accent)] hover:underline"
+              >
+                + New
+              </button>
+            </div>
+            <div className="space-y-1 max-h-80 overflow-y-auto pr-1">
+              {recipes.map((recipe) => (
                 <div
                   key={recipe.id}
-                  onClick={() => !launching && recipe.status !== 'running' && handleLaunch(recipe.id)}
-                  className="flex items-center justify-between p-2 hover:bg-[var(--accent)]/50 rounded cursor-pointer transition-colors"
+                  className="flex items-center justify-between p-2 hover:bg-[var(--card-hover)] rounded transition-colors group"
                 >
-                  <span className="text-sm truncate flex-1 mr-2">{recipe.name}</span>
-                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                    recipe.status === 'running' ? 'bg-[var(--success)]' : 'bg-[var(--muted)]'
-                  }`} />
+                  <button
+                    onClick={() => !launching && recipe.status !== 'running' && handleLaunch(recipe.id)}
+                    className="flex items-center flex-1 min-w-0 text-left"
+                    disabled={launching || recipe.status === 'running'}
+                  >
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 mr-2 ${
+                      recipe.status === 'running' ? 'bg-[var(--success)]' : 'bg-[var(--muted)]'
+                    }`} />
+                    <span className="text-sm truncate">{recipe.name}</span>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(`/configs?edit=${recipe.id}`);
+                    }}
+                    className="p-1 opacity-0 group-hover:opacity-100 text-[var(--muted-foreground)] hover:text-[var(--accent)] transition-all"
+                    title="Edit recipe"
+                  >
+                    <Settings className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               ))}
             </div>

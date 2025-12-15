@@ -25,7 +25,7 @@ from .models import (
 )
 from formatters.anthropic import AnthropicFormatter
 from formatters.openai import OpenAIFormatter
-from parsers.reasoning import ensure_think_wrapped, split_think, strip_enclosing_think
+from parsers.reasoning import ensure_think_wrapped, split_think, strip_enclosing_think, strip_box_tags
 from parsers.minimax import (
     StreamingParser,
     extract_json_tool_calls,
@@ -724,6 +724,10 @@ async def stream_openai_response(chat_request: OpenAIChatRequest, session_id: Op
             delta = choice.get("delta", {})
             reasoning_delta = delta.get("reasoning_content")
             content_delta = delta.get("content")
+            # Strip box tags for GLM models
+            if use_glm_parsing:
+                reasoning_delta = strip_box_tags(reasoning_delta) if reasoning_delta else None
+                content_delta = strip_box_tags(content_delta) if content_delta else None
             tool_delta = delta.get("tool_calls")
             finish_reason = choice.get("finish_reason")
 
@@ -1534,6 +1538,9 @@ async def stream_anthropic_response(anthropic_request: AnthropicChatRequest, ses
                 choice = chunk["choices"][0]
                 delta = choice.get("delta", {})
                 reasoning_delta = delta.get("reasoning_content", "")
+                # Strip box tags for GLM models
+                if use_glm_parsing:
+                    reasoning_delta = strip_box_tags(reasoning_delta)
                 content_delta = delta.get("content", "")
                 json_tool_calls = None
 
@@ -1544,6 +1551,9 @@ async def stream_anthropic_response(anthropic_request: AnthropicChatRequest, ses
                     else:
                         cleaned_delta, json_tool_calls = extract_json_tool_calls(content_delta)
                     content_delta = cleaned_delta
+                    # Strip box tags for GLM models
+                    if use_glm_parsing:
+                        content_delta = strip_box_tags(content_delta)
 
                     if json_tool_calls:
                         if content_block_started:

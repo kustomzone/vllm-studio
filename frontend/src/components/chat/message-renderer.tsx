@@ -82,28 +82,37 @@ function CodeBlock({ children, className }: { children: string; className?: stri
 
 export function MessageRenderer({ content, isStreaming }: MessageRendererProps) {
   const { thinkingContent, mainContent, isThinkingComplete } = useMemo(() => {
-    // Parse thinking blocks: <think>...</think> or <thinking>...</thinking>
-    // The API route converts reasoning_content to <think> tags
+    // Parse thinking blocks - handle both with and without opening <think> tag
+    // Some models output </think> without <think> at the start
     const thinkStartMatch = content.match(/<think(?:ing)?>/i);
     const thinkEndMatch = content.match(/<\/think(?:ing)?>/i);
 
-    if (!thinkStartMatch) {
-      return { thinkingContent: null, mainContent: content, isThinkingComplete: true };
+    // Case 1: Both <think> and </think> present
+    if (thinkStartMatch && thinkEndMatch) {
+      const startIdx = thinkStartMatch.index! + thinkStartMatch[0].length;
+      const endIdx = thinkEndMatch.index!;
+      const thinking = content.slice(startIdx, endIdx);
+      const after = content.slice(endIdx + thinkEndMatch[0].length);
+      return { thinkingContent: thinking.trim(), mainContent: after.trim(), isThinkingComplete: true };
     }
 
-    const startIdx = thinkStartMatch.index! + thinkStartMatch[0].length;
-
-    if (!thinkEndMatch) {
-      // Thinking in progress (no closing tag yet)
+    // Case 2: Only <think> (thinking in progress)
+    if (thinkStartMatch && !thinkEndMatch) {
+      const startIdx = thinkStartMatch.index! + thinkStartMatch[0].length;
       const thinking = content.slice(startIdx);
       return { thinkingContent: thinking, mainContent: '', isThinkingComplete: false };
     }
 
-    const endIdx = thinkEndMatch.index!;
-    const thinking = content.slice(startIdx, endIdx);
-    const after = content.slice(endIdx + thinkEndMatch[0].length);
+    // Case 3: Only </think> (model outputs thinking without opening tag)
+    if (!thinkStartMatch && thinkEndMatch) {
+      const endIdx = thinkEndMatch.index!;
+      const thinking = content.slice(0, endIdx);
+      const after = content.slice(endIdx + thinkEndMatch[0].length);
+      return { thinkingContent: thinking.trim(), mainContent: after.trim(), isThinkingComplete: true };
+    }
 
-    return { thinkingContent: thinking.trim(), mainContent: after.trim(), isThinkingComplete: true };
+    // Case 4: No think tags - just show content as-is
+    return { thinkingContent: null, mainContent: content, isThinkingComplete: true };
   }, [content]);
 
   return (

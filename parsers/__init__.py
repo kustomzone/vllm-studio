@@ -17,7 +17,7 @@ from .glm import (
 )
 
 # Reasoning utilities
-from .reasoning import split_think, ensure_think_wrapped, strip_enclosing_think
+from .reasoning import split_think, ensure_think_wrapped, strip_enclosing_think, strip_box_tags
 
 __all__ = [
     # MiniMax tools
@@ -34,4 +34,5 @@ __all__ = [
     "split_think",
     "ensure_think_wrapped",
     "strip_enclosing_think",
+    "strip_box_tags",
 ]

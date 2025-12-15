@@ -1,6 +1,7 @@
 """FastAPI application for vLLM Studio."""
 
 import asyncio
+import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional, Any
@@ -57,6 +58,15 @@ async def lifespan(app: FastAPI):
 
     yield
 
+
+# Box tags pattern for GLM models - strip these from responses
+BOX_TAGS_PATTERN = re.compile(r"<\|(?:begin|end)_of_box\|>")
+
+def strip_box_tags(text: str) -> str:
+    """Strip <|begin_of_box|> and <|end_of_box|> tags from content."""
+    if not text:
+        return text
+    return BOX_TAGS_PATTERN.sub("", text)
 
 app = FastAPI(
     title="vLLM Studio",
@@ -637,6 +647,10 @@ async def proxy_to_backend(path: str, request: Request):
                         timeout=300.0
                     ) as response:
                         async for chunk in response.aiter_bytes():
+                            # Strip box tags from GLM model responses
+                            chunk_str = chunk.decode("utf-8", errors="ignore")
+                            chunk_str = strip_box_tags(chunk_str)
+                            chunk = chunk_str.encode("utf-8")
                             yield chunk
 
                             # Try to extract usage from streaming chunks
@@ -766,24 +780,59 @@ LOG_DIRS = [
 
 def find_log_file(recipe_id: str) -> Optional[Path]:
     """Find log file for a recipe in multiple locations."""
-    # Check standard vLLM Studio log location first
-    tmp_log = Path(f"/tmp/vllm_{recipe_id}.log")
-    if tmp_log.exists():
-        return tmp_log
+    import re
+    # Extract base ID (without port suffix like -3000, -8000)
+    port_suffix_match = re.match(r'^(.+)-(\d{4})$', recipe_id)
+    if port_suffix_match:
+        base_id = port_suffix_match.group(1)
+    else:
+        base_id = recipe_id
 
-    # Check local logs directory with various naming patterns
+    # Build list of patterns to check
+    patterns_to_check = []
+
+    # Check for the exact recipe_id
+    patterns_to_check.append(f"/tmp/vllm_{recipe_id}.log")
+    patterns_to_check.append(f"/tmp/{recipe_id}.log")
+
+    # Check for base_id with common ports
+    for port in ["8000", "3000", "8080"]:
+        patterns_to_check.append(f"/tmp/vllm_{base_id}-{port}.log")
+        patterns_to_check.append(f"/tmp/{base_id}-{port}.log")
+
+    # Check for base_id without port
+    patterns_to_check.append(f"/tmp/vllm_{base_id}.log")
+    patterns_to_check.append(f"/tmp/{base_id}.log")
+
+    # Find the most recently modified log file that exists
+    existing_logs = []
+    for pattern in patterns_to_check:
+        path = Path(pattern)
+        if path.exists():
+            existing_logs.append(path)
+
+    if existing_logs:
+        # Return the most recently modified
+        return max(existing_logs, key=lambda p: p.stat().st_mtime)
+
+    # Check local logs directory
     local_logs = Path(__file__).parent.parent / "logs"
     if local_logs.exists():
-        # Try exact match
-        for pattern in [f"{recipe_id}.log", f"*{recipe_id}*.log"]:
+        for pattern in [f"{recipe_id}.log", f"*{recipe_id}*.log", f"{base_id}.log", f"*{base_id}*.log"]:
             matches = list(local_logs.glob(pattern))
             if matches:
-                # Return most recently modified
                 return max(matches, key=lambda p: p.stat().st_mtime)
 
+    # Fallback: find any log file containing the base_id
+    matching_logs = []
+    for log_file in Path("/tmp").glob("*.log"):
+        if base_id in log_file.name:
+            matching_logs.append(log_file)
+
+    if matching_logs:
+        return max(matching_logs, key=lambda p: p.stat().st_mtime)
+
     return None
-
-
 @app.get("/logs/{recipe_id}")
 async def get_logs(recipe_id: str, lines: int = 100):
     """Get recent logs for a recipe."""

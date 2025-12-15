@@ -19,33 +19,52 @@ import type {
   Skill,
 } from './types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+// Use proxy route for client-side requests (adds API key server-side)
+// Direct backend URL only used for server-side calls
+const isServer = typeof window === 'undefined';
+const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 const API_KEY = process.env.API_KEY || '';
+
+// Client-side uses /api/proxy, server-side can call backend directly
+const getBaseUrl = () => {
+  if (isServer) {
+    return BACKEND_URL;
+  }
+  // Client-side: use the proxy route
+  return '/api/proxy';
+};
 
 class APIClient {
   private baseUrl: string;
   private apiKey: string;
+  private useProxy: boolean;
 
-  constructor(baseUrl: string, apiKey: string) {
+  constructor(baseUrl: string, apiKey: string, useProxy = false) {
     this.baseUrl = baseUrl;
     this.apiKey = apiKey;
+    this.useProxy = useProxy;
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
-      ...(this.apiKey && { 'Authorization': `Bearer ${this.apiKey}` }),
+      // Only add auth header if we have an API key and not using proxy
+      ...(!this.useProxy && this.apiKey && { 'Authorization': `Bearer ${this.apiKey}` }),
       ...options.headers,
     };
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+    // Remove leading slash from endpoint when using proxy
+    const path = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+    const url = this.useProxy ? `${this.baseUrl}/${path}` : `${this.baseUrl}${endpoint}`;
+
+    const response = await fetch(url, {
       ...options,
       headers,
     });
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: 'Request failed' }));
-      throw new Error(error.detail || `HTTP ${response.status}`);
+      throw new Error(error.detail || error.error?.message || `HTTP ${response.status}`);
     }
 
     const text = await response.text();
@@ -362,12 +381,12 @@ class APIClient {
   }
 }
 
-// Export singleton instance for client-side use
-export const api = new APIClient(API_URL, '');
+// Export singleton instance for client-side use (uses proxy)
+export const api = new APIClient('/api/proxy', '', true);
 
-// Export function to create server-side client with API key
+// Export function to create server-side client with API key (direct backend access)
 export function createServerAPI() {
-  return new APIClient(API_URL, API_KEY);
+  return new APIClient(BACKEND_URL, API_KEY, false);
 }
 
 export default api;
