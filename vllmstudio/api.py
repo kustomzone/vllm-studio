@@ -6,12 +6,12 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
+from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from . import __version__
 from .config import settings
@@ -26,9 +26,7 @@ from .recipe_manager import RecipeManager
 from .model_indexer import ModelIndexer
 from .metrics import MetricsState, parse_vllm_metrics
 from .recipe_generator import generate_recipe_from_path
-
-# Static files path
-STATIC_DIR = Path(__file__).parent.parent / "static"
+from .chat_store import chat_store, ChatSession, ChatMessage
 
 
 # Global managers
@@ -69,7 +67,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://app.homelabai.org",
+        "http://app.homelabai.org",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -81,7 +83,7 @@ app.add_middleware(
 # =============================================================================
 
 # Public endpoints that don't require auth
-PUBLIC_PATHS = {"/health", "/", "/static", "/docs", "/openapi.json", "/redoc"}
+PUBLIC_PATHS = {"/health", "/docs", "/openapi.json", "/redoc", "/chats"}
 
 
 class APIKeyMiddleware(BaseHTTPMiddleware):
@@ -92,9 +94,9 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         if not settings.api_key:
             return await call_next(request)
 
-        # Allow public endpoints
+        # Allow public endpoints (exact match or prefix for /chats)
         path = request.url.path
-        if path in PUBLIC_PATHS or path.startswith("/static"):
+        if path in PUBLIC_PATHS or path.startswith("/chats"):
             return await call_next(request)
 
         # Check Authorization header (Bearer token)
@@ -725,9 +727,30 @@ async def proxy_to_backend(path: str, request: Request):
                     media_type=response.headers.get("content-type")
                 )
     except httpx.ConnectError:
-        raise HTTPException(status_code=503, detail="Backend not available")
+        # Return OpenAI-compatible error format
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": {
+                    "message": "The model is not currently loaded. Please load a model first using the /switch endpoint or the vLLM Studio UI.",
+                    "type": "service_unavailable",
+                    "param": None,
+                    "code": "model_not_loaded"
+                }
+            }
+        )
     except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="Backend timeout")
+        return JSONResponse(
+            status_code=504,
+            content={
+                "error": {
+                    "message": "The request to the inference backend timed out.",
+                    "type": "timeout_error",
+                    "param": None,
+                    "code": "backend_timeout"
+                }
+            }
+        )
 
 
 # =============================================================================
@@ -1765,18 +1788,67 @@ async def get_health_summary():
 
 
 # =============================================================================
-# Web UI
+# Chat Persistence
 # =============================================================================
 
-@app.get("/", response_class=HTMLResponse)
-async def serve_ui():
-    """Serve the web UI."""
-    index_file = STATIC_DIR / "index.html"
-    if index_file.exists():
-        return FileResponse(index_file)
-    return HTMLResponse("<h1>vLLM Studio</h1><p>UI not found. Check static/index.html</p>")
+@app.get("/chats", response_model=list[ChatSession])
+async def list_chats(limit: int = 50):
+    """List all chat sessions."""
+    return chat_store.list_sessions(limit)
 
 
-# Mount static files (must be after all other routes)
-if STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+@app.post("/chats", response_model=ChatSession)
+async def create_chat(title: str = "New Chat", model: str = None):
+    """Create a new chat session."""
+    return chat_store.create_session(title=title, model=model)
+
+
+@app.get("/chats/{session_id}", response_model=ChatSession)
+async def get_chat(session_id: str):
+    """Get a chat session with all messages."""
+    session = chat_store.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return session
+
+
+@app.put("/chats/{session_id}")
+async def update_chat(session_id: str, title: str = None, model: str = None):
+    """Update chat session metadata."""
+    success = chat_store.update_session(session_id, title=title, model=model)
+    if not success:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return {"status": "updated"}
+
+
+@app.delete("/chats/{session_id}")
+async def delete_chat(session_id: str):
+    """Delete a chat session."""
+    success = chat_store.delete_session(session_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return {"status": "deleted"}
+
+
+class AddMessageRequest(BaseModel):
+    role: str
+    content: str
+    model: Optional[str] = None
+    tool_calls: Optional[list] = None
+
+
+@app.post("/chats/{session_id}/messages", response_model=ChatMessage)
+async def add_message(session_id: str, request: AddMessageRequest):
+    """Add a message to a chat session."""
+    # Verify session exists
+    session = chat_store.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+
+    return chat_store.add_message(
+        session_id=session_id,
+        role=request.role,
+        content=request.content,
+        model=request.model,
+        tool_calls=request.tool_calls
+    )
