@@ -1,7 +1,9 @@
 import time
 import logging
 import sys
+import os
 
+import httpx
 from aiocache import cached
 from typing import Any, Optional
 import random
@@ -12,6 +14,9 @@ import asyncio
 
 from fastapi import Request, status
 from starlette.responses import Response, StreamingResponse, JSONResponse
+
+# vLLM Studio URL for auto-switching
+VLLM_STUDIO_URL = os.getenv("VLLM_STUDIO_URL", "http://localhost:8080")
 
 
 from open_webui.models.users import UserModel
@@ -61,6 +66,60 @@ from open_webui.env import SRC_LOG_LEVELS, GLOBAL_LOG_LEVEL, BYPASS_MODEL_ACCESS
 logging.basicConfig(stream=sys.stdout, level=GLOBAL_LOG_LEVEL)
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MAIN"])
+
+
+async def ensure_vllm_studio_model_running(model: dict) -> bool:
+    """
+    Check if a vLLM Studio model is running and switch if needed.
+    Returns True if the model is ready, False on error.
+    """
+    vllm_studio_info = model.get("vllm_studio")
+    if not vllm_studio_info:
+        return True  # Not a vLLM Studio model
+
+    recipe_id = vllm_studio_info.get("recipe_id")
+    if not recipe_id:
+        log.warning("vLLM Studio model missing recipe_id")
+        return False
+
+    try:
+        async with httpx.AsyncClient() as client:
+            # Check current status
+            status_resp = await client.get(f"{VLLM_STUDIO_URL}/status", timeout=5.0)
+            if status_resp.status_code != 200:
+                log.error(f"Failed to get vLLM Studio status: {status_resp.status_code}")
+                return False
+
+            status = status_resp.json()
+            running_recipe = status.get("running_recipe")
+
+            # If already running the correct model, we're good
+            if running_recipe == recipe_id:
+                log.debug(f"vLLM Studio model {recipe_id} already running")
+                return True
+
+            # Need to switch - this will evict current and load new
+            log.info(f"Auto-switching vLLM Studio from {running_recipe} to {recipe_id}")
+            switch_resp = await client.post(
+                f"{VLLM_STUDIO_URL}/switch",
+                json={"recipe_id": recipe_id, "force": True},
+                timeout=600.0  # Long timeout for model loading
+            )
+
+            if switch_resp.status_code != 200:
+                error_detail = switch_resp.json().get("detail", "Unknown error")
+                log.error(f"Failed to switch model: {error_detail}")
+                return False
+
+            log.info(f"Successfully switched to {recipe_id}")
+            return True
+
+    except httpx.TimeoutException:
+        log.error("Timeout waiting for vLLM Studio model switch")
+        return False
+    except Exception as e:
+        log.error(f"Error switching vLLM Studio model: {e}")
+        return False
 
 
 async def generate_direct_chat_completion(
@@ -206,6 +265,12 @@ async def generate_chat_completion(
                 check_model_access(user, model)
             except Exception as e:
                 raise e
+
+        # Auto-switch vLLM Studio models if needed
+        if model.get("owned_by") == "vllm-studio" or model.get("vllm_studio"):
+            model_ready = await ensure_vllm_studio_model_running(model)
+            if not model_ready:
+                raise Exception("Failed to load vLLM Studio model. Please try again later.")
 
         if model.get("owned_by") == "arena":
             model_ids = model.get("info", {}).get("meta", {}).get("model_ids")

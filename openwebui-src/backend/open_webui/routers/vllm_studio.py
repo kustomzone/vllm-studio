@@ -115,13 +115,14 @@ async def create_recipe(recipe: Recipe):
 
 
 @router.put("/recipes/{recipe_id}")
-async def update_recipe(recipe_id: str, recipe: Recipe):
-    """Update an existing recipe."""
+async def update_recipe(recipe_id: str, request: Request):
+    """Update an existing recipe - pass through all fields to vLLM Studio."""
+    body = await request.json()
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.put(
                 f"{VLLM_STUDIO_URL}/recipes/{recipe_id}",
-                json=recipe.model_dump(),
+                json=body,
                 timeout=5.0
             )
             if resp.status_code == 404:

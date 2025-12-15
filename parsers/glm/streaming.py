@@ -1,13 +1,13 @@
-"""Simple streaming parser for MiniMax-M2 responses."""
+"""Streaming parser for GLM-4 responses."""
 
 from typing import Any, Dict, List, Optional
 
-from .reasoning import split_think
-from .tools import parse_tool_calls
+from ..reasoning import split_think
+from .tools import parse_glm_tool_calls
 
 
-class StreamingParser:
-    """Simple buffering parser for streaming responses."""
+class GLMStreamingParser:
+    """Buffering parser for GLM streaming responses with tool call support."""
 
     def __init__(self) -> None:
         self.buffer = ""
@@ -40,12 +40,12 @@ class StreamingParser:
 
         reasoning_segment = self.buffer[:closing_idx]
         if reasoning_segment.startswith("<think>"):
-            reasoning_segment = reasoning_segment[len("<think>") :]
+            reasoning_segment = reasoning_segment[len("<think>"):]
 
         if len(reasoning_segment) <= self.reasoning_len_sent:
             return ""
 
-        delta = reasoning_segment[self.reasoning_len_sent :]
+        delta = reasoning_segment[self.reasoning_len_sent:]
         self.reasoning_len_sent = len(reasoning_segment)
         return delta
 
@@ -68,7 +68,7 @@ class StreamingParser:
             if "</think>" in self.buffer:
                 self.think_status_determined = True
                 self.has_think_closing = True
-            elif "<minimax:tool_call>" in self.buffer:
+            elif "<tool_call>" in self.buffer:
                 self.think_status_determined = True
                 self.has_think_closing = False
             else:
@@ -77,16 +77,16 @@ class StreamingParser:
                     return {"type": "reasoning", "reasoning_delta": reasoning_delta}
                 return None
 
-        has_start = "<minimax:tool_call>" in self.buffer
-        has_end = "</minimax:tool_call>" in self.buffer
+        has_start = "<tool_call>" in self.buffer
+        has_end = "</tool_call>" in self.buffer
 
         if has_start and not has_end:
             if not self.tools_sent:
-                tool_start_idx = self.buffer.find("<minimax:tool_call>")
+                tool_start_idx = self.buffer.find("<tool_call>")
                 content_before = self.buffer[:tool_start_idx]
 
                 if len(content_before) > self.sent_position:
-                    delta = content_before[self.sent_position :]
+                    delta = content_before[self.sent_position:]
                     if self.sent_position == 0 and not self.think_opening_sent and self.has_think_closing:
                         self.think_opening_sent = True
                         delta = "<think>\n" + delta
@@ -105,17 +105,17 @@ class StreamingParser:
             return {"type": "reasoning", "reasoning_delta": reasoning_delta} if reasoning_delta else None
 
         if has_start and has_end and not self.tools_sent:
-            result = parse_tool_calls(self.buffer, self.tools)
+            result = parse_glm_tool_calls(self.buffer, self.tools)
 
             if result["tools_called"]:
                 self.tools_sent = True
                 self.last_tool_calls = result["tool_calls"]
 
-                tool_start_idx = self.buffer.find("<minimax:tool_call>")
+                tool_start_idx = self.buffer.find("<tool_call>")
                 content_before = self.buffer[:tool_start_idx]
 
                 if len(content_before) > self.sent_position:
-                    delta = content_before[self.sent_position :]
+                    delta = content_before[self.sent_position:]
                     if self.sent_position == 0 and not self.think_opening_sent and self.has_think_closing:
                         self.think_opening_sent = True
                         delta = "<think>\n" + delta
@@ -131,11 +131,11 @@ class StreamingParser:
                         response["reasoning_delta"] = aggregate_reasoning
                     return response
 
-                tool_end_idx = self.buffer.find("</minimax:tool_call>")
+                tool_end_idx = self.buffer.find("</tool_call>")
                 if tool_end_idx == -1:
                     tool_end_idx = len(self.buffer)
                 else:
-                    tool_end_idx += len("</minimax:tool_call>")
+                    tool_end_idx += len("</tool_call>")
 
                 tool_delta = self.buffer[self.sent_position:tool_end_idx]
                 self.sent_position = tool_end_idx
@@ -150,7 +150,7 @@ class StreamingParser:
                 return payload
 
         if len(self.buffer) > self.sent_position:
-            delta = self.buffer[self.sent_position :]
+            delta = self.buffer[self.sent_position:]
             if self.sent_position == 0 and not self.think_opening_sent and self.has_think_closing:
                 self.think_opening_sent = True
                 delta = "<think>\n" + delta
@@ -174,7 +174,7 @@ class StreamingParser:
     def flush_pending(self) -> Optional[Dict[str, Any]]:
         """Flush any remaining buffered content at stream end."""
         if len(self.buffer) > self.sent_position:
-            remaining = self.buffer[self.sent_position :]
+            remaining = self.buffer[self.sent_position:]
             self.sent_position = len(self.buffer)
             think_text, visible_text = split_think(remaining)
             result: Dict[str, Any] = {

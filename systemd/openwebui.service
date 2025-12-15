@@ -1,0 +1,21 @@
+[Unit]
+Description=OpenWebUI Frontend
+After=network.target vllm-studio.service
+
+[Service]
+Type=simple
+User=ser
+WorkingDirectory=/home/ser/lmvllm/openwebui-src/backend
+Environment="PATH=/home/ser/lmvllm/openwebui-src/backend/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="VLLM_STUDIO_URL=http://localhost:8080"
+Environment="FRONTEND_BUILD_DIR=/home/ser/lmvllm/openwebui-src/build"
+Environment="PORT=3000"
+Environment="WEBUI_AUTH=false"
+Environment="OPENAI_API_BASE_URL=http://localhost:8080/v1"
+Environment="OPENAI_API_KEY=dummy"
+ExecStart=/home/ser/lmvllm/openwebui-src/backend/.venv/bin/uvicorn open_webui.main:app --host 0.0.0.0 --port 3000
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

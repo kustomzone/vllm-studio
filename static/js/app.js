@@ -316,15 +316,49 @@ const Chat = {
 
         try {
             let fullResponse = '';
+            let toolCalls = [];
 
-            await API.chatStream({
-                model: model,
-                messages: [{ role: 'user', content: message }]
-            }, (chunk) => {
-                fullResponse += chunk;
-                assistantEl.innerHTML = Utils.simpleMarkdown(fullResponse);
+            const render = () => {
+                const parts = [];
+                if (fullResponse) parts.push(fullResponse);
+
+                if (toolCalls.length) {
+                    const callText = toolCalls
+                        .map((tc) => {
+                            const name = tc.function?.name || 'tool';
+                            const args = tc.function?.arguments || '';
+                            return `Calling **${name}**\n\`\`\`json\n${args}\n\`\`\``;
+                        })
+                        .join('\n\n');
+                    parts.push(callText);
+                }
+
+                const combined = parts.join('\n\n');
+                assistantEl.innerHTML = Utils.simpleMarkdown(combined);
                 this.scrollToBottom();
-            });
+            };
+
+            const result = await API.chatStream(
+                {
+                    model: model,
+                    messages: [{ role: 'user', content: message }]
+                },
+                {
+                    onContent: (chunk) => {
+                        fullResponse += chunk;
+                        render();
+                    },
+                    onToolCall: (calls) => {
+                        toolCalls = calls;
+                        render();
+                    }
+                }
+            );
+
+            if (result?.toolCalls?.length) {
+                toolCalls = result.toolCalls;
+                render();
+            }
         } catch (error) {
             assistantEl.innerHTML = `<span class="text-danger">Error: ${Utils.escapeHtml(error.message)}</span>`;
         }

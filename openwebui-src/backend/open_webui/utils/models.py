@@ -2,13 +2,18 @@ import time
 import logging
 import asyncio
 import sys
+import os
 
+import httpx
 from aiocache import cached
 from fastapi import Request
 
 from open_webui.socket.utils import RedisDict
 from open_webui.routers import openai, ollama
 from open_webui.functions import get_function_models
+
+# vLLM Studio URL for recipe fetching
+VLLM_STUDIO_URL = os.getenv("VLLM_STUDIO_URL", "http://localhost:8080")
 
 
 from open_webui.models.functions import Functions
@@ -59,6 +64,49 @@ async def fetch_openai_models(request: Request, user: UserModel = None):
     return openai_response["data"]
 
 
+async def fetch_vllm_studio_recipes():
+    """Fetch all recipes from vLLM Studio and convert to model entries."""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{VLLM_STUDIO_URL}/recipes", timeout=5.0)
+            if resp.status_code != 200:
+                log.warning(f"vLLM Studio recipes fetch failed: {resp.status_code}")
+                return []
+            recipes = resp.json()
+
+            # Also get the currently running model status
+            status_resp = await client.get(f"{VLLM_STUDIO_URL}/status", timeout=5.0)
+            running_recipe_id = None
+            if status_resp.status_code == 200:
+                status = status_resp.json()
+                running_recipe_id = status.get("running_recipe")
+
+            models = []
+            for recipe in recipes:
+                # Use served_model_name if set, otherwise use recipe id
+                model_id = recipe.get("served_model_name") or recipe.get("id")
+                is_running = recipe.get("id") == running_recipe_id
+
+                models.append({
+                    "id": model_id,
+                    "name": recipe.get("name", model_id),
+                    "object": "model",
+                    "created": int(time.time()),
+                    "owned_by": "vllm-studio",
+                    "vllm_studio": {
+                        "recipe_id": recipe.get("id"),
+                        "backend": recipe.get("backend", "vllm"),
+                        "is_running": is_running,
+                        "model_path": recipe.get("model_path"),
+                    },
+                    "connection_type": "local",
+                })
+            return models
+    except Exception as e:
+        log.warning(f"Failed to fetch vLLM Studio recipes: {e}")
+        return []
+
+
 async def get_all_base_models(request: Request, user: UserModel = None):
     openai_task = (
         fetch_openai_models(request, user)
@@ -71,12 +119,14 @@ async def get_all_base_models(request: Request, user: UserModel = None):
         else asyncio.sleep(0, result=[])
     )
     function_task = get_function_models(request)
+    vllm_studio_task = fetch_vllm_studio_recipes()
 
-    openai_models, ollama_models, function_models = await asyncio.gather(
-        openai_task, ollama_task, function_task
+    openai_models, ollama_models, function_models, vllm_studio_models = await asyncio.gather(
+        openai_task, ollama_task, function_task, vllm_studio_task
     )
 
-    return function_models + openai_models + ollama_models
+    # vLLM Studio models go first for priority in model picker
+    return vllm_studio_models + function_models + openai_models + ollama_models
 
 
 async def get_all_models(request, refresh: bool = False, user: UserModel = None):

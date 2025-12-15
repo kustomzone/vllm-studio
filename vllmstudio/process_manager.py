@@ -33,6 +33,7 @@ class ProcessManager:
                 if 'vllm serve' in cmdline_str or 'vllm.entrypoints' in cmdline_str:
                     model_path = ProcessManager._extract_model_path(cmdline, 'vllm')
                     port = ProcessManager._extract_port(cmdline)
+                    served_name = ProcessManager._extract_served_model_name(cmdline)
                     if model_path:
                         processes.append(ProcessInfo(
                             pid=proc.info['pid'],
@@ -40,13 +41,15 @@ class ProcessManager:
                             model_path=model_path,
                             port=port,
                             cmdline=cmdline,
-                            memory_gb=proc.info['memory_info'].rss / (1024**3)
+                            memory_gb=proc.info['memory_info'].rss / (1024**3),
+                            served_model_name=served_name
                         ))
 
                 # Check for SGLang
                 elif 'sglang' in cmdline_str and 'serve' in cmdline_str:
                     model_path = ProcessManager._extract_model_path(cmdline, 'sglang')
                     port = ProcessManager._extract_port(cmdline)
+                    served_name = ProcessManager._extract_served_model_name(cmdline)
                     if model_path:
                         processes.append(ProcessInfo(
                             pid=proc.info['pid'],
@@ -54,7 +57,8 @@ class ProcessManager:
                             model_path=model_path,
                             port=port,
                             cmdline=cmdline,
-                            memory_gb=proc.info['memory_info'].rss / (1024**3)
+                            memory_gb=proc.info['memory_info'].rss / (1024**3),
+                            served_model_name=served_name
                         ))
 
             except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -72,7 +76,11 @@ class ProcessManager:
                 continue
             if in_serve and not arg.startswith('-') and '/' in arg:
                 return arg
-            if arg in ('--model', '-m') and i + 1 < len(cmdline):
+            # Match --model flag (only full form, not -m which conflicts with python -m)
+            if arg == '--model' and i + 1 < len(cmdline):
+                return cmdline[i + 1]
+            # Match --model-path for sglang
+            if arg == '--model-path' and i + 1 < len(cmdline):
                 return cmdline[i + 1]
         return None
 
@@ -86,6 +94,14 @@ class ProcessManager:
                 except ValueError:
                     pass
         return 8000
+
+    @staticmethod
+    def _extract_served_model_name(cmdline: List[str]) -> Optional[str]:
+        """Extract served-model-name from command line."""
+        for i, arg in enumerate(cmdline):
+            if arg == '--served-model-name' and i + 1 < len(cmdline):
+                return cmdline[i + 1]
+        return None
 
     @staticmethod
     def get_current_process(port: int = 8000) -> Optional[ProcessInfo]:
@@ -208,10 +224,22 @@ class ProcessManager:
     @staticmethod
     def _build_vllm_command(recipe: Recipe) -> List[str]:
         """Build vLLM launch command."""
-        cmd = ["vllm", "serve", recipe.model_path]
+        # Use custom python if specified, otherwise default vllm
+        if recipe.python_path:
+            cmd = [recipe.python_path, "-m", "vllm.entrypoints.openai.api_server", "--model", recipe.model_path]
+        else:
+            cmd = ["vllm", "serve", recipe.model_path]
 
         # Host and port
         cmd.extend(["--host", recipe.host, "--port", str(recipe.port)])
+
+        # Served model name (what shows up in /v1/models)
+        if recipe.served_model_name:
+            cmd.extend(["--served-model-name", recipe.served_model_name])
+
+        # Allowed media path for vision models
+        if recipe.allowed_local_media_path:
+            cmd.extend(["--allowed-local-media-path", recipe.allowed_local_media_path])
 
         # Parallelism
         if recipe.tensor_parallel_size > 1:
@@ -259,6 +287,11 @@ class ProcessManager:
         if recipe.calculate_kv_scales:
             cmd.append("--calculate-kv-scales")
 
+        # RoPE scaling for extended context
+        if recipe.rope_scaling:
+            import json
+            cmd.extend(["--rope-scaling", json.dumps(recipe.rope_scaling)])
+
         # Extra args
         for key, value in recipe.extra_args.items():
             if value is True:
@@ -271,8 +304,11 @@ class ProcessManager:
     @staticmethod
     def _build_sglang_command(recipe: Recipe) -> List[str]:
         """Build SGLang launch command."""
-        # Use the frozen SGLang venv
-        sglang_python = "/opt/venvs/frozen/sglang-prod/bin/python"
+        # Use custom python if specified, otherwise frozen SGLang venv
+        if recipe.python_path:
+            sglang_python = recipe.python_path
+        else:
+            sglang_python = "/opt/venvs/frozen/sglang-prod/bin/python"
         cmd = [sglang_python, "-m", "sglang.launch_server"]
         cmd.extend(["--model-path", recipe.model_path])
         cmd.extend(["--host", recipe.host, "--port", str(recipe.port)])
@@ -304,6 +340,9 @@ class ProcessManager:
         env = os.environ.copy()
         if recipe.cuda_visible_devices:
             env["CUDA_VISIBLE_DEVICES"] = recipe.cuda_visible_devices
+        # Add custom environment variables from recipe
+        if recipe.env_vars:
+            env.update(recipe.env_vars)
 
         # Create log file for vLLM output
         log_file = Path(f"/tmp/vllm_{recipe.id}.log")

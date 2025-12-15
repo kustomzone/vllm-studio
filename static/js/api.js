@@ -141,10 +141,18 @@ const API = {
     /**
      * Send a chat completion request with streaming
      * @param {Object} params - Chat parameters
-     * @param {Function} onChunk - Callback for each streamed chunk
+     * @param {Function|Object} onChunk - Callback for text chunks, or handler object
+     *   { onContent, onToolCall, onFinish }
      * @returns {Promise<void>}
      */
     async chatStream(params, onChunk) {
+        // Support either a simple text handler or a handler object
+        const handlers = typeof onChunk === 'function' ? { onContent: onChunk } : (onChunk || {});
+        const { onContent, onToolCall, onFinish } = handlers;
+
+        // Buffer to assemble streamed tool calls (name/args may arrive separately)
+        const toolCallBuffer = new Map();
+
         const response = await fetch(this.baseUrl + '/v1/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -163,6 +171,12 @@ const API = {
         const decoder = new TextDecoder();
         let buffer = '';
 
+        const emitToolCalls = () => {
+            if (!onToolCall) return;
+            const calls = Array.from(toolCallBuffer.values()).sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+            if (calls.length) onToolCall(calls);
+        };
+
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
@@ -174,13 +188,52 @@ const API = {
             for (const line of lines) {
                 if (line.startsWith('data: ')) {
                     const data = line.slice(6);
-                    if (data === '[DONE]') return;
+                    if (data === '[DONE]') {
+                        return { toolCalls: Array.from(toolCallBuffer.values()) };
+                    }
 
                     try {
                         const parsed = JSON.parse(data);
-                        const content = parsed.choices?.[0]?.delta?.content;
-                        if (content) {
-                            onChunk(content);
+                        const delta = parsed.choices?.[0]?.delta || {};
+
+                        const content = delta.content;
+                        if (content && onContent) {
+                            onContent(content, parsed);
+                        }
+
+                        const toolCallsDelta = delta.tool_calls;
+                        if (Array.isArray(toolCallsDelta)) {
+                            for (const tc of toolCallsDelta) {
+                                const idx = tc.index ?? 0;
+                                const existing = toolCallBuffer.get(idx) || {
+                                    index: idx,
+                                    id: '',
+                                    type: tc.type || 'function',
+                                    function: { name: '', arguments: '' }
+                                };
+
+                                if (tc.id) existing.id = tc.id;
+                                if (tc.type) existing.type = tc.type;
+
+                                const fn = tc.function || {};
+                                if (fn.name) {
+                                    existing.function.name += fn.name;
+                                }
+                                if (fn.arguments) {
+                                    existing.function.arguments += fn.arguments;
+                                }
+
+                                toolCallBuffer.set(idx, existing);
+                            }
+                            emitToolCalls();
+                        }
+
+                        const finish = parsed.choices?.[0]?.finish_reason;
+                        if (finish && onFinish) {
+                            onFinish({
+                                finish_reason: finish,
+                                toolCalls: Array.from(toolCallBuffer.values())
+                            });
                         }
                     } catch (e) {
                         // Ignore parse errors for incomplete chunks
@@ -188,6 +241,10 @@ const API = {
                 }
             }
         }
+
+        return {
+            toolCalls: Array.from(toolCallBuffer.values())
+        };
     },
 
     /**

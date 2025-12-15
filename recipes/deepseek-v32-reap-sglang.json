@@ -1,0 +1,30 @@
+{
+  "id": "deepseek-v32-reap-sglang",
+  "name": "DeepSeek-V3.2-REAP W3A16 (SGLang TP8)",
+  "model_path": "/mnt/llm_models/DeepSeek-V3.2-REAP-345B-A37B-W3A16-AutoRound",
+  "backend": "sglang",
+  "tensor_parallel_size": 8,
+  "max_model_len": 65536,
+  "gpu_memory_utilization": 0.92,
+  "kv_cache_dtype": "fp8_e4m3",
+  "trust_remote_code": true,
+  "disable_log_requests": false,
+  "host": "0.0.0.0",
+  "port": 8000,
+  "served_model_name": "deepseek-v32-reap",
+  "python_path": "/opt/venvs/active/deepseek-v3/bin/python",
+  "env_vars": {
+    "SGLANG_DISABLE_NSA": "1",
+    "NCCL_DEBUG": "INFO",
+    "TORCH_DISTRIBUTED_DEBUG": "DETAIL",
+    "TORCH_NCCL_BLOCKING_WAIT": "1"
+  },
+  "extra_args": {
+    "attention-backend": "flashinfer",
+    "kv-cache-dtype": "fp8_e4m3",
+    "disable-custom-all-reduce": true,
+    "disable-cuda-graph": true,
+    "log-level": "debug",
+    "log-level-http": "debug"
+  }
+}

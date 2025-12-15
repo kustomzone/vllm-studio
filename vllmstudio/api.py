@@ -6,20 +6,26 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse
+from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse, JSONResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
 from .config import settings
 from .models import (
     Recipe, RecipeWithStatus, RecipeStatus, ModelInfo, ProcessInfo,
-    SwitchRequest, SwitchResponse, HealthResponse, Backend
+    SwitchRequest, SwitchResponse, HealthResponse, Backend,
+    TokenCountRequest, TokenCountResponse, UsageStats, UsageEntry
 )
+from .token_counter import TokenCounter, TokenUsage, usage_tracker
 from .process_manager import ProcessManager
 from .recipe_manager import RecipeManager
 from .model_indexer import ModelIndexer
+from .metrics import MetricsState, parse_vllm_metrics
+from .recipe_generator import generate_recipe_from_path
 
 # Static files path
 STATIC_DIR = Path(__file__).parent.parent / "static"
@@ -68,6 +74,50 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# =============================================================================
+# API Key Authentication (OpenAI-style Bearer token)
+# =============================================================================
+
+# Public endpoints that don't require auth
+PUBLIC_PATHS = {"/health", "/", "/static", "/docs", "/openapi.json", "/redoc"}
+
+
+class APIKeyMiddleware(BaseHTTPMiddleware):
+    """Middleware for API key authentication (works like OpenAI)."""
+
+    async def dispatch(self, request: Request, call_next):
+        # Skip auth if no API key configured
+        if not settings.api_key:
+            return await call_next(request)
+
+        # Allow public endpoints
+        path = request.url.path
+        if path in PUBLIC_PATHS or path.startswith("/static"):
+            return await call_next(request)
+
+        # Check Authorization header (Bearer token)
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header[7:]  # Strip "Bearer "
+            if token == settings.api_key:
+                return await call_next(request)
+
+        # Check X-API-Key header (alternative)
+        api_key_header = request.headers.get("X-API-Key")
+        if api_key_header == settings.api_key:
+            return await call_next(request)
+
+        # Unauthorized
+        return JSONResponse(
+            status_code=401,
+            content={"error": {"message": "Invalid API key", "type": "invalid_api_key"}},
+        )
+
+
+# Add auth middleware
+app.add_middleware(APIKeyMiddleware)
 
 
 # =============================================================================
@@ -333,21 +383,45 @@ async def _auto_switch_if_needed(body: bytes) -> bool:
 
         # Get current running model
         current = ProcessManager.get_current_process(settings.vllm_port)
-        if current and current.model_path == requested_model:
-            return False  # Already running the right model
+
+        if current:
+            # Check if already running the right model by:
+            # 1. served_model_name match (e.g., "glm-4.6v-8bit")
+            # 2. model_path match (e.g., "/mnt/llm_models/GLM-4.6V-AWQ-8bit")
+            if current.served_model_name and current.served_model_name == requested_model:
+                return False  # Already running - matched by served name
+            if current.model_path == requested_model:
+                return False  # Already running - matched by path
 
         # Find a recipe that matches this model
-        recipe = recipe_manager.find_recipe_for_model(requested_model)
+        recipe = None
+
+        # 1. Try to find by recipe ID (most common - e.g., "glm-4.6v-8bit")
+        recipe = recipe_manager.get_recipe(requested_model)
+
+        # 2. Try to find by served_model_name
         if not recipe:
-            # Try to find by recipe ID (in case model name is the recipe ID)
-            recipe = recipe_manager.get_recipe(requested_model)
+            for r in recipe_manager.list_recipes():
+                if r.served_model_name == requested_model:
+                    recipe = r
+                    break
+
+        # 3. Try to find by model_path
+        if not recipe:
+            recipe = recipe_manager.find_recipe_for_model(requested_model)
 
         if not recipe:
             return False  # No matching recipe, let vLLM handle the error
 
         # Check if this recipe's model is already running
-        if current and current.model_path == recipe.model_path:
-            return False
+        if current:
+            # Match by model_path
+            if current.model_path == recipe.model_path:
+                return False  # Already running this recipe's model
+            # Also match by served_model_name if both have it
+            if recipe.served_model_name and current.served_model_name:
+                if recipe.served_model_name == current.served_model_name:
+                    return False  # Already running this recipe's model
 
         # Need to switch! Acquire lock
         if switching_lock.locked():
@@ -373,58 +447,327 @@ async def _auto_switch_if_needed(body: bytes) -> bool:
         return False
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
+        print(f"Auto-switch error: {e}")
         return False
+
+
+# =============================================================================
+# OpenAI-compatible /v1/models endpoint (returns ALL available recipes)
+# =============================================================================
+
+@app.get("/v1/models")
+async def list_openai_models():
+    """Return all available models (recipes) in OpenAI format."""
+    import time
+
+    recipes = recipe_manager.list_recipes()
+    current = ProcessManager.get_current_process(settings.vllm_port)
+
+    models = []
+    for recipe in recipes:
+        # Use served_model_name if set, otherwise recipe id
+        model_id = recipe.served_model_name or recipe.id
+
+        models.append({
+            "id": model_id,
+            "object": "model",
+            "created": int(time.time()),
+            "owned_by": "vllm-studio",
+            "root": recipe.model_path,
+            "parent": None,
+            "max_model_len": recipe.max_model_len,
+            "permission": [{
+                "id": f"modelperm-{recipe.id}",
+                "object": "model_permission",
+                "created": int(time.time()),
+                "allow_create_engine": False,
+                "allow_sampling": True,
+                "allow_logprobs": True,
+                "allow_search_indices": False,
+                "allow_view": True,
+                "allow_fine_tuning": False,
+                "organization": "*",
+                "group": None,
+                "is_blocking": False
+            }]
+        })
+
+    return {"object": "list", "data": models}
+
+
+# =============================================================================
+# Token Counting & Usage Tracking (OpenAI/Claude-style)
+# =============================================================================
+
+@app.post("/v1/tokens/count", response_model=TokenCountResponse)
+async def count_tokens(request: TokenCountRequest):
+    """
+    Count tokens in messages or text before sending to the model.
+
+    Similar to Anthropic's token counting API - allows you to determine
+    the total number of tokens in a Message prior to sending it.
+    """
+    breakdown = {}
+    total = 0
+
+    if request.text:
+        # Count raw text tokens
+        total = TokenCounter.count_tokens(request.text, request.model)
+        breakdown["text"] = total
+    elif request.messages:
+        # Count message tokens
+        message_tokens = TokenCounter.count_message_tokens(request.messages, request.model)
+        breakdown["messages"] = message_tokens
+        total = message_tokens
+
+        if request.tools:
+            tool_tokens = TokenCounter.count_tools_tokens(request.tools, request.model)
+            breakdown["tools"] = tool_tokens
+            total += tool_tokens
+
+    return TokenCountResponse(num_tokens=total, breakdown=breakdown if len(breakdown) > 1 else None)
+
+
+@app.post("/v1/chat/completions/tokenize")
+async def tokenize_chat_request(request: dict):
+    """
+    Tokenize a chat completions request and return token counts.
+
+    Accepts the same format as /v1/chat/completions but only returns
+    token counts without making an inference request.
+    """
+    messages = request.get("messages", [])
+    tools = request.get("tools")
+    model = request.get("model", "default")
+
+    message_tokens = TokenCounter.count_message_tokens(messages, model)
+    result = {
+        "input_tokens": message_tokens,
+        "breakdown": {
+            "messages": message_tokens
+        }
+    }
+
+    if tools:
+        tool_tokens = TokenCounter.count_tools_tokens(tools, model)
+        result["breakdown"]["tools"] = tool_tokens
+        result["input_tokens"] += tool_tokens
+
+    return result
+
+
+@app.get("/v1/usage", response_model=UsageStats)
+async def get_usage_stats(window_seconds: int = None):
+    """
+    Get aggregated token usage statistics.
+
+    Similar to OpenAI's usage API - returns aggregated token usage data.
+    Optionally specify a time window in seconds to get recent stats.
+    """
+    stats = usage_tracker.get_stats(window_seconds)
+    return stats
+
+
+@app.get("/v1/usage/recent")
+async def get_recent_usage(limit: int = 100):
+    """
+    Get recent usage log entries.
+
+    Returns the most recent token usage entries with request details.
+    """
+    entries = usage_tracker.get_recent(limit)
+    return {"entries": entries, "count": len(entries)}
+
+
+@app.delete("/v1/usage")
+async def clear_usage_stats():
+    """Clear all usage tracking data."""
+    usage_tracker.clear()
+    return {"status": "cleared"}
 
 
 @app.api_route("/v1/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy_to_backend(path: str, request: Request):
     """Proxy requests to the backend inference server. Auto-switches models if needed."""
+    import json
+    import time
+    import uuid
+
     body = b""
+    is_streaming = False
+    request_model = "unknown"
+    request_id = f"req-{uuid.uuid4().hex[:12]}"
+    start_time = time.perf_counter()
+
     if request.method != "GET":
         body = await request.body()
+
+        # Check if this is a streaming request and extract model name
+        try:
+            data = json.loads(body)
+            is_streaming = data.get("stream", False)
+            request_model = data.get("model", "unknown")
+        except:
+            pass
 
         # Auto-switch models for chat/completions endpoints
         if path in ("chat/completions", "completions"):
             await _auto_switch_if_needed(body)
 
-    async with httpx.AsyncClient() as client:
-        url = f"http://localhost:{settings.vllm_port}/v1/{path}"
+    url = f"http://localhost:{settings.vllm_port}/v1/{path}"
+    is_completion_endpoint = path in ("chat/completions", "completions")
 
-        try:
-            if request.method == "GET":
-                response = await client.get(url, timeout=120.0)
-            else:
-                response = await client.request(
-                    method=request.method,
-                    url=url,
-                    content=body,
-                    headers=dict(request.headers),
-                    timeout=120.0
-                )
+    try:
+        if is_streaming:
+            # For streaming requests, forward chunks and track usage from final chunk
+            async def stream_response():
+                nonlocal request_model
+                usage_data = None
+                chunk_buffer = []
+
+                async with httpx.AsyncClient() as client:
+                    async with client.stream(
+                        method=request.method,
+                        url=url,
+                        content=body,
+                        headers={k: v for k, v in request.headers.items() if k.lower() != 'host'},
+                        timeout=300.0
+                    ) as response:
+                        async for chunk in response.aiter_bytes():
+                            yield chunk
+
+                            # Try to extract usage from streaming chunks
+                            if is_completion_endpoint:
+                                try:
+                                    chunk_str = chunk.decode('utf-8', errors='ignore')
+                                    for line in chunk_str.split('\n'):
+                                        if line.startswith('data: ') and '[DONE]' not in line:
+                                            chunk_data = json.loads(line[6:])
+                                            # Some backends send usage in final chunk
+                                            if 'usage' in chunk_data:
+                                                usage_data = chunk_data['usage']
+                                            # Get model from response if not known
+                                            if chunk_data.get('model'):
+                                                request_model = chunk_data['model']
+                                except:
+                                    pass
+
+                # Log usage after streaming completes
+                if is_completion_endpoint and usage_data:
+                    latency_ms = (time.perf_counter() - start_time) * 1000
+                    usage = TokenUsage(
+                        prompt_tokens=usage_data.get('prompt_tokens', 0),
+                        completion_tokens=usage_data.get('completion_tokens', 0),
+                        total_tokens=usage_data.get('total_tokens', 0)
+                    )
+                    usage_tracker.log_usage(
+                        request_id=request_id,
+                        model=request_model,
+                        usage=usage,
+                        latency_ms=latency_ms,
+                        endpoint=f"/v1/{path}"
+                    )
 
             return StreamingResponse(
-                iter([response.content]),
-                status_code=response.status_code,
-                headers=dict(response.headers),
-                media_type=response.headers.get("content-type")
+                stream_response(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no",
+                }
             )
-        except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail="Backend not available")
-        except httpx.TimeoutException:
-            raise HTTPException(status_code=504, detail="Backend timeout")
+        else:
+            # Non-streaming requests
+            async with httpx.AsyncClient() as client:
+                if request.method == "GET":
+                    response = await client.get(url, timeout=120.0)
+                else:
+                    response = await client.request(
+                        method=request.method,
+                        url=url,
+                        content=body,
+                        headers={k: v for k, v in request.headers.items() if k.lower() != 'host'},
+                        timeout=120.0
+                    )
+
+                # Extract and log usage from non-streaming completion responses
+                if is_completion_endpoint and response.status_code == 200:
+                    try:
+                        response_data = json.loads(response.content)
+                        usage_data = response_data.get('usage', {})
+                        latency_ms = (time.perf_counter() - start_time) * 1000
+
+                        # Get model from response
+                        if response_data.get('model'):
+                            request_model = response_data['model']
+
+                        usage = TokenUsage(
+                            prompt_tokens=usage_data.get('prompt_tokens', 0),
+                            completion_tokens=usage_data.get('completion_tokens', 0),
+                            total_tokens=usage_data.get('total_tokens', 0)
+                        )
+                        usage_tracker.log_usage(
+                            request_id=request_id,
+                            model=request_model,
+                            usage=usage,
+                            latency_ms=latency_ms,
+                            endpoint=f"/v1/{path}"
+                        )
+                    except:
+                        pass
+
+                return StreamingResponse(
+                    iter([response.content]),
+                    status_code=response.status_code,
+                    headers=dict(response.headers),
+                    media_type=response.headers.get("content-type")
+                )
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Backend not available")
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Backend timeout")
 
 
 # =============================================================================
 # Logs
 # =============================================================================
 
+# Log directories to search
+LOG_DIRS = [
+    Path("/tmp"),  # vLLM Studio managed logs
+    Path(__file__).parent.parent / "logs",  # Local logs directory
+]
+
+
+def find_log_file(recipe_id: str) -> Optional[Path]:
+    """Find log file for a recipe in multiple locations."""
+    # Check standard vLLM Studio log location first
+    tmp_log = Path(f"/tmp/vllm_{recipe_id}.log")
+    if tmp_log.exists():
+        return tmp_log
+
+    # Check local logs directory with various naming patterns
+    local_logs = Path(__file__).parent.parent / "logs"
+    if local_logs.exists():
+        # Try exact match
+        for pattern in [f"{recipe_id}.log", f"*{recipe_id}*.log"]:
+            matches = list(local_logs.glob(pattern))
+            if matches:
+                # Return most recently modified
+                return max(matches, key=lambda p: p.stat().st_mtime)
+
+    return None
+
+
 @app.get("/logs/{recipe_id}")
 async def get_logs(recipe_id: str, lines: int = 100):
     """Get recent logs for a recipe."""
-    log_file = Path(f"/tmp/vllm_{recipe_id}.log")
-    if not log_file.exists():
-        return {"logs": [], "file": str(log_file)}
+    log_file = find_log_file(recipe_id)
+
+    if not log_file:
+        return {"logs": [], "file": None, "message": f"No log file found for {recipe_id}"}
 
     try:
         with open(log_file, 'r') as f:
@@ -437,15 +780,86 @@ async def get_logs(recipe_id: str, lines: int = 100):
 
 @app.get("/logs")
 async def list_log_files():
-    """List available log files."""
-    log_dir = Path("/tmp")
-    logs = list(log_dir.glob("vllm_*.log"))
-    return {
-        "logs": [
-            {"name": log.name, "recipe_id": log.stem.replace("vllm_", ""), "size": log.stat().st_size}
-            for log in logs
-        ]
-    }
+    """List available log files from all log directories."""
+    logs = []
+    seen_names = set()
+
+    for log_dir in LOG_DIRS:
+        if not log_dir.exists():
+            continue
+
+        # Get vLLM Studio managed logs
+        for log in log_dir.glob("vllm_*.log"):
+            if log.name not in seen_names:
+                seen_names.add(log.name)
+                logs.append({
+                    "name": log.name,
+                    "recipe_id": log.stem.replace("vllm_", ""),
+                    "size": log.stat().st_size,
+                    "modified": log.stat().st_mtime,
+                    "path": str(log)
+                })
+
+        # Get other logs (local logs directory)
+        if log_dir != Path("/tmp"):
+            for log in log_dir.glob("*.log"):
+                if log.name not in seen_names and not log.name.startswith("vllm_"):
+                    seen_names.add(log.name)
+                    logs.append({
+                        "name": log.name,
+                        "recipe_id": log.stem,
+                        "size": log.stat().st_size,
+                        "modified": log.stat().st_mtime,
+                        "path": str(log)
+                    })
+
+    # Sort by modification time (newest first)
+    logs.sort(key=lambda x: x.get("modified", 0), reverse=True)
+
+    return {"logs": logs}
+
+
+@app.get("/logs/live/{recipe_id}")
+async def stream_logs(recipe_id: str, lines: int = 50):
+    """Stream live logs for a recipe using Server-Sent Events."""
+    import asyncio
+    from sse_starlette.sse import EventSourceResponse
+
+    log_file = find_log_file(recipe_id)
+
+    async def log_generator():
+        if not log_file or not log_file.exists():
+            yield {"data": f"No log file found for {recipe_id}"}
+            return
+
+        # Send last N lines first
+        try:
+            with open(log_file, 'r') as f:
+                all_lines = f.readlines()
+                for line in all_lines[-lines:]:
+                    yield {"data": line.rstrip()}
+        except Exception as e:
+            yield {"data": f"Error reading log: {e}"}
+            return
+
+        # Then tail the file
+        last_size = log_file.stat().st_size
+        while True:
+            await asyncio.sleep(1)
+            try:
+                current_size = log_file.stat().st_size
+                if current_size > last_size:
+                    with open(log_file, 'r') as f:
+                        f.seek(last_size)
+                        new_content = f.read()
+                        for line in new_content.splitlines():
+                            if line.strip():
+                                yield {"data": line}
+                    last_size = current_size
+            except Exception:
+                break
+
+    return EventSourceResponse(log_generator())
 
 
 # =============================================================================
@@ -532,21 +946,13 @@ async def get_gpu_info():
 # =============================================================================
 
 # Global state for throughput calculation
-_metrics_state = {
-    "last_prompt_tokens": 0,
-    "last_generation_tokens": 0,
-    "last_timestamp": 0,
-}
+_metrics_state = MetricsState()
 
 
 @app.get("/metrics")
 async def get_performance_metrics():
     """Get performance metrics from vLLM backend."""
-    import re
-    import time
-    global _metrics_state
-
-    metrics = {
+    base_metrics = {
         "running_requests": None,
         "pending_requests": None,
         "kv_cache_usage": None,
@@ -558,6 +964,7 @@ async def get_performance_metrics():
         "avg_ttft_ms": None,
         "avg_tpot_ms": None,
         "request_success": None,
+        "error": None,
     }
 
     try:
@@ -567,79 +974,14 @@ async def get_performance_metrics():
                 timeout=5.0
             )
             if response.status_code == 200:
-                text = response.text
-                current_time = time.time()
-
-                # Parse prometheus metrics (correct vLLM patterns)
-                patterns = {
-                    "running_requests": r'vllm:num_requests_running\{[^}]*\}\s+([\d.e+-]+)',
-                    "pending_requests": r'vllm:num_requests_waiting\{[^}]*\}\s+([\d.e+-]+)',
-                    "kv_cache_usage": r'vllm:kv_cache_usage_perc\{[^}]*\}\s+([\d.e+-]+)',
-                    "prompt_tokens_total": r'vllm:prompt_tokens_total\{[^}]*\}\s+([\d.e+-]+)',
-                    "generation_tokens_total": r'vllm:generation_tokens_total\{[^}]*\}\s+([\d.e+-]+)',
-                    "prefix_cache_queries": r'vllm:prefix_cache_queries_total\{[^}]*\}\s+([\d.e+-]+)',
-                    "prefix_cache_hits": r'vllm:prefix_cache_hits_total\{[^}]*\}\s+([\d.e+-]+)',
-                    "ttft_sum": r'vllm:time_to_first_token_seconds_sum\{[^}]*\}\s+([\d.e+-]+)',
-                    "ttft_count": r'vllm:time_to_first_token_seconds_count\{[^}]*\}\s+([\d.e+-]+)',
-                    "tpot_sum": r'vllm:time_per_output_token_seconds_sum\{[^}]*\}\s+([\d.e+-]+)',
-                    "tpot_count": r'vllm:time_per_output_token_seconds_count\{[^}]*\}\s+([\d.e+-]+)',
-                    "request_success": r'vllm:request_success_total\{[^}]*finished_reason="stop"[^}]*\}\s+([\d.e+-]+)',
-                }
-
-                parsed = {}
-                for key, pattern in patterns.items():
-                    match = re.search(pattern, text)
-                    if match:
-                        parsed[key] = float(match.group(1))
-
-                # Direct gauges
-                metrics["running_requests"] = int(parsed.get("running_requests", 0))
-                metrics["pending_requests"] = int(parsed.get("pending_requests", 0))
-                metrics["kv_cache_usage"] = round(parsed.get("kv_cache_usage", 0) * 100, 2)
-                metrics["prompt_tokens_total"] = int(parsed.get("prompt_tokens_total", 0))
-                metrics["generation_tokens_total"] = int(parsed.get("generation_tokens_total", 0))
-                metrics["request_success"] = int(parsed.get("request_success", 0))
-
-                # Calculate prefix cache hit rate
-                queries = parsed.get("prefix_cache_queries", 0)
-                hits = parsed.get("prefix_cache_hits", 0)
-                if queries > 0:
-                    metrics["prefix_cache_hit_rate"] = round((hits / queries) * 100, 2)
-
-                # Calculate avg TTFT and TPOT
-                ttft_sum = parsed.get("ttft_sum", 0)
-                ttft_count = parsed.get("ttft_count", 0)
-                if ttft_count > 0:
-                    metrics["avg_ttft_ms"] = round((ttft_sum / ttft_count) * 1000, 2)
-
-                tpot_sum = parsed.get("tpot_sum", 0)
-                tpot_count = parsed.get("tpot_count", 0)
-                if tpot_count > 0:
-                    metrics["avg_tpot_ms"] = round((tpot_sum / tpot_count) * 1000, 2)
-
-                # Calculate throughput (tokens/sec) from counters
-                prompt_tokens = parsed.get("prompt_tokens_total", 0)
-                gen_tokens = parsed.get("generation_tokens_total", 0)
-
-                if _metrics_state["last_timestamp"] > 0:
-                    elapsed = current_time - _metrics_state["last_timestamp"]
-                    if elapsed > 0.5:  # At least 0.5 second between samples
-                        prompt_delta = prompt_tokens - _metrics_state["last_prompt_tokens"]
-                        gen_delta = gen_tokens - _metrics_state["last_generation_tokens"]
-                        if prompt_delta >= 0:
-                            metrics["prompt_throughput"] = round(prompt_delta / elapsed, 2)
-                        if gen_delta >= 0:
-                            metrics["generation_throughput"] = round(gen_delta / elapsed, 2)
-
-                # Update state for next calculation
-                _metrics_state["last_prompt_tokens"] = prompt_tokens
-                _metrics_state["last_generation_tokens"] = gen_tokens
-                _metrics_state["last_timestamp"] = current_time
-
+                parsed = parse_vllm_metrics(response.text, _metrics_state)
+                base_metrics.update(parsed)
+            else:
+                base_metrics["error"] = f"Backend responded with {response.status_code}"
     except Exception as e:
-        metrics["error"] = str(e)
+        base_metrics["error"] = str(e)
 
-    return metrics
+    return base_metrics
 
 
 # =============================================================================
@@ -793,117 +1135,17 @@ async def export_all_recipes(format: str = "json"):
 @app.post("/generate-recipe")
 async def generate_recipe(model_path: str, name: str = None):
     """Auto-generate an optimized recipe for a model by scanning its config."""
-    import json as json_lib
-    from pathlib import Path
-
-    model_dir = Path(model_path)
-    if not model_dir.exists():
-        raise HTTPException(status_code=404, detail=f"Model path {model_path} not found")
-
-    config_path = model_dir / "config.json"
-    if not config_path.exists():
-        raise HTTPException(status_code=400, detail="Model has no config.json")
-
-    with open(config_path) as f:
-        config = json_lib.load(f)
-
-    # Get GPU info
     gpu_info = await get_gpu_info()
-    gpus = gpu_info.get("gpus", [])
-    num_gpus = len(gpus)
-    gpu_memory_gb = gpus[0].get("memory_total_mb", 48000) / 1024 if gpus else 48
+    gpus = gpu_info.get("gpus", []) if isinstance(gpu_info, dict) else []
 
-    # Extract model info
-    hidden_size = config.get("hidden_size", 4096)
-    num_layers = config.get("num_hidden_layers", 32)
-    vocab_size = config.get("vocab_size", 32000)
-    num_experts = config.get("num_experts") or config.get("num_local_experts", 0)
-    max_position = config.get("max_position_embeddings", 32768)
-    arch = config.get("architectures", ["Unknown"])[0]
+    try:
+        recipe, analysis = generate_recipe_from_path(model_path, name, gpus)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
-    # Estimate model size (rough calculation)
-    name_lower = model_dir.name.lower()
-    bits_per_param = 4 if any(x in name_lower for x in ["awq", "gptq", "int4", "w4a16"]) else (8 if "fp8" in name_lower or "int8" in name_lower else 16)
-
-    # Rough param estimate from architecture
-    estimated_params_b = (hidden_size * hidden_size * num_layers * 4 + vocab_size * hidden_size * 2) / 1e9
-    if num_experts > 0:
-        estimated_params_b *= (num_experts * 0.15 + 1)  # MoE scaling
-
-    model_size_gb = estimated_params_b * bits_per_param / 8
-
-    # Determine optimal parallelism
-    tp_size = 1
-    if model_size_gb > gpu_memory_gb * 0.7:
-        tp_size = min(num_gpus, max(1, int(model_size_gb / (gpu_memory_gb * 0.6))))
-
-    # Determine optimal context length
-    max_ctx = min(max_position, 131072)
-    if model_size_gb > 100:
-        max_ctx = min(max_ctx, 65536)
-    if model_size_gb > 200:
-        max_ctx = min(max_ctx, 32768)
-
-    # Memory utilization
-    gpu_util = 0.90 if bits_per_param <= 8 else 0.85
-
-    # KV cache dtype recommendation
-    kv_dtype = "auto"
-    if bits_per_param == 16 and num_gpus >= 4:
-        kv_dtype = "fp8"  # Recommend FP8 KV cache for large FP16 models
-
-    # Tool parser based on architecture
-    tool_parser = None
-    if "qwen" in name_lower:
-        tool_parser = "qwen25"
-    elif "llama" in name_lower or "mistral" in name_lower:
-        tool_parser = "llama3_json"
-    elif "hermes" in name_lower:
-        tool_parser = "hermes"
-
-    # Generate recipe ID
-    recipe_id = model_dir.name.lower().replace(" ", "-").replace("_", "-")[:50]
-    recipe_name = name or model_dir.name
-
-    recipe = Recipe(
-        id=recipe_id,
-        name=recipe_name,
-        model_path=str(model_dir),
-        backend="vllm",
-        tensor_parallel_size=tp_size,
-        pipeline_parallel_size=1,
-        data_parallel_size=1,
-        max_model_len=max_ctx,
-        gpu_memory_utilization=gpu_util,
-        kv_cache_dtype=kv_dtype,
-        swap_space=16,
-        max_num_seqs=12 if model_size_gb < 50 else 6,
-        max_num_batched_tokens=max_ctx // 4,
-        block_size=32,
-        enable_expert_parallel=num_experts > 4,
-        disable_custom_all_reduce=tp_size > 1,
-        disable_log_requests=True,
-        trust_remote_code=True,
-        enable_auto_tool_choice=tool_parser is not None,
-        tool_call_parser=tool_parser,
-        quantization="awq" if "awq" in name_lower else ("gptq" in name_lower and "gptq") or None,
-    )
-
-    return {
-        "recipe": recipe.model_dump(),
-        "analysis": {
-            "estimated_params_b": round(estimated_params_b, 1),
-            "estimated_size_gb": round(model_size_gb, 1),
-            "bits_per_param": bits_per_param,
-            "recommended_tp": tp_size,
-            "recommended_ctx": max_ctx,
-            "num_gpus_available": num_gpus,
-            "gpu_memory_gb": round(gpu_memory_gb, 1),
-            "architecture": arch,
-            "is_moe": num_experts > 0,
-            "num_experts": num_experts,
-        }
-    }
+    return {"recipe": recipe.model_dump(), "analysis": analysis}
 
 
 # =============================================================================

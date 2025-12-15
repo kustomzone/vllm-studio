@@ -14,8 +14,10 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VLLM_STUDIO_PORT=8080
+PROXY_PORT=8001
 OPENWEBUI_PORT=3000
 VLLM_STUDIO_LOG="$SCRIPT_DIR/logs/vllm-studio.log"
+PROXY_LOG="$SCRIPT_DIR/logs/proxy.log"
 OPENWEBUI_LOG="$SCRIPT_DIR/logs/openwebui.log"
 
 mkdir -p "$SCRIPT_DIR/logs"
@@ -41,6 +43,12 @@ stop_services() {
         print_success "Stopped vLLM Studio"
     fi
 
+    # Kill proxy
+    if lsof -i :$PROXY_PORT -t >/dev/null 2>&1; then
+        lsof -i :$PROXY_PORT -t | xargs kill -9 2>/dev/null || true
+        print_success "Stopped Proxy"
+    fi
+
     # Kill OpenWebUI
     if lsof -i :$OPENWEBUI_PORT -t >/dev/null 2>&1; then
         lsof -i :$OPENWEBUI_PORT -t | xargs kill -9 2>/dev/null || true
@@ -61,6 +69,7 @@ start_vllm_studio() {
 
     cd "$SCRIPT_DIR"
     source .venv/bin/activate
+    export VLLMSTUDIO_PROXY_PORT="$PROXY_PORT"
     nohup python -m vllmstudio.cli > "$VLLM_STUDIO_LOG" 2>&1 &
 
     # Wait for API to be ready
@@ -113,9 +122,9 @@ start_openwebui() {
 
     if [ "$dev_mode" = "true" ]; then
         print_status "Starting in development mode..."
-        uvicorn open_webui.main:app --host 0.0.0.0 --port $OPENWEBUI_PORT --reload &
+        "$SCRIPT_DIR/openwebui-src/backend/.venv/bin/uvicorn" open_webui.main:app --host 0.0.0.0 --port $OPENWEBUI_PORT --reload &
     else
-        nohup uvicorn open_webui.main:app --host 0.0.0.0 --port $OPENWEBUI_PORT > "$OPENWEBUI_LOG" 2>&1 &
+        nohup "$SCRIPT_DIR/openwebui-src/backend/.venv/bin/uvicorn" open_webui.main:app --host 0.0.0.0 --port $OPENWEBUI_PORT > "$OPENWEBUI_LOG" 2>&1 &
     fi
 
     # Wait for OpenWebUI to be ready
@@ -128,6 +137,34 @@ start_openwebui() {
     done
 
     print_error "OpenWebUI failed to start. Check $OPENWEBUI_LOG"
+    return 1
+}
+
+start_proxy() {
+    print_status "Starting Proxy on port $PROXY_PORT..."
+
+    if lsof -i :$PROXY_PORT -t >/dev/null 2>&1; then
+        print_warning "Port $PROXY_PORT already in use, killing existing process"
+        lsof -i :$PROXY_PORT -t | xargs kill -9 2>/dev/null || true
+        sleep 1
+    fi
+
+    cd "$SCRIPT_DIR"
+    if [ -d ".venv" ]; then
+        source .venv/bin/activate
+    fi
+
+    nohup uvicorn proxy.main:app --host 0.0.0.0 --port $PROXY_PORT > "$PROXY_LOG" 2>&1 &
+
+    for i in {1..20}; do
+        if curl -s http://localhost:$PROXY_PORT/health >/dev/null 2>&1; then
+            print_success "Proxy ready at http://localhost:$PROXY_PORT"
+            return 0
+        fi
+        sleep 1
+    done
+
+    print_error "Proxy failed to start. Check $PROXY_LOG"
     return 1
 }
 
@@ -150,6 +187,12 @@ show_status() {
         echo -e "  OpenWebUI:        ${RED}Stopped${NC}"
     fi
 
+    if curl -s http://localhost:$PROXY_PORT/health >/dev/null 2>&1; then
+        echo -e "  Proxy:            ${GREEN}Running${NC} at http://localhost:$PROXY_PORT"
+    else
+        echo -e "  Proxy:            ${RED}Stopped${NC}"
+    fi
+
     echo ""
     echo -e "${BLUE}============================================${NC}"
     echo ""
@@ -168,11 +211,13 @@ case "${1:-}" in
         ;;
     --dev)
         start_vllm_studio
+        start_proxy
         start_openwebui true
         show_status
         ;;
     *)
         start_vllm_studio
+        start_proxy
         start_openwebui false
         show_status
         ;;

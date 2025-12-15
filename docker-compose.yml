@@ -7,8 +7,8 @@ services:
     ports:
       - "3000:8080"
     environment:
-      - OPENAI_API_BASE_URL=http://host.docker.internal:8080/v1
-      - OPENAI_API_KEY=dummy
+      - OPENAI_API_BASE_URL=http://app.homelabai:8080/v1
+      - OPENAI_API_KEY=sk-homelabai-3fe751380eb7ac8701f670bee4a56b8ebff8365c68828faa
       - WEBUI_AUTH=false
     extra_hosts:
       - "host.docker.internal:host-gateway"

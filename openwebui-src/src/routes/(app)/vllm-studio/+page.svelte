@@ -60,7 +60,14 @@
 	let switching = false;
 
 	// Tab state
-	let activeTab: 'overview' | 'models' | 'tools' = 'overview';
+	let activeTab: 'overview' | 'recipes' | 'logs' | 'models' | 'tools' = 'overview';
+
+	// Collapsible sections
+	let showGpuSection = true;
+	let showMetricsSection = true;
+
+	// Recipe filtering
+	let recipeSearchQuery = '';
 
 	// Model Browser state
 	let availableModels: BrowseModel[] = [];
@@ -294,6 +301,14 @@
 		(m.architecture && m.architecture.toLowerCase().includes(modelSearchQuery.toLowerCase()))
 	);
 
+	$: filteredRecipes = recipes.filter(r =>
+		r.name.toLowerCase().includes(recipeSearchQuery.toLowerCase()) ||
+		r.id.toLowerCase().includes(recipeSearchQuery.toLowerCase()) ||
+		r.model_path.toLowerCase().includes(recipeSearchQuery.toLowerCase())
+	);
+
+	$: runningRecipe = recipes.find(r => r.status === 'running');
+
 	// Auto-Recipe Generator functions
 	async function handleGenerateRecipe() {
 		if (!generateModelPath) return;
@@ -471,330 +486,398 @@
 </svelte:head>
 
 {#if loaded}
-	<!-- Header -->
-	<div class="flex flex-col gap-1 px-1 mt-1.5 mb-3">
-		<div class="flex justify-between items-center">
-			<div class="flex items-center md:self-center text-xl font-medium px-0.5 gap-2 shrink-0">
-				<div>vLLM Studio</div>
-				<div class="text-lg font-medium text-gray-500 dark:text-gray-500">
-					{recipes.length} recipes
-				</div>
+<div class="space-y-6 px-3 sm:px-5 pb-14 max-w-screen-xl mx-auto w-full overflow-x-hidden">
+	<!-- Hero -->
+	<div class="rounded-3xl border border-gray-800 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-4 sm:p-6 shadow-xl">
+		<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+			<div class="space-y-1">
+				<div class="text-2xl font-semibold tracking-tight">vLLM Studio</div>
+				<div class="text-sm text-slate-200/80">Switch models, inspect metrics, and manage recipes from one screen.</div>
 			</div>
-
-			<div class="flex w-full justify-end gap-1.5">
-				<button
-					class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-200 transition"
-					on:click={loadData}
-					disabled={switching}
-				>
-					<div class="self-center font-medium">Refresh</div>
+			<div class="flex flex-wrap gap-2 justify-end">
+				<button class="pill-ghost" on:click={loadData} disabled={switching}>
+					<svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+					<span>Refresh</span>
 				</button>
-
-				<button
-					class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-200 transition"
-					on:click={handleExportAll}
-				>
-					<div class="self-center font-medium">Export</div>
+				<button class="pill-ghost" on:click={handleExportAll}>
+					<svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/></svg>
+					<span>Export</span>
 				</button>
-
-				<button
-					class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-200 transition"
-					on:click={() => (showImportModal = true)}
-				>
-					<div class="self-center font-medium">Import</div>
+				<button class="pill-ghost" on:click={() => (showImportModal = true)}>
+					<svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2m-4-6l-4 4m0 0l-4-4m4 4V4"/></svg>
+					<span>Import</span>
 				</button>
-
-				{#if status?.running_process}
-					<button
-						class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-400 transition"
-						on:click={() => (showBenchmarkModal = true)}
-					>
-						<div class="self-center font-medium">Benchmark</div>
-					</button>
-					<button
-						class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-400 transition disabled:opacity-50"
-						on:click={handleEvict}
-						disabled={switching}
-					>
-						<div class="self-center font-medium">{switching ? 'Working...' : 'Evict Model'}</div>
-					</button>
-				{/if}
-
-				<button
-					class="px-2 py-1.5 rounded-xl bg-black text-white dark:bg-white dark:text-black transition font-medium text-sm flex items-center"
-					on:click={openNewRecipeModal}
-				>
-					<svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
-					</svg>
-					<div class="hidden md:block md:ml-1 text-xs">New Recipe</div>
+				<button class="pill-solid" on:click={openNewRecipeModal}>
+					<svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+					<span>New Recipe</span>
 				</button>
 			</div>
 		</div>
 
-		<!-- Tabs -->
-		<div class="flex gap-1 mt-2 border-b border-gray-200 dark:border-gray-800">
-			<button
-				class="px-4 py-2 text-sm font-medium transition {activeTab === 'overview' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}"
-				on:click={() => (activeTab = 'overview')}
-			>
-				Overview
-			</button>
-			<button
-				class="px-4 py-2 text-sm font-medium transition {activeTab === 'models' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}"
-				on:click={() => (activeTab = 'models')}
-			>
-				Models ({availableModels.length})
-			</button>
-			<button
-				class="px-4 py-2 text-sm font-medium transition {activeTab === 'tools' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}"
-				on:click={() => (activeTab = 'tools')}
-			>
-				Tools
-			</button>
+		<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mt-4 text-xs">
+			<div class="px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-slate-100 backdrop-blur">
+				{status?.running_process ? `Running: ${getModelName(status.running_process.model_path)}` : 'No model running'}
+			</div>
+			<div class={`px-3 py-1.5 rounded-full border backdrop-blur ${health?.backend_reachable ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-100' : 'bg-rose-500/20 border-rose-400/30 text-rose-100'}`}>
+				Backend :{status?.vllm_port || 8000}
+			</div>
+			<div class={`px-3 py-1.5 rounded-full border backdrop-blur ${health?.proxy_reachable ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-100' : 'bg-amber-500/25 border-amber-400/40 text-amber-100'}`}>
+				Proxy :{status?.proxy_port || 8001}
+			</div>
+			<div class="px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-slate-100 backdrop-blur">
+				Recipes {recipes.length}
+			</div>
+			<div class="px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-slate-100 backdrop-blur">
+				Models {availableModels.length}
+			</div>
+		</div>
+
+		<div class="flex gap-2 overflow-x-auto pt-3">
+			{#each ['overview','recipes','logs','models','tools'] as tab}
+				<button
+					class={`px-3 py-2 text-sm font-medium whitespace-nowrap rounded-full border transition ${
+						activeTab === tab
+							? 'bg-white text-slate-900 border-white shadow-sm'
+							: 'border-white/20 text-slate-100 hover:bg-white/10'
+					}`}
+					on:click={() => {
+						activeTab = tab as any;
+						document.getElementById(`section-${tab}`)?.scrollIntoView({ behavior: 'smooth' });
+					}}
+				>
+					{tab.charAt(0).toUpperCase() + tab.slice(1)}
+				</button>
+			{/each}
 		</div>
 	</div>
 
-	{#if activeTab === 'overview'}
-	<!-- GPU Status Cards -->
+<section id="section-overview" class="space-y-4">
+	<!-- Compact GPU Status Bar -->
 	{#if gpus.length > 0}
-		<div class="mb-4">
-			<div class="text-sm font-medium text-gray-500 dark:text-gray-400 px-1 mb-2">GPU Status</div>
-			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
-				{#each gpus as gpu}
-					<div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100/30 dark:border-gray-850/30 p-3">
-						<div class="flex items-center justify-between mb-2">
-							<div class="text-xs font-medium text-gray-500">GPU {gpu.id}</div>
-							<div class="text-xs px-1.5 py-0.5 rounded-full {gpu.temp_c && gpu.temp_c > 80 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : gpu.temp_c && gpu.temp_c > 65 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'}">
-								{gpu.temp_c ?? 0}°C
+		<div class="mb-4 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100/30 dark:border-gray-850/30 p-3">
+			<button
+				class="w-full flex items-center justify-between text-left"
+				on:click={() => (showGpuSection = !showGpuSection)}
+			>
+				<div class="flex items-center gap-3">
+					<span class="text-sm font-medium text-gray-700 dark:text-gray-300">GPUs</span>
+					<div class="flex gap-1">
+						{#each gpus as gpu}
+							<div class="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs {getMemoryPercent(gpu.memory_used_mb, gpu.memory_total_mb) > 90 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : getMemoryPercent(gpu.memory_used_mb, gpu.memory_total_mb) > 70 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'}">
+								<span>{gpu.id}</span>
+								<span>{getMemoryPercent(gpu.memory_used_mb, gpu.memory_total_mb)}%</span>
+								<span>{gpu.temp_c ?? 0}°</span>
 							</div>
-						</div>
-						<div class="text-sm font-medium text-gray-900 dark:text-white truncate mb-2" title={gpu.name}>
-							{gpu.name}
-						</div>
-						<div class="space-y-1">
-							<div class="flex items-center justify-between text-xs text-gray-500">
-								<span>Memory</span>
-								<span>{formatMemory(gpu.memory_used_mb)} / {formatMemory(gpu.memory_total_mb)}</span>
-							</div>
-							<div class="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+						{/each}
+					</div>
+				</div>
+				<svg class="size-4 text-gray-400 transition-transform {showGpuSection ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+				</svg>
+			</button>
+
+			{#if showGpuSection}
+				<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+					{#each gpus as gpu}
+						<div class="text-center">
+							<div class="text-xs text-gray-500 mb-1">GPU {gpu.id}</div>
+							<div class="h-16 bg-gray-100 dark:bg-gray-800 rounded-lg relative overflow-hidden">
 								<div
-									class="h-full rounded-full transition-all {getMemoryPercent(gpu.memory_used_mb, gpu.memory_total_mb) > 90 ? 'bg-red-500' : getMemoryPercent(gpu.memory_used_mb, gpu.memory_total_mb) > 70 ? 'bg-yellow-500' : 'bg-green-500'}"
-									style="width: {getMemoryPercent(gpu.memory_used_mb, gpu.memory_total_mb)}%"
+									class="absolute bottom-0 w-full transition-all {getMemoryPercent(gpu.memory_used_mb, gpu.memory_total_mb) > 90 ? 'bg-red-500' : getMemoryPercent(gpu.memory_used_mb, gpu.memory_total_mb) > 70 ? 'bg-yellow-500' : 'bg-green-500'}"
+									style="height: {getMemoryPercent(gpu.memory_used_mb, gpu.memory_total_mb)}%"
 								></div>
+								<div class="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-700 dark:text-gray-300">
+									{formatMemory(gpu.memory_used_mb)}
+								</div>
 							</div>
-							<div class="flex items-center justify-between text-xs text-gray-400">
-								{#if gpu.utilization_pct !== undefined}
-									<span>Util: {gpu.utilization_pct}%</span>
-								{/if}
-								{#if gpu.power_w}
-									<span>{gpu.power_w?.toFixed(0)}W</span>
-								{/if}
+							<div class="text-xs text-gray-400 mt-1">{gpu.temp_c ?? 0}°C | {gpu.power_w?.toFixed(0) ?? 0}W</div>
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</div>
+	{/if}
+
+	<!-- Main Dashboard Grid -->
+	<div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+		<!-- Current Model - Larger -->
+		<div class="lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100/30 dark:border-gray-850/30 p-4">
+			<div class="flex items-center justify-between mb-3">
+				<div class="text-sm font-medium text-gray-500 dark:text-gray-400">Current Model</div>
+				{#if status?.running_process}
+					<button
+						on:click={handleEvict}
+						disabled={switching}
+						class="px-2.5 py-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-xs font-medium rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition disabled:opacity-50"
+					>
+						{switching ? '...' : 'Stop'}
+					</button>
+				{/if}
+			</div>
+			{#if status?.running_process}
+				<div class="flex items-start gap-4">
+					<div class="w-3 h-3 rounded-full bg-green-500 mt-1.5 shrink-0 animate-pulse"></div>
+					<div class="min-w-0 flex-1">
+						<div class="text-xl font-semibold text-gray-900 dark:text-white truncate">
+							{getModelName(status.running_process.model_path)}
+						</div>
+						<div class="flex flex-wrap gap-2 mt-2">
+							<span class="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400">
+								PID: {status.running_process.pid}
+							</span>
+							<span class="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400">
+								Port: {status.running_process.port}
+							</span>
+							<span class="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/30 rounded-full text-blue-700 dark:text-blue-400">
+								{status.running_process.backend}
+							</span>
+							<span class="px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900/30 rounded-full text-purple-700 dark:text-purple-400">
+								{status.running_process.memory_gb?.toFixed(1)} GB RAM
+							</span>
+						</div>
+						{#if status.matched_recipe}
+							<div class="mt-3 text-xs text-gray-500">
+								Recipe: <span class="font-medium text-gray-700 dark:text-gray-300">{status.matched_recipe.name}</span>
 							</div>
+						{/if}
+					</div>
+				</div>
+
+				<!-- Quick Metrics Inline -->
+				{#if metrics}
+					<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+						<div class="text-center">
+							<div class="text-lg font-semibold text-gray-900 dark:text-white">{formatThroughput(metrics.generation_throughput)}</div>
+							<div class="text-xs text-gray-500">Generation</div>
+						</div>
+						<div class="text-center">
+							<div class="text-lg font-semibold text-gray-900 dark:text-white">{metrics.running_requests ?? 0}/{metrics.pending_requests ?? 0}</div>
+							<div class="text-xs text-gray-500">Running/Queue</div>
+						</div>
+						<div class="text-center">
+							<div class="text-lg font-semibold text-gray-900 dark:text-white">{metrics.kv_cache_usage?.toFixed(0) ?? 0}%</div>
+							<div class="text-xs text-gray-500">KV Cache</div>
+						</div>
+						<div class="text-center">
+							<div class="text-lg font-semibold text-gray-900 dark:text-white">{metrics.avg_ttft_ms?.toFixed(0) ?? '-'}ms</div>
+							<div class="text-xs text-gray-500">TTFT</div>
 						</div>
 					</div>
+				{/if}
+			{:else}
+				<div class="flex flex-col items-center justify-center py-8 text-center">
+					<div class="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-3">
+						<svg class="size-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z" />
+						</svg>
+					</div>
+					<div class="text-gray-500 mb-2">No model running</div>
+					<button
+						on:click={() => (activeTab = 'recipes')}
+						class="text-sm text-blue-500 hover:text-blue-600"
+					>
+						Launch a recipe →
+					</button>
+				</div>
+			{/if}
+		</div>
+
+		<!-- System Status - Compact -->
+		<div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100/30 dark:border-gray-850/30 p-4">
+			<div class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">System</div>
+			<div class="space-y-3">
+				<div class="flex items-center justify-between">
+					<div class="flex items-center gap-2">
+						<div class="w-2 h-2 rounded-full {health?.backend_reachable ? 'bg-green-500' : 'bg-red-500'}"></div>
+						<span class="text-sm text-gray-700 dark:text-gray-300">Backend</span>
+					</div>
+					<span class="text-xs text-gray-500">:{status?.vllm_port || 8000}</span>
+				</div>
+				<div class="flex items-center justify-between">
+					<div class="flex items-center gap-2">
+						<div class="w-2 h-2 rounded-full {health?.proxy_reachable ? 'bg-green-500' : 'bg-yellow-500'}"></div>
+						<span class="text-sm text-gray-700 dark:text-gray-300">Proxy</span>
+					</div>
+					<span class="text-xs text-gray-500">:{status?.proxy_port || 8001}</span>
+				</div>
+				<div class="pt-2 border-t border-gray-100 dark:border-gray-800">
+					<div class="text-xs text-gray-500">Version {health?.version || '?'}</div>
+					<div class="text-xs text-gray-500 mt-1">{recipes.length} recipes • {availableModels.length} models</div>
+				</div>
+			</div>
+
+			<!-- Quick Actions -->
+			<div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 space-y-2">
+				<button
+					on:click={() => (activeTab = 'recipes')}
+					class="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition text-left"
+				>
+					View Recipes →
+				</button>
+				<button
+					on:click={() => (activeTab = 'logs')}
+					class="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition text-left"
+				>
+					View Logs →
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<!-- Quick Launch - Top 5 Recipes -->
+	{#if recipes.length > 0}
+		<div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100/30 dark:border-gray-850/30 p-4">
+			<div class="flex items-center justify-between mb-3">
+				<div class="text-sm font-medium text-gray-500 dark:text-gray-400">Quick Launch</div>
+				<button
+					on:click={() => (activeTab = 'recipes')}
+					class="text-xs text-blue-500 hover:text-blue-600"
+				>
+					See all →
+				</button>
+			</div>
+			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+				{#each recipes.slice(0, 6) as recipe}
+					<button
+						on:click={() => recipe.status === 'running' ? null : (status?.running_process ? handleSwitch(recipe.id) : handleLaunch(recipe.id))}
+						disabled={switching || recipe.status === 'running'}
+						class="flex items-center justify-between p-3 rounded-xl transition text-left {recipe.status === 'running' ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'} disabled:opacity-70"
+					>
+						<div class="min-w-0 flex-1">
+							<div class="font-medium text-sm text-gray-900 dark:text-white truncate">{recipe.name}</div>
+							<div class="text-xs text-gray-500 truncate">{recipe.backend} • TP{recipe.tp}</div>
+						</div>
+						{#if recipe.status === 'running'}
+							<span class="ml-2 w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+						{:else}
+							<svg class="ml-2 size-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+							</svg>
+						{/if}
+					</button>
 				{/each}
 			</div>
 		</div>
 	{/if}
 
-	<!-- Status Cards -->
-	<div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
-		<!-- Current Model -->
-		<div class="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30 p-4">
-			<div class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Current Model</div>
-			{#if status?.running_process}
-				<div class="flex items-start gap-3">
-					<div class="w-2 h-2 rounded-full bg-green-500 mt-2 shrink-0 animate-pulse"></div>
-					<div class="min-w-0 flex-1">
-						<div class="text-lg font-medium text-gray-900 dark:text-white truncate">
-							{getModelName(status.running_process.model_path)}
-						</div>
-						<div class="text-sm text-gray-500 space-y-0.5 mt-1">
-							<div>PID: {status.running_process.pid} | Port: {status.running_process.port}</div>
-							<div>Backend: {status.running_process.backend} | Mem: {status.running_process.memory_gb?.toFixed(1)} GB</div>
-						</div>
-						{#if status.matched_recipe}
-							<div class="mt-2 text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full inline-block">
-								Recipe: {status.matched_recipe.name}
-							</div>
-						{/if}
-					</div>
-				</div>
-			{:else}
-				<div class="flex items-center gap-3">
-					<div class="w-2 h-2 rounded-full bg-gray-400 shrink-0"></div>
-					<div class="text-gray-500">No model running</div>
-				</div>
-			{/if}
-		</div>
+</section>
 
-		<!-- Performance Metrics -->
-		<div class="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30 p-4">
-			<div class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Performance</div>
-			{#if metrics && status?.running_process}
-				<div class="space-y-2">
-					<div class="flex items-center justify-between">
-						<span class="text-sm text-gray-600 dark:text-gray-400">Prompt Throughput</span>
-						<span class="text-sm font-medium text-gray-900 dark:text-white">{formatThroughput(metrics.prompt_throughput)}</span>
-					</div>
-					<div class="flex items-center justify-between">
-						<span class="text-sm text-gray-600 dark:text-gray-400">Generation</span>
-						<span class="text-sm font-medium text-gray-900 dark:text-white">{formatThroughput(metrics.generation_throughput)}</span>
-					</div>
-					<div class="flex items-center justify-between">
-						<span class="text-sm text-gray-600 dark:text-gray-400">Running / Pending</span>
-						<span class="text-sm font-medium text-gray-900 dark:text-white">
-							{metrics.running_requests ?? 0} / {metrics.pending_requests ?? 0}
-						</span>
-					</div>
-					{#if metrics.kv_cache_usage !== null && metrics.kv_cache_usage !== undefined}
-						<div class="flex items-center justify-between">
-							<span class="text-sm text-gray-600 dark:text-gray-400">KV Cache</span>
-							<span class="text-sm font-medium text-gray-900 dark:text-white">{metrics.kv_cache_usage.toFixed(1)}%</span>
-						</div>
-					{/if}
-					{#if metrics.avg_ttft_ms}
-						<div class="flex items-center justify-between">
-							<span class="text-sm text-gray-600 dark:text-gray-400">Avg TTFT</span>
-							<span class="text-sm font-medium text-gray-900 dark:text-white">{metrics.avg_ttft_ms.toFixed(0)} ms</span>
-						</div>
-					{/if}
-					{#if metrics.prefix_cache_hit_rate !== null && metrics.prefix_cache_hit_rate !== undefined}
-						<div class="flex items-center justify-between">
-							<span class="text-sm text-gray-600 dark:text-gray-400">Prefix Cache Hit</span>
-							<span class="text-sm font-medium text-gray-900 dark:text-white">{metrics.prefix_cache_hit_rate.toFixed(1)}%</span>
-						</div>
-					{/if}
-				</div>
-			{:else}
-				<div class="text-sm text-gray-500">No metrics available</div>
-			{/if}
-		</div>
-
-		<!-- System Status -->
-		<div class="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30 p-4">
-			<div class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">System Status</div>
-			<div class="space-y-2">
-				<div class="flex items-center gap-2">
-					<div class="w-2 h-2 rounded-full {health?.backend_reachable ? 'bg-green-500' : 'bg-red-500'}"></div>
-					<span class="text-sm text-gray-700 dark:text-gray-300">Backend {health?.backend_reachable ? 'Online' : 'Offline'}</span>
-				</div>
-				<div class="flex items-center gap-2">
-					<div class="w-2 h-2 rounded-full {health?.proxy_reachable ? 'bg-green-500' : 'bg-yellow-500'}"></div>
-					<span class="text-sm text-gray-700 dark:text-gray-300">Proxy {health?.proxy_reachable ? 'Online' : 'Offline'}</span>
-				</div>
-				<div class="text-xs text-gray-500 pt-1">
-					Version: {health?.version || '?'} | vLLM: {status?.vllm_port || '?'} | Proxy: {status?.proxy_port || '?'}
-				</div>
+<section id="section-recipes" class="space-y-4">
+	<!-- Recipes -->
+	<!-- Search & Filter -->
+	<div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+		<div class="flex-1">
+				<input
+					type="text"
+					bind:value={recipeSearchQuery}
+					placeholder="Search recipes..."
+					class="w-full px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-gray-900 dark:text-white text-sm"
+				/>
 			</div>
+			<button
+				on:click={openNewRecipeModal}
+				class="px-4 py-2 bg-black text-white dark:bg-white dark:text-black rounded-xl font-medium text-sm hover:opacity-80 transition flex items-center gap-1"
+			>
+				<svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+				</svg>
+				New
+			</button>
 		</div>
-	</div>
 
-	<!-- Recipes List -->
-	<div class="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30 mb-4">
-		<div class="px-4 py-3 border-b border-gray-100 dark:border-gray-850">
-			<div class="text-sm font-medium text-gray-900 dark:text-white">Recipes</div>
-		</div>
-
-		{#if recipes.length > 0}
-			<div class="divide-y divide-gray-100 dark:divide-gray-850">
-				{#each recipes as recipe}
-					<div class="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-850/50 transition {recipe.status === 'running' ? 'border-l-2 border-l-green-500' : ''}">
+		<!-- Recipes Grid -->
+		<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+			{#each filteredRecipes as recipe}
+				<div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100/30 dark:border-gray-850/30 p-4 {recipe.status === 'running' ? 'ring-2 ring-green-500' : ''}">
+					<div class="flex items-start justify-between mb-2">
 						<div class="flex-1 min-w-0">
 							<div class="flex items-center gap-2">
-								<span class="font-medium text-gray-900 dark:text-white">{recipe.name}</span>
+								<span class="font-medium text-gray-900 dark:text-white truncate">{recipe.name}</span>
 								{#if recipe.status === 'running'}
-									<span class="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-full">
-										Running
-									</span>
-								{:else if recipe.status === 'starting'}
-									<span class="px-1.5 py-0.5 text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 rounded-full">
-										Starting
-									</span>
-								{:else if recipe.status === 'error'}
-									<span class="px-1.5 py-0.5 text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-full">
-										Error
-									</span>
+									<span class="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-full shrink-0">Running</span>
 								{/if}
 							</div>
-							<div class="text-xs text-gray-500 truncate mt-0.5">
-								{getModelName(recipe.model_path)} | TP{recipe.tp}×PP{recipe.pp}{recipe.dp > 1 ? `×DP${recipe.dp}` : ''} | {recipe.backend} | {recipe.kv_cache_dtype}
-							</div>
-							{#if recipe.error_message}
-								<div class="text-xs text-red-500 mt-1 truncate">{recipe.error_message}</div>
-							{/if}
+							<div class="text-xs text-gray-500 mt-1">{recipe.id}</div>
 						</div>
-						<div class="flex items-center gap-1.5">
-							<Tooltip content="View Logs">
-								<button
-									on:click={() => handleViewLogs(recipe.id)}
-									class="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-								>
-									<svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-									</svg>
-								</button>
-							</Tooltip>
-							<Tooltip content="Edit Recipe">
-								<button
-									on:click={() => openEditRecipeModal(recipe)}
-									class="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-								>
-									<svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-									</svg>
-								</button>
-							</Tooltip>
-							{#if recipe.status === 'running'}
-								<button
-									on:click={handleEvict}
-									disabled={switching}
-									class="px-2.5 py-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-xs font-medium rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition disabled:opacity-50"
-								>
-									{switching ? '...' : 'Stop'}
-								</button>
-							{:else}
-								<button
-									on:click={() => status?.running_process ? handleSwitch(recipe.id) : handleLaunch(recipe.id)}
-									disabled={switching}
-									class="px-2.5 py-1 bg-black text-white dark:bg-white dark:text-black text-xs font-medium rounded-lg hover:opacity-80 transition disabled:opacity-50"
-								>
-									{switching ? '...' : status?.running_process ? 'Switch' : 'Launch'}
-								</button>
-							{/if}
+						<div class="flex items-center gap-1 shrink-0 ml-2">
+							<button
+								on:click={() => { activeTab = 'logs'; handleViewLogs(recipe.id); }}
+								class="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+								title="View Logs"
+							>
+								<svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+								</svg>
+							</button>
+							<button
+								on:click={() => openEditRecipeModal(recipe)}
+								class="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+								title="Edit"
+							>
+								<svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+								</svg>
+							</button>
 						</div>
 					</div>
-				{/each}
-			</div>
-		{:else}
-			<div class="p-8 text-center">
-				<div class="text-gray-400 mb-2">No recipes found</div>
-				<button
-					on:click={openNewRecipeModal}
-					class="text-sm text-blue-500 hover:text-blue-600"
-				>
-					Create your first recipe
-				</button>
+
+					<div class="text-sm text-gray-600 dark:text-gray-400 truncate mb-3" title={recipe.model_path}>
+						{getModelName(recipe.model_path)}
+					</div>
+
+					<div class="flex flex-wrap gap-1.5 mb-3">
+						<span class="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full">{recipe.backend}</span>
+						<span class="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-full">TP{recipe.tp}</span>
+						{#if recipe.pp > 1}<span class="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-full">PP{recipe.pp}</span>{/if}
+						<span class="px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-full">{recipe.kv_cache_dtype}</span>
+						<span class="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-full">{(recipe.max_model_len / 1024).toFixed(0)}k ctx</span>
+					</div>
+
+					{#if recipe.status === 'running'}
+						<button
+							on:click={handleEvict}
+							disabled={switching}
+							class="w-full px-3 py-2 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-sm font-medium rounded-xl hover:bg-red-200 dark:hover:bg-red-900/50 transition disabled:opacity-50"
+						>
+							{switching ? 'Stopping...' : 'Stop Model'}
+						</button>
+					{:else}
+						<button
+							on:click={() => status?.running_process ? handleSwitch(recipe.id) : handleLaunch(recipe.id)}
+							disabled={switching}
+							class="w-full px-3 py-2 bg-black text-white dark:bg-white dark:text-black text-sm font-medium rounded-xl hover:opacity-80 transition disabled:opacity-50"
+						>
+							{switching ? 'Working...' : status?.running_process ? 'Switch to this' : 'Launch'}
+						</button>
+					{/if}
+				</div>
+			{/each}
+		</div>
+
+		{#if filteredRecipes.length === 0}
+			<div class="text-center py-12 text-gray-500">
+				{recipeSearchQuery ? 'No recipes match your search' : 'No recipes found'}
 			</div>
 		{/if}
 	</div>
 
-	<!-- Logs Section -->
-	<div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
-		<!-- Log Files List -->
-		<div class="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30">
+</section>
+
+<section id="section-logs" class="space-y-4">
+	<div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+		<!-- Log Files Sidebar -->
+		<div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100/30 dark:border-gray-850/30 h-fit">
 			<div class="px-4 py-3 border-b border-gray-100 dark:border-gray-850">
 				<div class="text-sm font-medium text-gray-900 dark:text-white">Log Files</div>
 			</div>
-			<div class="max-h-64 overflow-y-auto">
+			<div class="max-h-96 overflow-y-auto">
 				{#if logFiles.length > 0}
 					{#each logFiles as log}
 						<button
 							on:click={() => handleViewLogs(log.recipe_id)}
 							class="w-full p-3 text-left hover:bg-gray-50 dark:hover:bg-gray-850/50 transition border-b border-gray-100 dark:border-gray-850 last:border-0 {selectedLogRecipe === log.recipe_id ? 'bg-blue-50 dark:bg-blue-900/20' : ''}"
 						>
-							<div class="font-medium text-sm text-gray-900 dark:text-white">{log.recipe_id}</div>
+							<div class="font-medium text-sm text-gray-900 dark:text-white truncate">{log.recipe_id}</div>
 							<div class="text-xs text-gray-500">{(log.size / 1024).toFixed(1)} KB</div>
 						</button>
 					{/each}
@@ -805,13 +888,21 @@
 		</div>
 
 		<!-- Log Content -->
-		<div class="lg:col-span-2 bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30">
-			<div class="px-4 py-3 border-b border-gray-100 dark:border-gray-850">
+		<div class="lg:col-span-3 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100/30 dark:border-gray-850/30">
+			<div class="px-4 py-3 border-b border-gray-100 dark:border-gray-850 flex items-center justify-between">
 				<div class="text-sm font-medium text-gray-900 dark:text-white">
-					{selectedLogRecipe ? `Logs: ${selectedLogRecipe}` : 'Log Output'}
+					{selectedLogRecipe ? selectedLogRecipe : 'Select a log file'}
 				</div>
+				{#if selectedLogRecipe}
+					<button
+						on:click={() => handleViewLogs(selectedLogRecipe)}
+						class="text-xs text-blue-500 hover:text-blue-600"
+					>
+						Refresh
+					</button>
+				{/if}
 			</div>
-			<div class="p-3 bg-gray-950 rounded-b-3xl max-h-64 overflow-y-auto font-mono text-xs">
+			<div class="p-3 bg-gray-950 rounded-b-2xl h-96 overflow-y-auto font-mono text-xs break-words whitespace-pre-wrap">
 				{#if currentLogs.length > 0}
 					{#each currentLogs as line}
 						<div class="py-0.5 {line.includes('ERROR') ? 'text-red-400' : line.includes('WARNING') ? 'text-yellow-400' : line.includes('INFO') ? 'text-blue-400' : 'text-gray-400'}">
@@ -819,15 +910,19 @@
 						</div>
 					{/each}
 				{:else}
-					<div class="text-gray-600">Select a log file to view</div>
+					<div class="text-gray-600 text-center py-8">
+						{selectedLogRecipe ? 'No log content' : 'Select a log file to view'}
+					</div>
 				{/if}
 			</div>
 		</div>
 	</div>
-{:else if activeTab === 'models'}
-	<!-- Models Browser Tab -->
+
+</section>
+
+<section id="section-models" class="space-y-4">
 	<div class="mb-4">
-		<div class="flex items-center justify-between mb-4">
+		<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
 			<div class="text-sm font-medium text-gray-500 dark:text-gray-400">
 				Browse available models in /mnt/llm_models
 			</div>
@@ -909,8 +1004,10 @@
 			</div>
 		{/if}
 	</div>
-{:else if activeTab === 'tools'}
-	<!-- Tools Tab - LMStudio-style VRAM Estimator -->
+</section>
+
+<section id="section-tools" class="space-y-4">
+	<!-- Tools - VRAM Estimator -->
 	<div class="space-y-4">
 		<!-- Model Selection & Configuration -->
 		<div class="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100/30 dark:border-gray-850/30 p-4">
@@ -1038,12 +1135,14 @@
 					<!-- Visual VRAM Bar -->
 					<div class="mb-4">
 						<div class="h-8 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden flex">
-							{@const weightsPercent = ((vramCalc.breakdown?.model_weights_gb || 0) / (vramCalc.breakdown?.total_gb || 1)) * Math.min(vramCalc.utilization_percent, 100)}
-							{@const kvPercent = ((vramCalc.breakdown?.kv_cache_gb || 0) / (vramCalc.breakdown?.total_gb || 1)) * Math.min(vramCalc.utilization_percent, 100)}
-							{@const actPercent = ((vramCalc.breakdown?.activations_gb || 0) / (vramCalc.breakdown?.total_gb || 1)) * Math.min(vramCalc.utilization_percent, 100)}
-							<div class="bg-blue-500 h-full" style="width: {weightsPercent}%" title="Model Weights"></div>
-							<div class="bg-purple-500 h-full" style="width: {kvPercent}%" title="KV Cache"></div>
-							<div class="bg-orange-500 h-full" style="width: {actPercent}%" title="Activations"></div>
+							{#if vramCalc.breakdown}
+								{@const weightsPercent = ((vramCalc.breakdown?.model_weights_gb || 0) / (vramCalc.breakdown?.total_gb || 1)) * Math.min(vramCalc.utilization_percent, 100)}
+								{@const kvPercent = ((vramCalc.breakdown?.kv_cache_gb || 0) / (vramCalc.breakdown?.total_gb || 1)) * Math.min(vramCalc.utilization_percent, 100)}
+								{@const actPercent = ((vramCalc.breakdown?.activations_gb || 0) / (vramCalc.breakdown?.total_gb || 1)) * Math.min(vramCalc.utilization_percent, 100)}
+								<div class="bg-blue-500 h-full" style="width: {weightsPercent}%" title="Model Weights"></div>
+								<div class="bg-purple-500 h-full" style="width: {kvPercent}%" title="KV Cache"></div>
+								<div class="bg-orange-500 h-full" style="width: {actPercent}%" title="Activations"></div>
+							{/if}
 						</div>
 						<div class="flex items-center justify-center gap-4 mt-2 text-xs">
 							<div class="flex items-center gap-1"><div class="w-3 h-3 bg-blue-500 rounded"></div> Weights</div>
@@ -1247,7 +1346,7 @@
 				</div>
 			</div>
 		</div>
-	</div>
+</div>
 {/if}
 {:else}
 	<div class="w-full h-full flex justify-center items-center py-20">
@@ -1481,7 +1580,7 @@
 			</form>
 		</div>
 	</div>
-{/if}
+</section>
 
 <!-- Generate Recipe Modal -->
 {#if showGenerateModal}
