@@ -13,6 +13,10 @@ import type {
   ChatSession,
   ChatMessage,
   UsageStats,
+  MCPServer,
+  MCPTool,
+  MCPResource,
+  Skill,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -307,6 +311,54 @@ class APIClient {
       method: 'POST',
       body: JSON.stringify({ content: recipe }),
     });
+  }
+
+  // MCP (Model Context Protocol)
+  async getMCPServers(): Promise<{ servers: MCPServer[] }> {
+    return this.request('/mcp/servers');
+  }
+
+  async addMCPServer(server: { name: string; command: string; args?: string[]; env?: Record<string, string> }): Promise<{ status: string; server: string }> {
+    const params = new URLSearchParams({ name: server.name, command: server.command });
+    return this.request(`/mcp/servers?${params}`, { method: 'POST' });
+  }
+
+  async removeMCPServer(name: string): Promise<{ status: string; server: string }> {
+    return this.request(`/mcp/servers/${name}`, { method: 'DELETE' });
+  }
+
+  async getMCPTools(server?: string): Promise<{ tools: MCPTool[] }> {
+    const params = server ? `?server=${server}` : '';
+    return this.request(`/mcp/tools${params}`);
+  }
+
+  async callMCPTool(server: string, toolName: string, args?: Record<string, unknown>): Promise<{ result: string }> {
+    return this.request(`/mcp/tools/${server}/${toolName}`, {
+      method: 'POST',
+      body: JSON.stringify(args || {}),
+    });
+  }
+
+  async getMCPResources(server?: string): Promise<{ resources: MCPResource[] }> {
+    const params = server ? `?server=${server}` : '';
+    return this.request(`/mcp/resources${params}`);
+  }
+
+  async readMCPResource(server: string, uri: string): Promise<{ content: string }> {
+    return this.request(`/mcp/resources/${server}?uri=${encodeURIComponent(uri)}`);
+  }
+
+  // Skills
+  async getSkills(): Promise<{ skills: Skill[] }> {
+    return this.request('/skills');
+  }
+
+  async applySkill(skillId: string, input: string, params?: Record<string, string>): Promise<{ prompt: string; skill: string }> {
+    const searchParams = new URLSearchParams({ input });
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => searchParams.set(k, v));
+    }
+    return this.request(`/skills/${skillId}?${searchParams}`, { method: 'POST' });
   }
 }
 

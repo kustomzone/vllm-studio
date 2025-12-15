@@ -177,3 +177,35 @@ export interface UsageStats {
     total_tokens: number;
   }>;
 }
+
+// MCP (Model Context Protocol)
+export interface MCPServer {
+  name: string;
+  command: string;
+  args: string[];
+  enabled: boolean;
+}
+
+export interface MCPTool {
+  name: string;
+  description: string;
+  server: string;
+  input_schema: Record<string, unknown>;
+}
+
+export interface MCPResource {
+  uri: string;
+  name: string;
+  description: string;
+  server: string;
+  mime_type?: string;
+}
+
+// Skills
+export interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  params: Record<string, string>;
+}

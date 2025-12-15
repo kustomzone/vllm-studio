@@ -94,9 +94,9 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         if not settings.api_key:
             return await call_next(request)
 
-        # Allow public endpoints (exact match or prefix for /chats)
+        # Allow public endpoints (exact match or prefix for /chats, /mcp, /skills)
         path = request.url.path
-        if path in PUBLIC_PATHS or path.startswith("/chats"):
+        if path in PUBLIC_PATHS or path.startswith("/chats") or path.startswith("/mcp") or path.startswith("/skills"):
             return await call_next(request)
 
         # Check Authorization header (Bearer token)
@@ -1852,3 +1852,191 @@ async def add_message(session_id: str, request: AddMessageRequest):
         model=request.model,
         tool_calls=request.tool_calls
     )
+
+
+# =============================================================================
+# MCP (Model Context Protocol) Endpoints
+# =============================================================================
+
+from .mcp_manager import get_mcp_manager, MCPServer
+
+
+@app.get("/mcp/servers")
+async def list_mcp_servers():
+    """List configured MCP servers."""
+    mgr = get_mcp_manager()
+    return {"servers": mgr.get_servers_info()}
+
+
+@app.post("/mcp/servers")
+async def add_mcp_server(
+    name: str,
+    command: str,
+    args: list[str] = [],
+    env: dict[str, str] = {},
+):
+    """Add an MCP server."""
+    mgr = get_mcp_manager()
+    server = MCPServer(name=name, command=command, args=args, env=env)
+    mgr.add_server(server)
+    return {"status": "added", "server": name}
+
+
+@app.delete("/mcp/servers/{name}")
+async def remove_mcp_server(name: str):
+    """Remove an MCP server."""
+    mgr = get_mcp_manager()
+    mgr.remove_server(name)
+    return {"status": "removed", "server": name}
+
+
+@app.get("/mcp/tools")
+async def list_mcp_tools(server: str = None):
+    """List tools from MCP servers."""
+    mgr = get_mcp_manager()
+    tools = await mgr.list_tools(server)
+    return {
+        "tools": [
+            {
+                "name": t.name,
+                "description": t.description,
+                "server": t.server,
+                "input_schema": t.input_schema,
+            }
+            for t in tools
+        ]
+    }
+
+
+@app.post("/mcp/tools/{server}/{tool_name}")
+async def call_mcp_tool(
+    server: str,
+    tool_name: str,
+    arguments: dict[str, Any] = {},
+):
+    """Call a tool on an MCP server."""
+    mgr = get_mcp_manager()
+    result = await mgr.call_tool(server, tool_name, arguments)
+    return {"result": result}
+
+
+@app.get("/mcp/resources")
+async def list_mcp_resources(server: str = None):
+    """List resources from MCP servers."""
+    mgr = get_mcp_manager()
+    resources = await mgr.list_resources(server)
+    return {
+        "resources": [
+            {
+                "uri": r.uri,
+                "name": r.name,
+                "description": r.description,
+                "server": r.server,
+                "mime_type": r.mime_type,
+            }
+            for r in resources
+        ]
+    }
+
+
+@app.get("/mcp/resources/{server}")
+async def read_mcp_resource(server: str, uri: str):
+    """Read a resource from an MCP server."""
+    mgr = get_mcp_manager()
+    content = await mgr.read_resource(server, uri)
+    return {"content": content}
+
+
+# =============================================================================
+# Skills / Quick Actions
+# =============================================================================
+
+# Skills are pre-defined prompts/templates that can be quickly invoked
+
+SKILLS = {
+    "summarize": {
+        "name": "Summarize",
+        "description": "Summarize the given text",
+        "prompt": "Please provide a concise summary of the following:\n\n{input}",
+        "icon": "FileText",
+    },
+    "explain": {
+        "name": "Explain",
+        "description": "Explain a concept in simple terms",
+        "prompt": "Please explain the following concept in simple, easy-to-understand terms:\n\n{input}",
+        "icon": "Lightbulb",
+    },
+    "code_review": {
+        "name": "Code Review",
+        "description": "Review code for issues and improvements",
+        "prompt": "Please review the following code. Identify any bugs, security issues, or areas for improvement:\n\n```\n{input}\n```",
+        "icon": "Code",
+    },
+    "translate": {
+        "name": "Translate",
+        "description": "Translate text to another language",
+        "prompt": "Please translate the following text to {language}:\n\n{input}",
+        "icon": "Globe",
+        "params": {"language": "English"},
+    },
+    "fix_grammar": {
+        "name": "Fix Grammar",
+        "description": "Fix grammar and spelling errors",
+        "prompt": "Please fix any grammar and spelling errors in the following text while preserving the meaning:\n\n{input}",
+        "icon": "CheckSquare",
+    },
+    "brainstorm": {
+        "name": "Brainstorm",
+        "description": "Generate ideas about a topic",
+        "prompt": "Please brainstorm 5-10 creative ideas related to:\n\n{input}",
+        "icon": "Zap",
+    },
+    "debug": {
+        "name": "Debug",
+        "description": "Help debug an error or issue",
+        "prompt": "I'm encountering the following error/issue. Please help me understand what's wrong and how to fix it:\n\n{input}",
+        "icon": "Bug",
+    },
+    "write_tests": {
+        "name": "Write Tests",
+        "description": "Generate unit tests for code",
+        "prompt": "Please write comprehensive unit tests for the following code:\n\n```\n{input}\n```",
+        "icon": "TestTube",
+    },
+}
+
+
+@app.get("/skills")
+async def list_skills():
+    """List available skills."""
+    return {
+        "skills": [
+            {
+                "id": skill_id,
+                "name": skill["name"],
+                "description": skill["description"],
+                "icon": skill.get("icon", "Sparkles"),
+                "params": skill.get("params", {}),
+            }
+            for skill_id, skill in SKILLS.items()
+        ]
+    }
+
+
+@app.post("/skills/{skill_id}")
+async def apply_skill(skill_id: str, input: str, params: dict[str, str] = {}):
+    """Apply a skill to input text."""
+    if skill_id not in SKILLS:
+        raise HTTPException(status_code=404, detail=f"Skill {skill_id} not found")
+
+    skill = SKILLS[skill_id]
+    prompt_template = skill["prompt"]
+
+    # Merge default params with provided params
+    all_params = {**skill.get("params", {}), **params, "input": input}
+
+    try:
+        prompt = prompt_template.format(**all_params)
+        return {"prompt": prompt, "skill": skill_id}
+    except KeyError as e:
+        raise HTTPException(status_code=400, detail=f"Missing parameter: {e}")
