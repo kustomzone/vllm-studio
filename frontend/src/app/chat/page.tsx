@@ -416,7 +416,9 @@ export default function ChatPage() {
       const text = (raw || '').trim();
       if (!text) return {};
       try {
-        return JSON.parse(text) as Record<string, unknown>;
+        const parsed = JSON.parse(text) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed as Record<string, unknown>;
+        return { input: parsed };
       } catch {
         // Try to extract the last valid JSON object/array from a concatenated string
         let lastParsed: unknown = undefined;
@@ -461,8 +463,11 @@ export default function ChatPage() {
           }
         }
 
-        if (lastParsed && typeof lastParsed === 'object') {
-          return lastParsed as Record<string, unknown>;
+        if (lastParsed !== undefined) {
+          if (lastParsed && typeof lastParsed === 'object' && !Array.isArray(lastParsed)) {
+            return lastParsed as Record<string, unknown>;
+          }
+          return { input: lastParsed };
         }
 
         return { raw: text };

@@ -43,10 +43,106 @@ interface OpenAIChunk {
   }>;
 }
 
+const TOOL_CALL_START = '<tool_call>';
+const TOOL_CALL_END = '</tool_call>';
+
+const mergeStreamingText = (prevFull: string, incoming: string): { nextFull: string; emit: string } => {
+  const prev = prevFull || '';
+  const next = incoming || '';
+  if (!next) return { nextFull: prev, emit: '' };
+  if (!prev) return { nextFull: next, emit: next };
+
+  if (next === prev) return { nextFull: prev, emit: '' };
+  if (next.startsWith(prev)) return { nextFull: next, emit: next.slice(prev.length) };
+  if (prev.startsWith(next)) return { nextFull: prev, emit: '' };
+  if (prev.endsWith(next)) return { nextFull: prev, emit: '' };
+
+  const maxOverlap = Math.min(prev.length, next.length);
+  for (let k = maxOverlap; k > 0; k--) {
+    const prefix = next.slice(0, k);
+    if (prev.endsWith(prefix)) {
+      const suffix = next.slice(k);
+      return { nextFull: prev + suffix, emit: suffix };
+    }
+  }
+
+  return { nextFull: prev + next, emit: next };
+};
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+};
+
+const normalizeToolArgumentsJson = (raw: string): string => {
+  const text = (raw || '').trim();
+  if (!text) return '{}';
+
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (isPlainObject(parsed)) return JSON.stringify(parsed);
+    return JSON.stringify({ input: parsed });
+  } catch {
+    // Try common single-line call form: fn({...}) or fn([...])
+    const m = text.match(/^[a-zA-Z0-9_.:-]+\s*\(([\s\S]*)\)\s*$/);
+    if (m) {
+      const inside = (m[1] || '').trim();
+      if (inside) {
+        try {
+          const parsed = JSON.parse(inside) as unknown;
+          if (isPlainObject(parsed)) return JSON.stringify(parsed);
+          return JSON.stringify({ input: parsed });
+        } catch {
+          // fall through
+        }
+      }
+    }
+    return JSON.stringify({ raw: text });
+  }
+};
+
+const parseToolCallBlock = (block: string, idx: number): ToolCall | null => {
+  const inner = block
+    .replace(TOOL_CALL_START, '')
+    .replace(TOOL_CALL_END, '')
+    .trim();
+  if (!inner) return null;
+
+  // GLM xml-style:
+  // <tool_call>tool_name
+  // {"json": "args"}
+  // </tool_call>
+  const lines = inner.split('\n');
+  const firstLine = (lines[0] || '').trim();
+  let name = firstLine;
+  let argsRaw = lines.slice(1).join('\n').trim();
+
+  // Also support single-line call form: tool_name({...})
+  if (!argsRaw) {
+    const m = firstLine.match(/^([a-zA-Z0-9_.:-]+)\s*\(([\s\S]*)\)\s*$/);
+    if (m) {
+      name = m[1];
+      argsRaw = (m[2] || '').trim();
+    }
+  }
+
+  if (!name) return null;
+  const argumentsJson = normalizeToolArgumentsJson(argsRaw);
+
+  return {
+    id: `xml_call_${idx}`,
+    type: 'function',
+    function: {
+      name,
+      arguments: argumentsJson,
+    },
+  };
+};
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { messages, model, tools } = body;
+    const xmlToolParsingEnabled = Array.isArray(tools) && tools.length > 0;
 
     console.log('[Chat API] Request:', {
       model,
@@ -98,6 +194,45 @@ export async function POST(req: NextRequest) {
     const toolCallsInProgress: Map<number, ToolCall> = new Map();
     let inReasoning = false;
     let toolsEmitted = false;
+    let assistantContentFull = '';
+    let assistantReasoningFull = '';
+
+    // Parse/strip <tool_call> blocks that some models emit directly in text.
+    let xmlContentBuffer = '';
+    const xmlToolCalls: ToolCall[] = [];
+
+    const consumeContentForXmlTools = (controller: ReadableStreamDefaultController, deltaText: string) => {
+      if (!xmlToolParsingEnabled) {
+        controller.enqueue(sendEvent({ type: 'text', content: deltaText }));
+        return;
+      }
+      xmlContentBuffer += deltaText;
+
+      while (true) {
+        const startIdx = xmlContentBuffer.indexOf(TOOL_CALL_START);
+        if (startIdx === -1) {
+          if (xmlContentBuffer) {
+            controller.enqueue(sendEvent({ type: 'text', content: xmlContentBuffer }));
+            xmlContentBuffer = '';
+          }
+          return;
+        }
+
+        if (startIdx > 0) {
+          const before = xmlContentBuffer.slice(0, startIdx);
+          controller.enqueue(sendEvent({ type: 'text', content: before }));
+          xmlContentBuffer = xmlContentBuffer.slice(startIdx);
+        }
+
+        const endIdx = xmlContentBuffer.indexOf(TOOL_CALL_END);
+        if (endIdx === -1) return; // wait for more
+
+        const block = xmlContentBuffer.slice(0, endIdx + TOOL_CALL_END.length);
+        xmlContentBuffer = xmlContentBuffer.slice(endIdx + TOOL_CALL_END.length);
+        const parsed = parseToolCallBlock(block, xmlToolCalls.length);
+        if (parsed) xmlToolCalls.push(parsed);
+      }
+    };
 
     const isCompleteJson = (text: string): boolean => {
       const t = (text || '').trim();
@@ -163,6 +298,14 @@ export async function POST(req: NextRequest) {
       toolsEmitted = true;
     };
 
+    const emitXmlToolsIfAny = (controller: ReadableStreamDefaultController) => {
+      if (toolsEmitted) return;
+      if (toolCallsInProgress.size > 0) return; // prefer structured tool_calls from backend
+      if (xmlToolCalls.length === 0) return;
+      controller.enqueue(sendEvent({ type: 'tool_calls', tool_calls: xmlToolCalls }));
+      toolsEmitted = true;
+    };
+
     const stream = new ReadableStream({
       async start(controller) {
         try {
@@ -201,7 +344,10 @@ export async function POST(req: NextRequest) {
                     controller.enqueue(sendEvent({ type: 'text', content: '<think>' }));
                     inReasoning = true;
                   }
-                  controller.enqueue(sendEvent({ type: 'text', content: stripBoxTags(reasoning) }));
+                  const r = stripBoxTags(reasoning);
+                  const merged = mergeStreamingText(assistantReasoningFull, r);
+                  assistantReasoningFull = merged.nextFull;
+                  if (merged.emit) controller.enqueue(sendEvent({ type: 'text', content: merged.emit }));
                 }
 
                 // Handle regular content
@@ -211,7 +357,12 @@ export async function POST(req: NextRequest) {
                     controller.enqueue(sendEvent({ type: 'text', content: '</think>\n\n' }));
                     inReasoning = false;
                   }
-                  controller.enqueue(sendEvent({ type: 'text', content: stripBoxTags(delta.content) }));
+                  const c = stripBoxTags(delta.content);
+                  const merged = mergeStreamingText(assistantContentFull, c);
+                  assistantContentFull = merged.nextFull;
+                  if (merged.emit) {
+                    consumeContentForXmlTools(controller, merged.emit);
+                  }
                 }
 
                 // Handle tool calls
@@ -228,7 +379,13 @@ export async function POST(req: NextRequest) {
                     inReasoning = false;
                   }
 
+                  // Flush any remaining buffered text (including incomplete <tool_call> blocks)
+                  if (xmlContentBuffer) {
+                    controller.enqueue(sendEvent({ type: 'text', content: xmlContentBuffer }));
+                    xmlContentBuffer = '';
+                  }
                   emitCompletedToolsIfAny(controller);
+                  emitXmlToolsIfAny(controller);
                 }
               } catch {
                 // Skip malformed JSON
@@ -240,7 +397,12 @@ export async function POST(req: NextRequest) {
             controller.enqueue(sendEvent({ type: 'text', content: '</think>\n\n' }));
             inReasoning = false;
           }
+          if (xmlContentBuffer) {
+            controller.enqueue(sendEvent({ type: 'text', content: xmlContentBuffer }));
+            xmlContentBuffer = '';
+          }
           emitCompletedToolsIfAny(controller);
+          emitXmlToolsIfAny(controller);
           controller.enqueue(sendEvent({ type: 'done' }));
         } catch (error) {
           console.error('[Chat API] Stream error:', error);
