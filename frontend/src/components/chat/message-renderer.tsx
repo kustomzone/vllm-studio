@@ -15,6 +15,8 @@ mermaid.initialize({
   theme: 'dark',
   securityLevel: 'loose',
   fontFamily: 'inherit',
+  logLevel: 'fatal',
+  suppressErrorRendering: true,
 });
 
 interface MessageRendererProps {
@@ -146,22 +148,42 @@ function MermaidDiagram({ code }: { code: string }) {
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const id = useId().replace(/:/g, '_');
+  const renderSeqRef = useRef(0);
 
   useEffect(() => {
     const renderDiagram = async () => {
       if (!code.trim()) return;
-      
+
+      // Mermaid parsing is noisy (and often invalid while streaming). Debounce renders.
+      const seq = ++renderSeqRef.current;
+
+      const looksLikeMermaid =
+        /^(?:graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|stateDiagram-v2|erDiagram|journey|gantt|pie|mindmap|timeline|gitGraph|C4Context|C4Container|C4Component|C4Dynamic|C4Deployment)\b/.test(
+          code.trim()
+        );
+      if (!looksLikeMermaid) {
+        // Avoid spamming mermaid with obviously non-mermaid content.
+        setSvg('');
+        setError('Not a valid Mermaid diagram (missing diagram header like `graph TD` or `sequenceDiagram`).');
+        return;
+      }
+
       try {
         const { svg } = await mermaid.render(`mermaid_${id}`, code.trim());
+        if (seq !== renderSeqRef.current) return;
         setSvg(svg);
         setError(null);
       } catch (e) {
+        if (seq !== renderSeqRef.current) return;
         setError(e instanceof Error ? e.message : 'Failed to render diagram');
         setSvg('');
       }
     };
 
-    renderDiagram();
+    const handle = window.setTimeout(() => {
+      renderDiagram();
+    }, 250);
+    return () => window.clearTimeout(handle);
   }, [code, id]);
 
   if (error) {
@@ -189,15 +211,25 @@ interface CodeBlockProps {
   children: string;
   className?: string;
   artifactsEnabled?: boolean;
+  isStreaming?: boolean;
 }
 
-function CodeBlock({ children, className, artifactsEnabled }: CodeBlockProps) {
+function CodeBlock({ children, className, artifactsEnabled, isStreaming }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const language = className?.replace('language-', '') || '';
 
   // Check if this is a mermaid diagram
   if (language === 'mermaid') {
+    // Avoid spamming mermaid parser while a streamed response is still changing.
+    if (isStreaming) {
+      return (
+        <div className="my-3 p-4 rounded-lg border border-[var(--border)] bg-[var(--card)]">
+          <div className="text-xs text-[var(--muted)] mb-2">Mermaid preview renders after streaming completes.</div>
+          <pre className="text-xs text-[var(--muted-foreground)] overflow-x-auto">{children}</pre>
+        </div>
+      );
+    }
     return <MermaidDiagram code={children} />;
   }
 
@@ -348,17 +380,21 @@ export function MessageRenderer({ content, isStreaming, artifactsEnabled }: Mess
               const codeContent = String(children).replace(/\n$/, '');
 
               if (isInline) {
-                return (
-                  <code
-                    className="px-1.5 py-0.5 rounded bg-[var(--accent)] font-mono text-sm"
-                    {...props}
-                  >
-                    {codeContent}
-                  </code>
-                );
-              }
+              return (
+                <code
+                  className="px-1.5 py-0.5 rounded bg-[var(--accent)] font-mono text-sm"
+                  {...props}
+                >
+                  {codeContent}
+                </code>
+              );
+            }
 
-              return <CodeBlock className={className} artifactsEnabled={artifactsEnabled}>{codeContent}</CodeBlock>;
+              return (
+                <CodeBlock className={className} artifactsEnabled={artifactsEnabled} isStreaming={isStreaming}>
+                  {codeContent}
+                </CodeBlock>
+              );
             },
             p({ children }) {
               return <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>;
