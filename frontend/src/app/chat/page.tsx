@@ -200,6 +200,7 @@ export default function ChatPage() {
     try {
       const data = await api.getChatSessions();
       setSessions(data.sessions);
+      setSessionsAvailable(true);
     } catch (e) {
       console.log('Chat sessions API not available', e);
       setSessionsAvailable(false);
@@ -209,15 +210,60 @@ export default function ChatPage() {
   };
 
   const loadSession = async (sessionId: string) => {
-    if (!sessionsAvailable) return;
     try {
       const data = await api.getChatSession(sessionId);
-      const loadedMessages: Message[] = data.messages.map((m) => ({
-        id: m.id,
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      }));
+      const loadedToolResults = new Map<string, ToolResult>();
+      const loadedMessages: Message[] = data.messages
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+        .map((m) => {
+          const base: Message = {
+            id: m.id,
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+          };
+
+          if (m.role === 'assistant' && Array.isArray(m.tool_calls)) {
+            const toolCalls: ToolCall[] = [];
+            const toolResults: ToolResult[] = [];
+
+            for (const entry of m.tool_calls) {
+              const tc = entry as any;
+              if (!tc || typeof tc !== 'object') continue;
+              if (typeof tc.id !== 'string' || !tc.function || typeof tc.function.name !== 'string') continue;
+              toolCalls.push({
+                id: tc.id,
+                type: 'function',
+                function: {
+                  name: String(tc.function.name),
+                  arguments: typeof tc.function.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function.arguments ?? ''),
+                },
+              });
+
+              const res = tc.result as any;
+              if (res && typeof res === 'object' && typeof res.content === 'string') {
+                const toolResult: ToolResult = {
+                  tool_call_id: tc.id,
+                  content: res.content,
+                  isError: Boolean(res.isError),
+                };
+                toolResults.push(toolResult);
+                loadedToolResults.set(tc.id, toolResult);
+              }
+            }
+
+            if (toolCalls.length > 0) {
+              base.toolCalls = toolCalls;
+            }
+            if (toolResults.length > 0) {
+              base.toolResults = toolResults;
+            }
+          }
+
+          return base;
+        });
       setMessages(loadedMessages);
+      setToolResultsMap(loadedToolResults);
+      setExecutingTools(new Set());
       setCurrentSessionId(sessionId);
     } catch (e) {
       console.error('Failed to load session:', e);
@@ -236,7 +282,6 @@ export default function ChatPage() {
   };
 
   const deleteSession = async (sessionId: string) => {
-    if (!sessionsAvailable) return;
     try {
       await api.deleteChatSession(sessionId);
       setSessions((prev) => prev.filter((s) => s.id !== sessionId));
@@ -373,25 +418,53 @@ export default function ChatPage() {
       try {
         return JSON.parse(text) as Record<string, unknown>;
       } catch {
-        // Try to extract the first valid JSON object/array from a concatenated string
-        const firstCharIdx = text.search(/[{\[]/);
-        if (firstCharIdx === -1) return { raw: text };
-        const startChar = text[firstCharIdx];
-        const endChar = startChar === '{' ? '}' : ']';
-        let depth = 0;
-        for (let i = firstCharIdx; i < text.length; i++) {
-          const ch = text[i];
-          if (ch === startChar) depth++;
-          if (ch === endChar) depth--;
-          if (depth === 0) {
-            const candidate = text.slice(firstCharIdx, i + 1);
-            try {
-              return JSON.parse(candidate) as Record<string, unknown>;
-            } catch {
+        // Try to extract the last valid JSON object/array from a concatenated string
+        let lastParsed: unknown = undefined;
+        for (let start = 0; start < text.length; start++) {
+          const startChar = text[start];
+          if (startChar !== '{' && startChar !== '[') continue;
+          const endChar = startChar === '{' ? '}' : ']';
+          let depth = 0;
+          let inString = false;
+          let escape = false;
+
+          for (let i = start; i < text.length; i++) {
+            const ch = text[i];
+            if (inString) {
+              if (escape) {
+                escape = false;
+              } else if (ch === '\\\\') {
+                escape = true;
+              } else if (ch === '"') {
+                inString = false;
+              }
+              continue;
+            }
+
+            if (ch === '"') {
+              inString = true;
+              continue;
+            }
+
+            if (ch === startChar) depth++;
+            if (ch === endChar) depth--;
+
+            if (depth === 0) {
+              const candidate = text.slice(start, i + 1);
+              try {
+                lastParsed = JSON.parse(candidate);
+              } catch {
+                // ignore
+              }
               break;
             }
           }
         }
+
+        if (lastParsed && typeof lastParsed === 'object') {
+          return lastParsed as Record<string, unknown>;
+        }
+
         return { raw: text };
       }
     };
@@ -439,10 +512,50 @@ export default function ChatPage() {
 
     // Track conversation for tool calling loop
     const conversationMessages = buildAPIMessages([...messages, userMessage]);
-    let fullContent = '';
     let sessionId = currentSessionId;
+    const isNewSession = !sessionId;
+    let finalAssistantContent = '';
+
+    const bumpSessionUpdatedAt = () => {
+      if (!sessionId) return;
+      setSessions((prev) => {
+        const now = new Date().toISOString();
+        const existing = prev.find((s) => s.id === sessionId);
+        const updated = existing ? { ...existing, updated_at: now } : undefined;
+        const rest = prev.filter((s) => s.id !== sessionId);
+        return updated ? [updated, ...rest] : prev;
+      });
+    };
 
     try {
+      // Create session early so it shows in the sidebar immediately.
+      if (!sessionId) {
+        try {
+          const { session } = await api.createChatSession({ title: 'New Chat', model: runningModel || undefined });
+          sessionId = session.id;
+          setCurrentSessionId(sessionId);
+          setSessions((prev) => [session, ...prev]);
+          setSessionsAvailable(true);
+        } catch (e) {
+          console.log('Failed to create chat session (continuing without persistence):', e);
+        }
+      }
+
+      // Persist the user message up-front (best-effort).
+      if (sessionId) {
+        try {
+          await api.addChatMessage(sessionId, {
+            role: 'user',
+            content: userContent,
+            model: runningModel || undefined,
+          });
+          bumpSessionUpdatedAt();
+          setSessionsAvailable(true);
+        } catch (e) {
+          console.log('Failed to persist user message:', e);
+        }
+      }
+
       // Tool calling loop - continues until no more tool calls
       let iteration = 0;
       const MAX_ITERATIONS = 10;
@@ -469,15 +582,9 @@ export default function ChatPage() {
         const reader = response.body?.getReader();
         if (!reader) throw new Error('No response body');
 
-        // Create or update assistant message
+        // Create a new assistant message per iteration (tool loops are multiple assistant turns).
         const assistantMsgId = (Date.now() + iteration).toString();
-        setMessages((prev) => {
-          const lastMsg = prev[prev.length - 1];
-          if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
-            return prev; // Keep existing streaming message
-          }
-          return [...prev, { id: assistantMsgId, role: 'assistant', content: '', isStreaming: true }];
-        });
+        setMessages((prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '', isStreaming: true }]);
 
         let iterationContent = '';
         let toolCalls: ToolCall[] = [];
@@ -486,25 +593,14 @@ export default function ChatPage() {
         for await (const event of parseSSEEvents(reader)) {
           if (event.type === 'text' && event.content) {
             iterationContent += event.content;
-            fullContent += event.content;
             setMessages((prev) => {
-              const updated = [...prev];
-              const lastIdx = updated.length - 1;
-              if (updated[lastIdx]?.role === 'assistant') {
-                updated[lastIdx] = { ...updated[lastIdx], content: fullContent };
-              }
-              return updated;
+              return prev.map((m) => (m.id === assistantMsgId ? { ...m, content: iterationContent } : m));
             });
           } else if (event.type === 'tool_calls' && event.tool_calls) {
             toolCalls = event.tool_calls;
             // Update message with tool calls
             setMessages((prev) => {
-              const updated = [...prev];
-              const lastIdx = updated.length - 1;
-              if (updated[lastIdx]?.role === 'assistant') {
-                updated[lastIdx] = { ...updated[lastIdx], toolCalls };
-              }
-              return updated;
+              return prev.map((m) => (m.id === assistantMsgId ? { ...m, toolCalls } : m));
             });
           } else if (event.type === 'error') {
             throw new Error(event.error || 'Stream error');
@@ -513,14 +609,25 @@ export default function ChatPage() {
 
         // If no tool calls, we're done
         if (toolCalls.length === 0) {
+          finalAssistantContent = iterationContent;
           setMessages((prev) => {
-            const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            if (updated[lastIdx]?.role === 'assistant') {
-              updated[lastIdx] = { ...updated[lastIdx], isStreaming: false };
-            }
-            return updated;
+            return prev.map((m) => (m.id === assistantMsgId ? { ...m, isStreaming: false } : m));
           });
+
+          // Persist final assistant message (best-effort).
+          if (sessionId) {
+            try {
+              await api.addChatMessage(sessionId, {
+                role: 'assistant',
+                content: iterationContent,
+                model: runningModel || undefined,
+              });
+              bumpSessionUpdatedAt();
+              setSessionsAvailable(true);
+            } catch (e) {
+              console.log('Failed to persist assistant message:', e);
+            }
+          }
           break;
         }
 
@@ -570,19 +677,36 @@ export default function ChatPage() {
 
         // Update message with results
         setMessages((prev) => {
-          const updated = [...prev];
-          const lastIdx = updated.length - 1;
-          if (updated[lastIdx]?.role === 'assistant') {
-            updated[lastIdx] = { ...updated[lastIdx], toolResults, isStreaming: false };
-          }
-          return updated;
+          return prev.map((m) =>
+            m.id === assistantMsgId ? { ...m, toolResults, isStreaming: false } : m
+          );
         });
+
+        // Persist the tool-call assistant turn (best-effort).
+        if (sessionId) {
+          try {
+            const toolCallsForPersistence = toolCalls.map((tc) => {
+              const result = toolResults.find((r) => r.tool_call_id === tc.id);
+              return { ...tc, result: result || null };
+            });
+            await api.addChatMessage(sessionId, {
+              role: 'assistant',
+              content: iterationContent,
+              model: runningModel || undefined,
+              tool_calls: toolCallsForPersistence,
+            });
+            bumpSessionUpdatedAt();
+            setSessionsAvailable(true);
+          } catch (e) {
+            console.log('Failed to persist tool-call turn:', e);
+          }
+        }
 
         // Add assistant message with tool calls to conversation
         conversationMessages.push({
           role: 'assistant',
-          // Many backends behave better when content is null for a tool-call turn.
-          content: null,
+          // Keep any text the model produced before the tool call so it doesn't repeat it after tool results.
+          content: stripThinkingForModelContext(iterationContent) || null,
           tool_calls: toolCalls.map((tc) => ({
             id: tc.id,
             type: 'function',
@@ -601,40 +725,34 @@ export default function ChatPage() {
         }
       }
 
-      // Persist to backend
-      if (sessionsAvailable && fullContent) {
+      // Auto-title new sessions after the final assistant response (best-effort).
+      if (isNewSession && sessionId && finalAssistantContent.trim()) {
         try {
-          if (!sessionId) {
-            const title = userContent.slice(0, 50) || 'New Chat';
-            const { session } = await api.createChatSession({ title, model: runningModel || undefined });
-            sessionId = session.id;
-            setCurrentSessionId(sessionId);
-            setSessions((prev) => [session, ...prev]);
+          const res = await fetch('/api/title', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: runningModel, user: userContent, assistant: finalAssistantContent }),
+          });
+          if (res.ok) {
+            const data = (await res.json().catch(() => null)) as { title?: string } | null;
+            const title = (data?.title || '').trim();
+            if (title) {
+              await api.updateChatSession(sessionId, { title });
+              setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, title } : s)));
+            }
           }
-
-          await api.addChatMessage(sessionId, {
-            role: 'user',
-            content: userContent,
-            model: runningModel || undefined,
-          });
-          await api.addChatMessage(sessionId, {
-            role: 'assistant',
-            content: fullContent,
-            model: runningModel || undefined,
-          });
-        } catch (persistError) {
-          console.error('Failed to persist messages:', persistError);
+        } catch (titleError) {
+          console.log('Auto-title failed:', titleError);
         }
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         setMessages((prev) => {
-          const updated = [...prev];
-          const lastIdx = updated.length - 1;
-          if (updated[lastIdx]?.role === 'assistant') {
-            updated[lastIdx] = { ...updated[lastIdx], isStreaming: false };
+          const last = prev[prev.length - 1];
+          if (last?.role === 'assistant') {
+            return prev.map((m) => (m.id === last.id ? { ...m, isStreaming: false } : m));
           }
-          return updated;
+          return prev;
         });
       } else {
         setError(err instanceof Error ? err.message : 'Failed to send message');

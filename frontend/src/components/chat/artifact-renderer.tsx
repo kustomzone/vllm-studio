@@ -50,6 +50,10 @@ export function ArtifactRenderer({ artifact, onRun }: ArtifactRendererProps) {
 
   // Handle SVG directly
   if (artifact.type === 'svg') {
+    const svgMarkup =
+      artifact.code.includes('<svg')
+        ? artifact.code
+        : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">${artifact.code}</svg>`;
     return (
       <div className="my-2 rounded-lg border border-[var(--border)] overflow-hidden">
         <div className="flex items-center justify-between px-3 py-2 bg-[var(--accent)] border-b border-[var(--border)]">
@@ -78,7 +82,7 @@ export function ArtifactRenderer({ artifact, onRun }: ArtifactRendererProps) {
         )}
         <div
           className="p-4 bg-white flex items-center justify-center"
-          dangerouslySetInnerHTML={{ __html: artifact.code }}
+          dangerouslySetInnerHTML={{ __html: svgMarkup }}
         />
       </div>
     );

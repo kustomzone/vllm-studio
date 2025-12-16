@@ -281,10 +281,19 @@ class APIClient {
     return this.request(`/chats/${sessionId}`, { method: 'DELETE' });
   }
 
+  async updateChatSession(sessionId: string, params: { title?: string; model?: string }): Promise<{ status: string }> {
+    const searchParams = new URLSearchParams();
+    if (params.title) searchParams.set('title', params.title);
+    if (params.model) searchParams.set('model', params.model);
+    const suffix = searchParams.toString();
+    return this.request(`/chats/${sessionId}${suffix ? `?${suffix}` : ''}`, { method: 'PUT' });
+  }
+
   async addChatMessage(sessionId: string, message: {
     role: string;
     content: string;
     model?: string;
+    tool_calls?: unknown[] | null;
   }): Promise<ChatMessage> {
     return this.request(`/chats/${sessionId}/messages`, {
       method: 'POST',

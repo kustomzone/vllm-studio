@@ -99,12 +99,27 @@ export async function POST(req: NextRequest) {
     let inReasoning = false;
     let toolsEmitted = false;
 
+    const isCompleteJson = (text: string): boolean => {
+      const t = (text || '').trim();
+      if (!t) return false;
+      if (!(t.startsWith('{') || t.startsWith('['))) return false;
+      try {
+        JSON.parse(t);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
     const mergeToolCallArguments = (existing: string, incoming: string): string => {
       const prev = existing || '';
       const next = incoming || '';
       if (!next) return prev;
       if (!prev) return next;
       if (prev === next) return prev;
+      // If the backend sends full JSON payloads repeatedly (often with different whitespace),
+      // treat the newest complete JSON as authoritative to avoid `}{` concatenation.
+      if (isCompleteJson(next)) return next.trim();
       // Some backends resend the full JSON each delta instead of streaming fragments
       if (prev.endsWith(next)) return prev;
       if (next.startsWith(prev)) return next;
