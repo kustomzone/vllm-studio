@@ -287,9 +287,48 @@ export function MessageRenderer({ content, isStreaming, artifactsEnabled }: Mess
   const { thinkingContent, mainContent, isThinkingComplete, artifacts } = useMemo(() => {
     // First extract any explicit artifact blocks
     const { text: contentWithoutArtifacts, artifacts: extractedArtifacts } = extractArtifacts(content);
+
     const split = splitThinking(contentWithoutArtifacts);
-    return { ...split, artifacts: extractedArtifacts };
-  }, [content]);
+
+    // If the model placed renderable code fences inside <think>, surface them as artifacts
+    // so users can still preview them without expanding the thinking panel.
+    const additionalArtifacts: Artifact[] = [];
+    let updatedThinking = split.thinkingContent;
+    if (artifactsEnabled && updatedThinking) {
+      const fenceRegex = /```([a-zA-Z0-9_-]+)?\s*\n([\s\S]*?)```/g;
+      const keptChunks: string[] = [];
+      let lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = fenceRegex.exec(updatedThinking)) !== null) {
+        const lang = (m[1] || '').trim();
+        const code = (m[2] || '').trim();
+        const artifactType = getArtifactType(lang.toLowerCase());
+        const canPreview = artifactType && ['html', 'react', 'javascript', 'svg'].includes(artifactType);
+        if (artifactType && canPreview) {
+          additionalArtifacts.push({
+            id: `think-artifact-${additionalArtifacts.length}-${Date.now()}`,
+            type: artifactType,
+            title: lang ? `${lang} (from thinking)` : 'Artifact (from thinking)',
+            code,
+          });
+          keptChunks.push(updatedThinking.slice(lastIndex, m.index));
+          keptChunks.push(`[Artifact: ${artifactType}]`);
+          lastIndex = m.index + m[0].length;
+        }
+      }
+      if (additionalArtifacts.length > 0) {
+        keptChunks.push(updatedThinking.slice(lastIndex));
+        updatedThinking = keptChunks.join('').trim() || null;
+      }
+    }
+
+    return {
+      thinkingContent: updatedThinking,
+      mainContent: split.mainContent,
+      isThinkingComplete: split.isThinkingComplete,
+      artifacts: [...extractedArtifacts, ...additionalArtifacts],
+    };
+  }, [content, artifactsEnabled]);
 
   return (
     <div className="message-content">

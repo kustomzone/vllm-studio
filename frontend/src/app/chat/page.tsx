@@ -58,9 +58,25 @@ const BOX_TAGS_PATTERN = /<\|(?:begin|end)_of_box\|>/g;
 const stripThinkingForModelContext = (text: string) => {
   if (!text) return text;
   let cleaned = text.replace(BOX_TAGS_PATTERN, '');
-  cleaned = cleaned.replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '');
+  // Preserve any "renderable" code fences that were placed inside <think> blocks (models sometimes do this),
+  // but strip the rest of the thinking content so we don't feed back chain-of-thought.
+  const preservedBlocks: string[] = [];
+  cleaned = cleaned.replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, (block) => {
+    const fenceRegex = /```([a-zA-Z0-9_-]+)?\s*\n([\s\S]*?)```/g;
+    let m: RegExpExecArray | null;
+    while ((m = fenceRegex.exec(block)) !== null) {
+      const lang = (m[1] || '').toLowerCase();
+      const isRenderable =
+        ['html', 'svg', 'javascript', 'js', 'react', 'jsx', 'tsx'].includes(lang) ||
+        lang.startsWith('artifact-');
+      if (isRenderable) {
+        preservedBlocks.push(`\n\n\`\`\`${lang}\n${m[2].trim()}\n\`\`\``);
+      }
+    }
+    return '';
+  });
   cleaned = cleaned.replace(/<\/?think(?:ing)?>/gi, '');
-  return cleaned.trim();
+  return (cleaned.trim() + preservedBlocks.join('')).trim();
 };
 
 export default function ChatPage() {
@@ -268,6 +284,20 @@ export default function ChatPage() {
     if (systemPrompt.trim()) {
       apiMessages.push({ role: 'system', content: systemPrompt.trim() });
     }
+    if (mcpEnabled) {
+      apiMessages.push({
+        role: 'system',
+        content:
+          'If you call tools, do not repeat the same tool call with identical arguments. Use tool results and then answer.',
+      });
+    }
+    if (artifactsEnabled) {
+      apiMessages.push({
+        role: 'system',
+        content:
+          'If you output code intended for preview (HTML/SVG/JS/JSX/TSX), put it in the normal response (not inside <think> blocks).',
+      });
+    }
 
     for (const m of msgs) {
       if (m.images && m.images.length > 0) {
@@ -390,6 +420,7 @@ export default function ChatPage() {
       // Tool calling loop - continues until no more tool calls
       let iteration = 0;
       const MAX_ITERATIONS = 10;
+      const executedToolSignatures = new Set<string>();
 
       while (iteration < MAX_ITERATIONS) {
         iteration++;
@@ -472,6 +503,24 @@ export default function ChatPage() {
         const toolResults: ToolResult[] = [];
 
         for (const tc of toolCalls) {
+          const signature = (() => {
+            const name = tc.function?.name || '';
+            const rawArgs = (tc.function?.arguments || '').trim();
+            try {
+              const parsed = rawArgs ? JSON.parse(rawArgs) : {};
+              return `${name}:${JSON.stringify(parsed)}`;
+            } catch {
+              return `${name}:${rawArgs}`;
+            }
+          })();
+
+          if (executedToolSignatures.has(signature)) {
+            throw new Error(
+              `Model repeated the same tool call; stopping to avoid a loop (${tc.function.name}).`
+            );
+          }
+          executedToolSignatures.add(signature);
+
           setExecutingTools((prev) => new Set(prev).add(tc.id));
           const result = await executeMCPTool(tc);
           toolResults.push(result);
@@ -496,7 +545,8 @@ export default function ChatPage() {
         // Add assistant message with tool calls to conversation
         conversationMessages.push({
           role: 'assistant',
-          content: iterationContent ? stripThinkingForModelContext(iterationContent) : null,
+          // Many backends behave better when content is null for a tool-call turn.
+          content: null,
           tool_calls: toolCalls.map((tc) => ({
             id: tc.id,
             type: 'function',
