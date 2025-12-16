@@ -20,11 +20,6 @@
 - Proxy: `systemd/vllm-proxy.service`
 - Legacy (OpenWebUI): `systemd/openwebui.service` (kept for reference; not used by the Next.js UI)
 
-## Config Highlights
-- `vllmstudio/config.py` now defaults `recipes_dir` to `<repo>/recipes`; override with `VLLMSTUDIO_RECIPES_DIR`.
-- Metrics parsing lives in `vllmstudio/metrics.py`; recipe generation logic in `vllmstudio/recipe_generator.py`.
-- Auth: set `VLLMSTUDIO_API_KEY` for controller; proxies use `AUTH_API_KEY` in `proxy/config.py`.
-
 ## Health/Smoke Checks
 - Controller health: `curl http://localhost:8080/health`
 - Backend reachability: `curl http://localhost:8000/health`
@@ -32,8 +27,8 @@
 - Metrics scrape: `curl http://localhost:8080/metrics`
 
 ## Tests
-- Unit suite scoped to repo tests: `pytest`
-- New coverage: recipe generation heuristics, metrics parser throughput, recipe manager persistence/status.
+- `pytest`
+- `cd frontend && npm test`
 
 ## Logs
 - Controller logs default to `/tmp/vllmstudio.log`; per-model launch logs `/tmp/vllm_{recipe_id}.log`
@@ -41,5 +36,4 @@
 - Frontend logs: depends on how you run it; in local dev we often use `/tmp/frontend_3000.log` with a pidfile `/tmp/frontend_3000.pid`
 
 ## Notes
-- A safety branch `backup/pre-rearch-20251215` captures the pre-change state.
-- See `docs/rearchitecture-plan.md` for the phased refactor roadmap and goals.
+- See `docs/rearchitecture-plan.md` for roadmap.
