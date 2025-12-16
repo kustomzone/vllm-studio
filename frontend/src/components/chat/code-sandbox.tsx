@@ -74,6 +74,8 @@ const REACT_TEMPLATE = (code: string) => `
       try {
         window.__DEFAULT_EXPORT__ = undefined;
 
+        const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
         ${transformReactCode(code)}
 
         // Try to render common component patterns
