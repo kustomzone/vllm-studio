@@ -338,7 +338,7 @@ export function ToolBelt({
               <button
                 onClick={() => imageInputRef.current?.click()}
                 disabled={disabled}
-                className="p-1.5 rounded hover:bg-[var(--accent)] transition-colors disabled:opacity-50"
+                className="p-1.5 rounded hover:bg-[var(--accent)] transition-colors disabled:opacity-50 hidden sm:inline-flex"
                 title="Attach image"
               >
                 <ImageIcon className="h-3.5 w-3.5 text-[var(--muted)]" />
@@ -348,7 +348,7 @@ export function ToolBelt({
               <button
                 onClick={isRecording ? stopRecording : startRecording}
                 disabled={disabled}
-                className={`p-1.5 rounded transition-colors disabled:opacity-50 ${
+                className={`p-1.5 rounded transition-colors disabled:opacity-50 hidden md:inline-flex ${
                   isRecording
                     ? 'bg-[var(--error)]/20 text-[var(--error)]'
                     : 'hover:bg-[var(--accent)]'
@@ -366,7 +366,7 @@ export function ToolBelt({
               <button
                 onClick={() => setIsTTSEnabled(!isTTSEnabled)}
                 disabled={disabled}
-                className={`p-1.5 rounded transition-colors disabled:opacity-50 ${
+                className={`p-1.5 rounded transition-colors disabled:opacity-50 hidden md:inline-flex ${
                   isTTSEnabled
                     ? 'bg-[var(--success)]/20 text-[var(--success)]'
                     : 'hover:bg-[var(--accent)]'
@@ -381,7 +381,7 @@ export function ToolBelt({
               </button>
 
               {/* Divider */}
-              <div className="w-px h-4 bg-[var(--border)] mx-1" />
+              <div className="w-px h-4 bg-[var(--border)] mx-1 hidden sm:block" />
 
               {/* MCP/Web Search Toggle */}
               <button
@@ -395,7 +395,7 @@ export function ToolBelt({
                 title={mcpEnabled ? 'Disable web search & tools' : 'Enable web search & tools'}
               >
                 <Globe className={`h-3.5 w-3.5 ${mcpEnabled ? '' : 'text-[var(--muted)]'}`} />
-                <span className={`text-xs ${mcpEnabled ? '' : 'text-[var(--muted)]'}`}>Tools</span>
+                <span className={`text-xs ${mcpEnabled ? '' : 'text-[var(--muted)]'} hidden sm:inline`}>Tools</span>
               </button>
 
               {/* Artifacts/Code Execution Toggle */}
@@ -410,17 +410,17 @@ export function ToolBelt({
                 title={artifactsEnabled ? 'Disable code preview' : 'Enable code preview & sandbox'}
               >
                 <Code className={`h-3.5 w-3.5 ${artifactsEnabled ? '' : 'text-[var(--muted)]'}`} />
-                <span className={`text-xs ${artifactsEnabled ? '' : 'text-[var(--muted)]'}`}>Preview</span>
+                <span className={`text-xs ${artifactsEnabled ? '' : 'text-[var(--muted)]'} hidden sm:inline`}>Preview</span>
               </button>
 
               {/* Divider */}
-              <div className="w-px h-4 bg-[var(--border)] mx-1" />
+              <div className="w-px h-4 bg-[var(--border)] mx-1 hidden sm:block" />
 
               {/* MCP Server Settings */}
               <button
                 onClick={onOpenMcpSettings}
                 disabled={disabled}
-                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-[var(--accent)] transition-colors disabled:opacity-50"
+                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-[var(--accent)] transition-colors disabled:opacity-50 hidden sm:inline-flex"
                 title="Configure MCP servers (web search, fetch, etc.)"
               >
                 <Settings className="h-3.5 w-3.5 text-[var(--muted)]" />
@@ -439,7 +439,7 @@ export function ToolBelt({
                 title={hasSystemPrompt ? 'System prompt active - Click to edit' : 'Configure system prompt'}
               >
                 <SlidersHorizontal className={`h-3.5 w-3.5 ${hasSystemPrompt ? '' : 'text-[var(--muted)]'}`} />
-                <span className={`text-xs ${hasSystemPrompt ? '' : 'text-[var(--muted)]'}`}>System</span>
+                <span className={`text-xs ${hasSystemPrompt ? '' : 'text-[var(--muted)]'} hidden sm:inline`}>System</span>
               </button>
             </div>
 

@@ -32,7 +32,6 @@ const navItems = [
 export default function Nav() {
   const pathname = usePathname();
   const router = useRouter();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [status, setStatus] = useState<{ online: boolean; model?: string }>({ online: false });
@@ -188,7 +187,6 @@ export default function Nav() {
         e.preventDefault();
         setPaletteOpen(true);
         setActionsOpen(false);
-        setMobileMenuOpen(false);
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -248,6 +246,14 @@ export default function Nav() {
 
             <button
               onClick={() => setPaletteOpen(true)}
+              className="md:hidden p-2 rounded-md border border-[var(--border)] hover:bg-[var(--card-hover)] transition-colors"
+              title="Search (command palette)"
+            >
+              <Search className="h-4 w-4 text-[var(--muted-foreground)]" />
+            </button>
+
+            <button
+              onClick={() => setPaletteOpen(true)}
               className="hidden md:flex items-center gap-2 px-3 py-2 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--card-hover)] transition-colors"
               title="Command palette (Ctrl/⌘K)"
             >
@@ -259,7 +265,7 @@ export default function Nav() {
             </button>
 
             {/* Actions Dropdown */}
-            <div className="relative">
+            <div className="relative hidden md:block">
               <button
                 onClick={() => setActionsOpen(!actionsOpen)}
                 className="flex items-center gap-2 px-3 py-2 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--card-hover)] transition-colors"
@@ -301,47 +307,14 @@ export default function Nav() {
                 </>
               )}
             </div>
-
-            {/* Mobile Menu Button */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 hover:bg-[var(--card-hover)] rounded-md"
-            >
-              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
           </div>
         </div>
-
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <nav className="md:hidden border-t border-[var(--border)] p-4">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-3 rounded-md text-sm ${
-                    isActive
-                      ? 'bg-[var(--card-hover)] text-[var(--foreground)]'
-                      : 'text-[var(--muted-foreground)]'
-                  }`}
-                >
-                  <Icon className="h-5 w-5" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-        )}
       </header>
 
       {/* Mobile Bottom Nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-[var(--border)] bg-[var(--card)]">
         <div className="flex justify-around">
-          {navItems.slice(0, 5).map((item) => {
+          {navItems.slice(0, 4).map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
             return (
