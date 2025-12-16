@@ -30,6 +30,26 @@ def test_chat_api_endpoints(monkeypatch, tmp_path: Path):
     assert msg["prompt_tokens"] > 0
     assert msg["total_tokens"] == msg["prompt_tokens"]
 
+    # Add assistant message with request token overrides
+    r = client.post(
+        f"/chats/{session_id}/messages",
+        json={
+            "id": "a1",
+            "role": "assistant",
+            "content": "hi",
+            "model": "model-a",
+            "request_prompt_tokens": 50,
+            "request_tools_tokens": 5,
+            "request_total_input_tokens": 55,
+            "request_completion_tokens": 3,
+        },
+    )
+    assert r.status_code == 200
+    msg = r.json()
+    assert msg["id"] == "a1"
+    assert msg["request_total_input_tokens"] == 55
+    assert msg["request_completion_tokens"] == 3
+
     # Fork session
     r = client.post(f"/chats/{session_id}/fork", json={"model": "model-b", "message_id": "u1"})
     assert r.status_code == 200
@@ -45,4 +65,4 @@ def test_chat_api_endpoints(monkeypatch, tmp_path: Path):
     usage = r.json()
     assert usage["session_id"] == session_id
     assert usage["prompt_tokens"] > 0
-
+    assert usage["completion_tokens"] >= 3

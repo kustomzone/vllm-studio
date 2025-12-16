@@ -295,10 +295,32 @@ class APIClient {
     content: string;
     model?: string;
     tool_calls?: unknown[] | null;
+    request_prompt_tokens?: number | null;
+    request_tools_tokens?: number | null;
+    request_total_input_tokens?: number | null;
+    request_completion_tokens?: number | null;
+    estimated_cost_usd?: number | null;
   }): Promise<ChatMessage> {
     return this.request(`/chats/${sessionId}/messages`, {
       method: 'POST',
       body: JSON.stringify(message),
+    });
+  }
+
+  async tokenizeChatCompletions(req: { model: string; messages: unknown[]; tools?: unknown[] }): Promise<{
+    input_tokens: number;
+    breakdown: { messages: number; tools?: number };
+  }> {
+    return this.request('/v1/chat/completions/tokenize', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    });
+  }
+
+  async countTextTokens(req: { model: string; text: string }): Promise<{ num_tokens: number; breakdown?: unknown }> {
+    return this.request('/v1/tokens/count', {
+      method: 'POST',
+      body: JSON.stringify(req),
     });
   }
 

@@ -20,6 +20,10 @@ class ChatMessage(BaseModel):
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
+    request_prompt_tokens: Optional[int] = None
+    request_tools_tokens: Optional[int] = None
+    request_total_input_tokens: Optional[int] = None
+    request_completion_tokens: Optional[int] = None
     estimated_cost_usd: Optional[float] = None
 
 
@@ -85,6 +89,10 @@ class ChatStore:
                     prompt_tokens INTEGER,
                     completion_tokens INTEGER,
                     total_tokens INTEGER,
+                    request_prompt_tokens INTEGER,
+                    request_tools_tokens INTEGER,
+                    request_total_input_tokens INTEGER,
+                    request_completion_tokens INTEGER,
                     estimated_cost_usd REAL,
                     created_at TEXT NOT NULL,
                     FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
@@ -97,6 +105,10 @@ class ChatStore:
             self._ensure_column(conn, "messages", "prompt_tokens", "INTEGER")
             self._ensure_column(conn, "messages", "completion_tokens", "INTEGER")
             self._ensure_column(conn, "messages", "total_tokens", "INTEGER")
+            self._ensure_column(conn, "messages", "request_prompt_tokens", "INTEGER")
+            self._ensure_column(conn, "messages", "request_tools_tokens", "INTEGER")
+            self._ensure_column(conn, "messages", "request_total_input_tokens", "INTEGER")
+            self._ensure_column(conn, "messages", "request_completion_tokens", "INTEGER")
             self._ensure_column(conn, "messages", "estimated_cost_usd", "REAL")
 
             conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)")
@@ -154,6 +166,10 @@ class ChatStore:
                     prompt_tokens=int(row["prompt_tokens"] or 0),
                     completion_tokens=int(row["completion_tokens"] or 0),
                     total_tokens=int(row["total_tokens"] or 0),
+                    request_prompt_tokens=int(row["request_prompt_tokens"]) if row["request_prompt_tokens"] is not None else None,
+                    request_tools_tokens=int(row["request_tools_tokens"]) if row["request_tools_tokens"] is not None else None,
+                    request_total_input_tokens=int(row["request_total_input_tokens"]) if row["request_total_input_tokens"] is not None else None,
+                    request_completion_tokens=int(row["request_completion_tokens"]) if row["request_completion_tokens"] is not None else None,
                     estimated_cost_usd=float(row["estimated_cost_usd"]) if row["estimated_cost_usd"] is not None else None,
                     created_at=row["created_at"]
                 )
@@ -285,9 +301,21 @@ class ChatStore:
         if not session:
             return None
 
-        prompt = sum(m.prompt_tokens for m in session.messages)
-        completion = sum(m.completion_tokens for m in session.messages)
-        total = sum(m.total_tokens for m in session.messages)
+        # Prefer request-level accounting for assistant turns when available.
+        prompt = 0
+        completion = 0
+        total = 0
+        for m in session.messages:
+            if m.role == "assistant" and (m.request_prompt_tokens is not None or m.request_completion_tokens is not None):
+                p = int(m.request_prompt_tokens or 0)
+                c = int(m.request_completion_tokens or 0)
+                prompt += p
+                completion += c
+                total += p + c
+            else:
+                prompt += int(m.prompt_tokens or 0)
+                completion += int(m.completion_tokens or 0)
+                total += int(m.total_tokens or 0)
         costs = [m.estimated_cost_usd for m in session.messages if m.estimated_cost_usd is not None]
 
         return {
@@ -314,6 +342,11 @@ class ChatStore:
         model: Optional[str] = None,
         tool_calls: Optional[list] = None,
         message_id: Optional[str] = None,
+        request_prompt_tokens: Optional[int] = None,
+        request_tools_tokens: Optional[int] = None,
+        request_total_input_tokens: Optional[int] = None,
+        request_completion_tokens: Optional[int] = None,
+        estimated_cost_usd: Optional[float] = None,
     ) -> ChatMessage:
         """Add a message to a session."""
         msg_id = message_id or str(uuid.uuid4())
@@ -331,15 +364,31 @@ class ChatStore:
         prompt_tokens = token_count if role in ("user", "system", "tool") else 0
         completion_tokens = token_count if role == "assistant" else 0
         total_tokens = token_count
-        estimated_cost = estimate_cost_usd(model_for_count, prompt_tokens, completion_tokens)
+        # Prefer request-level accounting for assistant messages when provided
+        req_prompt = int(request_prompt_tokens) if request_prompt_tokens is not None else None
+        req_completion = int(request_completion_tokens) if request_completion_tokens is not None else None
+        req_tools = int(request_tools_tokens) if request_tools_tokens is not None else None
+        req_total_in = int(request_total_input_tokens) if request_total_input_tokens is not None else None
+
+        estimated_cost = (
+            float(estimated_cost_usd)
+            if estimated_cost_usd is not None
+            else (
+                estimate_cost_usd(model_for_count, req_prompt or 0, req_completion or 0)
+                if (req_prompt is not None or req_completion is not None)
+                else estimate_cost_usd(model_for_count, prompt_tokens, completion_tokens)
+            )
+        )
 
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """INSERT INTO messages (
                       id, session_id, role, content, model, tool_calls,
-                      prompt_tokens, completion_tokens, total_tokens, estimated_cost_usd,
+                      prompt_tokens, completion_tokens, total_tokens,
+                      request_prompt_tokens, request_tools_tokens, request_total_input_tokens, request_completion_tokens,
+                      estimated_cost_usd,
                       created_at
-                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     msg_id,
                     session_id,
@@ -350,6 +399,10 @@ class ChatStore:
                     prompt_tokens,
                     completion_tokens,
                     total_tokens,
+                    req_prompt,
+                    req_tools,
+                    req_total_in,
+                    req_completion,
                     estimated_cost,
                     now
                 )
@@ -369,6 +422,10 @@ class ChatStore:
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
+            request_prompt_tokens=req_prompt,
+            request_tools_tokens=req_tools,
+            request_total_input_tokens=req_total_in,
+            request_completion_tokens=req_completion,
             estimated_cost_usd=estimated_cost,
             created_at=now
         )

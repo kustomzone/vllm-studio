@@ -183,6 +183,10 @@ export interface ChatMessage {
   prompt_tokens?: number;
   completion_tokens?: number;
   total_tokens?: number;
+  request_prompt_tokens?: number | null;
+  request_tools_tokens?: number | null;
+  request_total_input_tokens?: number | null;
+  request_completion_tokens?: number | null;
   estimated_cost_usd?: number | null;
 }
 

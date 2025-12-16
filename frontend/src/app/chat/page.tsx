@@ -86,6 +86,11 @@ const stripThinkingForModelContext = (text: string) => {
   return (cleaned.trim() + preservedBlocks.join('')).trim();
 };
 
+const stripThinkTagsKeepText = (text: string) => {
+  if (!text) return text;
+  return text.replace(/<\/?think(?:ing)?>/gi, '');
+};
+
 export default function ChatPage() {
   // Session state
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -658,6 +663,10 @@ export default function ChatPage() {
                     prompt_tokens: (persisted as any).prompt_tokens,
                     completion_tokens: (persisted as any).completion_tokens,
                     total_tokens: (persisted as any).total_tokens,
+                    request_prompt_tokens: (persisted as any).request_prompt_tokens ?? null,
+                    request_tools_tokens: (persisted as any).request_tools_tokens ?? null,
+                    request_total_input_tokens: (persisted as any).request_total_input_tokens ?? null,
+                    request_completion_tokens: (persisted as any).request_completion_tokens ?? null,
                     estimated_cost_usd: (persisted as any).estimated_cost_usd ?? null,
                   }
                 : m
@@ -677,6 +686,24 @@ export default function ChatPage() {
 
       while (iteration < MAX_ITERATIONS) {
         iteration++;
+
+        // Estimate prompt tokens for this model call (messages + tools).
+        let requestPromptTokens: number | null = null;
+        let requestToolsTokens: number | null = null;
+        let requestTotalInputTokens: number | null = null;
+        try {
+          const toolsForTokenize = getOpenAITools();
+          const tok = await api.tokenizeChatCompletions({
+            model: activeModelId,
+            messages: conversationMessages as unknown[],
+            tools: toolsForTokenize as unknown[] | undefined,
+          });
+          requestTotalInputTokens = tok.input_tokens ?? null;
+          requestPromptTokens = tok.breakdown?.messages ?? null;
+          requestToolsTokens = tok.breakdown?.tools ?? null;
+        } catch (e) {
+          // tokenization is best-effort
+        }
 
         const response = await fetch('/api/chat', {
           method: 'POST',
@@ -731,11 +758,23 @@ export default function ChatPage() {
           // Persist final assistant message (best-effort).
           if (sessionId) {
             try {
+              let requestCompletionTokens: number | null = null;
+              try {
+                const counted = await api.countTextTokens({ model: activeModelId, text: stripThinkTagsKeepText(iterationContent) });
+                requestCompletionTokens = counted.num_tokens ?? null;
+              } catch {
+                // ignore
+              }
+
               const persisted = await api.addChatMessage(sessionId, {
                 id: assistantMsgId,
                 role: 'assistant',
                 content: iterationContent,
                 model: activeModelId || undefined,
+                request_prompt_tokens: requestPromptTokens,
+                request_tools_tokens: requestToolsTokens,
+                request_total_input_tokens: requestTotalInputTokens,
+                request_completion_tokens: requestCompletionTokens,
               });
               setMessages((prev) =>
                 prev.map((m) =>
@@ -746,6 +785,10 @@ export default function ChatPage() {
                         prompt_tokens: (persisted as any).prompt_tokens,
                         completion_tokens: (persisted as any).completion_tokens,
                         total_tokens: (persisted as any).total_tokens,
+                        request_prompt_tokens: (persisted as any).request_prompt_tokens ?? null,
+                        request_tools_tokens: (persisted as any).request_tools_tokens ?? null,
+                        request_total_input_tokens: (persisted as any).request_total_input_tokens ?? null,
+                        request_completion_tokens: (persisted as any).request_completion_tokens ?? null,
                         estimated_cost_usd: (persisted as any).estimated_cost_usd ?? null,
                       }
                     : m
@@ -818,12 +861,25 @@ export default function ChatPage() {
               const result = toolResults.find((r) => r.tool_call_id === tc.id);
               return { ...tc, result: result || null };
             });
+
+            let requestCompletionTokens: number | null = null;
+            try {
+              const counted = await api.countTextTokens({ model: activeModelId, text: stripThinkTagsKeepText(iterationContent) });
+              requestCompletionTokens = counted.num_tokens ?? null;
+            } catch {
+              // ignore
+            }
+
             const persisted = await api.addChatMessage(sessionId, {
               id: assistantMsgId,
               role: 'assistant',
               content: iterationContent,
               model: activeModelId || undefined,
               tool_calls: toolCallsForPersistence,
+              request_prompt_tokens: requestPromptTokens,
+              request_tools_tokens: requestToolsTokens,
+              request_total_input_tokens: requestTotalInputTokens,
+              request_completion_tokens: requestCompletionTokens,
             });
             setMessages((prev) =>
               prev.map((m) =>
@@ -834,6 +890,10 @@ export default function ChatPage() {
                       prompt_tokens: (persisted as any).prompt_tokens,
                       completion_tokens: (persisted as any).completion_tokens,
                       total_tokens: (persisted as any).total_tokens,
+                      request_prompt_tokens: (persisted as any).request_prompt_tokens ?? null,
+                      request_tools_tokens: (persisted as any).request_tools_tokens ?? null,
+                      request_total_input_tokens: (persisted as any).request_total_input_tokens ?? null,
+                      request_completion_tokens: (persisted as any).request_completion_tokens ?? null,
                       estimated_cost_usd: (persisted as any).estimated_cost_usd ?? null,
                     }
                   : m
@@ -1036,7 +1096,16 @@ export default function ChatPage() {
                           </span>
                           {(message.total_tokens || message.prompt_tokens || message.completion_tokens) && (
                             <span className="text-[10px] text-[var(--muted)] font-mono">
-                              {`${(message.total_tokens ?? (message.prompt_tokens || 0) + (message.completion_tokens || 0)).toLocaleString()} tok`}
+                              {(() => {
+                                const reqPrompt = (message as any).request_total_input_tokens ?? (message as any).request_prompt_tokens;
+                                const reqComp = (message as any).request_completion_tokens;
+                                if (message.role === 'assistant' && (reqPrompt || reqComp)) {
+                                  const total = (reqPrompt || 0) + (reqComp || 0);
+                                  return `${total.toLocaleString()} tok`;
+                                }
+                                const total = (message.total_tokens ?? (message.prompt_tokens || 0) + (message.completion_tokens || 0)) || 0;
+                                return `${total.toLocaleString()} tok`;
+                              })()}
                               {message.estimated_cost_usd ? ` • $${message.estimated_cost_usd.toFixed(4)}` : ''}
                             </span>
                           )}

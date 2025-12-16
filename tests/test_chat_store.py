@@ -26,6 +26,10 @@ def test_chat_store_add_message_preserves_id_and_counts_tokens(tmp_path: Path):
         model="default",
         message_id="asst-1",
         tool_calls=[{"id": "call_1", "type": "function", "function": {"name": "x", "arguments": "{\"a\":1}"}}],
+        request_prompt_tokens=123,
+        request_tools_tokens=10,
+        request_total_input_tokens=133,
+        request_completion_tokens=7,
     )
     assert assistant.id == "asst-1"
     assert assistant.completion_tokens > 0
@@ -34,9 +38,10 @@ def test_chat_store_add_message_preserves_id_and_counts_tokens(tmp_path: Path):
 
     usage = store.get_session_usage(session.id)
     assert usage is not None
-    assert usage["prompt_tokens"] == user.prompt_tokens
-    assert usage["completion_tokens"] == assistant.completion_tokens
-    assert usage["total_tokens"] == user.total_tokens + assistant.total_tokens
+    # For assistant turns, usage prefers request-level accounting
+    assert usage["prompt_tokens"] == user.prompt_tokens + 123
+    assert usage["completion_tokens"] == 7
+    assert usage["total_tokens"] == user.total_tokens + 123 + 7
 
 
 def test_chat_store_fork_session(tmp_path: Path):
@@ -54,4 +59,3 @@ def test_chat_store_fork_session(tmp_path: Path):
     assert len(fork.messages) == 1
     assert fork.messages[0].role == "user"
     assert fork.messages[0].content == "Q1"
-

@@ -1936,6 +1936,11 @@ class AddMessageRequest(BaseModel):
     content: str
     model: Optional[str] = None
     tool_calls: Optional[list] = None
+    request_prompt_tokens: Optional[int] = None
+    request_tools_tokens: Optional[int] = None
+    request_total_input_tokens: Optional[int] = None
+    request_completion_tokens: Optional[int] = None
+    estimated_cost_usd: Optional[float] = None
 
 
 @app.post("/chats/{session_id}/messages", response_model=ChatMessage)
@@ -1953,6 +1958,11 @@ async def add_message(session_id: str, request: AddMessageRequest):
         model=request.model,
         tool_calls=request.tool_calls,
         message_id=request.id,
+        request_prompt_tokens=request.request_prompt_tokens,
+        request_tools_tokens=request.request_tools_tokens,
+        request_total_input_tokens=request.request_total_input_tokens,
+        request_completion_tokens=request.request_completion_tokens,
+        estimated_cost_usd=request.estimated_cost_usd,
     )
 
 
