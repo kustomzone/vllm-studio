@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { isPlainObject, normalizeToolArgumentsJson, mergeToolCallArguments } from '@/lib/tool-parsing';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 const API_KEY = process.env.API_KEY || '';
@@ -67,37 +68,6 @@ const mergeStreamingText = (prevFull: string, incoming: string): { nextFull: str
   }
 
   return { nextFull: prev + next, emit: next };
-};
-
-const isPlainObject = (value: unknown): value is Record<string, unknown> => {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-};
-
-const normalizeToolArgumentsJson = (raw: string): string => {
-  const text = (raw || '').trim();
-  if (!text) return '{}';
-
-  try {
-    const parsed = JSON.parse(text) as unknown;
-    if (isPlainObject(parsed)) return JSON.stringify(parsed);
-    return JSON.stringify({ input: parsed });
-  } catch {
-    // Try common single-line call form: fn({...}) or fn([...])
-    const m = text.match(/^[a-zA-Z0-9_.:-]+\s*\(([\s\S]*)\)\s*$/);
-    if (m) {
-      const inside = (m[1] || '').trim();
-      if (inside) {
-        try {
-          const parsed = JSON.parse(inside) as unknown;
-          if (isPlainObject(parsed)) return JSON.stringify(parsed);
-          return JSON.stringify({ input: parsed });
-        } catch {
-          // fall through
-        }
-      }
-    }
-    return JSON.stringify({ raw: text });
-  }
 };
 
 const parseToolCallBlock = (block: string, idx: number): ToolCall | null => {
@@ -264,35 +234,6 @@ export async function POST(req: NextRequest) {
         const parsed = parseToolCallBlock(block, xmlToolCalls.length);
         if (parsed) xmlToolCalls.push(parsed);
       }
-    };
-
-    const isCompleteJson = (text: string): boolean => {
-      const t = (text || '').trim();
-      if (!t) return false;
-      if (!(t.startsWith('{') || t.startsWith('['))) return false;
-      try {
-        JSON.parse(t);
-        return true;
-      } catch {
-        return false;
-      }
-    };
-
-    const mergeToolCallArguments = (existing: string, incoming: string): string => {
-      const prev = existing || '';
-      const next = incoming || '';
-      if (!next) return prev;
-      if (!prev) return next;
-      if (prev === next) return prev;
-      // If the backend sends full JSON payloads repeatedly (often with different whitespace),
-      // treat the newest complete JSON as authoritative to avoid `}{` concatenation.
-      if (isCompleteJson(next)) return next.trim();
-      // Some backends resend the full JSON each delta instead of streaming fragments
-      if (prev.endsWith(next)) return prev;
-      if (next.startsWith(prev)) return next;
-      // Some backends repeat the prefix again
-      if (prev.startsWith(next)) return prev;
-      return prev + next;
     };
 
     const upsertToolCallDelta = (tc: OpenAIToolCallDelta) => {

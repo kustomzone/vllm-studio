@@ -170,7 +170,8 @@ function MermaidDiagram({ code }: { code: string }) {
       }
 
       try {
-        const { svg } = await mermaid.render(`mermaid_${id}`, code.trim());
+        // Mermaid can behave badly when re-rendered with the same id; include a monotonically increasing suffix.
+        const { svg } = await mermaid.render(`mermaid_${id}_${seq}`, code.trim());
         if (seq !== renderSeqRef.current) return;
         setSvg(svg);
         setError(null);
@@ -194,6 +195,7 @@ function MermaidDiagram({ code }: { code: string }) {
           <AlertCircle className="h-4 w-4" />
           <span>Diagram Error</span>
         </div>
+        <div className="text-xs text-red-300 mb-2 break-words">{error}</div>
         <pre className="text-xs text-[var(--muted-foreground)] overflow-x-auto">{code}</pre>
       </div>
     );

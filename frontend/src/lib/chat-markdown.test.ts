@@ -21,4 +21,11 @@ describe('normalizeAssistantMarkdownForRender', () => {
     expect(out).toContain('A --> B');
     expect(out).toContain('```');
   });
+
+  it('repairs inline mermaidgraph fence headers', () => {
+    const input = '```mermaidgraph LR A-->B\n```';
+    const out = normalizeAssistantMarkdownForRender(input);
+    expect(out).toContain('```mermaid');
+    expect(out).toContain('graph LR');
+  });
 });

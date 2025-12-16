@@ -9,6 +9,12 @@ import {
   Menu,
   Plus,
   GitBranch,
+  Settings,
+  Globe,
+  Code,
+  Pencil,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
 import api from '@/lib/api';
 import type { ChatSession, ToolCall, ToolResult, MCPTool } from '@/lib/types';
@@ -28,6 +34,10 @@ interface Message {
   prompt_tokens?: number;
   completion_tokens?: number;
   total_tokens?: number;
+  request_prompt_tokens?: number | null;
+  request_tools_tokens?: number | null;
+  request_total_input_tokens?: number | null;
+  request_completion_tokens?: number | null;
   estimated_cost_usd?: number | null;
 }
 
@@ -128,6 +138,16 @@ export default function ChatPage() {
   // Chat settings state
   const [systemPrompt, setSystemPrompt] = useState('');
   const [chatSettingsOpen, setChatSettingsOpen] = useState(false);
+  const [currentSessionTitle, setCurrentSessionTitle] = useState<string>('New Chat');
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+  const [sessionUsage, setSessionUsage] = useState<{
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    estimated_cost_usd?: number | null;
+  } | null>(null);
+  const usageRefreshTimerRef = useRef<number | null>(null);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -227,12 +247,36 @@ export default function ChatPage() {
       const data = await api.getChatSessions();
       setSessions(data.sessions);
       setSessionsAvailable(true);
+      if (currentSessionId) {
+        const found = data.sessions.find((s) => s.id === currentSessionId);
+        if (found?.title) setCurrentSessionTitle(found.title);
+      }
     } catch (e) {
       console.log('Chat sessions API not available', e);
       setSessionsAvailable(false);
     } finally {
       setSessionsLoading(false);
     }
+  };
+
+  const refreshUsage = (sessionId: string) => {
+    if (!sessionId) return;
+    if (usageRefreshTimerRef.current) {
+      window.clearTimeout(usageRefreshTimerRef.current);
+    }
+    usageRefreshTimerRef.current = window.setTimeout(async () => {
+      try {
+        const usage = await api.getChatUsage(sessionId);
+        setSessionUsage({
+          prompt_tokens: usage.prompt_tokens,
+          completion_tokens: usage.completion_tokens,
+          total_tokens: usage.total_tokens,
+          estimated_cost_usd: usage.estimated_cost_usd ?? null,
+        });
+      } catch {
+        // ignore
+      }
+    }, 350);
   };
 
   const loadSession = async (sessionId: string) => {
@@ -251,6 +295,10 @@ export default function ChatPage() {
             prompt_tokens: (m as any).prompt_tokens,
             completion_tokens: (m as any).completion_tokens,
             total_tokens: (m as any).total_tokens,
+            request_prompt_tokens: (m as any).request_prompt_tokens ?? null,
+            request_tools_tokens: (m as any).request_tools_tokens ?? null,
+            request_total_input_tokens: (m as any).request_total_input_tokens ?? null,
+            request_completion_tokens: (m as any).request_completion_tokens ?? null,
             estimated_cost_usd: (m as any).estimated_cost_usd ?? null,
           };
 
@@ -298,6 +346,10 @@ export default function ChatPage() {
       setExecutingTools(new Set());
       setCurrentSessionId(sessionId);
       if (session.model) setSelectedModel(session.model);
+      setCurrentSessionTitle(session.title || 'Chat');
+      setEditingTitle(false);
+      setTitleDraft(session.title || '');
+      refreshUsage(sessionId);
     } catch (e) {
       console.error('Failed to load session:', e);
       setError('Failed to load conversation');
@@ -309,6 +361,10 @@ export default function ChatPage() {
     setCurrentSessionId(null);
     setError(null);
     setSelectedModel(runningModel || availableModels[0]?.id || '');
+    setCurrentSessionTitle('New Chat');
+    setSessionUsage(null);
+    setEditingTitle(false);
+    setTitleDraft('');
     setTimeout(() => {
       const inputEl = document.querySelector('textarea');
       inputEl?.focus();
@@ -368,14 +424,14 @@ export default function ChatPage() {
       apiMessages.push({
         role: 'system',
         content:
-          'If you call tools, do not repeat the same tool call with identical arguments. Use tool results and then answer.',
+          'When you need a tool, emit tool_calls immediately (no preface). Do not repeat the same tool call with identical arguments; use tool results and then answer.',
       });
     }
     if (artifactsEnabled) {
       apiMessages.push({
         role: 'system',
         content:
-          'If you output code intended for preview (HTML/SVG/JS/JSX/TSX), put it in the normal response (not inside <think> blocks).',
+          'If you output code intended for preview (HTML/SVG/JS/JSX/TSX), put it in the normal response (not inside <think> blocks) and wrap it in a fenced code block (```lang ... ```).',
       });
     }
 
@@ -396,10 +452,11 @@ export default function ChatPage() {
       }
 
       if (m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0) {
-        const assistantContent = stripThinkingForModelContext(m.content) || null;
         apiMessages.push({
           role: 'assistant',
-          content: assistantContent,
+          // Avoid feeding back the assistant's "I'll do X" preface alongside tool_calls;
+          // it tends to cause repetition after tool results.
+          content: null,
           tool_calls: m.toolCalls.map((tc) => ({
             id: tc.id,
             type: 'function',
@@ -562,6 +619,13 @@ export default function ChatPage() {
       const wantsQuery = !!schemaProps && Object.prototype.hasOwnProperty.call(schemaProps, 'query');
       const wantsUrl = !!schemaProps && (Object.prototype.hasOwnProperty.call(schemaProps, 'url') || Object.prototype.hasOwnProperty.call(schemaProps, 'uri'));
 
+      const tryParseNestedJsonString = (value: unknown): Record<string, unknown> | null => {
+        if (typeof value !== 'string') return null;
+        const nested = parseToolArgs(value);
+        if (nested && typeof nested === 'object') return nested;
+        return null;
+      };
+
       if (args && typeof args === 'object' && 'input' in args) {
         const input = (args as any).input;
         if (wantsQuery && (typeof input === 'string' || Array.isArray(input))) {
@@ -570,6 +634,33 @@ export default function ChatPage() {
         } else if (wantsUrl && (typeof input === 'string' || Array.isArray(input))) {
           const url = Array.isArray(input) ? String(input[0] ?? '') : String(input);
           args = { url };
+        }
+      }
+
+      // Some models stuff the real args into a `raw` string (sometimes even concatenated JSON).
+      if (args && typeof args === 'object' && 'raw' in args && typeof (args as any).raw === 'string') {
+        const nested = tryParseNestedJsonString((args as any).raw);
+        if (nested) {
+          if (wantsQuery && !('query' in args) && ('query' in nested || 'input' in nested)) {
+            const query =
+              typeof (nested as any).query === 'string'
+                ? (nested as any).query
+                : typeof (nested as any).input === 'string'
+                  ? (nested as any).input
+                  : '';
+            const count = typeof (nested as any).count === 'number' ? (nested as any).count : 5;
+            if (query) args = { query, count };
+          } else if (wantsUrl && !('url' in args) && !('uri' in args) && ('url' in nested || 'uri' in nested || 'input' in nested)) {
+            const url =
+              typeof (nested as any).url === 'string'
+                ? (nested as any).url
+                : typeof (nested as any).uri === 'string'
+                  ? (nested as any).uri
+                  : typeof (nested as any).input === 'string'
+                    ? (nested as any).input
+                    : '';
+            if (url) args = { url };
+          }
         }
       }
 
@@ -674,6 +765,7 @@ export default function ChatPage() {
           );
           bumpSessionUpdatedAt();
           setSessionsAvailable(true);
+          refreshUsage(sessionId);
         } catch (e) {
           console.log('Failed to persist user message:', e);
         }
@@ -796,6 +888,7 @@ export default function ChatPage() {
               );
               bumpSessionUpdatedAt();
               setSessionsAvailable(true);
+              refreshUsage(sessionId);
             } catch (e) {
               console.log('Failed to persist assistant message:', e);
             }
@@ -901,6 +994,7 @@ export default function ChatPage() {
             );
             bumpSessionUpdatedAt();
             setSessionsAvailable(true);
+            refreshUsage(sessionId);
           } catch (e) {
             console.log('Failed to persist tool-call turn:', e);
           }
@@ -909,8 +1003,8 @@ export default function ChatPage() {
         // Add assistant message with tool calls to conversation
         conversationMessages.push({
           role: 'assistant',
-          // Keep any text the model produced before the tool call so it doesn't repeat it after tool results.
-          content: stripThinkingForModelContext(iterationContent) || null,
+          // Avoid feeding back the assistant's tool preface; it causes repetition on many models.
+          content: null,
           tool_calls: toolCalls.map((tc) => ({
             id: tc.id,
             type: 'function',
@@ -943,6 +1037,8 @@ export default function ChatPage() {
             if (title) {
               await api.updateChatSession(sessionId, { title });
               setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, title } : s)));
+              setCurrentSessionTitle(title);
+              setTitleDraft(title);
             }
           }
         } catch (titleError) {
@@ -1000,6 +1096,27 @@ export default function ChatPage() {
     }
   };
 
+  const saveTitle = async () => {
+    if (!currentSessionId) {
+      setEditingTitle(false);
+      return;
+    }
+    const next = titleDraft.trim();
+    if (!next) {
+      setEditingTitle(false);
+      return;
+    }
+    try {
+      await api.updateChatSession(currentSessionId, { title: next });
+      setSessions((prev) => prev.map((s) => (s.id === currentSessionId ? { ...s, title: next } : s)));
+      setCurrentSessionTitle(next);
+    } catch (e) {
+      console.log('Failed to update title:', e);
+    } finally {
+      setEditingTitle(false);
+    }
+  };
+
   if (pageLoading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
@@ -1051,6 +1168,110 @@ export default function ChatPage() {
 
         {/* Main Chat Area */}
         <div className="flex-1 flex flex-col min-w-0">
+          {/* Desktop Header */}
+          {!isMobile && (
+            <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-[var(--border)] bg-[var(--card)]">
+              <div className="flex items-center gap-2 min-w-0">
+                {editingTitle ? (
+                  <div className="flex items-center gap-2 min-w-0">
+                    <input
+                      value={titleDraft}
+                      onChange={(e) => setTitleDraft(e.target.value)}
+                      className="px-2 py-1 text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--foreground)] min-w-0 w-64"
+                      placeholder="Chat title"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') saveTitle();
+                        if (e.key === 'Escape') setEditingTitle(false);
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      onClick={saveTitle}
+                      className="p-1.5 rounded hover:bg-[var(--accent)] transition-colors"
+                      title="Save title"
+                    >
+                      <CheckCircle2 className="h-4 w-4 text-[var(--success)]" />
+                    </button>
+                    <button
+                      onClick={() => setEditingTitle(false)}
+                      className="p-1.5 rounded hover:bg-[var(--accent)] transition-colors"
+                      title="Cancel"
+                    >
+                      <X className="h-4 w-4 text-[var(--muted)]" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-sm font-medium truncate" title={currentSessionTitle}>
+                      {currentSessionTitle || 'Chat'}
+                    </div>
+                    {currentSessionId && (
+                      <button
+                        onClick={() => {
+                          setTitleDraft(currentSessionTitle);
+                          setEditingTitle(true);
+                        }}
+                        className="p-1 rounded hover:bg-[var(--accent)] transition-colors"
+                        title="Rename chat"
+                      >
+                        <Pencil className="h-3.5 w-3.5 text-[var(--muted)]" />
+                      </button>
+                    )}
+                    {selectedModel && (
+                      <span className="text-[10px] font-mono text-[var(--muted)] px-2 py-0.5 border border-[var(--border)] rounded">
+                        {selectedModel}
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {currentSessionId && sessionUsage && (
+                  <span className="text-[10px] font-mono text-[var(--muted)]">
+                    {sessionUsage.total_tokens.toLocaleString()} tok
+                    {sessionUsage.estimated_cost_usd != null ? ` • $${sessionUsage.estimated_cost_usd.toFixed(4)}` : ''}
+                  </span>
+                )}
+
+                <button
+                  onClick={() => setMcpEnabled((v) => !v)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded border text-xs transition-colors ${
+                    mcpEnabled ? 'border-blue-500/40 bg-blue-500/10 text-blue-400' : 'border-[var(--border)] text-[var(--muted)] hover:bg-[var(--accent)]'
+                  }`}
+                  title="Toggle tools"
+                >
+                  <Globe className="h-3.5 w-3.5" />
+                  Tools
+                </button>
+                <button
+                  onClick={() => setArtifactsEnabled((v) => !v)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded border text-xs transition-colors ${
+                    artifactsEnabled ? 'border-purple-500/40 bg-purple-500/10 text-purple-400' : 'border-[var(--border)] text-[var(--muted)] hover:bg-[var(--accent)]'
+                  }`}
+                  title="Toggle previews"
+                >
+                  <Code className="h-3.5 w-3.5" />
+                  Preview
+                </button>
+                <button
+                  onClick={() => setChatSettingsOpen(true)}
+                  className="p-2 rounded border border-[var(--border)] hover:bg-[var(--accent)] transition-colors"
+                  title="Chat settings"
+                >
+                  <Settings className="h-4 w-4 text-[var(--muted)]" />
+                </button>
+                <button
+                  onClick={createSession}
+                  className="p-2 rounded border border-[var(--border)] hover:bg-[var(--accent)] transition-colors"
+                  title="New chat"
+                >
+                  <Plus className="h-4 w-4 text-[var(--muted)]" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Messages */}
           <div className="flex-1 overflow-y-auto">
             {messages.length === 0 ? (
@@ -1097,8 +1318,8 @@ export default function ChatPage() {
                           {(message.total_tokens || message.prompt_tokens || message.completion_tokens) && (
                             <span className="text-[10px] text-[var(--muted)] font-mono">
                               {(() => {
-                                const reqPrompt = (message as any).request_total_input_tokens ?? (message as any).request_prompt_tokens;
-                                const reqComp = (message as any).request_completion_tokens;
+                                const reqPrompt = message.request_total_input_tokens ?? message.request_prompt_tokens;
+                                const reqComp = message.request_completion_tokens;
                                 if (message.role === 'assistant' && (reqPrompt || reqComp)) {
                                   const total = (reqPrompt || 0) + (reqComp || 0);
                                   return `${total.toLocaleString()} tok`;
@@ -1106,7 +1327,7 @@ export default function ChatPage() {
                                 const total = (message.total_tokens ?? (message.prompt_tokens || 0) + (message.completion_tokens || 0)) || 0;
                                 return `${total.toLocaleString()} tok`;
                               })()}
-                              {message.estimated_cost_usd ? ` • $${message.estimated_cost_usd.toFixed(4)}` : ''}
+                              {message.estimated_cost_usd != null ? ` • $${message.estimated_cost_usd.toFixed(4)}` : ''}
                             </span>
                           )}
                           {currentSessionId && (
