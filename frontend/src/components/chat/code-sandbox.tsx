@@ -52,7 +52,7 @@ const REACT_TEMPLATE = (code: string) => `
 <body>
   <div id="root"></div>
   <div id="error" class="error" style="display:none;"></div>
-  <script type="text/babel">
+  <script type="text/babel" data-presets="react,typescript">
     (() => {
       const send = (type, message) => {
         try { window.parent && window.parent.postMessage({ type, message }, '*'); } catch {}

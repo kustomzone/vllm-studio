@@ -6,7 +6,7 @@ import remarkGfm from 'remark-gfm';
 import { ChevronDown, ChevronRight, Brain, Copy, Check, AlertCircle, Play } from 'lucide-react';
 import mermaid from 'mermaid';
 import { CodeSandbox } from './code-sandbox';
-import { extractArtifacts, getArtifactType } from './artifact-renderer';
+import { ArtifactRenderer, extractArtifacts, getArtifactType } from './artifact-renderer';
 import type { Artifact } from '@/lib/types';
 
 // Initialize mermaid with dark theme
@@ -203,7 +203,7 @@ function CodeBlock({ children, className, artifactsEnabled }: CodeBlockProps) {
 
   // Check if this should be rendered as an artifact
   const artifactType = getArtifactType(language);
-  const canPreview = artifactsEnabled && artifactType && ['html', 'react'].includes(artifactType);
+  const canPreview = artifactsEnabled && artifactType && ['html', 'react', 'javascript', 'svg'].includes(artifactType);
 
   const copyCode = () => {
     navigator.clipboard.writeText(children);
@@ -213,11 +213,27 @@ function CodeBlock({ children, className, artifactsEnabled }: CodeBlockProps) {
 
   // If showing preview, render CodeSandbox
   if (showPreview && canPreview && artifactType) {
+    if (artifactType === 'svg') {
+      return (
+        <div className="my-3">
+          <ArtifactRenderer
+            artifact={{ id: 'inline-svg', type: 'svg', title: `${language} Preview`, code: children }}
+          />
+          <button
+            onClick={() => setShowPreview(false)}
+            className="mt-2 text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+          >
+            Show code
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="my-3">
         <CodeSandbox
           code={children}
-          language={artifactType as 'html' | 'react'}
+          language={artifactType as 'html' | 'react' | 'javascript'}
           title={`${language} Preview`}
           autoRun={true}
         />
@@ -393,12 +409,9 @@ export function MessageRenderer({ content, isStreaming, artifactsEnabled }: Mess
       {artifacts.length > 0 && artifactsEnabled && (
         <div className="mt-3 space-y-3">
           {artifacts.map((artifact) => (
-            <CodeSandbox
+            <ArtifactRenderer
               key={artifact.id}
-              code={artifact.code}
-              language={artifact.type as 'html' | 'react' | 'javascript'}
-              title={artifact.title || `${artifact.type} Artifact`}
-              autoRun={true}
+              artifact={artifact}
             />
           ))}
         </div>

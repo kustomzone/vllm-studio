@@ -28,6 +28,8 @@ export function ArtifactRenderer({ artifact, onRun }: ArtifactRendererProps) {
         return 'react' as const;
       case 'python':
         return 'javascript' as const; // Python will need backend execution
+      case 'javascript':
+        return 'javascript' as const;
       default:
         return 'html' as const;
     }
@@ -161,7 +163,7 @@ export function extractArtifacts(content: string): { text: string; artifacts: Ar
   }
 
   // Pattern 2: ```artifact-html ... ``` or ```artifact-react ... ```
-  const artifactCodeBlockRegex = /```artifact-(html|react|python|svg|mermaid)\s*\n([\s\S]*?)```/g;
+  const artifactCodeBlockRegex = /```artifact-(html|react|javascript|python|svg|mermaid)\s*\n([\s\S]*?)```/g;
 
   while ((match = artifactCodeBlockRegex.exec(content)) !== null) {
     const type = match[1] as Artifact['type'];
@@ -200,6 +202,7 @@ export function getArtifactType(language: string): Artifact['type'] | null {
   const mapping: Record<string, Artifact['type']> = {
     'artifact-html': 'html',
     'artifact-react': 'react',
+    'artifact-javascript': 'javascript',
     'artifact-python': 'python',
     'artifact-svg': 'svg',
     'artifact-mermaid': 'mermaid',
@@ -207,6 +210,9 @@ export function getArtifactType(language: string): Artifact['type'] | null {
     'react': 'react',
     'jsx': 'react',
     'tsx': 'react',
+    'svg': 'svg',
+    'javascript': 'javascript',
+    'js': 'javascript',
   };
   return mapping[language] || null;
 }

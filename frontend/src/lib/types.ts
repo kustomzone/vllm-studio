@@ -246,7 +246,7 @@ export interface ToolResult {
 // Artifacts
 export interface Artifact {
   id: string;
-  type: 'html' | 'react' | 'python' | 'mermaid' | 'svg';
+  type: 'html' | 'react' | 'javascript' | 'python' | 'mermaid' | 'svg';
   title: string;
   code: string;
   output?: string;
