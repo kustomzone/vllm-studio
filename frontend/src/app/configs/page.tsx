@@ -34,24 +34,24 @@ function recipeToCommand(recipe: Recipe): string {
     ['--pipeline-parallel-size', pp > 1 ? pp : undefined],
     ['--dtype', recipe.dtype],
     ['--max-model-len', recipe.max_model_len],
-    ['--block-size', recipe.extra_args?.block_size as number | undefined],
+    ['--block-size', (recipe.block_size ?? (recipe.extra_args?.block_size as number | undefined)) as number | undefined],
     ['--max-num-seqs', recipe.max_num_seqs],
     ['--max-num-batched-tokens', recipe.max_num_batched_tokens],
     ['--gpu-memory-utilization', recipe.gpu_memory_utilization],
-    ['--swap-space', recipe.extra_args?.swap_space as number | undefined],
+    ['--swap-space', (recipe.swap_space ?? (recipe.extra_args?.swap_space as number | undefined)) as number | undefined],
     ['--kv-cache-dtype', recipe.kv_cache_dtype],
     ['--quantization', recipe.quantization],
-    ['--reasoning-parser', recipe.extra_args?.reasoning_parser as string | undefined],
+    ['--reasoning-parser', (recipe.reasoning_parser ?? (recipe.extra_args?.reasoning_parser as string | undefined)) as string | undefined],
     ['--tool-call-parser', recipe.tool_call_parser],
     ['--served-model-name', recipe.served_model_name],
   ];
 
   // Boolean flags
   if (recipe.enable_auto_tool_choice) args.push(['--enable-auto-tool-choice', true]);
-  if (recipe.extra_args?.disable_custom_all_reduce) args.push(['--disable-custom-all-reduce', true]);
-  if (recipe.extra_args?.trust_remote_code) args.push(['--trust-remote-code', true]);
-  if (recipe.extra_args?.disable_log_requests) args.push(['--disable-log-requests', true]);
-  if (recipe.extra_args?.enable_expert_parallel) args.push(['--enable-expert-parallel', true]);
+  if (recipe.disable_custom_all_reduce ?? recipe.extra_args?.disable_custom_all_reduce) args.push(['--disable-custom-all-reduce', true]);
+  if (recipe.trust_remote_code ?? recipe.extra_args?.trust_remote_code) args.push(['--trust-remote-code', true]);
+  if (recipe.disable_log_requests ?? recipe.extra_args?.disable_log_requests) args.push(['--disable-log-requests', true]);
+  if (recipe.enable_expert_parallel ?? recipe.extra_args?.enable_expert_parallel) args.push(['--enable-expert-parallel', true]);
 
   for (const [flag, value] of args) {
     if (value === undefined || value === null || value === '') continue;
@@ -63,9 +63,8 @@ function recipeToCommand(recipe: Recipe): string {
   }
 
   // Host and port
-  lines.push(`  --host 0.0.0.0 \\`);
-  const port = recipe.extra_args?.port as number | undefined;
-  lines.push(`  --port ${port || 8000}`);
+  lines.push(`  --host ${recipe.host || '0.0.0.0'} \\`);
+  lines.push(`  --port ${recipe.port || 8000}`);
 
   return lines.join('\n');
 }
@@ -147,32 +146,32 @@ function parseCommand(command: string, existingRecipe?: Partial<Recipe>): Recipe
         if (!recipe.model_path && value) recipe.model_path = value;
         break;
       case 'port':
-        recipe.extra_args!.port = parseInt(value) || 8000;
+        recipe.port = parseInt(value) || 8000;
         break;
       case 'block-size':
-        recipe.extra_args!.block_size = parseInt(value);
+        recipe.block_size = parseInt(value);
         break;
       case 'swap-space':
-        recipe.extra_args!.swap_space = parseInt(value);
+        recipe.swap_space = parseInt(value);
         break;
       case 'reasoning-parser':
-        recipe.extra_args!.reasoning_parser = value;
+        recipe.reasoning_parser = value;
         break;
       // Boolean flags (no value or next token starts with --)
       case 'enable-auto-tool-choice':
         recipe.enable_auto_tool_choice = true;
         break;
       case 'disable-custom-all-reduce':
-        recipe.extra_args!.disable_custom_all_reduce = true;
+        recipe.disable_custom_all_reduce = true;
         break;
       case 'trust-remote-code':
-        recipe.extra_args!.trust_remote_code = true;
+        recipe.trust_remote_code = true;
         break;
       case 'disable-log-requests':
-        recipe.extra_args!.disable_log_requests = true;
+        recipe.disable_log_requests = true;
         break;
       case 'enable-expert-parallel':
-        recipe.extra_args!.enable_expert_parallel = true;
+        recipe.enable_expert_parallel = true;
         break;
     }
   }

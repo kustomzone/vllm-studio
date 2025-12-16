@@ -28,18 +28,32 @@ export interface Recipe {
   backend: 'vllm' | 'sglang';
   tp?: number;  // tensor_parallel_size
   pp?: number;  // pipeline_parallel_size
+  dp?: number;  // data_parallel_size
   tensor_parallel_size?: number;  // alias
   pipeline_parallel_size?: number;  // alias
+  data_parallel_size?: number;  // alias
   max_model_len?: number;
   gpu_memory_utilization?: number;
+  kv_cache_dtype?: string;
+  swap_space?: number;
+  max_num_seqs?: number;
+  max_num_batched_tokens?: number;
+  block_size?: number;
+  enable_expert_parallel?: boolean;
+  disable_custom_all_reduce?: boolean;
+  disable_log_requests?: boolean;
+  trust_remote_code?: boolean;
+  enable_auto_tool_choice?: boolean;
   quantization?: string;
   dtype?: string;
   tool_call_parser?: string;
+  reasoning_parser?: string;
   served_model_name?: string;
-  max_num_seqs?: number;
-  max_num_batched_tokens?: number;
-  kv_cache_dtype?: string;
-  enable_auto_tool_choice?: boolean;
+  host?: string;
+  port?: number;
+  python_path?: string;
+  venv_path?: string;
+  env_vars?: Record<string, string>;
   extra_args?: Record<string, unknown>;
 }
 
@@ -184,6 +198,7 @@ export interface MCPServer {
   command: string;
   args: string[];
   enabled: boolean;
+  env?: Record<string, string>;
 }
 
 export interface MCPTool {
@@ -208,4 +223,40 @@ export interface Skill {
   description: string;
   icon: string;
   params: Record<string, string>;
+}
+
+// Tool Calling
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+  // MCP-specific fields
+  server?: string;
+}
+
+export interface ToolResult {
+  tool_call_id: string;
+  content: string;
+  isError?: boolean;
+}
+
+// Artifacts
+export interface Artifact {
+  id: string;
+  type: 'html' | 'react' | 'python' | 'mermaid' | 'svg';
+  title: string;
+  code: string;
+  output?: string;
+  error?: string;
+  isRunning?: boolean;
+}
+
+// Chat Message with tool/artifact support
+export interface EnhancedChatMessage extends ChatMessage {
+  toolCalls?: ToolCall[];
+  toolResults?: ToolResult[];
+  artifacts?: Artifact[];
 }

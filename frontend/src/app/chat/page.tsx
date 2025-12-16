@@ -6,30 +6,14 @@ import {
   User,
   Copy,
   Check,
-  RotateCcw,
-  Trash2,
-  PanelLeftClose,
-  PanelLeft,
-  Image as ImageIcon,
+  Menu,
+  Plus,
 } from 'lucide-react';
 import api from '@/lib/api';
-import type { ChatSession } from '@/lib/types';
-import { MessageRenderer, ChatSidebar, ToolBelt, MCPSettingsModal } from '@/components/chat';
+import type { ChatSession, ToolCall, ToolResult, MCPTool } from '@/lib/types';
+import { MessageRenderer, ChatSidebar, ToolBelt, MCPSettingsModal, ChatSettingsModal } from '@/components/chat';
+import { ToolCallCard } from '@/components/chat/tool-call-card';
 import type { Attachment, MCPServerConfig } from '@/components/chat';
-
-interface ImageContent {
-  type: 'image_url';
-  image_url: {
-    url: string;
-  };
-}
-
-interface TextContent {
-  type: 'text';
-  text: string;
-}
-
-type MessageContent = string | (TextContent | ImageContent)[];
 
 interface Message {
   id: string;
@@ -37,15 +21,50 @@ interface Message {
   content: string;
   images?: string[]; // base64 images for display
   isStreaming?: boolean;
+  toolCalls?: ToolCall[];
+  toolResults?: ToolResult[];
 }
 
-interface APIMessage {
-  role: 'user' | 'assistant' | 'system';
-  content: MessageContent;
+interface StreamEvent {
+  type: 'text' | 'tool_calls' | 'done' | 'error';
+  content?: string;
+  tool_calls?: ToolCall[];
+  error?: string;
 }
+
+type OpenAIContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
+type OpenAIToolCall = {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
+};
+
+type OpenAIMessage =
+  | {
+      role: 'user' | 'assistant' | 'system';
+      content: string | null | OpenAIContentPart[];
+      tool_calls?: OpenAIToolCall[];
+    }
+  | {
+      role: 'tool';
+      tool_call_id: string;
+      content: string;
+    };
+
+const BOX_TAGS_PATTERN = /<\|(?:begin|end)_of_box\|>/g;
+const stripThinkingForModelContext = (text: string) => {
+  if (!text) return text;
+  let cleaned = text.replace(BOX_TAGS_PATTERN, '');
+  cleaned = cleaned.replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '');
+  cleaned = cleaned.replace(/<\/?think(?:ing)?>/gi, '');
+  return cleaned.trim();
+};
 
 export default function ChatPage() {
-  // Session state (optional - fails gracefully if backend doesn't support)
+  // Session state
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sessionsLoading, setSessionsLoading] = useState(true);
@@ -65,16 +84,39 @@ export default function ChatPage() {
   // UI state
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   // MCP & Artifacts state
   const [mcpEnabled, setMcpEnabled] = useState(false);
   const [artifactsEnabled, setArtifactsEnabled] = useState(false);
   const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
   const [mcpSettingsOpen, setMcpSettingsOpen] = useState(false);
+  const [mcpTools, setMcpTools] = useState<MCPTool[]>([]);
+  const [executingTools, setExecutingTools] = useState<Set<string>>(new Set());
+  const [toolResultsMap, setToolResultsMap] = useState<Map<string, ToolResult>>(new Map());
+
+  // Chat settings state
+  const [systemPrompt, setSystemPrompt] = useState('');
+  const [chatSettingsOpen, setChatSettingsOpen] = useState(false);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Detect mobile viewport
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) {
+        setSidebarCollapsed(true);
+      }
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     loadStatus();
@@ -82,18 +124,37 @@ export default function ChatPage() {
     loadMCPServers();
   }, []);
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
+    if (mcpEnabled) {
+      loadMCPTools();
+    } else {
+      setMcpTools([]);
+    }
+  }, [mcpEnabled]);
+
   const loadMCPServers = async () => {
     try {
       const servers = await api.getMCPServers();
-      setMcpServers(servers.map(s => ({ ...s, env: (s as any).env || {} })));
+      setMcpServers(servers.map((s) => ({ ...s, env: s.env || {} })));
     } catch (e) {
       console.log('MCP servers not available:', e);
     }
   };
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  const loadMCPTools = async () => {
+    try {
+      const response = await api.getMCPTools();
+      setMcpTools(response.tools || []);
+      console.log('[MCP] Loaded tools:', response.tools?.length || 0);
+    } catch (e) {
+      console.log('MCP tools not available:', e);
+      setMcpTools([]);
+    }
+  };
 
   const loadStatus = async () => {
     try {
@@ -123,8 +184,7 @@ export default function ChatPage() {
       const data = await api.getChatSessions();
       setSessions(data.sessions);
     } catch (e) {
-      // Sessions API not available - that's okay, we'll work without persistence
-      console.log('Chat sessions API not available');
+      console.log('Chat sessions API not available', e);
       setSessionsAvailable(false);
     } finally {
       setSessionsLoading(false);
@@ -152,10 +212,9 @@ export default function ChatPage() {
     setMessages([]);
     setCurrentSessionId(null);
     setError(null);
-    // Focus the input
     setTimeout(() => {
-      const input = document.querySelector('textarea');
-      input?.focus();
+      const inputEl = document.querySelector('textarea');
+      inputEl?.focus();
     }, 100);
   };
 
@@ -173,33 +232,130 @@ export default function ChatPage() {
     }
   };
 
-  const buildAPIMessages = (msgs: Message[]): APIMessage[] => {
-    return msgs.map((m) => {
-      // If message has images, use OpenAI vision format
-      if (m.images && m.images.length > 0) {
-        const content: (TextContent | ImageContent)[] = [];
+  // Parse SSE events from the stream
+  const parseSSEEvents = async function* (reader: ReadableStreamDefaultReader<Uint8Array>) {
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-        // Add text content
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6).trim();
+          if (data) {
+            try {
+              yield JSON.parse(data) as StreamEvent;
+            } catch {
+              // Skip malformed JSON
+            }
+          }
+        }
+      }
+    }
+  };
+
+  // Build API messages with system prompt
+  const buildAPIMessages = (msgs: Message[]) => {
+    const apiMessages: OpenAIMessage[] = [];
+
+    // Prepend system prompt if set
+    if (systemPrompt.trim()) {
+      apiMessages.push({ role: 'system', content: systemPrompt.trim() });
+    }
+
+    for (const m of msgs) {
+      if (m.images && m.images.length > 0) {
+        const content: OpenAIContentPart[] = [];
         if (m.content) {
           content.push({ type: 'text', text: m.content });
         }
-
-        // Add images
         for (const base64 of m.images) {
           content.push({
             type: 'image_url',
-            image_url: {
-              url: `data:image/jpeg;base64,${base64}`,
-            },
+            image_url: { url: `data:image/jpeg;base64,${base64}` },
           });
         }
-
-        return { role: m.role, content };
+        apiMessages.push({ role: m.role, content });
+      } else {
+        const content =
+          m.role === 'assistant' ? stripThinkingForModelContext(m.content) : m.content;
+        apiMessages.push({ role: m.role, content });
       }
+    }
 
-      // Plain text message
-      return { role: m.role, content: m.content };
-    });
+    return apiMessages;
+  };
+
+  // Convert MCP tools to OpenAI function format
+  const getOpenAITools = () => {
+    if (!mcpEnabled || mcpTools.length === 0) return undefined;
+    return mcpTools.map((tool) => ({
+      type: 'function' as const,
+      function: {
+        name: `${tool.server}__${tool.name}`,
+        description: tool.description,
+        parameters: tool.input_schema,
+      },
+    }));
+  };
+
+  // Execute an MCP tool call
+  const executeMCPTool = async (toolCall: ToolCall): Promise<ToolResult> => {
+    const funcName = toolCall.function.name;
+    const [server, ...nameParts] = funcName.split('__');
+    const toolName = nameParts.join('__');
+
+    const parseToolArgs = (raw: string | undefined): Record<string, unknown> => {
+      const text = (raw || '').trim();
+      if (!text) return {};
+      try {
+        return JSON.parse(text) as Record<string, unknown>;
+      } catch {
+        // Try to extract the first valid JSON object/array from a concatenated string
+        const firstCharIdx = text.search(/[{\[]/);
+        if (firstCharIdx === -1) return { raw: text };
+        const startChar = text[firstCharIdx];
+        const endChar = startChar === '{' ? '}' : ']';
+        let depth = 0;
+        for (let i = firstCharIdx; i < text.length; i++) {
+          const ch = text[i];
+          if (ch === startChar) depth++;
+          if (ch === endChar) depth--;
+          if (depth === 0) {
+            const candidate = text.slice(firstCharIdx, i + 1);
+            try {
+              return JSON.parse(candidate) as Record<string, unknown>;
+            } catch {
+              break;
+            }
+          }
+        }
+        return { raw: text };
+      }
+    };
+
+    try {
+      const args = parseToolArgs(toolCall.function.arguments);
+      console.log(`[MCP] Calling ${server}/${toolName}`, args);
+      const result = await api.callMCPTool(server, toolName, args);
+      return {
+        tool_call_id: toolCall.id,
+        content: typeof result.result === 'string' ? result.result : JSON.stringify(result.result),
+      };
+    } catch (error) {
+      console.error(`[MCP] Tool error:`, error);
+      return {
+        tool_call_id: toolCall.id,
+        content: `Error: ${error instanceof Error ? error.message : String(error)}`,
+        isError: true,
+      };
+    }
   };
 
   const sendMessage = async (attachments?: Attachment[]) => {
@@ -223,80 +379,144 @@ export default function ChatPage() {
     setIsLoading(true);
     setError(null);
 
-    // Create abort controller for stopping generation
     abortControllerRef.current = new AbortController();
 
+    // Track conversation for tool calling loop
+    const conversationMessages = buildAPIMessages([...messages, userMessage]);
+    let fullContent = '';
+    let sessionId = currentSessionId;
+
     try {
-      // Build messages in OpenAI format
-      const apiMessages = buildAPIMessages([...messages, userMessage]);
+      // Tool calling loop - continues until no more tool calls
+      let iteration = 0;
+      const MAX_ITERATIONS = 10;
 
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: apiMessages,
-          model: runningModel,
-        }),
-        signal: abortControllerRef.current.signal,
-      });
+      while (iteration < MAX_ITERATIONS) {
+        iteration++;
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: conversationMessages,
+            model: runningModel,
+            tools: getOpenAITools(),
+          }),
+          signal: abortControllerRef.current?.signal,
+        });
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response body');
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
 
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: '',
-        isStreaming: true,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('No response body');
 
-      const decoder = new TextDecoder();
-      let fullContent = '';
+        // Create or update assistant message
+        const assistantMsgId = (Date.now() + iteration).toString();
+        setMessages((prev) => {
+          const lastMsg = prev[prev.length - 1];
+          if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
+            return prev; // Keep existing streaming message
+          }
+          return [...prev, { id: assistantMsgId, role: 'assistant', content: '', isStreaming: true }];
+        });
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        let iterationContent = '';
+        let toolCalls: ToolCall[] = [];
 
-        const text = decoder.decode(value, { stream: true });
-        fullContent += text;
+        // Process SSE events
+        for await (const event of parseSSEEvents(reader)) {
+          if (event.type === 'text' && event.content) {
+            iterationContent += event.content;
+            fullContent += event.content;
+            setMessages((prev) => {
+              const updated = [...prev];
+              const lastIdx = updated.length - 1;
+              if (updated[lastIdx]?.role === 'assistant') {
+                updated[lastIdx] = { ...updated[lastIdx], content: fullContent };
+              }
+              return updated;
+            });
+          } else if (event.type === 'tool_calls' && event.tool_calls) {
+            toolCalls = event.tool_calls;
+            // Update message with tool calls
+            setMessages((prev) => {
+              const updated = [...prev];
+              const lastIdx = updated.length - 1;
+              if (updated[lastIdx]?.role === 'assistant') {
+                updated[lastIdx] = { ...updated[lastIdx], toolCalls };
+              }
+              return updated;
+            });
+          } else if (event.type === 'error') {
+            throw new Error(event.error || 'Stream error');
+          }
+        }
 
+        // If no tool calls, we're done
+        if (toolCalls.length === 0) {
+          setMessages((prev) => {
+            const updated = [...prev];
+            const lastIdx = updated.length - 1;
+            if (updated[lastIdx]?.role === 'assistant') {
+              updated[lastIdx] = { ...updated[lastIdx], isStreaming: false };
+            }
+            return updated;
+          });
+          break;
+        }
+
+        // Execute tool calls
+        console.log(`[MCP] Executing ${toolCalls.length} tool call(s)`);
+        const toolResults: ToolResult[] = [];
+
+        for (const tc of toolCalls) {
+          setExecutingTools((prev) => new Set(prev).add(tc.id));
+          const result = await executeMCPTool(tc);
+          toolResults.push(result);
+          setToolResultsMap((prev) => new Map(prev).set(tc.id, result));
+          setExecutingTools((prev) => {
+            const next = new Set(prev);
+            next.delete(tc.id);
+            return next;
+          });
+        }
+
+        // Update message with results
         setMessages((prev) => {
           const updated = [...prev];
           const lastIdx = updated.length - 1;
           if (updated[lastIdx]?.role === 'assistant') {
-            updated[lastIdx] = {
-              ...updated[lastIdx],
-              content: fullContent,
-            };
+            updated[lastIdx] = { ...updated[lastIdx], toolResults, isStreaming: false };
           }
           return updated;
         });
+
+        // Add assistant message with tool calls to conversation
+        conversationMessages.push({
+          role: 'assistant',
+          content: iterationContent ? stripThinkingForModelContext(iterationContent) : null,
+          tool_calls: toolCalls.map((tc) => ({
+            id: tc.id,
+            type: 'function',
+            function: { name: tc.function.name, arguments: tc.function.arguments },
+          })),
+        });
+
+        // Add tool results to conversation
+        for (const result of toolResults) {
+          conversationMessages.push({
+            role: 'tool',
+            tool_call_id: result.tool_call_id,
+            content: result.content,
+          });
+        }
       }
 
-      // Mark as no longer streaming
-      setMessages((prev) => {
-        const updated = [...prev];
-        const lastIdx = updated.length - 1;
-        if (updated[lastIdx]?.role === 'assistant') {
-          updated[lastIdx] = {
-            ...updated[lastIdx],
-            isStreaming: false,
-          };
-        }
-        return updated;
-      });
-
-      // Persist to backend (if sessions available)
-      if (sessionsAvailable) {
+      // Persist to backend
+      if (sessionsAvailable && fullContent) {
         try {
-          let sessionId = currentSessionId;
-
-          // Create session if needed
           if (!sessionId) {
             const title = userContent.slice(0, 50) || 'New Chat';
             const { session } = await api.createChatSession({ title, model: runningModel || undefined });
@@ -305,7 +525,6 @@ export default function ChatPage() {
             setSessions((prev) => [session, ...prev]);
           }
 
-          // Save both messages
           await api.addChatMessage(sessionId, {
             role: 'user',
             content: userContent,
@@ -326,16 +545,18 @@ export default function ChatPage() {
           const updated = [...prev];
           const lastIdx = updated.length - 1;
           if (updated[lastIdx]?.role === 'assistant') {
-            updated[lastIdx] = {
-              ...updated[lastIdx],
-              isStreaming: false,
-            };
+            updated[lastIdx] = { ...updated[lastIdx], isStreaming: false };
           }
           return updated;
         });
       } else {
         setError(err instanceof Error ? err.message : 'Failed to send message');
-        setMessages((prev) => prev.slice(0, -1));
+        setMessages((prev) => {
+          if (prev[prev.length - 1]?.role === 'assistant' && prev[prev.length - 1]?.content === '') {
+            return prev.slice(0, -1);
+          }
+          return prev;
+        });
       }
     } finally {
       setIsLoading(false);
@@ -347,34 +568,6 @@ export default function ChatPage() {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-  };
-
-  const clearChat = () => {
-    setMessages([]);
-    setCurrentSessionId(null);
-    setError(null);
-  };
-
-  const regenerate = async () => {
-    if (messages.length < 2) return;
-    const lastUserIdx = messages.map((m) => m.role).lastIndexOf('user');
-    if (lastUserIdx === -1) return;
-
-    const lastUserMsg = messages[lastUserIdx];
-    setMessages(messages.slice(0, lastUserIdx));
-    setInput(lastUserMsg.content);
-
-    // Re-send with same images if any
-    setTimeout(() => {
-      const attachments: Attachment[] = (lastUserMsg.images || []).map((base64, i) => ({
-        id: `regen-${i}`,
-        type: 'image' as const,
-        name: `image-${i}`,
-        size: 0,
-        base64,
-      }));
-      sendMessage(attachments.length > 0 ? attachments : undefined);
-    }, 100);
   };
 
   const copyToClipboard = (text: string, index: number) => {
@@ -394,9 +587,32 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)]">
-      {/* Sidebar - only show if sessions available */}
-      {sessionsAvailable && (
+    <div className="flex flex-col h-[calc(100vh-4rem)]">
+      {/* Mobile Header */}
+      {isMobile && (
+        <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] bg-[var(--card)]">
+          <button
+            onClick={() => setSidebarCollapsed(false)}
+            className="p-2 rounded-lg hover:bg-[var(--accent)] transition-colors"
+            title="Chat history"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <span className="text-sm font-medium truncate mx-2">
+            {modelName || 'Chat'}
+          </span>
+          <button
+            onClick={createSession}
+            className="p-2 rounded-lg hover:bg-[var(--accent)] transition-colors"
+            title="New chat"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-1 min-h-0">
+        {/* Sidebar */}
         <ChatSidebar
           sessions={sessions}
           currentSessionId={currentSessionId}
@@ -406,152 +622,179 @@ export default function ChatPage() {
           isCollapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           isLoading={sessionsLoading}
+          isMobile={isMobile}
         />
-      )}
 
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto">
-          {messages.length === 0 ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center px-4 animate-fade-in">
-                <Sparkles className="h-6 w-6 text-[var(--muted)] mx-auto mb-3" />
-                <p className="text-sm text-[var(--muted)]">
-                  {runningModel ? 'Send a message to start' : 'No model running'}
-                </p>
+        {/* Main Chat Area */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto">
+            {messages.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center px-4 animate-fade-in">
+                  <Sparkles className="h-6 w-6 text-[var(--muted)] mx-auto mb-3" />
+                  <p className="text-sm text-[var(--muted)]">
+                    {runningModel ? 'Send a message to start' : 'No model running'}
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="max-w-3xl mx-auto py-3">
-              {messages.map((message, index) => (
-                <div
-                  key={message.id}
-                  className={`px-4 py-2 animate-slide-up ${
-                    message.role === 'assistant' ? 'bg-[var(--card)]' : ''
-                  }`}
-                >
-                  <div className="flex gap-3">
-                    <div
-                      className={`w-6 h-6 rounded flex items-center justify-center flex-shrink-0 ${
-                        message.role === 'user'
-                          ? 'bg-[var(--accent)]'
-                          : 'bg-[var(--success)]/20'
-                      }`}
-                    >
-                      {message.role === 'user' ? (
-                        <User className="h-3 w-3" />
-                      ) : (
-                        <Sparkles
-                          className={`h-3 w-3 text-[var(--success)] ${
-                            message.isStreaming ? 'animate-pulse-soft' : ''
-                          }`}
-                        />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs text-[var(--muted)]">
-                          {message.role === 'user' ? 'You' : modelName}
-                        </span>
-                        <button
-                          onClick={() => copyToClipboard(message.content, index)}
-                          className="p-0.5 rounded hover:bg-[var(--accent)] transition-colors opacity-0 group-hover:opacity-100"
-                        >
-                          {copiedIndex === index ? (
-                            <Check className="h-3 w-3 text-[var(--success)]" />
-                          ) : (
-                            <Copy className="h-3 w-3 text-[var(--muted)]" />
-                          )}
-                        </button>
-                      </div>
-
-                      {/* Show images for user messages */}
-                      {message.images && message.images.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mb-2">
-                          {message.images.map((base64, i) => (
-                            <img
-                              key={i}
-                              src={`data:image/jpeg;base64,${base64}`}
-                              alt={`Uploaded image ${i + 1}`}
-                              className="max-w-[150px] max-h-[150px] rounded border border-[var(--border)]"
-                            />
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="text-sm">
+            ) : (
+              <div className="max-w-3xl mx-auto py-3">
+                {messages.map((message, index) => (
+                  <div
+                    key={message.id}
+                    className={`px-4 py-2 animate-slide-up ${
+                      message.role === 'assistant' ? 'bg-[var(--card)]' : ''
+                    }`}
+                  >
+                    <div className="flex gap-3">
+                      <div
+                        className={`w-6 h-6 rounded flex items-center justify-center flex-shrink-0 ${
+                          message.role === 'user'
+                            ? 'bg-[var(--accent)]'
+                            : 'bg-[var(--success)]/20'
+                        }`}
+                      >
                         {message.role === 'user' ? (
-                          <p className="whitespace-pre-wrap">{message.content}</p>
+                          <User className="h-3 w-3" />
                         ) : (
-                          <MessageRenderer
-                            content={message.content}
-                            isStreaming={message.isStreaming}
+                          <Sparkles
+                            className={`h-3 w-3 text-[var(--success)] ${
+                              message.isStreaming ? 'animate-pulse-soft' : ''
+                            }`}
                           />
                         )}
                       </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs text-[var(--muted)]">
+                            {message.role === 'user' ? 'You' : modelName}
+                          </span>
+                          <button
+                            onClick={() => copyToClipboard(message.content, index)}
+                            className="p-0.5 rounded hover:bg-[var(--accent)] transition-colors"
+                          >
+                            {copiedIndex === index ? (
+                              <Check className="h-3 w-3 text-[var(--success)]" />
+                            ) : (
+                              <Copy className="h-3 w-3 text-[var(--muted)]" />
+                            )}
+                          </button>
+                        </div>
 
-              {isLoading &&
-                messages[messages.length - 1]?.role === 'assistant' &&
-                messages[messages.length - 1]?.content === '' && (
-                  <div className="px-4 py-2 bg-[var(--card)]">
-                    <div className="flex gap-3">
-                      <div className="w-6 h-6 rounded bg-[var(--success)]/20 flex items-center justify-center">
-                        <Sparkles className="h-3 w-3 text-[var(--success)] animate-pulse-soft" />
-                      </div>
-                      <div className="flex items-center">
-                        <div className="flex gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[var(--muted)] animate-pulse-soft" />
-                          <span className="w-1.5 h-1.5 rounded-full bg-[var(--muted)] animate-pulse-soft" style={{ animationDelay: '150ms' }} />
-                          <span className="w-1.5 h-1.5 rounded-full bg-[var(--muted)] animate-pulse-soft" style={{ animationDelay: '300ms' }} />
+                        {/* Show images for user messages */}
+                        {message.images && message.images.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {message.images.map((base64, i) => (
+                              <img
+                                key={i}
+                                src={`data:image/jpeg;base64,${base64}`}
+                                alt={`Uploaded image ${i + 1}`}
+                                className="max-w-[150px] max-h-[150px] rounded border border-[var(--border)]"
+                              />
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="text-sm">
+                          {message.role === 'user' ? (
+                            <p className="whitespace-pre-wrap">{message.content}</p>
+                          ) : (
+                            <>
+                              <MessageRenderer
+                                content={message.content}
+                                isStreaming={message.isStreaming}
+                                artifactsEnabled={artifactsEnabled}
+                              />
+                              {/* Tool Calls Display */}
+                              {message.toolCalls && message.toolCalls.length > 0 && (
+                                <div className="mt-2 space-y-1">
+                                  {message.toolCalls.map((toolCall) => (
+                                    <ToolCallCard
+                                      key={toolCall.id}
+                                      toolCall={toolCall}
+                                      result={toolResultsMap.get(toolCall.id)}
+                                      isExecuting={executingTools.has(toolCall.id)}
+                                    />
+                                  ))}
+                                </div>
+                              )}
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
                   </div>
-                )}
+                ))}
 
-              {error && (
-                <div className="mx-4 my-2 px-3 py-2 bg-[var(--error)]/10 border border-[var(--error)]/20 rounded text-xs text-[var(--error)] animate-slide-up">
-                  {error}
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
+                {isLoading &&
+                  messages[messages.length - 1]?.role === 'assistant' &&
+                  messages[messages.length - 1]?.content === '' && (
+                    <div className="px-4 py-2 bg-[var(--card)]">
+                      <div className="flex gap-3">
+                        <div className="w-6 h-6 rounded bg-[var(--success)]/20 flex items-center justify-center">
+                          <Sparkles className="h-3 w-3 text-[var(--success)] animate-pulse-soft" />
+                        </div>
+                        <div className="flex items-center">
+                          <div className="flex gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--muted)] animate-pulse-soft" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--muted)] animate-pulse-soft" style={{ animationDelay: '150ms' }} />
+                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--muted)] animate-pulse-soft" style={{ animationDelay: '300ms' }} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                {error && (
+                  <div className="mx-4 my-2 px-3 py-2 bg-[var(--error)]/10 border border-[var(--error)]/20 rounded text-xs text-[var(--error)] animate-slide-up">
+                    {error}
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </div>
+
+          {/* Input Tool Belt */}
+          <ToolBelt
+            value={input}
+            onChange={setInput}
+            onSubmit={sendMessage}
+            onStop={stopGeneration}
+            disabled={!runningModel}
+            isLoading={isLoading}
+            modelName={modelName}
+            placeholder={runningModel ? 'Message...' : 'No model running'}
+            mcpEnabled={mcpEnabled}
+            onMcpToggle={() => setMcpEnabled(!mcpEnabled)}
+            mcpServers={mcpServers.map((s) => ({ name: s.name, enabled: s.enabled }))}
+            artifactsEnabled={artifactsEnabled}
+            onArtifactsToggle={() => setArtifactsEnabled(!artifactsEnabled)}
+            onOpenMcpSettings={() => setMcpSettingsOpen(true)}
+            onOpenChatSettings={() => setChatSettingsOpen(true)}
+            hasSystemPrompt={systemPrompt.trim().length > 0}
+          />
         </div>
 
-        {/* Input Tool Belt */}
-        <ToolBelt
-          value={input}
-          onChange={setInput}
-          onSubmit={sendMessage}
-          onStop={stopGeneration}
-          disabled={!runningModel}
-          isLoading={isLoading}
-          modelName={modelName}
-          placeholder={runningModel ? 'Message...' : 'No model running'}
-          mcpEnabled={mcpEnabled}
-          onMcpToggle={() => setMcpEnabled(!mcpEnabled)}
-          mcpServers={mcpServers.map((s) => ({ name: s.name, enabled: s.enabled }))}
-          artifactsEnabled={artifactsEnabled}
-          onArtifactsToggle={() => setArtifactsEnabled(!artifactsEnabled)}
-          onOpenMcpSettings={() => setMcpSettingsOpen(true)}
+        {/* MCP Settings Modal */}
+        <MCPSettingsModal
+          isOpen={mcpSettingsOpen}
+          onClose={() => setMcpSettingsOpen(false)}
+          servers={mcpServers}
+          onServersChange={(newServers) => {
+            setMcpServers(newServers);
+          }}
+        />
+
+        {/* Chat Settings Modal */}
+        <ChatSettingsModal
+          isOpen={chatSettingsOpen}
+          onClose={() => setChatSettingsOpen(false)}
+          systemPrompt={systemPrompt}
+          onSystemPromptChange={setSystemPrompt}
         />
       </div>
-
-      {/* MCP Settings Modal */}
-      <MCPSettingsModal
-        isOpen={mcpSettingsOpen}
-        onClose={() => setMcpSettingsOpen(false)}
-        servers={mcpServers}
-        onServersChange={(newServers) => {
-          setMcpServers(newServers);
-        }}
-      />
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
   Globe,
   Code,
   Settings,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 export interface Attachment {
@@ -49,6 +50,9 @@ interface ToolBeltProps {
   artifactsEnabled?: boolean;
   onArtifactsToggle?: () => void;
   onOpenMcpSettings?: () => void;
+  // Chat settings
+  onOpenChatSettings?: () => void;
+  hasSystemPrompt?: boolean;
 }
 
 export function ToolBelt({
@@ -66,6 +70,8 @@ export function ToolBelt({
   artifactsEnabled = false,
   onArtifactsToggle,
   onOpenMcpSettings,
+  onOpenChatSettings,
+  hasSystemPrompt = false,
 }: ToolBeltProps) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -381,7 +387,7 @@ export function ToolBelt({
               <button
                 onClick={onMcpToggle}
                 disabled={disabled}
-                className={`p-1.5 rounded transition-colors disabled:opacity-50 ${
+                className={`flex items-center gap-1 px-2 py-1 rounded transition-colors disabled:opacity-50 ${
                   mcpEnabled
                     ? 'bg-blue-500/20 text-blue-500'
                     : 'hover:bg-[var(--accent)]'
@@ -389,30 +395,51 @@ export function ToolBelt({
                 title={mcpEnabled ? 'Disable web search & tools' : 'Enable web search & tools'}
               >
                 <Globe className={`h-3.5 w-3.5 ${mcpEnabled ? '' : 'text-[var(--muted)]'}`} />
+                <span className={`text-xs ${mcpEnabled ? '' : 'text-[var(--muted)]'}`}>Tools</span>
               </button>
 
               {/* Artifacts/Code Execution Toggle */}
               <button
                 onClick={onArtifactsToggle}
                 disabled={disabled}
-                className={`p-1.5 rounded transition-colors disabled:opacity-50 ${
+                className={`flex items-center gap-1 px-2 py-1 rounded transition-colors disabled:opacity-50 ${
                   artifactsEnabled
                     ? 'bg-purple-500/20 text-purple-500'
                     : 'hover:bg-[var(--accent)]'
                 }`}
-                title={artifactsEnabled ? 'Disable code execution' : 'Enable Python/JS sandbox'}
+                title={artifactsEnabled ? 'Disable code preview' : 'Enable code preview & sandbox'}
               >
                 <Code className={`h-3.5 w-3.5 ${artifactsEnabled ? '' : 'text-[var(--muted)]'}`} />
+                <span className={`text-xs ${artifactsEnabled ? '' : 'text-[var(--muted)]'}`}>Preview</span>
               </button>
 
-              {/* MCP Settings */}
+              {/* Divider */}
+              <div className="w-px h-4 bg-[var(--border)] mx-1" />
+
+              {/* MCP Server Settings */}
               <button
                 onClick={onOpenMcpSettings}
                 disabled={disabled}
-                className="p-1.5 rounded hover:bg-[var(--accent)] transition-colors disabled:opacity-50"
-                title="Configure tools & MCPs"
+                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-[var(--accent)] transition-colors disabled:opacity-50"
+                title="Configure MCP servers (web search, fetch, etc.)"
               >
                 <Settings className="h-3.5 w-3.5 text-[var(--muted)]" />
+                <span className="text-xs text-[var(--muted)]">MCP</span>
+              </button>
+
+              {/* Chat Settings (System Prompt) */}
+              <button
+                onClick={onOpenChatSettings}
+                disabled={disabled}
+                className={`flex items-center gap-1 px-2 py-1 rounded transition-colors disabled:opacity-50 ${
+                  hasSystemPrompt
+                    ? 'bg-amber-500/20 text-amber-500'
+                    : 'hover:bg-[var(--accent)]'
+                }`}
+                title={hasSystemPrompt ? 'System prompt active - Click to edit' : 'Configure system prompt'}
+              >
+                <SlidersHorizontal className={`h-3.5 w-3.5 ${hasSystemPrompt ? '' : 'text-[var(--muted)]'}`} />
+                <span className={`text-xs ${hasSystemPrompt ? '' : 'text-[var(--muted)]'}`}>System</span>
               </button>
             </div>
 

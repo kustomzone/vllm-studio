@@ -224,9 +224,25 @@ class ProcessManager:
     @staticmethod
     def _build_vllm_command(recipe: Recipe) -> List[str]:
         """Build vLLM launch command."""
+        def _python_from_venv(venv_path: Optional[str]) -> Optional[str]:
+            if not venv_path:
+                return None
+            p = Path(venv_path)
+            # If a python executable path was provided directly
+            if p.is_file() and p.name.startswith("python"):
+                return str(p)
+            candidate = p / "bin" / "python"
+            if candidate.exists():
+                return str(candidate)
+            candidate = p / ".venv" / "bin" / "python"
+            if candidate.exists():
+                return str(candidate)
+            return None
+
         # Use custom python if specified, otherwise default vllm
-        if recipe.python_path:
-            cmd = [recipe.python_path, "-m", "vllm.entrypoints.openai.api_server", "--model", recipe.model_path]
+        python_exe = recipe.python_path or _python_from_venv(getattr(recipe, "venv_path", None))
+        if python_exe:
+            cmd = [python_exe, "-m", "vllm.entrypoints.openai.api_server", "--model", recipe.model_path]
         else:
             cmd = ["vllm", "serve", recipe.model_path]
 
@@ -293,20 +309,43 @@ class ProcessManager:
             cmd.extend(["--rope-scaling", json.dumps(recipe.rope_scaling)])
 
         # Extra args
+        import json
         for key, value in recipe.extra_args.items():
+            if key is None:
+                continue
+            key_str = str(key).lstrip("-").replace("_", "-")
+            flag = f"--{key_str}"
             if value is True:
-                cmd.append(f"--{key}")
+                cmd.append(flag)
             elif value is not False and value is not None:
-                cmd.extend([f"--{key}", str(value)])
+                if isinstance(value, (dict, list)):
+                    cmd.extend([flag, json.dumps(value)])
+                else:
+                    cmd.extend([flag, str(value)])
 
         return cmd
 
     @staticmethod
     def _build_sglang_command(recipe: Recipe) -> List[str]:
         """Build SGLang launch command."""
+        def _python_from_venv(venv_path: Optional[str]) -> Optional[str]:
+            if not venv_path:
+                return None
+            p = Path(venv_path)
+            if p.is_file() and p.name.startswith("python"):
+                return str(p)
+            candidate = p / "bin" / "python"
+            if candidate.exists():
+                return str(candidate)
+            candidate = p / ".venv" / "bin" / "python"
+            if candidate.exists():
+                return str(candidate)
+            return None
+
         # Use custom python if specified, otherwise frozen SGLang venv
-        if recipe.python_path:
-            sglang_python = recipe.python_path
+        python_exe = recipe.python_path or _python_from_venv(getattr(recipe, "venv_path", None))
+        if python_exe:
+            sglang_python = python_exe
         else:
             sglang_python = "/opt/venvs/frozen/sglang-prod/bin/python"
         cmd = [sglang_python, "-m", "sglang.launch_server"]
@@ -323,11 +362,19 @@ class ProcessManager:
             cmd.append("--trust-remote-code")
 
         # Extra args for SGLang
+        import json
         for key, value in recipe.extra_args.items():
+            if key is None:
+                continue
+            key_str = str(key).lstrip("-").replace("_", "-")
+            flag = f"--{key_str}"
             if value is True:
-                cmd.append(f"--{key}")
+                cmd.append(flag)
             elif value is not False and value is not None:
-                cmd.extend([f"--{key}", str(value)])
+                if isinstance(value, (dict, list)):
+                    cmd.extend([flag, json.dumps(value)])
+                else:
+                    cmd.extend([flag, str(value)])
 
         return cmd
 

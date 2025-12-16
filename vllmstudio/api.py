@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional, Any
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -288,7 +288,21 @@ async def switch_model(request: SwitchRequest, background_tasks: BackgroundTasks
 
     # Check if already running
     current = ProcessManager.get_current_process(settings.vllm_port)
-    if current and current.model_path == recipe.model_path:
+    def _matches_running(proc: Any, target: Recipe) -> bool:
+        if not proc:
+            return False
+        # Backend must match (vllm vs sglang)
+        try:
+            if proc.backend.value != target.backend.value:
+                return False
+        except Exception:
+            return False
+        # Prefer served model name when available
+        if target.served_model_name and getattr(proc, "served_model_name", None):
+            return target.served_model_name == proc.served_model_name
+        return proc.model_path == target.model_path
+
+    if current and _matches_running(current, recipe):
         return SwitchResponse(
             success=True,
             message="Model already running",
@@ -1910,6 +1924,21 @@ async def add_message(session_id: str, request: AddMessageRequest):
 from .mcp_manager import get_mcp_manager, MCPServer
 
 
+class MCPServerCreateRequest(BaseModel):
+    name: str
+    command: str
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] = Field(default_factory=dict)
+    enabled: bool = True
+
+
+class MCPServerUpdateRequest(BaseModel):
+    command: Optional[str] = None
+    args: Optional[list[str]] = None
+    env: Optional[dict[str, str]] = None
+    enabled: Optional[bool] = None
+
+
 @app.get("/mcp/servers")
 async def list_mcp_servers():
     """List configured MCP servers."""
@@ -1918,17 +1947,39 @@ async def list_mcp_servers():
 
 
 @app.post("/mcp/servers")
-async def add_mcp_server(
-    name: str,
-    command: str,
-    args: list[str] = [],
-    env: dict[str, str] = {},
-):
+async def add_mcp_server(request: MCPServerCreateRequest):
     """Add an MCP server."""
     mgr = get_mcp_manager()
-    server = MCPServer(name=name, command=command, args=args, env=env)
+    if request.name in mgr.servers:
+        raise HTTPException(status_code=409, detail="MCP server already exists")
+    server = MCPServer(
+        name=request.name,
+        command=request.command,
+        args=request.args or [],
+        env=request.env or {},
+        enabled=request.enabled,
+    )
     mgr.add_server(server)
-    return {"status": "added", "server": name}
+    return {"status": "added", "server": server.name}
+
+
+@app.put("/mcp/servers/{name}")
+async def update_mcp_server(name: str, request: MCPServerUpdateRequest):
+    """Update an MCP server configuration (e.g., enable/disable)."""
+    mgr = get_mcp_manager()
+    existing = mgr.servers.get(name)
+    if not existing:
+        raise HTTPException(status_code=404, detail="MCP server not found")
+
+    updated = MCPServer(
+        name=name,
+        command=request.command if request.command is not None else existing.command,
+        args=request.args if request.args is not None else existing.args,
+        env=request.env if request.env is not None else existing.env,
+        enabled=request.enabled if request.enabled is not None else existing.enabled,
+    )
+    mgr.add_server(updated)
+    return {"status": "updated", "server": name}
 
 
 @app.delete("/mcp/servers/{name}")

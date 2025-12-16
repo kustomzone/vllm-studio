@@ -5,6 +5,7 @@ Handles connections to MCP servers and tool invocations.
 
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Any, Optional
 from dataclasses import dataclass, field
@@ -83,7 +84,7 @@ class MCPManager:
                 name="brave-search",
                 command="npx",
                 args=["-y", "@modelcontextprotocol/server-brave-search"],
-                env={"BRAVE_API_KEY": "BSAXS7ZocStxg8vT2z14r8hOWvTf6jt"},
+                env={k: v for k, v in {"BRAVE_API_KEY": os.environ.get("BRAVE_API_KEY")}.items() if v},
                 enabled=True,
             ),
             MCPServer(
@@ -241,6 +242,7 @@ class MCPManager:
                 "name": s.name,
                 "command": s.command,
                 "args": s.args,
+                "env": s.env,
                 "enabled": s.enabled,
             }
             for s in self.servers.values()

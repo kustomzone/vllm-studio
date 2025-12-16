@@ -54,10 +54,25 @@ export function MCPSettingsModal({
 
   if (!isOpen) return null;
 
-  const toggleServer = (name: string) => {
+  const toggleServer = async (name: string) => {
+    const current = localServers.find((s) => s.name === name);
+    if (!current) return;
+    const nextEnabled = !current.enabled;
+
+    // Optimistic UI update
     setLocalServers((prev) =>
-      prev.map((s) => (s.name === name ? { ...s, enabled: !s.enabled } : s))
+      prev.map((s) => (s.name === name ? { ...s, enabled: nextEnabled } : s))
     );
+
+    try {
+      await api.updateMCPServer(name, { enabled: nextEnabled });
+    } catch (e) {
+      // Revert on failure
+      setLocalServers((prev) =>
+        prev.map((s) => (s.name === name ? { ...s, enabled: current.enabled } : s))
+      );
+      setError(`Failed to update server: ${e}`);
+    }
   };
 
   const removeServer = async (name: string) => {
@@ -136,7 +151,10 @@ export function MCPSettingsModal({
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
           <div className="flex items-center gap-2">
             <Server className="h-4 w-4 text-[var(--muted)]" />
-            <h2 className="font-medium">MCP Servers</h2>
+            <div>
+              <h2 className="font-medium">MCP Servers</h2>
+              <p className="text-xs text-[var(--muted)]">Configure tools like web search, fetch, etc.</p>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -198,8 +216,21 @@ export function MCPSettingsModal({
           ))}
 
           {localServers.length === 0 && !isAdding && (
-            <div className="text-center py-8 text-[var(--muted)] text-sm">
-              No MCP servers configured
+            <div className="text-center py-8 text-[var(--muted)] text-sm space-y-2">
+              <p>No MCP servers configured</p>
+              <p className="text-xs">Add servers like brave-search, fetch, or time to enable tools</p>
+            </div>
+          )}
+
+          {/* Help text */}
+          {localServers.length > 0 && (
+            <div className="text-xs text-[var(--muted)] bg-[var(--background)] p-3 rounded-lg border border-[var(--border)]">
+              <p className="font-medium mb-1">How to use:</p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>Enable servers you want to use (toggle on)</li>
+                <li>Click &quot;Tools&quot; in the toolbar to enable tool calling</li>
+                <li>The model will automatically use tools when helpful</li>
+              </ol>
             </div>
           )}
 

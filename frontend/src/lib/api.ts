@@ -346,6 +346,16 @@ class APIClient {
     });
   }
 
+  async updateMCPServer(
+    name: string,
+    update: { command?: string; args?: string[]; env?: Record<string, string>; enabled?: boolean }
+  ): Promise<{ status: string; server: string }> {
+    return this.request(`/mcp/servers/${name}`, {
+      method: 'PUT',
+      body: JSON.stringify(update),
+    });
+  }
+
   async removeMCPServer(name: string): Promise<{ status: string; server: string }> {
     return this.request(`/mcp/servers/${name}`, { method: 'DELETE' });
   }

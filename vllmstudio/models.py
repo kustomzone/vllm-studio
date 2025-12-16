@@ -1,7 +1,7 @@
 """Pydantic models for vLLM Studio."""
 
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from enum import Enum
 
 
@@ -27,6 +27,10 @@ class Recipe(BaseModel):
     name: str = Field(..., description="Human-readable name")
     model_path: str = Field(..., description="Path to model")
     backend: Backend = Field(default=Backend.VLLM)
+
+    # Optional metadata (commonly present in shared recipe bundles)
+    description: Optional[str] = Field(default=None)
+    tags: List[str] = Field(default_factory=list)
 
     # vLLM/SGLang settings
     tensor_parallel_size: int = Field(default=1, alias="tp")
@@ -73,6 +77,7 @@ class Recipe(BaseModel):
 
     # Custom Python/venv
     python_path: Optional[str] = Field(default=None, description="Custom python executable path")
+    venv_path: Optional[str] = Field(default=None, description="Path to a virtualenv (legacy field)")
 
     # Environment variables
     env_vars: Dict[str, str] = Field(default_factory=dict, description="Environment variables to set")
@@ -82,6 +87,42 @@ class Recipe(BaseModel):
 
     # Extra arguments
     extra_args: Dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_legacy_fields_and_extra_args(cls, data: Any) -> Any:
+        """Accept legacy recipe fields and fold unknown vLLM/sglang flags into extra_args.
+
+        This keeps backwards compatibility with older recipe JSON files that:
+        - used `engine` instead of `backend`
+        - stored vLLM CLI flags at the top level (e.g. `enforce_eager`)
+        """
+        if not isinstance(data, dict):
+            return data
+
+        normalized = dict(data)
+
+        # Legacy: `engine` -> `backend`
+        if "backend" not in normalized and "engine" in normalized:
+            normalized["backend"] = normalized.get("engine")
+
+        # Ensure extra_args exists
+        extra_args = dict(normalized.get("extra_args") or {})
+
+        # Keys that are valid inputs but not model fields (aliases/legacy)
+        alias_keys = {"tp", "pp", "dp", "engine"}
+
+        known_keys = set(cls.model_fields.keys()) | alias_keys | {"extra_args"}
+        for key in list(normalized.keys()):
+            if key in known_keys:
+                continue
+            # Fold unknown top-level keys into extra_args so they are not dropped
+            if key not in extra_args:
+                extra_args[key] = normalized[key]
+            normalized.pop(key, None)
+
+        normalized["extra_args"] = extra_args
+        return normalized
 
     model_config = {
         "populate_by_name": True,

@@ -3,8 +3,11 @@
 import { useState, useMemo, useEffect, useRef, useId } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ChevronDown, ChevronRight, Brain, Copy, Check, AlertCircle } from 'lucide-react';
+import { ChevronDown, ChevronRight, Brain, Copy, Check, AlertCircle, Play } from 'lucide-react';
 import mermaid from 'mermaid';
+import { CodeSandbox } from './code-sandbox';
+import { extractArtifacts, getArtifactType } from './artifact-renderer';
+import type { Artifact } from '@/lib/types';
 
 // Initialize mermaid with dark theme
 mermaid.initialize({
@@ -17,11 +20,94 @@ mermaid.initialize({
 interface MessageRendererProps {
   content: string;
   isStreaming?: boolean;
+  artifactsEnabled?: boolean;
 }
 
 interface ThinkingBlockProps {
   content: string;
   isStreaming?: boolean;
+}
+
+const BOX_TAGS_PATTERN = /<\|(?:begin|end)_of_box\|>/g;
+const stripBoxTags = (text: string) => (text ? text.replace(BOX_TAGS_PATTERN, '') : text);
+
+function splitThinking(content: string): {
+  thinkingContent: string | null;
+  mainContent: string;
+  isThinkingComplete: boolean;
+} {
+  if (!content) return { thinkingContent: null, mainContent: '', isThinkingComplete: true };
+
+  const openTags = ['<think>', '<thinking>'];
+  const closeTags = ['</think>', '</thinking>'];
+
+  const reasoningParts: string[] = [];
+  const visibleParts: string[] = [];
+  let remaining = content;
+  let isComplete = true;
+
+  while (remaining) {
+    const lower = remaining.toLowerCase();
+
+    const openIdxs = openTags
+      .map((t) => lower.indexOf(t))
+      .filter((i) => i !== -1);
+    const closeIdxs = closeTags
+      .map((t) => lower.indexOf(t))
+      .filter((i) => i !== -1);
+
+    const openIdx = openIdxs.length ? Math.min(...openIdxs) : -1;
+    const closeIdx = closeIdxs.length ? Math.min(...closeIdxs) : -1;
+
+    if (openIdx === -1 && closeIdx === -1) {
+      visibleParts.push(remaining);
+      break;
+    }
+
+    const isOpenNext = openIdx !== -1 && (closeIdx === -1 || openIdx < closeIdx);
+
+    if (isOpenNext) {
+      if (openIdx > 0) {
+        visibleParts.push(remaining.slice(0, openIdx));
+      }
+
+      const matchedOpen = openTags.find((t) => lower.startsWith(t, openIdx))!;
+      remaining = remaining.slice(openIdx + matchedOpen.length);
+
+      const lowerAfter = remaining.toLowerCase();
+      const closeIdxAfter = closeTags
+        .map((t) => lowerAfter.indexOf(t))
+        .filter((i) => i !== -1);
+      const closePos = closeIdxAfter.length ? Math.min(...closeIdxAfter) : -1;
+      if (closePos === -1) {
+        reasoningParts.push(remaining);
+        remaining = '';
+        isComplete = false;
+        break;
+      }
+
+      reasoningParts.push(remaining.slice(0, closePos));
+      const matchedClose = closeTags.find((t) => lowerAfter.startsWith(t, closePos))!;
+      remaining = remaining.slice(closePos + matchedClose.length);
+      continue;
+    }
+
+    // Closing tag without explicit opening (prompt may include opening tag)
+    if (closeIdx > 0) {
+      reasoningParts.push(remaining.slice(0, closeIdx));
+    }
+    const matchedClose = closeTags.find((t) => lower.startsWith(t, closeIdx))!;
+    remaining = remaining.slice(closeIdx + matchedClose.length);
+  }
+
+  const thinkingText = stripBoxTags(reasoningParts.join('')).trim();
+  const visibleText = stripBoxTags(visibleParts.join(''));
+
+  return {
+    thinkingContent: thinkingText ? thinkingText : null,
+    mainContent: visibleText,
+    isThinkingComplete: isComplete,
+  };
 }
 
 function ThinkingBlock({ content, isStreaming }: ThinkingBlockProps) {
@@ -99,8 +185,15 @@ function MermaidDiagram({ code }: { code: string }) {
   );
 }
 
-function CodeBlock({ children, className }: { children: string; className?: string }) {
+interface CodeBlockProps {
+  children: string;
+  className?: string;
+  artifactsEnabled?: boolean;
+}
+
+function CodeBlock({ children, className, artifactsEnabled }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const language = className?.replace('language-', '') || '';
 
   // Check if this is a mermaid diagram
@@ -108,11 +201,35 @@ function CodeBlock({ children, className }: { children: string; className?: stri
     return <MermaidDiagram code={children} />;
   }
 
+  // Check if this should be rendered as an artifact
+  const artifactType = getArtifactType(language);
+  const canPreview = artifactsEnabled && artifactType && ['html', 'react'].includes(artifactType);
+
   const copyCode = () => {
     navigator.clipboard.writeText(children);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // If showing preview, render CodeSandbox
+  if (showPreview && canPreview && artifactType) {
+    return (
+      <div className="my-3">
+        <CodeSandbox
+          code={children}
+          language={artifactType as 'html' | 'react'}
+          title={`${language} Preview`}
+          autoRun={true}
+        />
+        <button
+          onClick={() => setShowPreview(false)}
+          className="mt-2 text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+        >
+          Show code
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="my-3 rounded-lg overflow-hidden border border-[var(--border)] group">
@@ -120,16 +237,28 @@ function CodeBlock({ children, className }: { children: string; className?: stri
         <span className="text-xs font-mono text-[var(--muted-foreground)]">
           {language || 'code'}
         </span>
-        <button
-          onClick={copyCode}
-          className="p-1 rounded hover:bg-[var(--accent-hover)] transition-colors"
-        >
-          {copied ? (
-            <Check className="h-3.5 w-3.5 text-[var(--success)]" />
-          ) : (
-            <Copy className="h-3.5 w-3.5 text-[var(--muted)]" />
+        <div className="flex items-center gap-1">
+          {canPreview && (
+            <button
+              onClick={() => setShowPreview(true)}
+              className="p-1 rounded hover:bg-[var(--accent-hover)] transition-colors flex items-center gap-1"
+              title="Run preview"
+            >
+              <Play className="h-3.5 w-3.5 text-[var(--success)]" />
+              <span className="text-xs text-[var(--muted)]">Preview</span>
+            </button>
           )}
-        </button>
+          <button
+            onClick={copyCode}
+            className="p-1 rounded hover:bg-[var(--accent-hover)] transition-colors"
+          >
+            {copied ? (
+              <Check className="h-3.5 w-3.5 text-[var(--success)]" />
+            ) : (
+              <Copy className="h-3.5 w-3.5 text-[var(--muted)]" />
+            )}
+          </button>
+        </div>
       </div>
       <pre className="bg-[var(--card)] p-4 overflow-x-auto">
         <code className="text-sm font-mono">{children}</code>
@@ -138,38 +267,12 @@ function CodeBlock({ children, className }: { children: string; className?: stri
   );
 }
 
-export function MessageRenderer({ content, isStreaming }: MessageRendererProps) {
-  const { thinkingContent, mainContent, isThinkingComplete } = useMemo(() => {
-    // Parse thinking blocks - handle both with and without opening <think> tag
-    const thinkStartMatch = content.match(/<think(?:ing)?>/i);
-    const thinkEndMatch = content.match(/<\/think(?:ing)?>/i);
-
-    // Case 1: Both <think> and </think> present
-    if (thinkStartMatch && thinkEndMatch) {
-      const startIdx = thinkStartMatch.index! + thinkStartMatch[0].length;
-      const endIdx = thinkEndMatch.index!;
-      const thinking = content.slice(startIdx, endIdx);
-      const after = content.slice(endIdx + thinkEndMatch[0].length);
-      return { thinkingContent: thinking.trim(), mainContent: after.trim(), isThinkingComplete: true };
-    }
-
-    // Case 2: Only <think> (thinking in progress)
-    if (thinkStartMatch && !thinkEndMatch) {
-      const startIdx = thinkStartMatch.index! + thinkStartMatch[0].length;
-      const thinking = content.slice(startIdx);
-      return { thinkingContent: thinking, mainContent: '', isThinkingComplete: false };
-    }
-
-    // Case 3: Only </think> (model outputs thinking without opening tag)
-    if (!thinkStartMatch && thinkEndMatch) {
-      const endIdx = thinkEndMatch.index!;
-      const thinking = content.slice(0, endIdx);
-      const after = content.slice(endIdx + thinkEndMatch[0].length);
-      return { thinkingContent: thinking.trim(), mainContent: after.trim(), isThinkingComplete: true };
-    }
-
-    // Case 4: No think tags - just show content as-is
-    return { thinkingContent: null, mainContent: content, isThinkingComplete: true };
+export function MessageRenderer({ content, isStreaming, artifactsEnabled }: MessageRendererProps) {
+  const { thinkingContent, mainContent, isThinkingComplete, artifacts } = useMemo(() => {
+    // First extract any explicit artifact blocks
+    const { text: contentWithoutArtifacts, artifacts: extractedArtifacts } = extractArtifacts(content);
+    const split = splitThinking(contentWithoutArtifacts);
+    return { ...split, artifacts: extractedArtifacts };
   }, [content]);
 
   return (
@@ -200,7 +303,7 @@ export function MessageRenderer({ content, isStreaming }: MessageRendererProps) 
                 );
               }
 
-              return <CodeBlock className={className}>{codeContent}</CodeBlock>;
+              return <CodeBlock className={className} artifactsEnabled={artifactsEnabled}>{codeContent}</CodeBlock>;
             },
             p({ children }) {
               return <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>;
@@ -284,6 +387,21 @@ export function MessageRenderer({ content, isStreaming }: MessageRendererProps) 
         >
           {mainContent}
         </ReactMarkdown>
+      )}
+
+      {/* Render explicit artifacts */}
+      {artifacts.length > 0 && artifactsEnabled && (
+        <div className="mt-3 space-y-3">
+          {artifacts.map((artifact) => (
+            <CodeSandbox
+              key={artifact.id}
+              code={artifact.code}
+              language={artifact.type as 'html' | 'react' | 'javascript'}
+              title={artifact.title || `${artifact.type} Artifact`}
+              autoRun={true}
+            />
+          ))}
+        </div>
       )}
 
       {!mainContent && !thinkingContent && isStreaming && (
