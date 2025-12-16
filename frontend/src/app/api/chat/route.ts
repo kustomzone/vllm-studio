@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { isPlainObject, normalizeToolArgumentsJson, mergeToolCallArguments } from '@/lib/tool-parsing';
+import { normalizeToolArgumentsJson, mergeToolCallArguments } from '@/lib/tool-parsing';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 const API_KEY = process.env.API_KEY || '';

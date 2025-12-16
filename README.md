@@ -18,8 +18,19 @@ Model management API for vLLM and SGLang inference servers. Launch, switch, and 
 # One-command startup
 ./start.sh
 
-# Open dashboard
-open http://localhost:8080
+# Controller API docs
+open http://localhost:8080/docs
+```
+
+### Start the Web UI (recommended)
+
+The UI is a separate Next.js app (see `docker-compose.yml`).
+
+```bash
+cd frontend
+npm install
+npm run dev -- --port 3000
+open http://localhost:3000
 ```
 
 ### Start Options
@@ -37,7 +48,7 @@ open http://localhost:8080
 
 ## Web Dashboard
 
-Access the dashboard at **http://localhost:8080**:
+Access the dashboard at **http://localhost:3000** (controller API on `:8080`):
 
 ### Views
 
@@ -296,3 +307,21 @@ Model launch logs are written to `/tmp/vllm_{recipe_id}.log`:
 # View launch log
 tail -f /tmp/vllm_qwen3-235b.log
 ```
+
+## Chat
+
+- Tools: toggle **Tools** to enable function calling (MCP tools appear as tool-call cards).
+- Previews: toggle **Preview** to render code blocks as runnable previews (HTML/JS/JSX/TSX/SVG) and Mermaid diagrams.
+- Forking: click the branch icon on a message to fork from that point; use Settings to split into multiple models.
+- Token usage: per-message tokens (and optional cost) are tracked; session totals are available via `/chats/{id}/usage`.
+
+See `docs/chat.md`.
+
+## Releases / Versioning
+
+This repo uses Conventional Commits + `semantic-release` to tag versions and maintain `CHANGELOG.md`.
+
+- Release workflow: `.github/workflows/release.yml`
+- Config: `.releaserc.json`
+
+See `docs/versioning.md`.

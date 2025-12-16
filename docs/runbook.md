@@ -4,13 +4,21 @@
 - Controller API: `vllmstudio` FastAPI on `:8080` (configurable via `VLLMSTUDIO_API_PORT`)
 - Backend inference: vLLM/SGLang on `:8000`
 - Proxies: FastAPI adapters on `:8001`/`:8002`/`:8003` (per model family)
-- UI: OpenWebUI-derived frontend on `:3000`
+- UI: Next.js frontend on `:3000`
 
 ## Launch Commands
 - Controller (dev auto-reload): `python -m vllmstudio.cli --reload`
 - Controller (prod): `./start.sh` (honors `VLLMSTUDIO_API_PORT`, `VLLMSTUDIO_VLLM_PORT`, `VLLMSTUDIO_PROXY_PORT`, `VLLMSTUDIO_MODELS_DIR`, `VLLMSTUDIO_RECIPES_DIR`)
 - Proxies: `python -m proxy.main` (configure via `proxy/config.py` or env)
-- Frontend: `cd openwebui-src && npm install && npm run dev -- --port 3000`
+- Frontend (dev): `cd frontend && npm install && npm run dev -- --port 3000`
+- Frontend (prod): `cd frontend && npm install && npm run build && npm start` (writes logs to your process manager)
+
+## systemd
+
+- Controller: `systemd/vllm-studio.service`
+- Web UI (Next.js): `systemd/vllm-frontend.service`
+- Proxy: `systemd/vllm-proxy.service`
+- Legacy (OpenWebUI): `systemd/openwebui.service` (kept for reference; not used by the Next.js UI)
 
 ## Config Highlights
 - `vllmstudio/config.py` now defaults `recipes_dir` to `<repo>/recipes`; override with `VLLMSTUDIO_RECIPES_DIR`.
@@ -30,6 +38,7 @@
 ## Logs
 - Controller logs default to `/tmp/vllmstudio.log`; per-model launch logs `/tmp/vllm_{recipe_id}.log`
 - Proxy logs: stdout/stderr (use systemd or docker for persistence)
+- Frontend logs: depends on how you run it; in local dev we often use `/tmp/frontend_3000.log` with a pidfile `/tmp/frontend_3000.pid`
 
 ## Notes
 - A safety branch `backup/pre-rearch-20251215` captures the pre-change state.
