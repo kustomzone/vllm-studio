@@ -15,6 +15,8 @@ import {
   Pencil,
   CheckCircle2,
   X,
+  Download,
+  BarChart3,
 } from 'lucide-react';
 import api from '@/lib/api';
 import type { ChatSession, ToolCall, ToolResult, MCPTool } from '@/lib/types';
@@ -147,6 +149,8 @@ export default function ChatPage() {
     total_tokens: number;
     estimated_cost_usd?: number | null;
   } | null>(null);
+  const [usageDetailsOpen, setUsageDetailsOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const usageRefreshTimerRef = useRef<number | null>(null);
 
   // Refs
@@ -1117,6 +1121,96 @@ export default function ChatPage() {
     }
   };
 
+  const buildChatExport = () => {
+    const title = currentSessionTitle || 'Chat';
+    const exported = {
+      title,
+      session_id: currentSessionId,
+      model: selectedModel || runningModel || null,
+      created_at: sessions.find((s) => s.id === currentSessionId)?.created_at ?? null,
+      updated_at: sessions.find((s) => s.id === currentSessionId)?.updated_at ?? null,
+      messages: messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        model: m.model ?? null,
+        content: m.content,
+        tool_calls: m.toolCalls ?? null,
+        tool_results: m.toolResults ?? null,
+        usage: {
+          prompt_tokens: m.prompt_tokens ?? null,
+          completion_tokens: m.completion_tokens ?? null,
+          total_tokens: m.total_tokens ?? null,
+          request_prompt_tokens: m.request_prompt_tokens ?? null,
+          request_tools_tokens: m.request_tools_tokens ?? null,
+          request_total_input_tokens: m.request_total_input_tokens ?? null,
+          request_completion_tokens: m.request_completion_tokens ?? null,
+          estimated_cost_usd: m.estimated_cost_usd ?? null,
+        },
+      })),
+      session_usage: sessionUsage,
+    };
+    return exported;
+  };
+
+  const downloadText = (filename: string, content: string, mime = 'text/plain') => {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const exportAsJson = () => {
+    const payload = buildChatExport();
+    const name = (currentSessionTitle || 'chat').replace(/[^\w.-]+/g, '_').slice(0, 80);
+    downloadText(`${name}.json`, JSON.stringify(payload, null, 2), 'application/json');
+  };
+
+  const exportAsMarkdown = () => {
+    const payload = buildChatExport();
+    const lines: string[] = [];
+    lines.push(`# ${payload.title}`);
+    if (payload.model) lines.push(`- Model: \`${payload.model}\``);
+    if (payload.session_id) lines.push(`- Session: \`${payload.session_id}\``);
+    if (payload.session_usage) {
+      const cost =
+        payload.session_usage.estimated_cost_usd != null
+          ? ` • $${payload.session_usage.estimated_cost_usd.toFixed(4)}`
+          : '';
+      lines.push(`- Usage: ${payload.session_usage.total_tokens.toLocaleString()} tok${cost}`);
+    }
+    lines.push('');
+
+    for (const m of payload.messages) {
+      const who = m.role === 'user' ? 'User' : `Assistant${m.model ? ` (${m.model})` : ''}`;
+      lines.push(`## ${who}`);
+      lines.push('');
+      lines.push(m.content || '');
+      lines.push('');
+      if (m.tool_calls && Array.isArray(m.tool_calls) && m.tool_calls.length > 0) {
+        lines.push('### Tool calls');
+        lines.push('```json');
+        lines.push(JSON.stringify(m.tool_calls, null, 2));
+        lines.push('```');
+        lines.push('');
+      }
+      if (m.tool_results && Array.isArray(m.tool_results) && m.tool_results.length > 0) {
+        lines.push('### Tool results');
+        lines.push('```json');
+        lines.push(JSON.stringify(m.tool_results, null, 2));
+        lines.push('```');
+        lines.push('');
+      }
+    }
+
+    const name = (currentSessionTitle || 'chat').replace(/[^\w.-]+/g, '_').slice(0, 80);
+    downloadText(`${name}.md`, lines.join('\n'), 'text/markdown');
+  };
+
   if (pageLoading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
@@ -1228,10 +1322,14 @@ export default function ChatPage() {
 
               <div className="flex items-center gap-2 flex-shrink-0">
                 {currentSessionId && sessionUsage && (
-                  <span className="text-[10px] font-mono text-[var(--muted)]">
+                  <button
+                    onClick={() => setUsageDetailsOpen(true)}
+                    className="text-[10px] font-mono text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                    title="Usage details"
+                  >
                     {sessionUsage.total_tokens.toLocaleString()} tok
                     {sessionUsage.estimated_cost_usd != null ? ` • $${sessionUsage.estimated_cost_usd.toFixed(4)}` : ''}
-                  </span>
+                  </button>
                 )}
 
                 <button
@@ -1253,6 +1351,20 @@ export default function ChatPage() {
                 >
                   <Code className="h-3.5 w-3.5" />
                   Preview
+                </button>
+                <button
+                  onClick={() => setExportOpen(true)}
+                  className="p-2 rounded border border-[var(--border)] hover:bg-[var(--accent)] transition-colors"
+                  title="Export chat"
+                >
+                  <Download className="h-4 w-4 text-[var(--muted)]" />
+                </button>
+                <button
+                  onClick={() => setUsageDetailsOpen(true)}
+                  className="p-2 rounded border border-[var(--border)] hover:bg-[var(--accent)] transition-colors"
+                  title="Usage details"
+                >
+                  <BarChart3 className="h-4 w-4 text-[var(--muted)]" />
                 </button>
                 <button
                   onClick={() => setChatSettingsOpen(true)}
@@ -1445,6 +1557,158 @@ export default function ChatPage() {
             hasSystemPrompt={systemPrompt.trim().length > 0}
           />
         </div>
+
+        {/* Usage Details Modal */}
+        {usageDetailsOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-[var(--muted)]" />
+                  <h2 className="font-medium">Usage</h2>
+                </div>
+                <button
+                  onClick={() => setUsageDetailsOpen(false)}
+                  className="p-1 rounded hover:bg-[var(--accent)] transition-colors"
+                  title="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div className="bg-[var(--background)] rounded-lg p-3">
+                    <div className="text-xs text-[var(--muted)]">Input</div>
+                    <div className="text-lg font-mono font-semibold">
+                      {(sessionUsage?.prompt_tokens ?? 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="bg-[var(--background)] rounded-lg p-3">
+                    <div className="text-xs text-[var(--muted)]">Output</div>
+                    <div className="text-lg font-mono font-semibold">
+                      {(sessionUsage?.completion_tokens ?? 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="bg-[var(--background)] rounded-lg p-3">
+                    <div className="text-xs text-[var(--muted)]">Total</div>
+                    <div className="text-lg font-mono font-semibold">
+                      {(sessionUsage?.total_tokens ?? 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="bg-[var(--background)] rounded-lg p-3">
+                    <div className="text-xs text-[var(--muted)]">Cost</div>
+                    <div className="text-lg font-mono font-semibold">
+                      {sessionUsage?.estimated_cost_usd != null ? `$${sessionUsage.estimated_cost_usd.toFixed(4)}` : '--'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-xs text-[var(--muted)]">
+                  Request-level token accounting is stored on assistant turns (`request_*` fields) when available.
+                </div>
+
+                <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                  <div className="px-3 py-2 bg-[var(--accent)] text-xs font-medium text-[var(--muted-foreground)]">
+                    Recent assistant turns
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {messages
+                      .filter((m) => m.role === 'assistant')
+                      .slice(-20)
+                      .reverse()
+                      .map((m) => {
+                        const inTok = (m.request_total_input_tokens ?? m.request_prompt_tokens ?? null) as number | null;
+                        const outTok = (m.request_completion_tokens ?? null) as number | null;
+                        const total = (inTok || 0) + (outTok || 0);
+                        return (
+                          <div key={m.id} className="px-3 py-2 border-t border-[var(--border)] flex items-center gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs text-[var(--muted)] font-mono truncate">
+                                {m.model || selectedModel || 'assistant'} • {m.id}
+                              </div>
+                              <div className="text-xs text-[var(--muted-foreground)] truncate">
+                                {(m.content || '').replace(/\s+/g, ' ').slice(0, 80)}
+                              </div>
+                            </div>
+                            <div className="text-[10px] font-mono text-[var(--muted)] text-right">
+                              {total ? `${total.toLocaleString()} tok` : '--'}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    {messages.filter((m) => m.role === 'assistant').length === 0 && (
+                      <div className="px-3 py-4 text-sm text-[var(--muted)]">No assistant messages yet.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 px-4 py-3 border-t border-[var(--border)]">
+                <button
+                  onClick={() => setUsageDetailsOpen(false)}
+                  className="px-4 py-1.5 text-sm border border-[var(--border)] rounded hover:bg-[var(--accent)] transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Export Modal */}
+        {exportOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg w-full max-w-lg overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
+                <div className="flex items-center gap-2">
+                  <Download className="h-4 w-4 text-[var(--muted)]" />
+                  <h2 className="font-medium">Export chat</h2>
+                </div>
+                <button
+                  onClick={() => setExportOpen(false)}
+                  className="p-1 rounded hover:bg-[var(--accent)] transition-colors"
+                  title="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="p-4 space-y-3">
+                <div className="text-xs text-[var(--muted)]">
+                  Exports use the current UI state (including tool calls/results if present).
+                </div>
+                <button
+                  onClick={() => {
+                    exportAsMarkdown();
+                    setExportOpen(false);
+                  }}
+                  className="w-full px-3 py-2 text-sm bg-[var(--foreground)] text-[var(--background)] rounded hover:opacity-90"
+                >
+                  Download Markdown
+                </button>
+                <button
+                  onClick={() => {
+                    exportAsJson();
+                    setExportOpen(false);
+                  }}
+                  className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded hover:bg-[var(--accent)]"
+                >
+                  Download JSON
+                </button>
+              </div>
+
+              <div className="flex justify-end gap-2 px-4 py-3 border-t border-[var(--border)]">
+                <button
+                  onClick={() => setExportOpen(false)}
+                  className="px-4 py-1.5 text-sm border border-[var(--border)] rounded hover:bg-[var(--accent)] transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MCP Settings Modal */}
         <MCPSettingsModal

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Layers,
@@ -14,10 +14,12 @@ import {
   Square,
   Play,
   Download,
-  Upload
+  Upload,
+  Search
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
+import { CommandPalette, type CommandPaletteAction } from '@/components/command-palette';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -29,8 +31,10 @@ const navItems = [
 
 export default function Nav() {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [status, setStatus] = useState<{ online: boolean; model?: string }>({ online: false });
 
   useEffect(() => {
@@ -106,8 +110,100 @@ export default function Nav() {
     setActionsOpen(false);
   };
 
+  const actions: CommandPaletteAction[] = [
+    {
+      id: 'go-dashboard',
+      label: 'Go to Dashboard',
+      hint: '/',
+      keywords: ['home', 'status'],
+      run: () => router.push('/'),
+    },
+    {
+      id: 'go-chat',
+      label: 'Go to Chat',
+      hint: '/chat',
+      keywords: ['assistant', 'messages'],
+      run: () => router.push('/chat'),
+    },
+    {
+      id: 'go-recipes',
+      label: 'Go to Recipes',
+      hint: '/recipes',
+      keywords: ['launch', 'config'],
+      run: () => router.push('/recipes'),
+    },
+    {
+      id: 'go-logs',
+      label: 'Go to Logs',
+      hint: '/logs',
+      keywords: ['tail', 'errors'],
+      run: () => router.push('/logs'),
+    },
+    {
+      id: 'go-models',
+      label: 'Go to Models',
+      hint: '/models',
+      keywords: ['list', 'discover'],
+      run: () => router.push('/models'),
+    },
+    {
+      id: 'refresh',
+      label: 'Refresh page',
+      hint: 'Reload UI',
+      keywords: ['reload'],
+      run: () => window.location.reload(),
+    },
+    {
+      id: 'stop-model',
+      label: 'Stop current model',
+      hint: 'Evict backend model',
+      keywords: ['evict', 'kill', 'stop'],
+      run: async () => {
+        if (!confirm('Stop the current model?')) return;
+        await api.evictModel(true);
+        window.location.reload();
+      },
+    },
+    {
+      id: 'export-recipes',
+      label: 'Export recipes',
+      hint: 'Download JSON',
+      keywords: ['backup'],
+      run: handleExport,
+    },
+    {
+      id: 'import-recipes',
+      label: 'Import recipes',
+      hint: 'Upload JSON',
+      keywords: ['restore'],
+      run: handleImport,
+    },
+  ];
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const isK = e.key.toLowerCase() === 'k';
+      const cmdk = (e.metaKey || e.ctrlKey) && isK;
+      if (cmdk) {
+        e.preventDefault();
+        setPaletteOpen(true);
+        setActionsOpen(false);
+        setMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   return (
     <>
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        actions={actions}
+        statusText={status.online ? `Backend online • ${status.model || 'model unknown'}` : 'Backend offline'}
+      />
+
       {/* Desktop Nav */}
       <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--card)]">
         <div className="flex h-14 items-center justify-between px-4">
@@ -149,6 +245,18 @@ export default function Nav() {
                 {status.model || 'No model'}
               </span>
             </div>
+
+            <button
+              onClick={() => setPaletteOpen(true)}
+              className="hidden md:flex items-center gap-2 px-3 py-2 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--card-hover)] transition-colors"
+              title="Command palette (Ctrl/⌘K)"
+            >
+              <Search className="h-4 w-4" />
+              <span className="text-[var(--muted-foreground)]">Search</span>
+              <span className="ml-1 text-[10px] font-mono text-[var(--muted)] border border-[var(--border)] rounded px-1.5 py-0.5">
+                ⌘K
+              </span>
+            </button>
 
             {/* Actions Dropdown */}
             <div className="relative">
