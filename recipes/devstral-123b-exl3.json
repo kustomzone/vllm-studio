@@ -1,0 +1,21 @@
+{
+  "id": "devstral-123b-exl3",
+  "name": "Devstral-2 123B EXL3 4.0bpw (TabbyAPI)",
+  "model_path": "/mnt/llm_models/Devstral-2-123B-Instruct-2512-exl3-4.00bpw",
+  "backend": "tabbyapi",
+  "tensor_parallel_size": 8,
+  "max_model_len": 65536,
+  "gpu_memory_utilization": 0.90,
+  "cache_mode": "FP16",
+  "cache_size": 65536,
+  "chunk_size": 2048,
+  "max_batch_size": 20,
+  "enable_auto_tool_choice": true,
+  "tool_call_parser": "mistral",
+  "disable_log_requests": true,
+  "host": "0.0.0.0",
+  "port": 8000,
+  "served_model_name": "devstral-123b-exl3",
+  "trust_remote_code": true,
+  "venv_path": "/opt/venvs/frozen/tabbyapi-exl3"
+}

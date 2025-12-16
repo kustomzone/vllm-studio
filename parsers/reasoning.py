@@ -2,7 +2,23 @@
 
 from __future__ import annotations
 
+import re
 from typing import Tuple
+
+
+# Box tags pattern for GLM models
+BOX_TAGS_PATTERN = re.compile(r'<\|(?:begin|end)_of_box\|>')
+
+
+def strip_box_tags(text: str) -> str:
+    """
+    Strip <|begin_of_box|> and <|end_of_box|> tags from content.
+    
+    These are special tokens used by GLM models that shouldn't be visible to users.
+    """
+    if not text:
+        return text
+    return BOX_TAGS_PATTERN.sub('', text)
 
 
 def ensure_think_wrapped(text: str) -> str:
@@ -45,6 +61,7 @@ def strip_enclosing_think(text: str) -> str:
 def split_think(text: str) -> Tuple[str, str]:
     """
     Split thinking content (inside <think>...</think>) from visible content.
+    Also strips box tags from both parts.
 
     Returns:
         (reasoning_text, visible_text)
@@ -83,4 +100,7 @@ def split_think(text: str) -> Tuple[str, str]:
             visible_parts.append(remaining)
             break
 
-    return "".join(reasoning_parts), "".join(visible_parts)
+    reasoning_text = strip_box_tags("".join(reasoning_parts))
+    visible_text = strip_box_tags("".join(visible_parts))
+    
+    return reasoning_text, visible_text

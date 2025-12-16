@@ -1,0 +1,9 @@
+{
+  "id": "hunyuan-video-8080",
+  "name": "HunyuanVideo 1.5 (Port 8080)",
+  "model_path": "/mnt/llm_models/HunyuanVideo-1.5",
+  "backend": "diffusers",
+  "note": "Video generation model - use diffusers pipeline, not vLLM",
+  "host": "0.0.0.0",
+  "port": 8080
+}

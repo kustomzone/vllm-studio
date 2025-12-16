@@ -1,7 +1,7 @@
 """Pydantic models for vLLM Studio."""
 
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from enum import Enum
 
 
@@ -27,6 +27,10 @@ class Recipe(BaseModel):
     name: str = Field(..., description="Human-readable name")
     model_path: str = Field(..., description="Path to model")
     backend: Backend = Field(default=Backend.VLLM)
+
+    # Optional metadata (commonly present in shared recipe bundles)
+    description: Optional[str] = Field(default=None)
+    tags: List[str] = Field(default_factory=list)
 
     # vLLM/SGLang settings
     tensor_parallel_size: int = Field(default=1, alias="tp")
@@ -65,11 +69,64 @@ class Recipe(BaseModel):
     host: str = Field(default="0.0.0.0")
     port: int = Field(default=8000)
 
+    # Served model name (for API)
+    served_model_name: Optional[str] = Field(default=None, description="Name shown in /v1/models")
+
+    # Media paths
+    allowed_local_media_path: Optional[str] = Field(default=None)
+
+    # Custom Python/venv
+    python_path: Optional[str] = Field(default=None, description="Custom python executable path")
+    venv_path: Optional[str] = Field(default=None, description="Path to a virtualenv (legacy field)")
+
+    # Environment variables
+    env_vars: Dict[str, str] = Field(default_factory=dict, description="Environment variables to set")
+
+    # RoPE scaling for extended context
+    rope_scaling: Optional[Dict[str, Any]] = Field(default=None, description="RoPE scaling config")
+
     # Extra arguments
     extra_args: Dict[str, Any] = Field(default_factory=dict)
 
-    class Config:
-        populate_by_name = True
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_legacy_fields_and_extra_args(cls, data: Any) -> Any:
+        """Accept legacy recipe fields and fold unknown vLLM/sglang flags into extra_args.
+
+        This keeps backwards compatibility with older recipe JSON files that:
+        - used `engine` instead of `backend`
+        - stored vLLM CLI flags at the top level (e.g. `enforce_eager`)
+        """
+        if not isinstance(data, dict):
+            return data
+
+        normalized = dict(data)
+
+        # Legacy: `engine` -> `backend`
+        if "backend" not in normalized and "engine" in normalized:
+            normalized["backend"] = normalized.get("engine")
+
+        # Ensure extra_args exists
+        extra_args = dict(normalized.get("extra_args") or {})
+
+        # Keys that are valid inputs but not model fields (aliases/legacy)
+        alias_keys = {"tp", "pp", "dp", "engine"}
+
+        known_keys = set(cls.model_fields.keys()) | alias_keys | {"extra_args"}
+        for key in list(normalized.keys()):
+            if key in known_keys:
+                continue
+            # Fold unknown top-level keys into extra_args so they are not dropped
+            if key not in extra_args:
+                extra_args[key] = normalized[key]
+            normalized.pop(key, None)
+
+        normalized["extra_args"] = extra_args
+        return normalized
+
+    model_config = {
+        "populate_by_name": True,
+    }
 
 
 class RecipeWithStatus(Recipe):
@@ -97,6 +154,7 @@ class ProcessInfo(BaseModel):
     cmdline: List[str]
     memory_gb: float
     gpu_memory_gb: Optional[float] = None
+    served_model_name: Optional[str] = None  # Extracted from --served-model-name
 
 
 class SwitchRequest(BaseModel):
@@ -121,3 +179,44 @@ class HealthResponse(BaseModel):
     running_model: Optional[str] = None
     backend_reachable: bool = False
     proxy_reachable: bool = False
+
+
+# =============================================================================
+# Token Counting Models
+# =============================================================================
+
+class TokenCountRequest(BaseModel):
+    """Request to count tokens in messages."""
+    model: str = Field(default="default", description="Model name for tokenizer selection")
+    messages: List[Dict[str, Any]] = Field(default_factory=list, description="Chat messages to count")
+    tools: Optional[List[Dict[str, Any]]] = Field(default=None, description="Tool definitions")
+    text: Optional[str] = Field(default=None, description="Raw text to count (alternative to messages)")
+
+
+class TokenCountResponse(BaseModel):
+    """Response with token counts."""
+    num_tokens: int = Field(..., description="Total token count")
+    breakdown: Optional[Dict[str, int]] = Field(default=None, description="Token breakdown by component")
+
+
+class UsageStats(BaseModel):
+    """Token usage statistics."""
+    total_requests: int = 0
+    total_prompt_tokens: int = 0
+    total_completion_tokens: int = 0
+    total_tokens: int = 0
+    avg_prompt_tokens: Optional[float] = None
+    avg_completion_tokens: Optional[float] = None
+    avg_latency_ms: Optional[float] = None
+    tokens_per_second: Optional[float] = None
+    per_model: Optional[Dict[str, Dict[str, int]]] = None
+
+
+class UsageEntry(BaseModel):
+    """Single usage log entry."""
+    timestamp: float
+    request_id: str
+    model: str
+    usage: Dict[str, int]
+    latency_ms: Optional[float] = None
+    endpoint: str = "/v1/chat/completions"

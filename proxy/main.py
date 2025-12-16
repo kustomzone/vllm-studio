@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from .client import TabbyClient
 from .config import settings
+from .registry import AdapterKind, adapter_registry, register_default_adapters
 from .models import (
     AnthropicChatRequest,
     AnthropicMessage,
@@ -24,12 +25,24 @@ from .models import (
 )
 from formatters.anthropic import AnthropicFormatter
 from formatters.openai import OpenAIFormatter
-from parsers.reasoning import ensure_think_wrapped, split_think, strip_enclosing_think
-from parsers.streaming import StreamingParser
-from parsers.tools import (
+from parsers.reasoning import ensure_think_wrapped, split_think, strip_enclosing_think, strip_box_tags
+from parsers.minimax import (
+    StreamingParser,
     extract_json_tool_calls,
     parse_tool_calls,
     tool_calls_to_minimax_xml,
+)
+from parsers.glm import (
+    GLMStreamingParser,
+    extract_json_tool_calls_glm,
+    parse_glm_tool_calls,
+    tool_calls_to_glm_xml,
+)
+from parsers.mistral import (
+    MistralStreamingParser,
+    extract_json_tool_calls_mistral,
+    parse_mistral_tool_calls,
+    tool_calls_to_mistral_format,
 )
 from .session_store import RepairResult, session_store
 
@@ -43,15 +56,24 @@ logger = logging.getLogger(__name__)
 stream_logger = logging.getLogger("minimax.streaming")
 
 
+def get_adapter_for_model(model_name: str):
+    """Return the registered adapter for a model, if any."""
+    return adapter_registry.match(model_name)
+
+
 def is_minimax_model(model_name: str) -> bool:
-    """Check if model uses MiniMax XML format"""
-    # Hardcoded check for the local MiniMax model
-    if "/mnt/llm_models/MiniMax-M2-AWQ-4bit" in model_name:
-        return True
-    if "MiniMax-M2" in model_name:
-        return True
-    model_lower = model_name.lower()
-    return any(pattern.lower() in model_lower for pattern in settings.minimax_model_patterns)
+    adapter = get_adapter_for_model(model_name)
+    return adapter is not None and adapter.kind == AdapterKind.MINIMAX
+
+
+def is_glm_model(model_name: str) -> bool:
+    adapter = get_adapter_for_model(model_name)
+    return adapter is not None and adapter.kind == AdapterKind.GLM
+
+
+def is_mistral_model(model_name: str) -> bool:
+    adapter = get_adapter_for_model(model_name)
+    return adapter is not None and adapter.kind == AdapterKind.MISTRAL
 
 
 if settings.enable_streaming_debug:
@@ -65,6 +87,9 @@ if settings.enable_streaming_debug:
             stream_logger.addHandler(handler)
 else:
     stream_logger.setLevel(logging.INFO)
+
+# Populate adapter registry with built-ins
+register_default_adapters(adapter_registry, settings)
 
 # Global instances
 tabby_client: TabbyClient = None
@@ -168,6 +193,70 @@ def normalize_openai_history(messages: List[Dict[str, Any]]) -> List[Dict[str, A
     return normalized
 
 
+def normalize_glm_history(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Normalize assistant messages so TabbyAPI/vLLM receives inline <think> content for GLM.
+
+    Also handles the case where clients send XML tool calls in content without
+    the structured tool_calls field - parses them and adds the tool_calls field.
+    """
+    normalized: List[Dict[str, Any]] = []
+    for message in messages:
+        msg_copy = dict(message)
+        if msg_copy.get("role") == "assistant":
+            reasoning_details = msg_copy.pop("reasoning_details", None)
+            reasoning_text = ""
+            if isinstance(reasoning_details, list):
+                for detail in reasoning_details:
+                    if isinstance(detail, dict):
+                        reasoning_text += str(detail.get("text", ""))
+
+            content = msg_copy.get("content") or ""
+
+            # Parse XML tool calls from content if tool_calls field is missing
+            # This handles clients that send raw XML in content instead of using tool_calls
+            tool_calls = msg_copy.get("tool_calls")
+            if not tool_calls and "<tool_call>" in content:
+                parsed = parse_glm_tool_calls(content, None)
+                if parsed["tools_called"]:
+                    msg_copy["tool_calls"] = parsed["tool_calls"]
+                    tool_calls = parsed["tool_calls"]
+                    # Update content to the version without XML blocks
+                    if parsed["content"] is not None:
+                        content = parsed["content"]
+                    else:
+                        content = ""
+                    msg_copy["content"] = content
+                    logger.debug(f"Parsed {len(tool_calls)} GLM tool calls from assistant message content")
+
+            if reasoning_text:
+                reason_block = f"<think>{reasoning_text}</think>"
+                if content and not content.startswith("\n"):
+                    reason_block = f"{reason_block}\n"
+                msg_copy["content"] = reason_block + content
+            elif content and "</think>" in content:
+                msg_copy["content"] = ensure_think_wrapped(content)
+
+            tool_calls = msg_copy.get("tool_calls")
+            if tool_calls:
+                xml_block = tool_calls_to_glm_xml(tool_calls)
+                if xml_block:
+                    updated_content = msg_copy.get("content") or ""
+                    if "</think>" in updated_content and "<think>" not in updated_content:
+                        updated_content = ensure_think_wrapped(updated_content)
+
+                    if xml_block not in updated_content:
+                        stripped = updated_content.rstrip()
+                        if stripped:
+                            msg_copy["content"] = f"{stripped}\n\n{xml_block}"
+                        else:
+                            msg_copy["content"] = xml_block
+                    else:
+                        msg_copy["content"] = updated_content
+
+        normalized.append(msg_copy)
+    return normalized
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle manager for FastAPI app"""
@@ -246,18 +335,44 @@ async def complete_openai_response(chat_request: OpenAIChatRequest, session_id: 
     # Convert messages to dict
     messages = [msg.model_dump(exclude_none=True) for msg in chat_request.messages]
 
-    # Check if this is a MiniMax model that needs XML parsing
+    # Check if this is a MiniMax or GLM model that needs special parsing
+    # Mistral/Devstral models use vLLM's native --tool-call-parser mistral, so passthrough
     use_minimax_parsing = is_minimax_model(chat_request.model)
+    use_glm_parsing = is_glm_model(chat_request.model)
+    use_mistral_parsing = False  # Disabled - passthrough to vLLM native tool parsing
+    use_special_parsing = use_minimax_parsing or use_glm_parsing
 
-    if not use_minimax_parsing:
-        logger.info(f"Non-MiniMax model detected: {chat_request.model}, passing through without XML parsing")
+    if not use_special_parsing:
+        logger.info(f"Standard model detected: {chat_request.model}, passing through without special parsing")
         # Pass through directly to backend without any normalization or parsing
         tools = None
         if chat_request.tools:
             tools = [tool.model_dump(exclude_none=True) for tool in chat_request.tools]
 
+        # For Mistral/Devstral models with tools, inject system prompt for JSON tool call format
+        passthrough_messages = messages
+        if tools and is_mistral_model(chat_request.model):
+            mistral_tool_prompt = (
+                "You are a helpful assistant that can call tools. "
+                "If you call one or more tools, format them in a single JSON array of objects, "
+                "where each object is a tool call, not as separate objects outside of an array or multiple arrays. "
+                'Use the format [{"name": tool_call_name, "arguments": {tool_call_arguments}}, ...] if you call more than one tool. '
+                "If you call tools, do not attempt to interpret them or otherwise provide a response "
+                "until you receive a tool call result that you can interpret for the user."
+            )
+            # Prepend or merge with existing system message
+            if passthrough_messages and passthrough_messages[0].get("role") == "system":
+                passthrough_messages = passthrough_messages.copy()
+                passthrough_messages[0] = {
+                    **passthrough_messages[0],
+                    "content": mistral_tool_prompt + "\n\n" + passthrough_messages[0].get("content", "")
+                }
+            else:
+                passthrough_messages = [{"role": "system", "content": mistral_tool_prompt}] + passthrough_messages
+            logger.info("Injected Mistral tool format system prompt")
+
         response = await tabby_client.chat_completion(
-            messages=messages,
+            messages=passthrough_messages,
             model=chat_request.model,
             max_tokens=chat_request.max_tokens,
             temperature=chat_request.temperature,
@@ -266,8 +381,14 @@ async def complete_openai_response(chat_request: OpenAIChatRequest, session_id: 
             stop=chat_request.stop,
             tools=tools,
             tool_choice=chat_request.tool_choice,
+            repetition_penalty=chat_request.repetition_penalty,
+            frequency_penalty=chat_request.frequency_penalty,
+            presence_penalty=chat_request.presence_penalty,
         )
         return response
+
+    model_type = "GLM" if use_glm_parsing else ("Mistral" if use_mistral_parsing else "MiniMax")
+    logger.info(f"{model_type} model detected: {chat_request.model}, using {model_type} XML parsing")
 
     repair_result: RepairResult = session_store.inject_or_repair(
         messages,
@@ -286,16 +407,25 @@ async def complete_openai_response(chat_request: OpenAIChatRequest, session_id: 
         )
 
     messages = repair_result.messages
-    normalized_messages = normalize_openai_history(messages)
+    # Use appropriate normalizer for the model type
+    # Mistral models use standard OpenAI format, no special normalization needed
+    if use_glm_parsing:
+        normalized_messages = normalize_glm_history(messages)
+    elif use_mistral_parsing:
+        normalized_messages = messages  # Mistral uses standard format
+    else:
+        normalized_messages = normalize_openai_history(messages)
 
     # Convert tools if present
     tools = None
     if chat_request.tools:
         tools = [tool.model_dump(exclude_none=True) for tool in chat_request.tools]
 
-    # Call TabbyAPI
-    banned_strings = settings.banned_chinese_strings if settings.enable_chinese_char_blocking else None
-    logger.info(f"Calling TabbyAPI with banned_strings enabled: {settings.enable_chinese_char_blocking}, count: {len(banned_strings) if banned_strings else 0}")
+    # Call TabbyAPI - disable Chinese blocking for Mistral models
+    banned_strings = None
+    if settings.enable_chinese_char_blocking and not use_mistral_parsing:
+        banned_strings = settings.banned_chinese_strings
+    logger.info(f"Calling TabbyAPI with banned_strings enabled: {banned_strings is not None}, count: {len(banned_strings) if banned_strings else 0}")
 
     response = await tabby_client.chat_completion(
         messages=normalized_messages,
@@ -331,7 +461,13 @@ async def complete_openai_response(chat_request: OpenAIChatRequest, session_id: 
         sections.append(backend_content)
 
     if backend_tool_calls:
-        xml_block = tool_calls_to_minimax_xml(backend_tool_calls)
+        # Use appropriate format for the model type
+        if use_glm_parsing:
+            xml_block = tool_calls_to_glm_xml(backend_tool_calls)
+        elif use_mistral_parsing:
+            xml_block = tool_calls_to_mistral_format(backend_tool_calls)
+        else:
+            xml_block = tool_calls_to_minimax_xml(backend_tool_calls)
         if xml_block:
             sections.append(xml_block)
 
@@ -339,11 +475,23 @@ async def complete_openai_response(chat_request: OpenAIChatRequest, session_id: 
     if not raw_content:
         raw_content = backend_content
 
-    raw_content, json_tool_calls = extract_json_tool_calls(raw_content)
+    # Use appropriate JSON extractor for the model type
+    if use_glm_parsing:
+        raw_content, json_tool_calls = extract_json_tool_calls_glm(raw_content)
+    elif use_mistral_parsing:
+        raw_content, json_tool_calls = extract_json_tool_calls_mistral(raw_content)
+    else:
+        raw_content, json_tool_calls = extract_json_tool_calls(raw_content)
     raw_content = ensure_think_wrapped(raw_content)
 
     # Parse tool calls from content as fallback when backend omits structured payload
-    result = parse_tool_calls(raw_content, tools)
+    # Use appropriate parser for the model type
+    if use_glm_parsing:
+        result = parse_glm_tool_calls(raw_content, tools)
+    elif use_mistral_parsing:
+        result = parse_mistral_tool_calls(raw_content, tools)
+    else:
+        result = parse_tool_calls(raw_content, tools)
 
     tool_calls = backend_tool_calls
     if not tool_calls and result["tools_called"]:
@@ -403,19 +551,45 @@ async def stream_openai_response(chat_request: OpenAIChatRequest, session_id: Op
     # Convert messages to dict
     messages = [msg.model_dump(exclude_none=True) for msg in chat_request.messages]
 
-    # Check if this is a MiniMax model that needs XML parsing
+    # Check if this is a MiniMax or GLM model that needs special parsing
+    # Mistral/Devstral models use vLLM's native --tool-call-parser mistral, so passthrough
     use_minimax_parsing = is_minimax_model(chat_request.model)
+    use_glm_parsing = is_glm_model(chat_request.model)
+    use_mistral_parsing = False  # Disabled - passthrough to vLLM native tool parsing
+    use_special_parsing = use_minimax_parsing or use_glm_parsing
 
-    if not use_minimax_parsing:
-        logger.info(f"Non-MiniMax model detected (streaming): {chat_request.model}, passing through without XML parsing")
+    if not use_special_parsing:
+        logger.info(f"Standard model detected (streaming): {chat_request.model}, passing through without special parsing")
         # Pass through directly to backend without any normalization or parsing
         tools = None
         if chat_request.tools:
             tools = [tool.model_dump(exclude_none=True) for tool in chat_request.tools]
 
+        # For Mistral/Devstral models with tools, inject system prompt for JSON tool call format
+        passthrough_messages = messages
+        if tools and is_mistral_model(chat_request.model):
+            mistral_tool_prompt = (
+                "You are a helpful assistant that can call tools. "
+                "If you call one or more tools, format them in a single JSON array of objects, "
+                "where each object is a tool call, not as separate objects outside of an array or multiple arrays. "
+                'Use the format [{"name": tool_call_name, "arguments": {tool_call_arguments}}, ...] if you call more than one tool. '
+                "If you call tools, do not attempt to interpret them or otherwise provide a response "
+                "until you receive a tool call result that you can interpret for the user."
+            )
+            # Prepend or merge with existing system message
+            if passthrough_messages and passthrough_messages[0].get("role") == "system":
+                passthrough_messages = passthrough_messages.copy()
+                passthrough_messages[0] = {
+                    **passthrough_messages[0],
+                    "content": mistral_tool_prompt + "\n\n" + passthrough_messages[0].get("content", "")
+                }
+            else:
+                passthrough_messages = [{"role": "system", "content": mistral_tool_prompt}] + passthrough_messages
+            logger.info("Injected Mistral tool format system prompt (streaming)")
+
         try:
             async for line in tabby_client.chat_completion_stream(
-                messages=messages,
+                messages=passthrough_messages,
                 model=chat_request.model,
                 max_tokens=chat_request.max_tokens,
                 temperature=chat_request.temperature,
@@ -424,13 +598,20 @@ async def stream_openai_response(chat_request: OpenAIChatRequest, session_id: Op
                 stop=chat_request.stop,
                 tools=tools,
                 tool_choice=chat_request.tool_choice,
+                repetition_penalty=chat_request.repetition_penalty,
+                frequency_penalty=chat_request.frequency_penalty,
+                presence_penalty=chat_request.presence_penalty,
             ):
-                yield line
+                yield f"{line}\n\n"
+            yield "data: [DONE]\n\n"
         except Exception as e:
             logger.error(f"Error in OpenAI streaming (pass-through): {e}", exc_info=True)
             error_chunk = openai_formatter.format_error(str(e))
             yield f"data: {json.dumps(error_chunk)}\n\n"
         return
+
+    model_type = "GLM" if use_glm_parsing else ("Mistral" if use_mistral_parsing else "MiniMax")
+    logger.info(f"{model_type} model detected (streaming): {chat_request.model}, using {model_type} parsing")
 
     repair_result: RepairResult = session_store.inject_or_repair(
         messages,
@@ -449,7 +630,14 @@ async def stream_openai_response(chat_request: OpenAIChatRequest, session_id: Op
         )
 
     messages = repair_result.messages
-    normalized_messages = normalize_openai_history(messages)
+    # Use appropriate normalizer for the model type
+    # Mistral models use standard OpenAI format
+    if use_glm_parsing:
+        normalized_messages = normalize_glm_history(messages)
+    elif use_mistral_parsing:
+        normalized_messages = messages  # Mistral uses standard format
+    else:
+        normalized_messages = normalize_openai_history(messages)
 
     # Convert tools if present
     tools = None
@@ -473,7 +661,13 @@ async def stream_openai_response(chat_request: OpenAIChatRequest, session_id: Op
     async def structured_stream(chunk_iter: AsyncIterator[Dict[str, Any]]):
         nonlocal final_raw_content, final_reasoning_text, final_tool_calls
 
-        streaming_parser = StreamingParser()
+        # Use appropriate streaming parser for the model type
+        if use_glm_parsing:
+            streaming_parser = GLMStreamingParser()
+        elif use_mistral_parsing:
+            streaming_parser = MistralStreamingParser()
+        else:
+            streaming_parser = StreamingParser()
         streaming_parser.set_tools(tools)
         raw_segments: List[str] = []
         reasoning_segments: List[str] = []
@@ -530,6 +724,10 @@ async def stream_openai_response(chat_request: OpenAIChatRequest, session_id: Op
             delta = choice.get("delta", {})
             reasoning_delta = delta.get("reasoning_content")
             content_delta = delta.get("content")
+            # Strip box tags for GLM models
+            if use_glm_parsing:
+                reasoning_delta = strip_box_tags(reasoning_delta) if reasoning_delta else None
+                content_delta = strip_box_tags(content_delta) if content_delta else None
             tool_delta = delta.get("tool_calls")
             finish_reason = choice.get("finish_reason")
 
@@ -624,9 +822,70 @@ async def stream_openai_response(chat_request: OpenAIChatRequest, session_id: Op
                     raw_segments.append(close_text)
                     think_closed = True
 
+                # Flush any remaining content from the streaming parser
+                pending_tail = streaming_parser.flush_pending()
+                if pending_tail:
+                    # Check for tool calls in the pending content
+                    pending_tool_calls = pending_tail.get("tool_calls")
+                    if pending_tool_calls and not tool_xml_emitted:
+                        for tc in pending_tool_calls:
+                            idx = len(tool_buffers)
+                            tool_buffers[idx] = tc
+                            # Emit tool call chunks
+                            tc_delta = {
+                                "index": idx,
+                                "id": tc.get("id"),
+                                "type": "function",
+                                "function": {
+                                    "name": tc.get("function", {}).get("name", ""),
+                                    "arguments": tc.get("function", {}).get("arguments", "")
+                                }
+                            }
+                            yield openai_formatter.format_streaming_chunk(
+                                tool_calls=[tc_delta],
+                                model=chat_request.model,
+                            )
+                        tool_xml_emitted = True
+
+                    # Handle remaining content
+                    pending_content = pending_tail.get("content_delta")
+                    if pending_content:
+                        yield openai_formatter.format_streaming_chunk(
+                            delta=pending_content,
+                            model=chat_request.model,
+                        )
+
+                # Also check streaming parser for buffered tool calls (Mistral parsing)
+                parser_tool_calls = streaming_parser.get_last_tool_calls()
+                if parser_tool_calls and not tool_xml_emitted:
+                    for tc in parser_tool_calls:
+                        idx = len(tool_buffers)
+                        tool_buffers[idx] = tc
+                        # Emit tool call chunks
+                        tc_delta = {
+                            "index": idx,
+                            "id": tc.get("id"),
+                            "type": "function",
+                            "function": {
+                                "name": tc.get("function", {}).get("name", ""),
+                                "arguments": tc.get("function", {}).get("arguments", "")
+                            }
+                        }
+                        yield openai_formatter.format_streaming_chunk(
+                            tool_calls=[tc_delta],
+                            model=chat_request.model,
+                        )
+                    tool_xml_emitted = True
+
                 final_tool_list = finalize_tool_calls()
                 if final_tool_list and not tool_xml_emitted:
-                    xml_block = tool_calls_to_minimax_xml(final_tool_list)
+                    # Use appropriate format for the model type
+                    if use_glm_parsing:
+                        xml_block = tool_calls_to_glm_xml(final_tool_list)
+                    elif use_mistral_parsing:
+                        xml_block = tool_calls_to_mistral_format(final_tool_list)
+                    else:
+                        xml_block = tool_calls_to_minimax_xml(final_tool_list)
                     if xml_block:
                         if raw_segments and not raw_segments[-1].endswith("\n"):
                             raw_segments.append("\n")
@@ -743,6 +1002,11 @@ async def stream_openai_response(chat_request: OpenAIChatRequest, session_id: Op
             pass
 
     try:
+        # Disable Chinese blocking for Mistral models
+        banned_strings = None
+        if settings.enable_chinese_char_blocking and not use_mistral_parsing:
+            banned_strings = settings.banned_chinese_strings
+
         stream_gen = tabby_client.extract_streaming_content(
             messages=normalized_messages,
             model=chat_request.model,
@@ -754,7 +1018,7 @@ async def stream_openai_response(chat_request: OpenAIChatRequest, session_id: Op
             tools=tools,
             tool_choice=chat_request.tool_choice,
             add_generation_prompt=True,
-            banned_strings=settings.banned_chinese_strings if settings.enable_chinese_char_blocking else None,
+            banned_strings=banned_strings,
         )
 
         try:
@@ -768,8 +1032,8 @@ async def stream_openai_response(chat_request: OpenAIChatRequest, session_id: Op
 
         chunk_iter = prepend_chunk(first_chunk, stream_gen)
 
-        # ALWAYS use structured_stream for MiniMax models to parse XML tool calls
-        if structured_mode or use_minimax_parsing:
+        # ALWAYS use structured_stream for MiniMax/Mistral models to parse tool calls
+        if structured_mode or use_minimax_parsing or use_mistral_parsing:
             async for event in structured_stream(chunk_iter):
                 yield event
         else:
@@ -836,12 +1100,15 @@ async def complete_anthropic_response(anthropic_request: AnthropicChatRequest, s
         system_content = anthropic_request.system if isinstance(anthropic_request.system, str) else str(anthropic_request.system)
         openai_messages.insert(0, {"role": "system", "content": system_content})
 
-    # Check if this is a MiniMax model that needs XML parsing
+    # Check if this is a MiniMax or GLM model that needs XML parsing
     use_minimax_parsing = is_minimax_model(anthropic_request.model)
+    use_glm_parsing = is_glm_model(anthropic_request.model)
+    use_special_parsing = use_minimax_parsing or use_glm_parsing
 
     # For MiniMax models, ensure max_tokens is high enough to avoid thinking-only responses
     effective_max_tokens = anthropic_request.max_tokens
-    logger.info(f"Anthropic request - model: {anthropic_request.model}, max_tokens: {effective_max_tokens}, stream: {anthropic_request.stream}, use_minimax_parsing: {use_minimax_parsing}")
+    model_type = "GLM" if use_glm_parsing else ("MiniMax" if use_minimax_parsing else "standard")
+    logger.info(f"Anthropic request - model: {anthropic_request.model}, max_tokens: {effective_max_tokens}, stream: {anthropic_request.stream}, model_type: {model_type}")
     if use_minimax_parsing:
         # CRITICAL FIX: Cap max_tokens to prevent CUDA OOM!
         # MiniMax-M2 (456B MoE) has huge KV cache requirements
@@ -855,8 +1122,8 @@ async def complete_anthropic_response(anthropic_request: AnthropicChatRequest, s
             logger.info(f"Capping max_tokens from {effective_max_tokens} to 8192 to prevent CUDA OOM")
             effective_max_tokens = 8192
 
-    if not use_minimax_parsing:
-        logger.info(f"Non-MiniMax model detected (Anthropic): {anthropic_request.model}, passing through without XML parsing")
+    if not use_special_parsing:
+        logger.info(f"Standard model detected (Anthropic): {anthropic_request.model}, passing through without XML parsing")
         # Pass through to backend and format as Anthropic response
         tools = anthropic_tools_to_openai(anthropic_request.tools)
         tool_choice = anthropic_tool_choice_to_openai(anthropic_request.tool_choice)
@@ -910,7 +1177,11 @@ async def complete_anthropic_response(anthropic_request: AnthropicChatRequest, s
         )
 
     openai_messages = repair_result.messages
-    normalized_messages = normalize_openai_history(openai_messages)
+    # Use appropriate normalizer for the model type
+    if use_glm_parsing:
+        normalized_messages = normalize_glm_history(openai_messages)
+    else:
+        normalized_messages = normalize_openai_history(openai_messages)
 
     # Convert tools
     tools = anthropic_tools_to_openai(anthropic_request.tools)
@@ -922,10 +1193,10 @@ async def complete_anthropic_response(anthropic_request: AnthropicChatRequest, s
     for i, msg in enumerate(openai_messages):
         logger.debug(f"  Message {i}: role={msg.get('role')}, content_len={len(str(msg.get('content', '')))}, has_tool_calls={bool(msg.get('tool_calls'))}")
 
-    # Configure thinking tokens - always send for MiniMax to unlock full generation
+    # Configure thinking tokens - always send for MiniMax/GLM to unlock full generation
     if anthropic_request.thinking:
         thinking_payload = anthropic_request.thinking
-    elif use_minimax_parsing:
+    elif use_special_parsing:
         # For MiniMax, send a very high thinking limit - model uses thinking extensively
         # Use half of max_tokens for thinking to leave room for content
         # Allow up to half of max_tokens for thinking, no cap
@@ -971,7 +1242,11 @@ async def complete_anthropic_response(anthropic_request: AnthropicChatRequest, s
         sections.append(backend_content)
 
     if backend_tool_calls:
-        xml_block = tool_calls_to_minimax_xml(backend_tool_calls)
+        # Use appropriate XML format for the model type
+        if use_glm_parsing:
+            xml_block = tool_calls_to_glm_xml(backend_tool_calls)
+        else:
+            xml_block = tool_calls_to_minimax_xml(backend_tool_calls)
         if xml_block:
             sections.append(xml_block)
 
@@ -979,11 +1254,19 @@ async def complete_anthropic_response(anthropic_request: AnthropicChatRequest, s
     if not raw_content:
         raw_content = backend_content
 
-    raw_content, json_tool_calls = extract_json_tool_calls(raw_content)
+    # Use appropriate JSON extractor for the model type
+    if use_glm_parsing:
+        raw_content, json_tool_calls = extract_json_tool_calls_glm(raw_content)
+    else:
+        raw_content, json_tool_calls = extract_json_tool_calls(raw_content)
     wrapped_raw_content = ensure_think_wrapped(raw_content)
 
     # Parse tool calls from content as fallback when backend omits structured payload
-    result = parse_tool_calls(wrapped_raw_content, tools)
+    # Use appropriate parser for the model type
+    if use_glm_parsing:
+        result = parse_glm_tool_calls(wrapped_raw_content, tools)
+    else:
+        result = parse_tool_calls(wrapped_raw_content, tools)
 
     # Prefer backend-provided tool_calls over parsed ones
     tool_calls = backend_tool_calls
@@ -1061,12 +1344,15 @@ async def stream_anthropic_response(anthropic_request: AnthropicChatRequest, ses
         system_content = anthropic_request.system if isinstance(anthropic_request.system, str) else str(anthropic_request.system)
         openai_messages.insert(0, {"role": "system", "content": system_content})
 
-    # Check if this is a MiniMax model that needs XML parsing
+    # Check if this is a MiniMax or GLM model that needs XML parsing
     use_minimax_parsing = is_minimax_model(anthropic_request.model)
+    use_glm_parsing = is_glm_model(anthropic_request.model)
+    use_special_parsing = use_minimax_parsing or use_glm_parsing
 
     # For MiniMax models, ensure max_tokens is high enough to avoid thinking-only responses
     effective_max_tokens = anthropic_request.max_tokens
-    logger.info(f"Anthropic streaming request - model: {anthropic_request.model}, max_tokens: {effective_max_tokens}, message_count: {len(anthropic_request.messages)}, use_minimax_parsing: {use_minimax_parsing}")
+    model_type = "GLM" if use_glm_parsing else ("MiniMax" if use_minimax_parsing else "standard")
+    logger.info(f"Anthropic streaming request - model: {anthropic_request.model}, max_tokens: {effective_max_tokens}, message_count: {len(anthropic_request.messages)}, model_type: {model_type}")
     if use_minimax_parsing:
         # CRITICAL FIX: Cap max_tokens to prevent CUDA OOM!
         # MiniMax-M2 (456B MoE) has huge KV cache requirements
@@ -1080,8 +1366,8 @@ async def stream_anthropic_response(anthropic_request: AnthropicChatRequest, ses
             logger.info(f"Capping max_tokens from {effective_max_tokens} to 8192 to prevent CUDA OOM (streaming)")
             effective_max_tokens = 8192
 
-    if not use_minimax_parsing:
-        logger.info(f"Non-MiniMax model detected (Anthropic/streaming): {anthropic_request.model}, passing through without XML parsing")
+    if not use_special_parsing:
+        logger.info(f"Standard model detected (Anthropic/streaming): {anthropic_request.model}, passing through without XML parsing")
         # Pass through and convert OpenAI stream to Anthropic format
         tools = anthropic_tools_to_openai(anthropic_request.tools)
         tool_choice = anthropic_tool_choice_to_openai(anthropic_request.tool_choice)
@@ -1188,7 +1474,11 @@ async def stream_anthropic_response(anthropic_request: AnthropicChatRequest, ses
         )
 
     openai_messages = repair_result.messages
-    normalized_messages = normalize_openai_history(openai_messages)
+    # Use appropriate normalizer for the model type
+    if use_glm_parsing:
+        normalized_messages = normalize_glm_history(openai_messages)
+    else:
+        normalized_messages = normalize_openai_history(openai_messages)
 
     # Debug: Log message structure
     logger.info(f"Sending {len(normalized_messages)} messages to TabbyAPI")
@@ -1200,16 +1490,19 @@ async def stream_anthropic_response(anthropic_request: AnthropicChatRequest, ses
     tools = anthropic_tools_to_openai(anthropic_request.tools)
     tool_choice = anthropic_tool_choice_to_openai(anthropic_request.tool_choice)
 
-    # Initialize streaming parser
-    streaming_parser = StreamingParser()
+    # Initialize streaming parser (use appropriate parser for the model type)
+    if use_glm_parsing:
+        streaming_parser = GLMStreamingParser()
+    else:
+        streaming_parser = StreamingParser()
     streaming_parser.set_tools(tools)
     captured_tool_calls: Optional[Dict[int, Dict[str, Any]]] = None
     thinking_block_started = False
     text_emitted = False
-    # Configure thinking tokens - always send for MiniMax to unlock full generation
+    # Configure thinking tokens - always send for MiniMax/GLM to unlock full generation
     if anthropic_request.thinking:
         thinking_payload = anthropic_request.thinking
-    elif use_minimax_parsing:
+    elif use_special_parsing:
         # For MiniMax, send a very high thinking limit - model uses thinking extensively
         # Use half of max_tokens for thinking to leave room for content
         # Allow up to half of max_tokens for thinking, no cap
@@ -1245,12 +1538,22 @@ async def stream_anthropic_response(anthropic_request: AnthropicChatRequest, ses
                 choice = chunk["choices"][0]
                 delta = choice.get("delta", {})
                 reasoning_delta = delta.get("reasoning_content", "")
+                # Strip box tags for GLM models
+                if use_glm_parsing:
+                    reasoning_delta = strip_box_tags(reasoning_delta)
                 content_delta = delta.get("content", "")
                 json_tool_calls = None
 
                 if content_delta:
-                    cleaned_delta, json_tool_calls = extract_json_tool_calls(content_delta)
+                    # Use appropriate JSON extractor for the model type
+                    if use_glm_parsing:
+                        cleaned_delta, json_tool_calls = extract_json_tool_calls_glm(content_delta)
+                    else:
+                        cleaned_delta, json_tool_calls = extract_json_tool_calls(content_delta)
                     content_delta = cleaned_delta
+                    # Strip box tags for GLM models
+                    if use_glm_parsing:
+                        content_delta = strip_box_tags(content_delta)
 
                     if json_tool_calls:
                         if content_block_started:

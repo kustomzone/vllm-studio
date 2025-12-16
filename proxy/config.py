@@ -48,6 +48,12 @@ class Settings(BaseSettings):
 
     # Model detection
     minimax_model_patterns: list[str] = ["minimax", "m2"]  # Model name patterns that use MiniMax format
+    glm_model_patterns: list[str] = ["glm", "glm4", "glm-4"]  # Model name patterns that use GLM format
+    mistral_model_patterns: list[str] = ["mistral", "devstral", "ministral"]  # Model name patterns that use Mistral format
+    # Optional per-adapter virtualenvs
+    minimax_venv: Optional[str] = None
+    glm_venv: Optional[str] = None
+    mistral_venv: Optional[str] = None
 
     # Logging
     log_level: str = "DEBUG"
@@ -58,7 +64,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        case_sensitive=False
+        case_sensitive=False,
+        extra="ignore"  # Ignore extra env variables from vllmstudio
     )
 
 

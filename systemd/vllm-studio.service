@@ -1,0 +1,15 @@
+[Unit]
+Description=vLLM Studio API Server
+After=network.target
+
+[Service]
+Type=simple
+User=ser
+WorkingDirectory=/home/ser/lmvllm
+Environment="PATH=/home/ser/lmvllm/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/ser/lmvllm/.venv/bin/python -m vllmstudio.cli
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

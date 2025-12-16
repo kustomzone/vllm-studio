@@ -46,7 +46,7 @@ class OpenAIChatRequest(BaseModel):
     model: str = "minimax-m2"
     messages: List[OpenAIMessage]
     max_tokens: Optional[int] = Field(100000, ge=1)
-    temperature: Optional[float] = Field(1.0, gt=0.0, le=1.0)
+    temperature: Optional[float] = Field(1.0, ge=0.0, le=2.0)
     top_p: Optional[float] = Field(1.0, ge=0.0, le=1.0)
     top_k: Optional[int] = Field(None, ge=0)
     n: Optional[int] = Field(1, ge=1)
@@ -55,6 +55,10 @@ class OpenAIChatRequest(BaseModel):
     tools: Optional[List[OpenAITool]] = None
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
     extra_body: Optional[Dict[str, Any]] = None
+    # Repetition control
+    repetition_penalty: Optional[float] = Field(None, ge=0.0)
+    frequency_penalty: Optional[float] = Field(None, ge=-2.0, le=2.0)
+    presence_penalty: Optional[float] = Field(None, ge=-2.0, le=2.0)
 
 
 # Anthropic Models
@@ -90,7 +94,7 @@ class AnthropicChatRequest(BaseModel):
     messages: List[AnthropicMessage]
     max_tokens: int = Field(100000, ge=1)
     system: Optional[Union[str, List[Dict[str, Any]]]] = None
-    temperature: Optional[float] = Field(1.0, gt=0.0, le=1.0)
+    temperature: Optional[float] = Field(1.0, ge=0.0, le=2.0)
     top_p: Optional[float] = Field(None, ge=0.0, le=1.0)
     top_k: Optional[int] = Field(None, ge=0)
     stream: bool = False

@@ -1,0 +1,9 @@
+{
+  "id": "whisper-v3-turbo",
+  "name": "Whisper Large V3 Turbo (STT)",
+  "model_path": "/mnt/llm_models/whisper-large-v3-turbo",
+  "backend": "faster-whisper",
+  "note": "Speech-to-text - use faster-whisper library",
+  "device": "cuda",
+  "compute_type": "float16"
+}

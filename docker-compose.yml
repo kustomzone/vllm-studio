@@ -1,20 +1,17 @@
 version: '3.8'
 
 services:
-  openwebui:
-    image: ghcr.io/open-webui/open-webui:main
-    container_name: vllm-studio-chat
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://homelabai.org}
+    container_name: vllm-studio-frontend
     ports:
-      - "3000:8080"
+      - "3000:3000"
     environment:
-      - OPENAI_API_BASE_URL=http://host.docker.internal:8080/v1
-      - OPENAI_API_KEY=dummy
-      - WEBUI_AUTH=false
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://homelabai.org}
+      - API_KEY=${API_KEY:-sk-homelabai-3fe751380eb7ac8701f670bee4a56b8ebff8365c68828faa}
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    volumes:
-      - openwebui_data:/app/backend/data
     restart: unless-stopped
-
-volumes:
-  openwebui_data:

@@ -1,0 +1,26 @@
+{
+  "id": "glm-4.6v-4bit",
+  "name": "GLM-4.6V 4-bit AWQ (256k)",
+  "model_path": "/mnt/llm_models/GLM-4.6V-AWQ-4bit",
+  "backend": "vllm",
+  "tensor_parallel_size": 4,
+  "pipeline_parallel_size": 2,
+  "enable_expert_parallel": true,
+  "max_model_len": 262144,
+  "gpu_memory_utilization": 0.95,
+  "trust_remote_code": true,
+  "enable_auto_tool_choice": true,
+  "tool_call_parser": "glm45",
+  "reasoning_parser": "glm45",
+  "served_model_name": "glm-4.6v-4bit",
+  "allowed_local_media_path": "/",
+  "python_path": "/opt/venvs/active/glm46v/bin/python",
+  "rope_scaling": {
+    "type": "yarn",
+    "factor": 2.0,
+    "original_max_position_embeddings": 131072
+  },
+  "host": "0.0.0.0",
+  "port": 8000,
+  "disable_log_requests": true
+}

@@ -1,0 +1,8 @@
+{
+  "id": "vibevoice-tts",
+  "name": "VibeVoice 1.5B (TTS)",
+  "model_path": "/mnt/llm_models/VibeVoice-1.5B",
+  "backend": "transformers",
+  "note": "Text-to-speech - use transformers pipeline",
+  "device": "cuda"
+}

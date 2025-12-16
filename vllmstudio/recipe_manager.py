@@ -60,16 +60,24 @@ class RecipeManager:
     def get_recipes_with_status(self, port: int = 8000) -> List[RecipeWithStatus]:
         """Get all recipes with their current status."""
         current_process = ProcessManager.get_current_process(port)
-        current_model = current_process.model_path if current_process else None
 
         results = []
         for recipe in self._recipes.values():
             status = RecipeStatus.STOPPED
             pid = None
 
-            if current_model and recipe.model_path == current_model:
-                status = RecipeStatus.RUNNING
-                pid = current_process.pid
+            if current_process:
+                # Match by served_model_name first (most specific)
+                if recipe.served_model_name and current_process.served_model_name:
+                    if recipe.served_model_name == current_process.served_model_name:
+                        status = RecipeStatus.RUNNING
+                        pid = current_process.pid
+                # Fall back to model_path + backend match (for recipes without served_model_name)
+                elif not recipe.served_model_name and recipe.model_path == current_process.model_path:
+                    # Also check backend matches to distinguish vllm vs sglang
+                    if recipe.backend.value == current_process.backend.value:
+                        status = RecipeStatus.RUNNING
+                        pid = current_process.pid
 
             results.append(RecipeWithStatus(
                 **recipe.model_dump(),

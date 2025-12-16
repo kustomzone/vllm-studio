@@ -1,0 +1,19 @@
+{
+  "id": "qwen3-vl-235b-200k",
+  "name": "Qwen3-VL-235B-A22B Thinking 32K",
+  "model_path": "/mnt/llm_models/Qwen3-VL-235B-A22B-Thinking-AWQ-4bit",
+  "backend": "vllm",
+  "served_model_name": "qwen3-vl-235b",
+  "port": 8000,
+  "tensor_parallel_size": 8,
+  "max_model_len": 32768,
+  "gpu_memory_utilization": 0.85,
+  "trust_remote_code": true,
+  "disable_log_requests": true,
+  "enable_auto_tool_choice": true,
+  "tool_call_parser": "hermes",
+  "reasoning_parser": "deepseek_r1",
+  "python_path": "/opt/venvs/active/glm46v-latest/.venv/bin/python",
+  "description": "Qwen3-VL-235B Vision-Language model with thinking and tool calling",
+  "tags": ["vlm", "vision", "thinking", "awq-4bit", "tool-calling"]
+}
