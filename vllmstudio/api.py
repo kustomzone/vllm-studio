@@ -1931,6 +1931,7 @@ async def delete_chat(session_id: str):
 
 
 class AddMessageRequest(BaseModel):
+    id: Optional[str] = None
     role: str
     content: str
     model: Optional[str] = None
@@ -1950,8 +1951,38 @@ async def add_message(session_id: str, request: AddMessageRequest):
         role=request.role,
         content=request.content,
         model=request.model,
-        tool_calls=request.tool_calls
+        tool_calls=request.tool_calls,
+        message_id=request.id,
     )
+
+
+class ForkChatRequest(BaseModel):
+    title: Optional[str] = None
+    model: Optional[str] = None
+    message_id: Optional[str] = None
+
+
+@app.post("/chats/{session_id}/fork", response_model=ChatSession)
+async def fork_chat(session_id: str, request: ForkChatRequest):
+    """Fork a chat session into a new session (optionally at a specific message)."""
+    forked = chat_store.fork_session(
+        session_id,
+        title=request.title,
+        model=request.model,
+        message_id=request.message_id,
+    )
+    if not forked:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return forked
+
+
+@app.get("/chats/{session_id}/usage")
+async def chat_usage(session_id: str):
+    """Return token usage totals for a session."""
+    usage = chat_store.get_session_usage(session_id)
+    if not usage:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return usage
 
 
 # =============================================================================

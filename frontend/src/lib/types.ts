@@ -165,6 +165,9 @@ export interface ChatSession {
   id: string;
   title: string;
   model?: string;
+  parent_id?: string | null;
+  forked_from_message_id?: string | null;
+  root_id?: string | null;
   created_at: string;
   updated_at: string;
   messages: ChatMessage[];
@@ -177,6 +180,10 @@ export interface ChatMessage {
   created_at: string;
   model?: string;
   tool_calls?: unknown[];
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  estimated_cost_usd?: number | null;
 }
 
 export interface UsageStats {

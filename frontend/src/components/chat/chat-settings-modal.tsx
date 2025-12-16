@@ -8,6 +8,10 @@ interface ChatSettingsModalProps {
   onClose: () => void;
   systemPrompt: string;
   onSystemPromptChange: (prompt: string) => void;
+  availableModels?: Array<{ id: string }>;
+  selectedModel?: string;
+  onSelectedModelChange?: (modelId: string) => void;
+  onForkModels?: (modelIds: string[]) => void;
 }
 
 const STORAGE_KEY = 'vllm-studio-system-prompt';
@@ -17,8 +21,13 @@ export function ChatSettingsModal({
   onClose,
   systemPrompt,
   onSystemPromptChange,
+  availableModels = [],
+  selectedModel = '',
+  onSelectedModelChange,
+  onForkModels,
 }: ChatSettingsModalProps) {
   const [localPrompt, setLocalPrompt] = useState(systemPrompt);
+  const [forkSelection, setForkSelection] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setLocalPrompt(systemPrompt);
@@ -44,6 +53,22 @@ export function ChatSettingsModal({
     setLocalPrompt('');
   };
 
+  const toggleForkModel = (id: string) => {
+    setForkSelection((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const forkSelected = () => {
+    if (!onForkModels) return;
+    const selected = Object.entries(forkSelection)
+      .filter(([, v]) => v)
+      .map(([k]) => k)
+      .filter((id) => id && id !== selectedModel);
+    if (selected.length === 0) return;
+    onForkModels(selected);
+    setForkSelection({});
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-[var(--card)] border border-[var(--border)] rounded-lg w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
@@ -63,6 +88,28 @@ export function ChatSettingsModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* Model Section */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Chat Model</label>
+            <p className="text-xs text-[var(--muted)]">
+              Each chat can target a different model. Sending a message will auto-switch the backend if needed.
+            </p>
+            <select
+              value={selectedModel}
+              onChange={(e) => onSelectedModelChange?.(e.target.value)}
+              className="w-full px-3 py-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--foreground)]"
+            >
+              <option value="" disabled>
+                Select a model…
+              </option>
+              {availableModels.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.id}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* System Prompt Section */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -89,6 +136,41 @@ export function ChatSettingsModal({
               <span>{localPrompt.length} characters</span>
             </div>
           </div>
+
+          {/* Forking Section */}
+          {onForkModels && availableModels.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Fork Chat (Split)</label>
+              <p className="text-xs text-[var(--muted)]">
+                Create parallel chats with the same history, each using a different model.
+              </p>
+              <div className="max-h-40 overflow-y-auto border border-[var(--border)] rounded-lg bg-[var(--background)]">
+                {availableModels.map((m) => (
+                  <label
+                    key={m.id}
+                    className="flex items-center gap-2 px-3 py-2 text-sm border-b border-[var(--border)] last:border-b-0"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!forkSelection[m.id]}
+                      onChange={() => toggleForkModel(m.id)}
+                      disabled={m.id === selectedModel}
+                    />
+                    <span className={`font-mono text-xs ${m.id === selectedModel ? 'text-[var(--muted)]' : ''}`}>
+                      {m.id}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <button
+                onClick={forkSelected}
+                disabled={Object.values(forkSelection).every((v) => !v)}
+                className="px-3 py-2 text-sm bg-[var(--foreground)] text-[var(--background)] rounded hover:opacity-90 disabled:opacity-30"
+              >
+                Create fork(s)
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

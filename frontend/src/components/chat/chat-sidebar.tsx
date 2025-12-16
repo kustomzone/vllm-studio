@@ -133,6 +133,11 @@ export function ChatSidebar({
                     className="w-full px-3 py-2 text-left"
                   >
                     <span className="text-sm truncate block">{session.title}</span>
+                    {session.model && (
+                      <span className="text-xs text-[var(--muted)] font-mono truncate block">
+                        {session.parent_id ? '↳ ' : ''}{session.model}
+                      </span>
+                    )}
                     <span className="text-xs text-[var(--muted)]">
                       {new Date(session.updated_at).toLocaleDateString()}
                     </span>
@@ -209,6 +214,11 @@ export function ChatSidebar({
                 className="w-full px-2 py-1 text-left"
               >
                 <span className="text-xs truncate block">{session.title}</span>
+                {session.model && (
+                  <span className="text-[10px] text-[var(--muted)] font-mono truncate block">
+                    {session.parent_id ? '↳ ' : ''}{session.model}
+                  </span>
+                )}
               </button>
 
               {hoveredId === session.id && (

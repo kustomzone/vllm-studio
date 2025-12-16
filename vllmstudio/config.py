@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     # Process management
     default_gpu_count: int = 8
 
+    # Optional token pricing (USD per 1k tokens), JSON string like:
+    # {"default": {"prompt_per_1k": 0.0, "completion_per_1k": 0.0}, "gpt-4o": {"prompt_per_1k": 0.005, "completion_per_1k": 0.015}}
+    token_pricing_json: Optional[str] = None
+
     model_config = {
         "env_prefix": "VLLMSTUDIO_",
         "env_file": ".env",

@@ -272,9 +272,9 @@ class APIClient {
     return { session };
   }
 
-  async getChatSession(sessionId: string): Promise<{ messages: ChatMessage[] }> {
+  async getChatSession(sessionId: string): Promise<{ session: ChatSession }> {
     const data = await this.request<ChatSession>(`/chats/${sessionId}`);
-    return { messages: data.messages || [] };
+    return { session: data };
   }
 
   async deleteChatSession(sessionId: string): Promise<void> {
@@ -290,6 +290,7 @@ class APIClient {
   }
 
   async addChatMessage(sessionId: string, message: {
+    id?: string;
     role: string;
     content: string;
     model?: string;
@@ -299,6 +300,28 @@ class APIClient {
       method: 'POST',
       body: JSON.stringify(message),
     });
+  }
+
+  async forkChatSession(sessionId: string, params?: { title?: string; model?: string; message_id?: string }): Promise<{ session: ChatSession }> {
+    const res = await this.request<ChatSession>(`/chats/${sessionId}/fork`, {
+      method: 'POST',
+      body: JSON.stringify(params || {}),
+    });
+    return { session: res };
+  }
+
+  async getChatUsage(sessionId: string): Promise<{
+    session_id: string;
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    estimated_cost_usd?: number | null;
+  }> {
+    return this.request(`/chats/${sessionId}/usage`);
+  }
+
+  async getOpenAIModels(): Promise<{ object: string; data: Array<{ id: string; root?: string; max_model_len?: number }> }> {
+    return this.request('/v1/models');
   }
 
   // Legacy aliases

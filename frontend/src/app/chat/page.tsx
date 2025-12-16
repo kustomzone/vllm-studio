@@ -8,6 +8,7 @@ import {
   Check,
   Menu,
   Plus,
+  GitBranch,
 } from 'lucide-react';
 import api from '@/lib/api';
 import type { ChatSession, ToolCall, ToolResult, MCPTool } from '@/lib/types';
@@ -23,6 +24,11 @@ interface Message {
   isStreaming?: boolean;
   toolCalls?: ToolCall[];
   toolResults?: ToolResult[];
+  model?: string;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  estimated_cost_usd?: number | null;
 }
 
 interface StreamEvent {
@@ -96,6 +102,8 @@ export default function ChatPage() {
   // Model state
   const [runningModel, setRunningModel] = useState<string | null>(null);
   const [modelName, setModelName] = useState<string>('');
+  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [availableModels, setAvailableModels] = useState<Array<{ id: string; root?: string; max_model_len?: number }>>([]);
   const [pageLoading, setPageLoading] = useState(true);
 
   // UI state
@@ -139,7 +147,19 @@ export default function ChatPage() {
     loadStatus();
     loadSessions();
     loadMCPServers();
+    loadAvailableModels();
   }, []);
+
+  const loadAvailableModels = async () => {
+    try {
+      const res = await api.getOpenAIModels();
+      const data = Array.isArray(res.data) ? res.data : [];
+      setAvailableModels(data.map((m) => ({ id: m.id, root: m.root, max_model_len: m.max_model_len })));
+    } catch (e) {
+      console.log('OpenAI models endpoint not available:', e);
+      setAvailableModels([]);
+    }
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -188,6 +208,7 @@ export default function ChatPage() {
             status.running_process.model_path.split('/').pop() ||
             'Model'
         );
+        setSelectedModel((prev) => prev || modelId);
       }
     } catch (e) {
       console.error('Failed to load status:', e);
@@ -212,14 +233,20 @@ export default function ChatPage() {
   const loadSession = async (sessionId: string) => {
     try {
       const data = await api.getChatSession(sessionId);
+      const session = data.session;
       const loadedToolResults = new Map<string, ToolResult>();
-      const loadedMessages: Message[] = data.messages
+      const loadedMessages: Message[] = (session.messages || [])
         .filter((m) => m.role === 'user' || m.role === 'assistant')
         .map((m) => {
           const base: Message = {
             id: m.id,
             role: m.role as 'user' | 'assistant',
             content: m.content,
+            model: m.model,
+            prompt_tokens: (m as any).prompt_tokens,
+            completion_tokens: (m as any).completion_tokens,
+            total_tokens: (m as any).total_tokens,
+            estimated_cost_usd: (m as any).estimated_cost_usd ?? null,
           };
 
           if (m.role === 'assistant' && Array.isArray(m.tool_calls)) {
@@ -265,6 +292,7 @@ export default function ChatPage() {
       setToolResultsMap(loadedToolResults);
       setExecutingTools(new Set());
       setCurrentSessionId(sessionId);
+      if (session.model) setSelectedModel(session.model);
     } catch (e) {
       console.error('Failed to load session:', e);
       setError('Failed to load conversation');
@@ -275,6 +303,7 @@ export default function ChatPage() {
     setMessages([]);
     setCurrentSessionId(null);
     setError(null);
+    setSelectedModel(runningModel || availableModels[0]?.id || '');
     setTimeout(() => {
       const inputEl = document.querySelector('textarea');
       inputEl?.focus();
@@ -559,7 +588,8 @@ export default function ChatPage() {
     const hasText = input.trim().length > 0;
     const hasAttachments = attachments && attachments.length > 0;
 
-    if ((!hasText && !hasAttachments) || !runningModel || isLoading) return;
+    const activeModelId = (selectedModel || runningModel || '').trim();
+    if ((!hasText && !hasAttachments) || !activeModelId || isLoading) return;
 
     const userContent = input.trim();
     const imageAttachments = attachments?.filter((a) => a.type === 'image' && a.base64) || [];
@@ -569,6 +599,7 @@ export default function ChatPage() {
       role: 'user',
       content: userContent || (imageAttachments.length > 0 ? '[Image]' : ''),
       images: imageAttachments.map((a) => a.base64!),
+      model: activeModelId,
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -599,7 +630,7 @@ export default function ChatPage() {
       // Create session early so it shows in the sidebar immediately.
       if (!sessionId) {
         try {
-          const { session } = await api.createChatSession({ title: 'New Chat', model: runningModel || undefined });
+          const { session } = await api.createChatSession({ title: 'New Chat', model: activeModelId || undefined });
           sessionId = session.id;
           setCurrentSessionId(sessionId);
           setSessions((prev) => [session, ...prev]);
@@ -612,11 +643,26 @@ export default function ChatPage() {
       // Persist the user message up-front (best-effort).
       if (sessionId) {
         try {
-          await api.addChatMessage(sessionId, {
+          const persisted = await api.addChatMessage(sessionId, {
+            id: userMessage.id,
             role: 'user',
             content: userContent,
-            model: runningModel || undefined,
+            model: activeModelId || undefined,
           });
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === persisted.id
+                ? {
+                    ...m,
+                    model: persisted.model || m.model,
+                    prompt_tokens: (persisted as any).prompt_tokens,
+                    completion_tokens: (persisted as any).completion_tokens,
+                    total_tokens: (persisted as any).total_tokens,
+                    estimated_cost_usd: (persisted as any).estimated_cost_usd ?? null,
+                  }
+                : m
+            )
+          );
           bumpSessionUpdatedAt();
           setSessionsAvailable(true);
         } catch (e) {
@@ -637,7 +683,7 @@ export default function ChatPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             messages: conversationMessages,
-            model: runningModel,
+            model: activeModelId,
             tools: getOpenAITools(),
           }),
           signal: abortControllerRef.current?.signal,
@@ -652,7 +698,7 @@ export default function ChatPage() {
 
         // Create a new assistant message per iteration (tool loops are multiple assistant turns).
         const assistantMsgId = (Date.now() + iteration).toString();
-        setMessages((prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '', isStreaming: true }]);
+        setMessages((prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '', isStreaming: true, model: activeModelId }]);
 
         let iterationContent = '';
         let toolCalls: ToolCall[] = [];
@@ -685,11 +731,26 @@ export default function ChatPage() {
           // Persist final assistant message (best-effort).
           if (sessionId) {
             try {
-              await api.addChatMessage(sessionId, {
+              const persisted = await api.addChatMessage(sessionId, {
+                id: assistantMsgId,
                 role: 'assistant',
                 content: iterationContent,
-                model: runningModel || undefined,
+                model: activeModelId || undefined,
               });
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === persisted.id
+                    ? {
+                        ...m,
+                        model: persisted.model || m.model,
+                        prompt_tokens: (persisted as any).prompt_tokens,
+                        completion_tokens: (persisted as any).completion_tokens,
+                        total_tokens: (persisted as any).total_tokens,
+                        estimated_cost_usd: (persisted as any).estimated_cost_usd ?? null,
+                      }
+                    : m
+                )
+              );
               bumpSessionUpdatedAt();
               setSessionsAvailable(true);
             } catch (e) {
@@ -757,12 +818,27 @@ export default function ChatPage() {
               const result = toolResults.find((r) => r.tool_call_id === tc.id);
               return { ...tc, result: result || null };
             });
-            await api.addChatMessage(sessionId, {
+            const persisted = await api.addChatMessage(sessionId, {
+              id: assistantMsgId,
               role: 'assistant',
               content: iterationContent,
-              model: runningModel || undefined,
+              model: activeModelId || undefined,
               tool_calls: toolCallsForPersistence,
             });
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === persisted.id
+                  ? {
+                      ...m,
+                      model: persisted.model || m.model,
+                      prompt_tokens: (persisted as any).prompt_tokens,
+                      completion_tokens: (persisted as any).completion_tokens,
+                      total_tokens: (persisted as any).total_tokens,
+                      estimated_cost_usd: (persisted as any).estimated_cost_usd ?? null,
+                    }
+                  : m
+              )
+            );
             bumpSessionUpdatedAt();
             setSessionsAvailable(true);
           } catch (e) {
@@ -799,7 +875,7 @@ export default function ChatPage() {
           const res = await fetch('/api/title', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: runningModel, user: userContent, assistant: finalAssistantContent }),
+            body: JSON.stringify({ model: activeModelId, user: userContent, assistant: finalAssistantContent }),
           });
           if (res.ok) {
             const data = (await res.json().catch(() => null)) as { title?: string } | null;
@@ -849,6 +925,21 @@ export default function ChatPage() {
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
+  const forkAtMessage = async (messageId: string) => {
+    if (!currentSessionId) return;
+    try {
+      const { session } = await api.forkChatSession(currentSessionId, {
+        message_id: messageId,
+        model: (selectedModel || undefined) as string | undefined,
+      });
+      setSessions((prev) => [session, ...prev]);
+      await loadSession(session.id);
+    } catch (e) {
+      console.log('Fork failed:', e);
+      alert('Failed to fork chat');
+    }
+  };
+
   if (pageLoading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
@@ -872,7 +963,7 @@ export default function ChatPage() {
             <Menu className="h-5 w-5" />
           </button>
           <span className="text-sm font-medium truncate mx-2">
-            {modelName || 'Chat'}
+            {selectedModel || modelName || 'Chat'}
           </span>
           <button
             onClick={createSession}
@@ -907,7 +998,7 @@ export default function ChatPage() {
                 <div className="text-center px-4 animate-fade-in">
                   <Sparkles className="h-6 w-6 text-[var(--muted)] mx-auto mb-3" />
                   <p className="text-sm text-[var(--muted)]">
-                    {runningModel ? 'Send a message to start' : 'No model running'}
+                    {selectedModel || runningModel ? 'Send a message to start' : 'Select a model in Settings to start'}
                   </p>
                 </div>
               </div>
@@ -941,8 +1032,23 @@ export default function ChatPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-xs text-[var(--muted)]">
-                            {message.role === 'user' ? 'You' : modelName}
+                            {message.role === 'user' ? 'You' : (message.model || selectedModel || modelName || 'Assistant')}
                           </span>
+                          {(message.total_tokens || message.prompt_tokens || message.completion_tokens) && (
+                            <span className="text-[10px] text-[var(--muted)] font-mono">
+                              {`${(message.total_tokens ?? (message.prompt_tokens || 0) + (message.completion_tokens || 0)).toLocaleString()} tok`}
+                              {message.estimated_cost_usd ? ` • $${message.estimated_cost_usd.toFixed(4)}` : ''}
+                            </span>
+                          )}
+                          {currentSessionId && (
+                            <button
+                              onClick={() => forkAtMessage(message.id)}
+                              className="p-0.5 rounded hover:bg-[var(--accent)] transition-colors"
+                              title="Fork chat from here"
+                            >
+                              <GitBranch className="h-3 w-3 text-[var(--muted)]" />
+                            </button>
+                          )}
                           <button
                             onClick={() => copyToClipboard(message.content, index)}
                             className="p-0.5 rounded hover:bg-[var(--accent)] transition-colors"
@@ -1035,10 +1141,10 @@ export default function ChatPage() {
             onChange={setInput}
             onSubmit={sendMessage}
             onStop={stopGeneration}
-            disabled={!runningModel}
+            disabled={!((selectedModel || runningModel || '').trim())}
             isLoading={isLoading}
-            modelName={modelName}
-            placeholder={runningModel ? 'Message...' : 'No model running'}
+            modelName={selectedModel || modelName}
+            placeholder={(selectedModel || runningModel) ? 'Message...' : 'Select a model in Settings'}
             mcpEnabled={mcpEnabled}
             onMcpToggle={() => setMcpEnabled(!mcpEnabled)}
             mcpServers={mcpServers.map((s) => ({ name: s.name, enabled: s.enabled }))}
@@ -1066,6 +1172,38 @@ export default function ChatPage() {
           onClose={() => setChatSettingsOpen(false)}
           systemPrompt={systemPrompt}
           onSystemPromptChange={setSystemPrompt}
+          availableModels={availableModels}
+          selectedModel={selectedModel}
+          onSelectedModelChange={async (modelId) => {
+            const next = (modelId || '').trim();
+            setSelectedModel(next);
+            if (currentSessionId) {
+              try {
+                await api.updateChatSession(currentSessionId, { model: next || undefined });
+                setSessions((prev) => prev.map((s) => (s.id === currentSessionId ? { ...s, model: next } : s)));
+              } catch (e) {
+                console.log('Failed to persist chat model:', e);
+              }
+            }
+          }}
+          onForkModels={async (modelIds) => {
+            const baseId = currentSessionId;
+            if (!baseId) return;
+            const created: string[] = [];
+            for (const m of modelIds) {
+              try {
+                const { session } = await api.forkChatSession(baseId, { model: m, title: undefined });
+                created.push(session.id);
+                setSessions((prev) => [session, ...prev]);
+              } catch (e) {
+                console.log('Fork failed:', e);
+              }
+            }
+            if (created.length > 0) {
+              await loadSessions();
+              await loadSession(created[0]);
+            }
+          }}
         />
       </div>
     </div>
