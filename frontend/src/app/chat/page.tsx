@@ -51,6 +51,7 @@ type OpenAIMessage =
   | {
       role: 'tool';
       tool_call_id: string;
+      name?: string;
       content: string;
     };
 
@@ -312,11 +313,36 @@ export default function ChatPage() {
           });
         }
         apiMessages.push({ role: m.role, content });
-      } else {
-        const content =
-          m.role === 'assistant' ? stripThinkingForModelContext(m.content) : m.content;
-        apiMessages.push({ role: m.role, content });
+        continue;
       }
+
+      if (m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0) {
+        const assistantContent = stripThinkingForModelContext(m.content) || null;
+        apiMessages.push({
+          role: 'assistant',
+          content: assistantContent,
+          tool_calls: m.toolCalls.map((tc) => ({
+            id: tc.id,
+            type: 'function',
+            function: { name: tc.function.name, arguments: tc.function.arguments },
+          })),
+        });
+
+        const nameById = new Map(m.toolCalls.map((tc) => [tc.id, tc.function.name]));
+        for (const result of m.toolResults || []) {
+          apiMessages.push({
+            role: 'tool',
+            tool_call_id: result.tool_call_id,
+            name: nameById.get(result.tool_call_id),
+            content: result.content,
+          });
+        }
+        continue;
+      }
+
+      const content =
+        m.role === 'assistant' ? stripThinkingForModelContext(m.content) : m.content;
+      apiMessages.push({ role: m.role, content });
     }
 
     return apiMessages;
@@ -420,7 +446,7 @@ export default function ChatPage() {
       // Tool calling loop - continues until no more tool calls
       let iteration = 0;
       const MAX_ITERATIONS = 10;
-      const executedToolSignatures = new Set<string>();
+      const cachedToolResultsBySignature = new Map<string, Omit<ToolResult, 'tool_call_id'>>();
 
       while (iteration < MAX_ITERATIONS) {
         iteration++;
@@ -501,6 +527,7 @@ export default function ChatPage() {
         // Execute tool calls
         console.log(`[MCP] Executing ${toolCalls.length} tool call(s)`);
         const toolResults: ToolResult[] = [];
+        const toolNameByCallId = new Map<string, string>();
 
         for (const tc of toolCalls) {
           const signature = (() => {
@@ -514,15 +541,24 @@ export default function ChatPage() {
             }
           })();
 
-          if (executedToolSignatures.has(signature)) {
-            throw new Error(
-              `Model repeated the same tool call; stopping to avoid a loop (${tc.function.name}).`
-            );
+          toolNameByCallId.set(tc.id, tc.function.name);
+
+          // If the model repeats the exact same call, don't re-run it; return a cached result so it can proceed.
+          if (cachedToolResultsBySignature.has(signature)) {
+            const cached = cachedToolResultsBySignature.get(signature)!;
+            const result: ToolResult = {
+              tool_call_id: tc.id,
+              content: cached.content,
+              isError: cached.isError,
+            };
+            toolResults.push(result);
+            setToolResultsMap((prev) => new Map(prev).set(tc.id, result));
+            continue;
           }
-          executedToolSignatures.add(signature);
 
           setExecutingTools((prev) => new Set(prev).add(tc.id));
           const result = await executeMCPTool(tc);
+          cachedToolResultsBySignature.set(signature, { content: result.content, isError: result.isError });
           toolResults.push(result);
           setToolResultsMap((prev) => new Map(prev).set(tc.id, result));
           setExecutingTools((prev) => {
@@ -559,6 +595,7 @@ export default function ChatPage() {
           conversationMessages.push({
             role: 'tool',
             tool_call_id: result.tool_call_id,
+            name: toolNameByCallId.get(result.tool_call_id),
             content: result.content,
           });
         }
