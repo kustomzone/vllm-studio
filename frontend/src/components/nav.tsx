@@ -21,10 +21,10 @@ import api from '@/lib/api';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/models', label: 'Models', icon: Layers },
-  { href: '/logs', label: 'Logs', icon: FileText },
-  { href: '/configs', label: 'Configs', icon: Settings },
   { href: '/chat', label: 'Chat', icon: MessageSquare },
+  { href: '/recipes', label: 'Recipes', icon: Settings },
+  { href: '/logs', label: 'Logs', icon: FileText },
+  { href: '/models', label: 'Models', icon: Layers },
 ];
 
 export default function Nav() {

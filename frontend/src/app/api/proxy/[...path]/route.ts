@@ -45,6 +45,7 @@ async function handleRequest(request: NextRequest, method: string, path: string[
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      ...(request.headers.get('accept') ? { Accept: request.headers.get('accept') as string } : {}),
     };
 
     if (API_KEY) {
@@ -61,13 +62,22 @@ async function handleRequest(request: NextRequest, method: string, path: string[
       body,
     });
 
-    const data = await response.text();
+    const contentType = response.headers.get('content-type') || 'application/json';
 
+    if (contentType.includes('text/event-stream') && response.body) {
+      return new NextResponse(response.body, {
+        status: response.status,
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': response.headers.get('cache-control') || 'no-cache',
+        },
+      });
+    }
+
+    const data = await response.text();
     return new NextResponse(data, {
       status: response.status,
-      headers: {
-        'Content-Type': response.headers.get('content-type') || 'application/json',
-      },
+      headers: { 'Content-Type': contentType },
     });
 
   } catch (error) {

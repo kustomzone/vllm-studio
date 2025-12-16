@@ -10,10 +10,13 @@ export default function LogsPage() {
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
   const [logContent, setLogContent] = useState<string>('');
   const [filter, setFilter] = useState('');
+  const [contentFilter, setContentFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingContent, setLoadingContent] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [followLive, setFollowLive] = useState(true);
   const logRef = useRef<HTMLDivElement>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     loadSessions();
@@ -21,15 +24,55 @@ export default function LogsPage() {
 
   useEffect(() => {
     if (selectedSession) {
-      loadLogContent(selectedSession);
+      if (followLive) {
+        startLive(selectedSession);
+      } else {
+        stopLive();
+        loadLogContent(selectedSession);
+      }
     }
-  }, [selectedSession]);
+    return () => stopLive();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSession, followLive]);
 
   useEffect(() => {
     if (autoScroll && logRef.current) {
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
   }, [logContent, autoScroll]);
+
+  const stopLive = () => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+  };
+
+  const startLive = (sessionId: string) => {
+    stopLive();
+    setLogContent('');
+    setLoadingContent(true);
+
+    const url = `/api/proxy/logs/live/${encodeURIComponent(sessionId)}?lines=200`;
+    const es = new EventSource(url);
+    eventSourceRef.current = es;
+
+    es.onmessage = (ev) => {
+      setLoadingContent(false);
+      const line = ev.data ?? '';
+      setLogContent((prev) => {
+        const next = prev ? `${prev}\n${line}` : line;
+        const lines = next.split('\n');
+        const trimmed = lines.length > 4000 ? lines.slice(-4000).join('\n') : next;
+        return trimmed;
+      });
+    };
+
+    es.onerror = () => {
+      setLoadingContent(false);
+      stopLive();
+    };
+  };
 
   const loadSessions = async () => {
     try {
@@ -101,7 +144,11 @@ export default function LogsPage() {
   };
 
   const highlightLog = (content: string) => {
-    return content.split('\n').map((line, i) => {
+    const lines = content.split('\n');
+    const q = contentFilter.trim().toLowerCase();
+    const visibleLines = q ? lines.filter((l) => l.toLowerCase().includes(q)) : lines;
+
+    return visibleLines.map((line, i) => {
       let className = 'text-[var(--muted-foreground)]';
       if (line.includes('ERROR') || line.includes('error')) {
         className = 'text-[var(--error)]';
@@ -220,14 +267,30 @@ export default function LogsPage() {
                 <label className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
                   <input
                     type="checkbox"
+                    checked={followLive}
+                    onChange={(e) => setFollowLive(e.target.checked)}
+                    className="rounded"
+                  />
+                  Follow live
+                </label>
+                <label className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
+                  <input
+                    type="checkbox"
                     checked={autoScroll}
                     onChange={(e) => setAutoScroll(e.target.checked)}
                     className="rounded"
                   />
                   Auto-scroll
                 </label>
+                <input
+                  type="text"
+                  value={contentFilter}
+                  onChange={(e) => setContentFilter(e.target.value)}
+                  placeholder="Filter lines…"
+                  className="px-3 py-2 text-sm bg-[var(--card)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--accent)] w-56"
+                />
                 <button
-                  onClick={() => loadLogContent(selectedSession)}
+                  onClick={() => (followLive ? startLive(selectedSession) : loadLogContent(selectedSession))}
                   className="p-2 hover:bg-[var(--card-hover)] rounded-lg transition-colors"
                   title="Refresh"
                 >

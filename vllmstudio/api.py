@@ -864,6 +864,36 @@ async def get_logs(recipe_id: str, lines: int = 100):
         return {"logs": [], "error": str(e)}
 
 
+@app.delete("/logs/{recipe_id}")
+async def delete_logs(recipe_id: str):
+    """Delete a log file for a recipe id (only within known log directories)."""
+    from fastapi import HTTPException
+
+    log_file = find_log_file(recipe_id)
+    if not log_file:
+        raise HTTPException(status_code=404, detail=f"No log file found for {recipe_id}")
+
+    try:
+        resolved = log_file.resolve()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid log file path")
+
+    allowed_roots = [p.resolve() for p in LOG_DIRS]
+    local_logs = (Path(__file__).parent.parent / "logs")
+    if local_logs.exists():
+        allowed_roots.append(local_logs.resolve())
+
+    is_allowed = any(str(resolved).startswith(str(root) + "/") or resolved == root for root in allowed_roots)
+    if not is_allowed:
+        raise HTTPException(status_code=403, detail="Refusing to delete logs outside allowed directories")
+
+    try:
+        resolved.unlink(missing_ok=True)
+        return {"status": "deleted", "file": str(resolved)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/logs")
 async def list_log_files():
     """List available log files from all log directories."""

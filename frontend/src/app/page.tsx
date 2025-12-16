@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Play, Cpu, Zap, HardDrive, Activity, Clock, Hash, Thermometer, MemoryStick, Settings } from 'lucide-react';
+import { Search, Play, Cpu, Zap, HardDrive, Activity, Clock, Hash, Thermometer, MemoryStick, Settings, MessageSquare, FileText, Square } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import type { GPU, RecipeWithStatus, ProcessInfo, Metrics } from '@/lib/types';
@@ -92,6 +92,16 @@ export default function Dashboard() {
     }
   };
 
+  const handleStop = async () => {
+    if (!confirm('Stop the current model?')) return;
+    try {
+      await api.evictModel(true);
+      await loadData();
+    } catch (e) {
+      alert('Failed to stop model: ' + (e as Error).message);
+    }
+  };
+
   const getTempColor = (temp: number) => {
     if (temp > 80) return 'text-[var(--error)]';
     if (temp > 60) return 'text-[var(--warning)]';
@@ -170,11 +180,47 @@ export default function Dashboard() {
           <section className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wide">Running Model</h2>
-              <span className={`px-2 py-1 rounded text-xs font-medium ${
-                currentProcess ? 'bg-[var(--success)]/10 text-[var(--success)]' : 'bg-[var(--error)]/10 text-[var(--error)]'
-              }`}>
-                {currentProcess ? 'Online' : 'Offline'}
-              </span>
+              <div className="flex items-center gap-2">
+                {currentProcess ? (
+                  <>
+                    <button
+                      onClick={() => router.push('/chat')}
+                      className="flex items-center gap-1 px-2 py-1 border border-[var(--border)] rounded text-xs hover:bg-[var(--card-hover)]"
+                      title="Open chat"
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" /> Chat
+                    </button>
+                    <button
+                      onClick={() => router.push('/logs')}
+                      className="flex items-center gap-1 px-2 py-1 border border-[var(--border)] rounded text-xs hover:bg-[var(--card-hover)]"
+                      title="Open logs"
+                    >
+                      <FileText className="h-3.5 w-3.5" /> Logs
+                    </button>
+                    {currentRecipe?.id ? (
+                      <button
+                        onClick={() => router.push(`/recipes?edit=${currentRecipe.id}`)}
+                        className="flex items-center gap-1 px-2 py-1 border border-[var(--border)] rounded text-xs hover:bg-[var(--card-hover)]"
+                        title="Edit recipe"
+                      >
+                        <Settings className="h-3.5 w-3.5" /> Edit
+                      </button>
+                    ) : null}
+                    <button
+                      onClick={handleStop}
+                      className="flex items-center gap-1 px-2 py-1 border border-[var(--border)] rounded text-xs hover:bg-[var(--card-hover)] text-[var(--error)]"
+                      title="Stop model"
+                    >
+                      <Square className="h-3.5 w-3.5" /> Stop
+                    </button>
+                  </>
+                ) : null}
+                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                  currentProcess ? 'bg-[var(--success)]/10 text-[var(--success)]' : 'bg-[var(--error)]/10 text-[var(--error)]'
+                }`}>
+                  {currentProcess ? 'Online' : 'Offline'}
+                </span>
+              </div>
             </div>
 
             {currentProcess ? (
@@ -356,7 +402,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wide">Recipes ({recipes.length})</h2>
               <button
-                onClick={() => router.push('/configs')}
+                onClick={() => router.push('/recipes?new=1')}
                 className="text-xs text-[var(--accent)] hover:underline"
               >
                 + New
@@ -381,7 +427,7 @@ export default function Dashboard() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      router.push(`/configs?edit=${recipe.id}`);
+                      router.push(`/recipes?edit=${recipe.id}`);
                     }}
                     className="p-1 opacity-0 group-hover:opacity-100 text-[var(--muted-foreground)] hover:text-[var(--accent)] transition-all"
                     title="Edit recipe"
