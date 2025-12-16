@@ -138,6 +138,26 @@ const parseToolCallBlock = (block: string, idx: number): ToolCall | null => {
   };
 };
 
+const parseInlineToolCall = (line: string, idx: number): ToolCall | null => {
+  const trimmed = (line || '').trim();
+  if (!trimmed.includes(TOOL_CALL_START)) return null;
+  const after = trimmed.slice(trimmed.indexOf(TOOL_CALL_START) + TOOL_CALL_START.length).trim();
+  if (!after) return null;
+
+  // Expected: fnName({...}) or fnName([...]) or fnName("...") or fnName
+  const m = after.match(/^([a-zA-Z0-9_.:-]+)\s*(?:\(([\s\S]*)\))?\s*$/);
+  if (!m) return null;
+  const name = m[1];
+  const argsRaw = (m[2] || '').trim();
+  const argumentsJson = normalizeToolArgumentsJson(argsRaw);
+
+  return {
+    id: `xml_call_${idx}`,
+    type: 'function',
+    function: { name, arguments: argumentsJson },
+  };
+};
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -225,7 +245,19 @@ export async function POST(req: NextRequest) {
         }
 
         const endIdx = xmlContentBuffer.indexOf(TOOL_CALL_END);
-        if (endIdx === -1) return; // wait for more
+        if (endIdx === -1) {
+          // Handle one-line tool calls that omit the closing tag:
+          // <tool_call>tool_name({...})
+          // Parse once we have a newline, otherwise wait for more.
+          const nl = xmlContentBuffer.indexOf('\n');
+          if (nl === -1) return;
+          const firstLine = xmlContentBuffer.slice(0, nl);
+          const parsed = parseInlineToolCall(firstLine, xmlToolCalls.length);
+          if (parsed) xmlToolCalls.push(parsed);
+          // Drop the tool call line from visible output
+          xmlContentBuffer = xmlContentBuffer.slice(nl + 1);
+          continue;
+        }
 
         const block = xmlContentBuffer.slice(0, endIdx + TOOL_CALL_END.length);
         xmlContentBuffer = xmlContentBuffer.slice(endIdx + TOOL_CALL_END.length);
@@ -381,7 +413,21 @@ export async function POST(req: NextRequest) {
 
                   // Flush any remaining buffered text (including incomplete <tool_call> blocks)
                   if (xmlContentBuffer) {
-                    controller.enqueue(sendEvent({ type: 'text', content: xmlContentBuffer }));
+                    // Best-effort parse any leftover one-line <tool_call> tags.
+                    const leftoverLines = xmlContentBuffer.split('\n');
+                    const kept: string[] = [];
+                    for (const ln of leftoverLines) {
+                      if (ln.includes(TOOL_CALL_START) && !ln.includes(TOOL_CALL_END)) {
+                        const parsed = parseInlineToolCall(ln, xmlToolCalls.length);
+                        if (parsed) {
+                          xmlToolCalls.push(parsed);
+                          continue;
+                        }
+                      }
+                      kept.push(ln);
+                    }
+                    const remainingText = kept.join('\n');
+                    if (remainingText) controller.enqueue(sendEvent({ type: 'text', content: remainingText }));
                     xmlContentBuffer = '';
                   }
                   emitCompletedToolsIfAny(controller);
@@ -398,7 +444,20 @@ export async function POST(req: NextRequest) {
             inReasoning = false;
           }
           if (xmlContentBuffer) {
-            controller.enqueue(sendEvent({ type: 'text', content: xmlContentBuffer }));
+            const leftoverLines = xmlContentBuffer.split('\n');
+            const kept: string[] = [];
+            for (const ln of leftoverLines) {
+              if (ln.includes(TOOL_CALL_START) && !ln.includes(TOOL_CALL_END)) {
+                const parsed = parseInlineToolCall(ln, xmlToolCalls.length);
+                if (parsed) {
+                  xmlToolCalls.push(parsed);
+                  continue;
+                }
+              }
+              kept.push(ln);
+            }
+            const remainingText = kept.join('\n');
+            if (remainingText) controller.enqueue(sendEvent({ type: 'text', content: remainingText }));
             xmlContentBuffer = '';
           }
           emitCompletedToolsIfAny(controller);

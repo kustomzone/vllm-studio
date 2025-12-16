@@ -409,8 +409,44 @@ export default function ChatPage() {
   // Execute an MCP tool call
   const executeMCPTool = async (toolCall: ToolCall): Promise<ToolResult> => {
     const funcName = toolCall.function.name;
-    const [server, ...nameParts] = funcName.split('__');
-    const toolName = nameParts.join('__');
+
+    const resolveMcpTool = (name: string): { server: string; toolName: string; schema?: MCPTool } | null => {
+      const trimmed = (name || '').trim();
+      if (!trimmed) return null;
+
+      // Preferred format: `${server}__${tool}`
+      if (trimmed.includes('__')) {
+        const [server, ...nameParts] = trimmed.split('__');
+        const toolName = nameParts.join('__');
+        if (!server || !toolName) return null;
+        const schema = mcpTools.find((t) => t.server === server && t.name === toolName);
+        return { server, toolName, schema };
+      }
+
+      // Some models output only the tool name; try exact match across servers.
+      const exact = mcpTools.find((t) => t.name === trimmed);
+      if (exact) return { server: exact.server, toolName: exact.name, schema: exact };
+
+      const lower = trimmed.toLowerCase();
+      const haystack = (t: MCPTool) => `${t.name} ${t.description || ''}`.toLowerCase();
+
+      // Common aliases
+      const isSearch = /(^|_|\b)(search|web|browse|brave)(\b|_)/.test(lower);
+      const isFetch = /(^|_|\b)(fetch|http|url|download|read)(\b|_)/.test(lower);
+
+      let candidates = mcpTools;
+      if (isSearch) {
+        candidates = candidates.filter((t) => /search|brave|web/.test(haystack(t)));
+      } else if (isFetch) {
+        candidates = candidates.filter((t) => /fetch|http|url|download|read/.test(haystack(t)));
+      }
+
+      return candidates.length > 0 ? { server: candidates[0].server, toolName: candidates[0].name, schema: candidates[0] } : null;
+    };
+
+    const resolved = resolveMcpTool(funcName);
+    const server = resolved?.server || '';
+    const toolName = resolved?.toolName || '';
 
     const parseToolArgs = (raw: string | undefined): Record<string, unknown> => {
       const text = (raw || '').trim();
@@ -475,7 +511,34 @@ export default function ChatPage() {
     };
 
     try {
-      const args = parseToolArgs(toolCall.function.arguments);
+      if (!resolved) {
+        const available = mcpTools.slice(0, 12).map((t) => `${t.server}__${t.name}`).join(', ');
+        return {
+          tool_call_id: toolCall.id,
+          content: `Error: Unknown tool "${funcName}". Available tools include: ${available}${mcpTools.length > 12 ? ', ...' : ''}`,
+          isError: true,
+        };
+      }
+
+      let args = parseToolArgs(toolCall.function.arguments);
+
+      // Heuristic coercions for common "input" shapes.
+      const schema = resolved.schema;
+      const schemaProps = (schema?.input_schema as any)?.properties as Record<string, any> | undefined;
+      const wantsQuery = !!schemaProps && Object.prototype.hasOwnProperty.call(schemaProps, 'query');
+      const wantsUrl = !!schemaProps && (Object.prototype.hasOwnProperty.call(schemaProps, 'url') || Object.prototype.hasOwnProperty.call(schemaProps, 'uri'));
+
+      if (args && typeof args === 'object' && 'input' in args) {
+        const input = (args as any).input;
+        if (wantsQuery && (typeof input === 'string' || Array.isArray(input))) {
+          const query = Array.isArray(input) ? String(input[0] ?? '') : String(input);
+          args = { query, ...(typeof (args as any).count === 'number' ? { count: (args as any).count } : { count: 5 }) };
+        } else if (wantsUrl && (typeof input === 'string' || Array.isArray(input))) {
+          const url = Array.isArray(input) ? String(input[0] ?? '') : String(input);
+          args = { url };
+        }
+      }
+
       console.log(`[MCP] Calling ${server}/${toolName}`, args);
       const result = await api.callMCPTool(server, toolName, args);
       return {

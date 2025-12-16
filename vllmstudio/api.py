@@ -310,9 +310,16 @@ async def switch_model(request: SwitchRequest, background_tasks: BackgroundTasks
             pid=current.pid
         )
 
-    # Acquire lock to prevent concurrent switches
+    # If a switch is already in progress, return a non-error response so the UI can retry/poll.
+    # (Raising 409 here is noisy and often triggered by auto-switching in parallel.)
     if switching_lock.locked():
-        raise HTTPException(status_code=409, detail="Model switch already in progress")
+        return SwitchResponse(
+            success=False,
+            message="Model switch already in progress",
+            old_recipe=None,
+            new_recipe=recipe.id,
+            pid=None,
+        )
 
     async with switching_lock:
         old_recipe = None
@@ -449,9 +456,9 @@ async def _auto_switch_if_needed(body: bytes) -> bool:
                 if recipe.served_model_name == current.served_model_name:
                     return False  # Already running this recipe's model
 
-        # Need to switch! Acquire lock
+        # Need to switch; if another switch is active, don't raise a hard error (let the request continue).
         if switching_lock.locked():
-            raise HTTPException(status_code=409, detail="Model switch already in progress")
+            return False
 
         async with switching_lock:
             # Evict current model if running
