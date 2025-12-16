@@ -1,0 +1,15 @@
+{
+  "id": "nemotron-nano-30b",
+  "name": "Nemotron Nano 30B",
+  "model_path": "/mnt/llm_models/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
+  "served_model_name": "nemotron-nano-30b",
+  "backend": "vllm",
+  "tensor_parallel_size": 4,
+  "max_model_len": 32768,
+  "gpu_memory_utilization": 0.90,
+  "max_num_seqs": 12,
+  "disable_log_requests": true,
+  "trust_remote_code": true,
+  "host": "0.0.0.0",
+  "port": 8000
+}

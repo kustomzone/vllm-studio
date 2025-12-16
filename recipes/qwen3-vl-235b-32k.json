@@ -1,0 +1,19 @@
+{
+  "id": "qwen3-vl-235b-32k",
+  "name": "Qwen3-VL-235B 32K Context (22GB VRAM limit)",
+  "model_path": "/mnt/llm_models/Qwen3-VL-235B-A22B-Thinking-AWQ-4bit",
+  "engine": "vllm",
+  "served_model_name": "qwen3-vl-235b",
+  "port": 8000,
+  "tensor_parallel_size": 8,
+  "max_model_len": 32768,
+  "gpu_memory_utilization": 0.91,
+  "max_num_seqs": 16,
+  "block_size": 16,
+  "kv_cache_dtype": "fp8",
+  "trust_remote_code": true,
+  "disable_log_requests": true,
+  "venv_path": "/opt/venvs/active/devstral-vllm-nightly",
+  "description": "Qwen3-VL-235B Vision-Language model with 32K context, FP8 KV cache, capped at ~22GB VRAM per GPU",
+  "tags": ["vlm", "vision", "thinking", "32k-context", "awq-4bit", "fp8-kv"]
+}

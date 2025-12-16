@@ -12,6 +12,9 @@ import {
   FileText,
   Send,
   StopCircle,
+  Globe,
+  Code,
+  Settings,
 } from 'lucide-react';
 
 export interface Attachment {
@@ -24,6 +27,12 @@ export interface Attachment {
   base64?: string;
 }
 
+export interface MCPServer {
+  name: string;
+  enabled: boolean;
+  icon?: string;
+}
+
 interface ToolBeltProps {
   value: string;
   onChange: (value: string) => void;
@@ -33,6 +42,13 @@ interface ToolBeltProps {
   placeholder?: string;
   modelName?: string;
   onStop?: () => void;
+  // MCP & Artifacts toggles
+  mcpEnabled?: boolean;
+  onMcpToggle?: () => void;
+  mcpServers?: MCPServer[];
+  artifactsEnabled?: boolean;
+  onArtifactsToggle?: () => void;
+  onOpenMcpSettings?: () => void;
 }
 
 export function ToolBelt({
@@ -44,6 +60,12 @@ export function ToolBelt({
   placeholder = 'Message...',
   modelName,
   onStop,
+  mcpEnabled = false,
+  onMcpToggle,
+  mcpServers = [],
+  artifactsEnabled = false,
+  onArtifactsToggle,
+  onOpenMcpSettings,
 }: ToolBeltProps) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -350,6 +372,47 @@ export function ToolBelt({
                 ) : (
                   <VolumeX className="h-3.5 w-3.5 text-[var(--muted)]" />
                 )}
+              </button>
+
+              {/* Divider */}
+              <div className="w-px h-4 bg-[var(--border)] mx-1" />
+
+              {/* MCP/Web Search Toggle */}
+              <button
+                onClick={onMcpToggle}
+                disabled={disabled}
+                className={`p-1.5 rounded transition-colors disabled:opacity-50 ${
+                  mcpEnabled
+                    ? 'bg-blue-500/20 text-blue-500'
+                    : 'hover:bg-[var(--accent)]'
+                }`}
+                title={mcpEnabled ? 'Disable web search & tools' : 'Enable web search & tools'}
+              >
+                <Globe className={`h-3.5 w-3.5 ${mcpEnabled ? '' : 'text-[var(--muted)]'}`} />
+              </button>
+
+              {/* Artifacts/Code Execution Toggle */}
+              <button
+                onClick={onArtifactsToggle}
+                disabled={disabled}
+                className={`p-1.5 rounded transition-colors disabled:opacity-50 ${
+                  artifactsEnabled
+                    ? 'bg-purple-500/20 text-purple-500'
+                    : 'hover:bg-[var(--accent)]'
+                }`}
+                title={artifactsEnabled ? 'Disable code execution' : 'Enable Python/JS sandbox'}
+              >
+                <Code className={`h-3.5 w-3.5 ${artifactsEnabled ? '' : 'text-[var(--muted)]'}`} />
+              </button>
+
+              {/* MCP Settings */}
+              <button
+                onClick={onOpenMcpSettings}
+                disabled={disabled}
+                className="p-1.5 rounded hover:bg-[var(--accent)] transition-colors disabled:opacity-50"
+                title="Configure tools & MCPs"
+              >
+                <Settings className="h-3.5 w-3.5 text-[var(--muted)]" />
               </button>
             </div>
 

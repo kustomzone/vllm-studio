@@ -134,7 +134,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-6 overflow-x-hidden">
       {/* GPU Grid */}
       <section>
         <h2 className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wide mb-3">GPU Status</h2>

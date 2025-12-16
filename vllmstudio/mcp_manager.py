@@ -80,6 +80,13 @@ class MCPManager:
         # Check for common MCP servers
         default_servers = [
             MCPServer(
+                name="brave-search",
+                command="npx",
+                args=["-y", "@modelcontextprotocol/server-brave-search"],
+                env={"BRAVE_API_KEY": "BSAXS7ZocStxg8vT2z14r8hOWvTf6jt"},
+                enabled=True,
+            ),
+            MCPServer(
                 name="fetch",
                 command="uvx",
                 args=["mcp-server-fetch"],

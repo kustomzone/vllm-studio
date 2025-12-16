@@ -14,8 +14,8 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 import type { ChatSession } from '@/lib/types';
-import { MessageRenderer, ChatSidebar, ToolBelt } from '@/components/chat';
-import type { Attachment } from '@/components/chat';
+import { MessageRenderer, ChatSidebar, ToolBelt, MCPSettingsModal } from '@/components/chat';
+import type { Attachment, MCPServerConfig } from '@/components/chat';
 
 interface ImageContent {
   type: 'image_url';
@@ -66,6 +66,12 @@ export default function ChatPage() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  // MCP & Artifacts state
+  const [mcpEnabled, setMcpEnabled] = useState(false);
+  const [artifactsEnabled, setArtifactsEnabled] = useState(false);
+  const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
+  const [mcpSettingsOpen, setMcpSettingsOpen] = useState(false);
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -73,7 +79,17 @@ export default function ChatPage() {
   useEffect(() => {
     loadStatus();
     loadSessions();
+    loadMCPServers();
   }, []);
+
+  const loadMCPServers = async () => {
+    try {
+      const servers = await api.getMCPServers();
+      setMcpServers(servers.map(s => ({ ...s, env: (s as any).env || {} })));
+    } catch (e) {
+      console.log('MCP servers not available:', e);
+    }
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -518,8 +534,24 @@ export default function ChatPage() {
           isLoading={isLoading}
           modelName={modelName}
           placeholder={runningModel ? 'Message...' : 'No model running'}
+          mcpEnabled={mcpEnabled}
+          onMcpToggle={() => setMcpEnabled(!mcpEnabled)}
+          mcpServers={mcpServers.map((s) => ({ name: s.name, enabled: s.enabled }))}
+          artifactsEnabled={artifactsEnabled}
+          onArtifactsToggle={() => setArtifactsEnabled(!artifactsEnabled)}
+          onOpenMcpSettings={() => setMcpSettingsOpen(true)}
         />
       </div>
+
+      {/* MCP Settings Modal */}
+      <MCPSettingsModal
+        isOpen={mcpSettingsOpen}
+        onClose={() => setMcpSettingsOpen(false)}
+        servers={mcpServers}
+        onServersChange={(newServers) => {
+          setMcpServers(newServers);
+        }}
+      />
     </div>
   );
 }

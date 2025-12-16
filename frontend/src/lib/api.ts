@@ -333,13 +333,17 @@ class APIClient {
   }
 
   // MCP (Model Context Protocol)
-  async getMCPServers(): Promise<{ servers: MCPServer[] }> {
-    return this.request('/mcp/servers');
+  async getMCPServers(): Promise<MCPServer[]> {
+    const data = await this.request<{ servers: MCPServer[] } | MCPServer[]>('/mcp/servers');
+    if (Array.isArray(data)) return data;
+    return data.servers || [];
   }
 
   async addMCPServer(server: { name: string; command: string; args?: string[]; env?: Record<string, string> }): Promise<{ status: string; server: string }> {
-    const params = new URLSearchParams({ name: server.name, command: server.command });
-    return this.request(`/mcp/servers?${params}`, { method: 'POST' });
+    return this.request('/mcp/servers', {
+      method: 'POST',
+      body: JSON.stringify(server),
+    });
   }
 
   async removeMCPServer(name: string): Promise<{ status: string; server: string }> {

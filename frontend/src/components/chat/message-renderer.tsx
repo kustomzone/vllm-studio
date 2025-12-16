@@ -1,9 +1,18 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef, useId } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ChevronDown, ChevronRight, Brain, Copy, Check } from 'lucide-react';
+import { ChevronDown, ChevronRight, Brain, Copy, Check, AlertCircle } from 'lucide-react';
+import mermaid from 'mermaid';
+
+// Initialize mermaid with dark theme
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'dark',
+  securityLevel: 'loose',
+  fontFamily: 'inherit',
+});
 
 interface MessageRendererProps {
   content: string;
@@ -46,9 +55,58 @@ function ThinkingBlock({ content, isStreaming }: ThinkingBlockProps) {
   );
 }
 
+function MermaidDiagram({ code }: { code: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [svg, setSvg] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const id = useId().replace(/:/g, '_');
+
+  useEffect(() => {
+    const renderDiagram = async () => {
+      if (!code.trim()) return;
+      
+      try {
+        const { svg } = await mermaid.render(`mermaid_${id}`, code.trim());
+        setSvg(svg);
+        setError(null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to render diagram');
+        setSvg('');
+      }
+    };
+
+    renderDiagram();
+  }, [code, id]);
+
+  if (error) {
+    return (
+      <div className="my-3 p-4 rounded-lg border border-red-500/30 bg-red-500/10">
+        <div className="flex items-center gap-2 text-red-400 text-sm mb-2">
+          <AlertCircle className="h-4 w-4" />
+          <span>Diagram Error</span>
+        </div>
+        <pre className="text-xs text-[var(--muted-foreground)] overflow-x-auto">{code}</pre>
+      </div>
+    );
+  }
+
+  return (
+    <div 
+      ref={containerRef}
+      className="my-3 p-4 rounded-lg border border-[var(--border)] bg-[var(--card)] overflow-x-auto"
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
+}
+
 function CodeBlock({ children, className }: { children: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   const language = className?.replace('language-', '') || '';
+
+  // Check if this is a mermaid diagram
+  if (language === 'mermaid') {
+    return <MermaidDiagram code={children} />;
+  }
 
   const copyCode = () => {
     navigator.clipboard.writeText(children);
@@ -83,7 +141,6 @@ function CodeBlock({ children, className }: { children: string; className?: stri
 export function MessageRenderer({ content, isStreaming }: MessageRendererProps) {
   const { thinkingContent, mainContent, isThinkingComplete } = useMemo(() => {
     // Parse thinking blocks - handle both with and without opening <think> tag
-    // Some models output </think> without <think> at the start
     const thinkStartMatch = content.match(/<think(?:ing)?>/i);
     const thinkEndMatch = content.match(/<\/think(?:ing)?>/i);
 
@@ -130,7 +187,7 @@ export function MessageRenderer({ content, isStreaming }: MessageRendererProps) 
           components={{
             code({ className, children, ...props }) {
               const isInline = !className;
-              const content = String(children).replace(/\n$/, '');
+              const codeContent = String(children).replace(/\n$/, '');
 
               if (isInline) {
                 return (
@@ -138,12 +195,12 @@ export function MessageRenderer({ content, isStreaming }: MessageRendererProps) 
                     className="px-1.5 py-0.5 rounded bg-[var(--accent)] font-mono text-sm"
                     {...props}
                   >
-                    {content}
+                    {codeContent}
                   </code>
                 );
               }
 
-              return <CodeBlock className={className}>{content}</CodeBlock>;
+              return <CodeBlock className={className}>{codeContent}</CodeBlock>;
             },
             p({ children }) {
               return <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>;

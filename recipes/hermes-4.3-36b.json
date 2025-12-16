@@ -1,0 +1,17 @@
+{
+  "id": "hermes-4.3-36b",
+  "name": "Hermes-4.3-36B AWQ-8bit",
+  "model_path": "/mnt/llm_models/Hermes-4.3-36B-AWQ-8bit",
+  "engine": "vllm",
+  "served_model_name": "hermes-4.3-36b",
+  "port": 8000,
+  "tensor_parallel_size": 4,
+  "max_model_len": 16384,
+  "gpu_memory_utilization": 0.85,
+  "max_num_seqs": 32,
+  "trust_remote_code": true,
+  "disable_log_requests": true,
+  "venv_path": "/opt/venvs/active/glm46v-latest/.venv",
+  "description": "Hermes 4.3 36B - Nous Research reasoning model with tool calling",
+  "tags": ["hermes", "nous", "36b", "awq-8bit", "tool-calling"]
+}
