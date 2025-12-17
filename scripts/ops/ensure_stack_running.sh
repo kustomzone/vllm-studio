@@ -15,6 +15,13 @@ fi
 
 API_PORT="${VLLMSTUDIO_API_PORT:-8080}"
 PROXY_PORT="${VLLMSTUDIO_PROXY_PORT:-8001}"
+API_PORT="${VLLMSTUDIO_CONTROLLER_API_PORT:-${API_PORT}}"
+
+CONTROLLER_CONFIG="${VLLMSTUDIO_CONTROLLER_CONFIG:-${ROOT_DIR}/config/controller.json}"
+CONTROLLER_CONFIG_ARGS=()
+if [ -f "${CONTROLLER_CONFIG}" ]; then
+  CONTROLLER_CONFIG_ARGS=(--config "${CONTROLLER_CONFIG}")
+fi
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
@@ -30,8 +37,9 @@ ensure_api() {
     return 0
   fi
 
-log "API not healthy; starting vllmstudio on :${API_PORT}"
-  nohup python -m vllmstudio.cli >"${LOG_DIR}/vllmstudio-api.log" 2>&1 &
+  log "Controller not healthy; starting vllmstudio_controller on :${API_PORT}"
+  nohup env VLLMSTUDIO_CONTROLLER_API_PORT="${API_PORT}" python -m vllmstudio_controller.cli "${CONTROLLER_CONFIG_ARGS[@]}" \
+    >"${LOG_DIR}/vllmstudio-controller.log" 2>&1 &
 }
 
 ensure_proxy() {
@@ -94,4 +102,3 @@ ensure_cloudflared
 ensure_api
 ensure_proxy
 ensure_frontend
-
