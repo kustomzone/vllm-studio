@@ -6,6 +6,15 @@ cd "$ROOT_DIR"
 
 LOG_DIR="${VLLMSTUDIO_LOG_DIR:-/tmp}"
 
+PYTHON_BIN="${VLLMSTUDIO_PYTHON:-}"
+if [ -z "${PYTHON_BIN}" ]; then
+  if [ -x "${ROOT_DIR}/.venv/bin/python" ]; then
+    PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
+  else
+    PYTHON_BIN="python"
+  fi
+fi
+
 if [ -f "$ROOT_DIR/.env" ]; then
   set -a
   # shellcheck disable=SC1091
@@ -38,7 +47,7 @@ ensure_api() {
   fi
 
   log "Controller not healthy; starting vllmstudio_controller on :${API_PORT}"
-  nohup env VLLMSTUDIO_CONTROLLER_API_PORT="${API_PORT}" python -m vllmstudio_controller.cli "${CONTROLLER_CONFIG_ARGS[@]}" \
+  nohup env VLLMSTUDIO_CONTROLLER_API_PORT="${API_PORT}" "${PYTHON_BIN}" -m vllmstudio_controller.cli "${CONTROLLER_CONFIG_ARGS[@]}" \
     >"${LOG_DIR}/vllmstudio-controller.log" 2>&1 &
 }
 
@@ -47,9 +56,9 @@ ensure_proxy() {
     return 0
   fi
 
-log "Proxy not healthy; starting proxy on :${PROXY_PORT}"
+  log "Proxy not healthy; starting proxy on :${PROXY_PORT}"
   PROXY_AUTH="${VLLMSTUDIO_PROXY_AUTH_API_KEY:-${VLLMSTUDIO_CONTROLLER_ADMIN_KEY:-${VLLMSTUDIO_API_KEY:-}}}"
-  nohup env AUTH_API_KEY="${PROXY_AUTH}" python -m uvicorn proxy.main:app --host 0.0.0.0 --port "${PROXY_PORT}" \
+  nohup env AUTH_API_KEY="${PROXY_AUTH}" "${PYTHON_BIN}" -m uvicorn proxy.main:app --host 0.0.0.0 --port "${PROXY_PORT}" \
     >"${LOG_DIR}/vllmstudio-proxy.log" 2>&1 &
 }
 

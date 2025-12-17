@@ -2,7 +2,17 @@
 
 import httpx
 import json
+from dataclasses import dataclass
 from typing import Dict, Any, AsyncIterator, List
+
+
+@dataclass
+class BackendError(RuntimeError):
+    status_code: int
+    body: str
+
+    def __str__(self) -> str:
+        return f"Backend returned {self.status_code}: {self.body}"
 
 
 class TabbyClient:
@@ -24,6 +34,9 @@ class TabbyClient:
         """Close the HTTP client"""
         await self.client.aclose()
 
+    # Fields not supported by vLLM that should be stripped
+    UNSUPPORTED_FIELDS = {"banned_strings", "thinking"}
+
     async def chat_completion(
         self,
         messages: List[Dict[str, Any]],
@@ -41,8 +54,9 @@ class TabbyClient:
         Returns:
             Complete response dict
         """
-        # Filter out None and empty values to avoid TabbyAPI bugs
-        filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None and v != []}
+        # Filter out None, empty values, and unsupported fields
+        filtered_kwargs = {k: v for k, v in kwargs.items()
+                          if v is not None and v != [] and k not in self.UNSUPPORTED_FIELDS}
 
         payload = {
             "model": model,
@@ -58,9 +72,11 @@ class TabbyClient:
         if response.status_code != 200:
             import logging
             logger = logging.getLogger(__name__)
-            logger.error(f"Backend returned {response.status_code}: {response.text}")
+            body = response.text
+            logger.error(f"Backend returned {response.status_code}: {body}")
             logger.error(f"Payload sent: {payload}")
-        response.raise_for_status()
+            truncated = (body[:4000] + "…") if isinstance(body, str) and len(body) > 4000 else body
+            raise BackendError(status_code=response.status_code, body=truncated)
         return response.json()
 
     async def chat_completion_stream(
@@ -80,8 +96,9 @@ class TabbyClient:
         Yields:
             SSE data lines (already prefixed with "data: ")
         """
-        # Filter out None and empty values to avoid TabbyAPI bugs
-        filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None and v != []}
+        # Filter out None, empty values, and unsupported fields
+        filtered_kwargs = {k: v for k, v in kwargs.items()
+                          if v is not None and v != [] and k not in self.UNSUPPORTED_FIELDS}
 
         payload = {
             "model": model,
@@ -99,7 +116,18 @@ class TabbyClient:
             f"{self.base_url}/v1/chat/completions",
             json=payload
         ) as response:
-            response.raise_for_status()
+            if response.status_code != 200:
+                import logging
+                logger = logging.getLogger(__name__)
+                body_bytes = await response.aread()
+                try:
+                    body = body_bytes.decode("utf-8", errors="replace")
+                except Exception:
+                    body = repr(body_bytes[:200])
+                logger.error(f"Backend returned {response.status_code}: {body}")
+                logger.error(f"Payload sent: {payload}")
+                truncated = (body[:4000] + "…") if len(body) > 4000 else body
+                raise BackendError(status_code=response.status_code, body=truncated)
 
             async for line in response.aiter_lines():
                 if line.startswith("data: "):

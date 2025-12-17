@@ -6,6 +6,7 @@ doesn't need to branch on families inline.
 
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, List, Optional, Literal
 
 from .reasoning import ensure_think_wrapped
@@ -24,6 +25,34 @@ def _reasoning_details_to_text(reasoning_details: Any) -> str:
         if isinstance(detail, dict):
             out += str(detail.get("text", ""))
     return out
+
+
+def _normalize_minimax_tool_result(message: Dict[str, Any]) -> Dict[str, Any]:
+    """MiniMax-M2 chat templates commonly reject role='tool'; normalize to user messages.
+
+    We keep a lightweight marker (`name="tool_result"`) so downstream repair logic can
+    still identify tool result boundaries.
+    """
+    tool_call_id = message.get("tool_call_id") or message.get("tool_use_id") or ""
+    tool_name = message.get("name") or message.get("tool_name") or ""
+    raw_content = message.get("content")
+
+    if raw_content is None:
+        content_str = ""
+    elif isinstance(raw_content, str):
+        content_str = raw_content
+    else:
+        try:
+            content_str = json.dumps(raw_content, ensure_ascii=False)
+        except (TypeError, ValueError):
+            content_str = str(raw_content)
+
+    label = tool_call_id or tool_name or "unknown"
+    return {
+        "role": "user",
+        "name": "tool_result",
+        "content": f"Tool result for {label}: {content_str}",
+    }
 
 
 def _parse_tool_calls_from_content(
@@ -71,7 +100,13 @@ def normalize_history_for_backend(
     normalized: List[Dict[str, Any]] = []
     for message in messages:
         msg_copy = dict(message)
-        if msg_copy.get("role") != "assistant":
+        role = msg_copy.get("role")
+
+        if family == "minimax" and role == "tool":
+            normalized.append(_normalize_minimax_tool_result(msg_copy))
+            continue
+
+        if role != "assistant":
             normalized.append(msg_copy)
             continue
 
@@ -112,4 +147,3 @@ def normalize_history_for_backend(
 
         normalized.append(msg_copy)
     return normalized
-

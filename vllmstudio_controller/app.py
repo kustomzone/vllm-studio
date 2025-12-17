@@ -90,7 +90,7 @@ def create_app(cfg: Settings = default_settings) -> FastAPI:
 
     app = FastAPI(
         title="vLLM Studio Controller",
-        version="0.1.0",
+        version="0.0.1",
         description="Minimal control-plane API for managing vLLM/SGLang inference servers.",
         generate_unique_id_function=_generate_unique_id,
     )

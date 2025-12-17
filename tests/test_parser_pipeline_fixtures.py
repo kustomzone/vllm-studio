@@ -23,7 +23,12 @@ def _scrub_tool_call_ids(messages: list[dict]) -> list[dict]:
 
 def test_normalize_history_for_backend_golden_fixtures():
     fixtures_dir = Path(__file__).parent / "fixtures" / "parsers"
-    for name in ("normalize_history_minimax.json", "normalize_history_glm.json", "normalize_history_mistral.json"):
+    for name in (
+        "normalize_history_minimax.json",
+        "normalize_history_minimax_tool_results.json",
+        "normalize_history_glm.json",
+        "normalize_history_mistral.json",
+    ):
         payload = json.loads((fixtures_dir / name).read_text())
         family = payload["family"]
         messages = payload["messages"]
@@ -31,4 +36,3 @@ def test_normalize_history_for_backend_golden_fixtures():
 
         got = pipeline.normalize_history_for_backend(messages, family=family, tools=None)
         assert _scrub_tool_call_ids(got) == expected
-

@@ -1,0 +1,35 @@
+{
+  "family": "minimax",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "<minimax:tool_call>\n<invoke name=\"weather\">\n<parameter name=\"city\">\nParis\n</parameter>\n</invoke>\n</minimax:tool_call>"
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_123",
+      "content": "{\"temp_c\": 19}"
+    }
+  ],
+  "expected": [
+    {
+      "role": "assistant",
+      "content": "<minimax:tool_call>\n<invoke name=\"weather\">\n<parameter name=\"city\">\nParis\n</parameter>\n</invoke>\n</minimax:tool_call>",
+      "tool_calls": [
+        {
+          "id": "call_FIXED",
+          "type": "function",
+          "function": {
+            "name": "weather",
+            "arguments": "{\"city\": \"Paris\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "name": "tool_result",
+      "content": "Tool result for call_123: {\"temp_c\": 19}"
+    }
+  ]
+}

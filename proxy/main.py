@@ -5,14 +5,18 @@ Dual-API proxy supporting both OpenAI and Anthropic formats
 
 import json
 import logging
+import time
+import uuid
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.responses import Response
 
-from .client import TabbyClient
+from .client import BackendError, TabbyClient
 from .config import settings
 from .registry import AdapterKind, adapter_registry, register_default_adapters
 from .models import (
@@ -115,11 +119,19 @@ def require_auth(raw_request: Request) -> None:
 
     auth_header = raw_request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing bearer token")
+        raise HTTPException(
+            status_code=401,
+            detail="Missing bearer token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     token = auth_header.split(" ", 1)[1].strip()
     if token != settings.auth_api_key:
-        raise HTTPException(status_code=401, detail="Invalid bearer token")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid bearer token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 def extract_session_id(raw_request: Request, extra_body: Optional[Dict[str, Any]] = None) -> Optional[str]:
@@ -152,6 +164,20 @@ def normalize_mistral_history(messages: List[Dict[str, Any]]) -> List[Dict[str, 
     return normalize_history_for_backend(messages, family="mistral", tools=None)
 
 
+def _clamp_minimax_max_tokens(max_tokens: Optional[int]) -> int:
+    """Cap/sanitize max_tokens for MiniMax-M2 to avoid vLLM pre-allocation OOMs."""
+    if max_tokens is None:
+        logger.info("MiniMax request missing max_tokens; defaulting to 8192")
+        return 8192
+    if max_tokens <= 4096:
+        logger.info(f"Increasing max_tokens from {max_tokens} to 8192 for MiniMax model")
+        return 8192
+    if max_tokens > 8192:
+        logger.info(f"Capping max_tokens from {max_tokens} to 8192 to prevent CUDA OOM")
+        return 8192
+    return max_tokens
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle manager for FastAPI app"""
@@ -179,9 +205,30 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="MiniMax-M2 Proxy",
     description="Dual-API proxy for MiniMax-M2 with OpenAI and Anthropic compatibility",
-    version="0.1.0",
+    version="0.0.1",
     lifespan=lifespan
 )
+
+
+class RequestIdMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        request_id = request.headers.get("X-Request-Id") or f"req_{uuid.uuid4().hex[:24]}"
+        request.state.request_id = request_id
+
+        response = await call_next(request)
+        response.headers.setdefault("X-Request-Id", request_id)
+        return response
+
+
+app.add_middleware(RequestIdMiddleware)
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    request_id = getattr(request.state, "request_id", None) or f"req_{uuid.uuid4().hex[:24]}"
+    headers = dict(exc.headers or {})
+    headers.setdefault("X-Request-Id", request_id)
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=headers)
 
 # Configure CORS
 app.add_middleware(
@@ -201,9 +248,23 @@ app.add_middleware(
 async def openai_chat_completions(chat_request: OpenAIChatRequest, raw_request: Request):
     """OpenAI-compatible chat completions endpoint"""
 
+    request_id = getattr(raw_request.state, "request_id", None) or f"req_{uuid.uuid4().hex[:24]}"
+    started = time.time()
     try:
         require_auth(raw_request)
         session_id = extract_session_id(raw_request, chat_request.extra_body)
+
+        logger.info(
+            "OpenAI request",
+            extra={
+                "request_id": request_id,
+                "model": chat_request.model,
+                "stream": chat_request.stream,
+                "max_tokens": chat_request.max_tokens,
+                "tool_count": len(chat_request.tools) if chat_request.tools else 0,
+                "session_id": session_id,
+            },
+        )
 
         if chat_request.n is not None and chat_request.n != 1:
             raise HTTPException(status_code=400, detail="Only n=1 is supported")
@@ -211,16 +272,31 @@ async def openai_chat_completions(chat_request: OpenAIChatRequest, raw_request: 
         if chat_request.stream:
             return StreamingResponse(
                 stream_openai_response(chat_request, session_id),
-                media_type="text/event-stream"
+                media_type="text/event-stream",
             )
         else:
-            return await complete_openai_response(chat_request, session_id)
+            payload = await complete_openai_response(chat_request, session_id)
+            return payload
 
+    except HTTPException:
+        raise
+    except BackendError as e:
+        logger.error(f"Backend error (OpenAI): {e}", exc_info=True)
+        return JSONResponse(
+            status_code=502,
+            content=openai_formatter.format_error(str(e), error_type="backend_error"),
+        )
     except Exception as e:
         logger.error(f"Error in OpenAI endpoint: {e}", exc_info=True)
         return JSONResponse(
             status_code=500,
-            content=openai_formatter.format_error(str(e))
+            content=openai_formatter.format_error(str(e)),
+        )
+    finally:
+        elapsed_ms = int((time.time() - started) * 1000)
+        logger.info(
+            "OpenAI request complete",
+            extra={"request_id": request_id, "elapsed_ms": elapsed_ms},
         )
 
 
@@ -309,6 +385,10 @@ async def complete_openai_response(chat_request: OpenAIChatRequest, session_id: 
     if chat_request.tools:
         tools = [tool.model_dump(exclude_none=True) for tool in chat_request.tools]
 
+    effective_max_tokens = chat_request.max_tokens
+    if use_minimax_parsing:
+        effective_max_tokens = _clamp_minimax_max_tokens(effective_max_tokens)
+
     # Call TabbyAPI - disable Chinese blocking for Mistral models
     banned_strings = None
     if settings.enable_chinese_char_blocking and not use_mistral_parsing:
@@ -318,7 +398,7 @@ async def complete_openai_response(chat_request: OpenAIChatRequest, session_id: 
     response = await tabby_client.chat_completion(
         messages=normalized_messages,
         model=chat_request.model,
-        max_tokens=chat_request.max_tokens,
+        max_tokens=effective_max_tokens,
         temperature=chat_request.temperature,
         top_p=chat_request.top_p,
         top_k=chat_request.top_k,
@@ -529,6 +609,10 @@ async def stream_openai_response(chat_request: OpenAIChatRequest, session_id: Op
         settings.enable_reasoning_split
         and bool(chat_request.extra_body and chat_request.extra_body.get("reasoning_split"))
     )
+
+    effective_max_tokens = chat_request.max_tokens
+    if use_minimax_parsing:
+        effective_max_tokens = _clamp_minimax_max_tokens(effective_max_tokens)
 
     final_raw_content = ""
     final_reasoning_text = ""
@@ -919,7 +1003,7 @@ async def stream_openai_response(chat_request: OpenAIChatRequest, session_id: Op
         stream_gen = tabby_client.extract_streaming_content(
             messages=normalized_messages,
             model=chat_request.model,
-            max_tokens=chat_request.max_tokens,
+            max_tokens=effective_max_tokens,
             temperature=chat_request.temperature,
             top_p=chat_request.top_p,
             top_k=chat_request.top_k,
@@ -980,23 +1064,52 @@ async def stream_openai_response(chat_request: OpenAIChatRequest, session_id: Op
 async def anthropic_messages(anthropic_request: AnthropicChatRequest, raw_request: Request):
     """Anthropic-compatible messages endpoint"""
 
+    request_id = getattr(raw_request.state, "request_id", None) or f"req_{uuid.uuid4().hex[:24]}"
+    started = time.time()
     try:
         require_auth(raw_request)
         session_id = extract_session_id(raw_request)
 
+        logger.info(
+            "Anthropic request",
+            extra={
+                "request_id": request_id,
+                "model": anthropic_request.model,
+                "stream": anthropic_request.stream,
+                "max_tokens": anthropic_request.max_tokens,
+                "tool_count": len(anthropic_request.tools) if anthropic_request.tools else 0,
+                "session_id": session_id,
+            },
+        )
+
         if anthropic_request.stream:
             return StreamingResponse(
                 stream_anthropic_response(anthropic_request, session_id),
-                media_type="text/event-stream"
+                media_type="text/event-stream",
             )
         else:
-            return await complete_anthropic_response(anthropic_request, session_id)
+            payload = await complete_anthropic_response(anthropic_request, session_id)
+            return payload
 
+    except HTTPException:
+        raise
+    except BackendError as e:
+        logger.error(f"Backend error (Anthropic): {e}", exc_info=True)
+        return JSONResponse(
+            status_code=502,
+            content=anthropic_formatter.format_error(str(e), error_type="backend_error"),
+        )
     except Exception as e:
         logger.error(f"Error in Anthropic endpoint: {e}", exc_info=True)
         return JSONResponse(
             status_code=500,
-            content=anthropic_formatter.format_error(str(e))
+            content=anthropic_formatter.format_error(str(e)),
+        )
+    finally:
+        elapsed_ms = int((time.time() - started) * 1000)
+        logger.info(
+            "Anthropic request complete",
+            extra={"request_id": request_id, "elapsed_ms": elapsed_ms},
         )
 
 
@@ -1720,7 +1833,7 @@ async def root():
     """Root endpoint with service info"""
     return {
         "service": "MiniMax-M2 Proxy",
-        "version": "0.2.0-simplified",
+        "version": "0.0.1",
         "code_version": "think_tags_preserved",
         "endpoints": {
             "openai": "/v1/chat/completions",

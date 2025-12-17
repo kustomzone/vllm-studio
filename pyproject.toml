@@ -1,6 +1,6 @@
 [project]
 name = "vllmstudio"
-version = "0.0.0"
+version = "0.0.1"
 description = "vLLM/SGLang Model Management Studio"
 readme = "README.md"
 requires-python = ">=3.10"
