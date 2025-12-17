@@ -48,7 +48,8 @@ ensure_proxy() {
   fi
 
 log "Proxy not healthy; starting proxy on :${PROXY_PORT}"
-  nohup python -m uvicorn proxy.main:app --host 0.0.0.0 --port "${PROXY_PORT}" \
+  PROXY_AUTH="${VLLMSTUDIO_PROXY_AUTH_API_KEY:-${VLLMSTUDIO_CONTROLLER_ADMIN_KEY:-${VLLMSTUDIO_API_KEY:-}}}"
+  nohup env AUTH_API_KEY="${PROXY_AUTH}" python -m uvicorn proxy.main:app --host 0.0.0.0 --port "${PROXY_PORT}" \
     >"${LOG_DIR}/vllmstudio-proxy.log" 2>&1 &
 }
 
@@ -68,7 +69,7 @@ if [ ! -d "$ROOT_DIR/frontend" ]; then
     export PORT=3000
     export BACKEND_URL="http://localhost:${API_PORT}"
     export NEXT_PUBLIC_API_URL="http://localhost:${API_PORT}"
-    export API_KEY="${API_KEY:-${VLLMSTUDIO_API_KEY:-}}"
+    export API_KEY="${API_KEY:-${VLLMSTUDIO_CONTROLLER_ADMIN_KEY:-${VLLMSTUDIO_API_KEY:-}}}"
 
     if [ ! -f ".next/BUILD_ID" ]; then
       log "No Next.js build found; building frontend"
