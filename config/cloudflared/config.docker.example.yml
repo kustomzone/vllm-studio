@@ -2,9 +2,8 @@ tunnel: <YOUR_TUNNEL_ID>
 credentials-file: /etc/cloudflared/<YOUR_TUNNEL_ID>.json
 
 ingress:
-  - hostname: app.homelabai.org
-    service: http://localhost:3000
-  - hostname: homelabai.org
-    service: http://localhost:8080
+  - hostname: app.yourdomain.com
+    service: http://127.0.0.1:3000
+  - hostname: api.yourdomain.com
+    service: http://127.0.0.1:8080
   - service: http_status:404
-

@@ -8,6 +8,7 @@ import {
   FileText,
   Settings,
   MessageSquare,
+  Key,
   Menu,
   X,
   RefreshCw,
@@ -34,18 +35,36 @@ export default function Nav() {
   const router = useRouter();
   const [actionsOpen, setActionsOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [status, setStatus] = useState<{ online: boolean; model?: string }>({ online: false });
+  const [apiKeyOpen, setApiKeyOpen] = useState(false);
+  const [apiKeyValue, setApiKeyValue] = useState('');
+  const [apiKeySet, setApiKeySet] = useState(false);
+  const [status, setStatus] = useState<{ online: boolean; inferenceOnline: boolean; model?: string }>({
+    online: false,
+    inferenceOnline: false,
+  });
+
+  useEffect(() => {
+    try {
+      const k = window.localStorage.getItem('vllmstudio_api_key') || '';
+      setApiKeySet(Boolean(k));
+    } catch {
+      setApiKeySet(false);
+    }
+  }, []);
 
   useEffect(() => {
     const checkStatus = async () => {
       try {
         const health = await api.getHealth();
         setStatus({
-          online: health.backend_reachable,
+          // Controller reachability
+          online: health.status === 'ok',
+          // Inference reachability (vLLM/SGLang on :8000)
+          inferenceOnline: health.backend_reachable,
           model: health.running_model?.split('/').pop(),
         });
       } catch {
-        setStatus({ online: false });
+        setStatus({ online: false, inferenceOnline: false });
       }
     };
 
@@ -107,6 +126,36 @@ export default function Nav() {
     };
     input.click();
     setActionsOpen(false);
+  };
+
+  const handleApiKeySave = () => {
+    try {
+      const trimmed = apiKeyValue.trim();
+      if (trimmed) {
+        window.localStorage.setItem('vllmstudio_api_key', trimmed);
+        setApiKeySet(true);
+      } else {
+        window.localStorage.removeItem('vllmstudio_api_key');
+        setApiKeySet(false);
+      }
+      setApiKeyOpen(false);
+      setApiKeyValue('');
+      window.location.reload();
+    } catch (e) {
+      alert('Failed to save key: ' + (e as Error).message);
+    }
+  };
+
+  const handleApiKeyClear = () => {
+    try {
+      window.localStorage.removeItem('vllmstudio_api_key');
+      setApiKeySet(false);
+      setApiKeyOpen(false);
+      setApiKeyValue('');
+      window.location.reload();
+    } catch (e) {
+      alert('Failed to clear key: ' + (e as Error).message);
+    }
   };
 
   const actions: CommandPaletteAction[] = [
@@ -177,6 +226,13 @@ export default function Nav() {
       keywords: ['restore'],
       run: handleImport,
     },
+    {
+      id: 'set-api-key',
+      label: apiKeySet ? 'Update API key' : 'Set API key',
+      hint: 'Browser only',
+      keywords: ['auth', 'token', 'security'],
+      run: () => setApiKeyOpen(true),
+    },
   ];
 
   useEffect(() => {
@@ -199,8 +255,61 @@ export default function Nav() {
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         actions={actions}
-        statusText={status.online ? `Backend online • ${status.model || 'model unknown'}` : 'Backend offline'}
+        statusText={
+          status.online
+            ? (status.inferenceOnline
+                ? `Controller online • Inference online • ${status.model || 'model unknown'}`
+                : `Controller online • Inference offline • ${status.model || 'no model loaded'}`)
+            : 'Controller offline'
+        }
       />
+
+      {apiKeyOpen ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+            <div className="flex items-center justify-between">
+              <div className="font-medium">API Key</div>
+              <button
+                onClick={() => {
+                  setApiKeyOpen(false);
+                  setApiKeyValue('');
+                }}
+                className="p-1 rounded hover:bg-[var(--card-hover)]"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+              Stored locally in your browser and sent as <code className="font-mono">Authorization: Bearer</code>.
+            </p>
+            <input
+              className="mt-3 w-full rounded-md border border-[var(--border)] bg-transparent px-3 py-2 text-sm font-mono"
+              placeholder={apiKeySet ? 'Enter new key (leave blank to clear)' : 'Enter API key'}
+              value={apiKeyValue}
+              onChange={(e) => setApiKeyValue(e.target.value)}
+              type="password"
+              autoFocus
+            />
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <button
+                onClick={handleApiKeyClear}
+                className="px-3 py-2 text-sm rounded-md border border-[var(--border)] hover:bg-[var(--card-hover)]"
+                type="button"
+              >
+                Clear
+              </button>
+              <button
+                onClick={handleApiKeySave}
+                className="px-3 py-2 text-sm rounded-md bg-[var(--accent)] text-[var(--foreground)] hover:opacity-90"
+                type="button"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Desktop Nav */}
       <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--card)]">
@@ -240,9 +349,18 @@ export default function Nav() {
             <div className="hidden sm:flex items-center gap-2 text-sm">
               <div className={`w-2 h-2 rounded-full ${status.online ? 'bg-[var(--success)]' : 'bg-[var(--error)]'}`} />
               <span className="text-[var(--muted-foreground)]">
-                {status.model || 'No model'}
+                {status.inferenceOnline ? (status.model || 'No model') : 'Inference offline'}
               </span>
             </div>
+
+            <button
+              onClick={() => setApiKeyOpen(true)}
+              className="hidden md:flex items-center gap-2 px-3 py-2 text-sm border border-[var(--border)] rounded-md hover:bg-[var(--card-hover)] transition-colors"
+              title={apiKeySet ? 'API key set (click to update)' : 'Set API key'}
+            >
+              <Key className="h-4 w-4" />
+              {apiKeySet ? 'Key' : 'Set Key'}
+            </button>
 
             <button
               onClick={() => setPaletteOpen(true)}

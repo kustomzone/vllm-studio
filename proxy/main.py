@@ -615,28 +615,42 @@ async def stream_openai_response(chat_request: OpenAIChatRequest, session_id: Op
             if reasoning_delta:
                 # Buffer reasoning for session history with think tags
                 addition = reasoning_delta
+                emit_delta = reasoning_delta
                 if not think_started:
                     think_started = True
                     think_closed = False
                     addition = f"<think>{addition}"
+                    emit_delta = f"<think>{reasoning_delta}"
                 raw_segments.append(addition)
                 reasoning_segments.append(reasoning_delta)
 
-                # Only emit reasoning if reasoning_split is enabled
-                # Don't emit <think> tags to OpenAI clients
+                # Emit reasoning based on mode:
+                # - reasoning_split=True: emit as reasoning_delta (separate field)
+                # - reasoning_split=False + thinking_passthrough=True: emit as content with <think> tags
                 if reasoning_split:
                     yield openai_formatter.format_streaming_chunk(
                         reasoning_delta=reasoning_delta,
+                        model=chat_request.model,
+                    )
+                elif settings.enable_thinking_passthrough:
+                    yield openai_formatter.format_streaming_chunk(
+                        delta=emit_delta,
                         model=chat_request.model,
                     )
 
             if (not reasoning_delta) and think_started and not think_closed and (
                 content_delta or tool_delta or finish_reason
             ):
-                # Close think tag in session history (but don't emit to client)
+                # Close think tag in session history
                 close_text = "</think>\n"
                 raw_segments.append(close_text)
                 think_closed = True
+                # Emit closing tag to client when thinking_passthrough is enabled
+                if settings.enable_thinking_passthrough and not reasoning_split:
+                    yield openai_formatter.format_streaming_chunk(
+                        delta=close_text,
+                        model=chat_request.model,
+                    )
 
             if content_delta:
                 # Parse content to strip any embedded <think> tags and extract tool calls
@@ -650,9 +664,17 @@ async def stream_openai_response(chat_request: OpenAIChatRequest, session_id: Op
                         raw_delta = parsed.get("raw_delta") or ""
                         if raw_delta:
                             raw_segments.append(raw_delta)
-                        if clean_delta:
+                        # For the Studio UI we want <think> blocks to render. When we
+                        # strip tags here, clients see neither reasoning_content nor
+                        # <think>…</think>, so "reasoning" appears to vanish.
+                        client_delta = (
+                            raw_delta
+                            if settings.enable_thinking_passthrough and not reasoning_split
+                            else clean_delta
+                        )
+                        if client_delta:
                             yield openai_formatter.format_streaming_chunk(
-                                delta=clean_delta,
+                                delta=client_delta,
                                 model=chat_request.model,
                             )
 
@@ -698,10 +720,16 @@ async def stream_openai_response(chat_request: OpenAIChatRequest, session_id: Op
 
             if finish_reason:
                 if think_started and not think_closed:
-                    # Close think tag in session history (but don't emit to client)
+                    # Close think tag in session history
                     close_text = "</think>\n"
                     raw_segments.append(close_text)
                     think_closed = True
+                    # Emit closing tag to client when thinking_passthrough is enabled
+                    if settings.enable_thinking_passthrough and not reasoning_split:
+                        yield openai_formatter.format_streaming_chunk(
+                            delta=close_text,
+                            model=chat_request.model,
+                        )
 
                 # Flush any remaining content from the streaming parser
                 pending_tail = streaming_parser.flush_pending()
@@ -913,8 +941,10 @@ async def stream_openai_response(chat_request: OpenAIChatRequest, session_id: Op
 
         chunk_iter = prepend_chunk(first_chunk, stream_gen)
 
-        # ALWAYS use structured_stream for MiniMax/Mistral models to parse tool calls
-        if structured_mode or use_minimax_parsing or use_mistral_parsing:
+        # Use structured_stream whenever we might need to parse inline tool-call markup.
+        # GLM models can emit <tool_call> blocks even when the backend does not provide
+        # structured `tool_calls` deltas, so they must go through the buffering parser.
+        if structured_mode or use_minimax_parsing or use_glm_parsing or use_mistral_parsing:
             async for event in structured_stream(chunk_iter):
                 yield event
         else:

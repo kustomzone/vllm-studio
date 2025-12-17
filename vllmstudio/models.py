@@ -9,6 +9,10 @@ class Backend(str, Enum):
     """Supported inference backends."""
     VLLM = "vllm"
     SGLANG = "sglang"
+    TABBYAPI = "tabbyapi"
+    DIFFUSERS = "diffusers"
+    TRANSFORMERS = "transformers"
+    FASTER_WHISPER = "faster-whisper"
 
 
 class RecipeStatus(str, Enum):
@@ -101,6 +105,11 @@ class Recipe(BaseModel):
             return data
 
         normalized = dict(data)
+
+        # Treat explicit nulls as "unset" so defaults can apply (legacy recipe dumps).
+        for key, value in list(normalized.items()):
+            if value is None:
+                normalized.pop(key, None)
 
         # Legacy: `engine` -> `backend`
         if "backend" not in normalized and "engine" in normalized:

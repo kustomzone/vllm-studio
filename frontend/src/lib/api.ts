@@ -24,6 +24,16 @@ import type {
 const isServer = typeof window === 'undefined';
 const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 const API_KEY = process.env.API_KEY || '';
+const LOCAL_API_KEY_STORAGE = 'vllmstudio_api_key';
+
+const getStoredApiKey = (): string => {
+  if (typeof window === 'undefined') return '';
+  try {
+    return window.localStorage.getItem(LOCAL_API_KEY_STORAGE) || '';
+  } catch {
+    return '';
+  }
+};
 
 // Client-side uses /api/proxy, server-side can call backend directly
 const getBaseUrl = () => {
@@ -46,12 +56,25 @@ class APIClient {
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       // Only add auth header if we have an API key and not using proxy
       ...(!this.useProxy && this.apiKey && { 'Authorization': `Bearer ${this.apiKey}` }),
-      ...options.headers,
     };
+    if (options.headers) {
+      for (const [k, v] of Object.entries(options.headers as Record<string, string>)) {
+        headers[k] = v;
+      }
+    }
+
+    // When using the Next.js proxy, allow per-user keys from localStorage to flow through.
+    if (this.useProxy) {
+      const hasAuthHeader = Object.keys(headers).some((k) => k.toLowerCase() === 'authorization');
+      if (!hasAuthHeader) {
+        const storedKey = getStoredApiKey();
+        if (storedKey) headers['Authorization'] = `Bearer ${storedKey}`;
+      }
+    }
 
     // Remove leading slash from endpoint when using proxy
     const path = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;

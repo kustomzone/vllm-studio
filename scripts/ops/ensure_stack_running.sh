@@ -81,20 +81,21 @@ if [ ! -d "$ROOT_DIR/frontend" ]; then
 }
 
 ensure_cloudflared() {
-  if docker ps --format '{{.Names}}' | rg -q '^cloudflared-homelabai$'; then
+  if docker ps --format '{{.Names}}' | rg -q '^cloudflared-vllm-studio$'; then
     return 0
   fi
 
-  if [ ! -f "/home/ser/.cloudflared/config.docker.yml" ]; then
-    log "Cloudflared config missing: /home/ser/.cloudflared/config.docker.yml (skipping)"
+  CLOUDFLARED_CONFIG_DIR="${CLOUDFLARED_CONFIG_DIR:-$HOME/.cloudflared}"
+  if [ ! -f "${CLOUDFLARED_CONFIG_DIR}/config.docker.yml" ]; then
+    log "Cloudflared config missing: ${CLOUDFLARED_CONFIG_DIR}/config.docker.yml (skipping)"
     return 0
   fi
 
-  log "Cloudflared container not running; starting cloudflared-homelabai"
-  docker rm -f cloudflared-homelabai >/dev/null 2>&1 || true
-  docker run -d --name cloudflared-homelabai --restart unless-stopped --network host \
+  log "Cloudflared container not running; starting cloudflared-vllm-studio"
+  docker rm -f cloudflared-vllm-studio >/dev/null 2>&1 || true
+  docker run -d --name cloudflared-vllm-studio --restart unless-stopped --network host \
     --user "$(id -u):$(id -g)" \
-    -v /home/ser/.cloudflared:/etc/cloudflared \
+    -v "${CLOUDFLARED_CONFIG_DIR}":/etc/cloudflared \
     cloudflare/cloudflared:latest \
     tunnel --config /etc/cloudflared/config.docker.yml run >/dev/null
 }

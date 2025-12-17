@@ -15,6 +15,7 @@ class ProcessInfoLite:
     port: int
     model_path: Optional[str] = None
     backend: Optional[str] = None
+    served_model_name: Optional[str] = None
 
 
 def _extract_port(cmdline: List[str]) -> Optional[int]:
@@ -25,6 +26,26 @@ def _extract_port(cmdline: List[str]) -> Optional[int]:
             except ValueError:
                 return None
     return None
+
+
+def _extract_flag_value(cmdline: List[str], flag: str) -> Optional[str]:
+    for i, arg in enumerate(cmdline):
+        if arg == flag and i + 1 < len(cmdline):
+            return cmdline[i + 1]
+    return None
+
+
+def _extract_model_path(cmdline: List[str]) -> Optional[str]:
+    # vLLM CLI form: `vllm serve <model> ...`
+    if len(cmdline) >= 3 and cmdline[0].endswith("vllm") and cmdline[1] == "serve":
+        candidate = cmdline[2]
+        if candidate and not candidate.startswith("-"):
+            return candidate
+    return _extract_flag_value(cmdline, "--model") or _extract_flag_value(cmdline, "--model-path")
+
+
+def _extract_served_model_name(cmdline: List[str]) -> Optional[str]:
+    return _extract_flag_value(cmdline, "--served-model-name") or _extract_flag_value(cmdline, "--served_model_name")
 
 
 def _is_vllm_process(cmdline: List[str]) -> bool:
@@ -65,6 +86,8 @@ def find_current_inference_process(port: int) -> Optional[ProcessInfoLite]:
                 cmdline=list(cmdline),
                 port=p,
                 backend=backend,
+                model_path=_extract_model_path(cmdline),
+                served_model_name=_extract_served_model_name(cmdline),
             )
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue

@@ -9,6 +9,7 @@ from typing import Dict, Iterable, Optional
 from ..models import Backend
 from .interface import InferenceBackend
 from .sglang import SGLangBackend
+from .unsupported import UnsupportedBackend
 from .vllm import VLLMBackend
 
 
@@ -54,9 +55,12 @@ class BackendRegistry:
 backend_registry = BackendRegistry()
 backend_registry.register(VLLMBackend())
 backend_registry.register(SGLangBackend())
+backend_registry.register(UnsupportedBackend(name=Backend.TABBYAPI.value, hint="External backend (TabbyAPI) not wired yet"))
+backend_registry.register(UnsupportedBackend(name=Backend.DIFFUSERS.value, hint="External backend (diffusers) not wired yet"))
+backend_registry.register(UnsupportedBackend(name=Backend.TRANSFORMERS.value, hint="External backend (transformers) not wired yet"))
+backend_registry.register(UnsupportedBackend(name=Backend.FASTER_WHISPER.value, hint="External backend (faster-whisper) not wired yet"))
 backend_registry.discover_entrypoints()
 
 
 def get_backend(backend: Backend | str) -> InferenceBackend:
     return backend_registry.get(backend)
-

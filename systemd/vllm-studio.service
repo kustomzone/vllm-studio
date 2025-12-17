@@ -1,13 +1,14 @@
 [Unit]
-Description=vLLM Studio API Server
+Description=vLLM Studio Controller API
 After=network.target
 
 [Service]
 Type=simple
-User=ser
-WorkingDirectory=/home/ser/lmvllm
-Environment="PATH=/home/ser/lmvllm/.venv/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/home/ser/lmvllm/.venv/bin/python -m vllmstudio.cli
+# Update these paths to match your installation
+User=%USER%
+WorkingDirectory=%INSTALL_DIR%
+Environment="PATH=%INSTALL_DIR%/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=%INSTALL_DIR%/.venv/bin/python -m vllmstudio_controller.cli
 Restart=always
 RestartSec=10
 

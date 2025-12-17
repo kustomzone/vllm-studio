@@ -1,5 +1,5 @@
 #!/bin/bash
-# vLLM Studio - Unified Launcher
+# vLLM Studio - Unified Launcher (controller)
 # Usage: ./start.sh [--dev] [--port PORT] [--ngrok]
 
 set -e
@@ -15,9 +15,9 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Defaults
-API_PORT="${VLLMSTUDIO_API_PORT:-8080}"
-VLLM_PORT="${VLLMSTUDIO_VLLM_PORT:-8000}"
-PROXY_PORT="${VLLMSTUDIO_PROXY_PORT:-8001}"
+API_PORT="${VLLMSTUDIO_CONTROLLER_API_PORT:-${VLLMSTUDIO_API_PORT:-8080}}"
+VLLM_PORT="${VLLMSTUDIO_CONTROLLER_INFERENCE_PORT:-${VLLMSTUDIO_VLLM_PORT:-8000}}"
+PROXY_PORT="${VLLMSTUDIO_CONTROLLER_PROXY_PORT:-${VLLMSTUDIO_PROXY_PORT:-8001}}"
 LOG_FILE="/tmp/vllmstudio.log"
 PID_FILE="/tmp/vllmstudio.pid"
 DEV_MODE=false
@@ -50,9 +50,9 @@ while [[ $# -gt 0 ]]; do
             echo "  -h, --help  Show this help"
             echo ""
             echo "Environment Variables:"
-            echo "  VLLMSTUDIO_API_PORT     API server port (default: 8080)"
-            echo "  VLLMSTUDIO_VLLM_PORT    vLLM backend port (default: 8000)"
-            echo "  VLLMSTUDIO_PROXY_PORT   Proxy port (default: 8001)"
+            echo "  VLLMSTUDIO_CONTROLLER_API_PORT       Controller API port (default: 8080)"
+            echo "  VLLMSTUDIO_CONTROLLER_INFERENCE_PORT  Inference backend port (default: 8000)"
+            echo "  VLLMSTUDIO_CONTROLLER_PROXY_PORT      Proxy port (default: 8001)"
             echo "  VLLMSTUDIO_MODELS_DIR   Model storage directory"
             echo "  VLLMSTUDIO_RECIPES_DIR  Recipe JSON directory"
             exit 0
@@ -108,12 +108,16 @@ fi
 if [ "$DEV_MODE" = true ]; then
     echo -e "${BLUE}Starting in development mode...${NC}"
     echo ""
-    export VLLMSTUDIO_API_PORT="$API_PORT"
-    exec python -m vllmstudio.cli --reload
+    export VLLMSTUDIO_CONTROLLER_API_PORT="$API_PORT"
+    export VLLMSTUDIO_CONTROLLER_INFERENCE_PORT="$VLLM_PORT"
+    export VLLMSTUDIO_CONTROLLER_PROXY_PORT="$PROXY_PORT"
+    exec python -m vllmstudio_controller.cli --reload
 else
     echo -e "${BLUE}Starting in background...${NC}"
-    export VLLMSTUDIO_API_PORT="$API_PORT"
-    nohup python -m vllmstudio.cli > "$LOG_FILE" 2>&1 &
+    export VLLMSTUDIO_CONTROLLER_API_PORT="$API_PORT"
+    export VLLMSTUDIO_CONTROLLER_INFERENCE_PORT="$VLLM_PORT"
+    export VLLMSTUDIO_CONTROLLER_PROXY_PORT="$PROXY_PORT"
+    nohup python -m vllmstudio_controller.cli > "$LOG_FILE" 2>&1 &
     echo $! > "$PID_FILE"
     sleep 2
 

@@ -28,6 +28,30 @@ def _python_from_venv(venv_path: Optional[str]) -> Optional[str]:
 class VLLMBackend(InferenceBackend):
     name = "vllm"
 
+    @staticmethod
+    def _rope_scaling_overrides(recipe: Recipe) -> Optional[dict]:
+        if recipe.rope_scaling and isinstance(recipe.rope_scaling, dict):
+            return recipe.rope_scaling
+        extra = recipe.extra_args if isinstance(recipe.extra_args, dict) else {}
+        hf_overrides = extra.get("hf_overrides")
+        if isinstance(hf_overrides, dict) and isinstance(hf_overrides.get("rope_scaling"), dict):
+            return hf_overrides.get("rope_scaling")
+        return None
+
+    @classmethod
+    def _should_allow_long_max_len(cls, recipe: Recipe) -> bool:
+        rope = cls._rope_scaling_overrides(recipe)
+        if not rope:
+            return False
+        original = rope.get("original_max_position_embeddings") if isinstance(rope, dict) else None
+        try:
+            original_val = int(original) if original is not None else None
+        except Exception:
+            original_val = None
+        if not original_val:
+            return False
+        return int(recipe.max_model_len) > int(original_val)
+
     def build_launch_command(self, recipe: Recipe) -> list[str]:
         python_exe = recipe.python_path or _python_from_venv(getattr(recipe, "venv_path", None))
         if python_exe:
@@ -83,14 +107,31 @@ class VLLMBackend(InferenceBackend):
         if recipe.calculate_kv_scales:
             cmd.append("--calculate-kv-scales")
 
+        # vLLM >= 0.11 uses --hf-overrides to modify HF config fields like rope_scaling.
+        hf_overrides = None
+        existing = recipe.extra_args.get("hf_overrides") if isinstance(recipe.extra_args, dict) else None
+        if isinstance(existing, dict):
+            hf_overrides = dict(existing)
+        elif existing is None:
+            hf_overrides = {}
+
         if recipe.rope_scaling:
-            cmd.extend(["--rope-scaling", json.dumps(recipe.rope_scaling)])
+            if hf_overrides is None:
+                hf_overrides = {"rope_scaling": recipe.rope_scaling}
+            else:
+                hf_overrides["rope_scaling"] = recipe.rope_scaling
+
+        if isinstance(hf_overrides, dict) and hf_overrides:
+            cmd.extend(["--hf-overrides", json.dumps(hf_overrides)])
 
         for key, value in recipe.extra_args.items():
             if key is None:
                 continue
             key_str = str(key).lstrip("-").replace("_", "-")
             flag = f"--{key_str}"
+            if flag == "--hf-overrides":
+                # Avoid emitting duplicates if we already emitted a merged --hf-overrides above.
+                continue
             if value is True:
                 cmd.append(flag)
             elif value is not False and value is not None:
@@ -101,3 +142,10 @@ class VLLMBackend(InferenceBackend):
 
         return cmd
 
+    def build_launch_env(self, recipe: Recipe) -> dict[str, str]:
+        env = super().build_launch_env(recipe)
+        # vLLM 0.11+ rejects max_model_len > config-derived max unless this env var is set.
+        # Only auto-set when the recipe explicitly applies RoPE scaling beyond original max.
+        if "VLLM_ALLOW_LONG_MAX_MODEL_LEN" not in env and self._should_allow_long_max_len(recipe):
+            env["VLLM_ALLOW_LONG_MAX_MODEL_LEN"] = "1"
+        return env

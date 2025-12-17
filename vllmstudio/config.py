@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     model_config = {
         "env_prefix": "VLLMSTUDIO_",
         "env_file": ".env",
+        "extra": "ignore",
     }
 
 

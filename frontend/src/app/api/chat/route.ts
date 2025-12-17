@@ -160,12 +160,15 @@ export async function POST(req: NextRequest) {
       requestBody.tool_choice = 'auto';
     }
 
+    const incomingAuth = req.headers.get('authorization');
+    const outgoingAuth = incomingAuth || (API_KEY ? `Bearer ${API_KEY}` : undefined);
+
     // Direct fetch to vLLM to capture reasoning_content field
     const response = await fetch(`${API_URL}/v1/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
+        ...(outgoingAuth ? { Authorization: outgoingAuth } : {}),
       },
       body: JSON.stringify(requestBody),
     });

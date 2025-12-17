@@ -23,6 +23,10 @@ class Settings(BaseSettings):
 
     data_dir: Path = Field(default=Path(__file__).resolve().parent.parent / "data")
     sqlite_path: Path = Field(default=Path(__file__).resolve().parent.parent / "data" / "controller.db")
+    chats_db_path: Path = Field(default=Path(__file__).resolve().parent.parent / "data" / "chats.db")
+    mcp_config_path: Path = Field(default=Path(__file__).resolve().parent.parent / "data" / "mcp_servers.json")
+
+    models_dir: Path = Field(default=Path("/mnt/llm_models"))
 
     enable_openai_passthrough: bool = True
     enable_anthropic_passthrough: bool = True

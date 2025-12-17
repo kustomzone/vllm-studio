@@ -4,8 +4,8 @@ If you see **Error 1033 (Cloudflare Tunnel error)**, Cloudflare cannot reach you
 
 ## Required routing
 
-- `app.<your-domain>` → `http://localhost:3000` (frontend)
-- `<your-domain>` → `http://localhost:8080` (controller/backend API)
+- `app.<your-domain>` → `http://127.0.0.1:3000` (frontend)
+- `<your-domain>` → `http://127.0.0.1:8080` (controller/backend API)
 
 Template: `config/cloudflared/config.docker.example.yml`
 
@@ -20,4 +20,3 @@ Template: `config/cloudflared/config.docker.example.yml`
 - `docker ps | rg cloudflared`
 - `cloudflared` logs: `docker logs -n 200 cloudflared-vllm-studio`
 - Ensure the `ingress:` services point at the correct ports and `cloudflared` is on the same network namespace (host network in `docker-compose.stack.yml`).
-

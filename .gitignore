@@ -1,29 +1,60 @@
+# Environment and secrets
 .env
+.env.*
+*.local
+secrets/
+*.key
+*.pem
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
 .venv/
-*.log
-.pkl_memoize_py3/
+venv/
 *.egg-info/
-data/*.db
-data/*.sqlite
-data/*.db-shm
-data/*.db-wal
-data/*.sqlite-shm
-data/*.sqlite-wal
-data/logs/
-data/admin_key.txt
+.eggs/
+dist/
+build/
+.pkl_memoize_py3/
 
-# Local configs
+# Logs
+*.log
+logs/
+
+# Data directory (contains user data and secrets)
+data/
+!data/.gitkeep
+
+# Local configs with secrets
 config/controller.json
 config/controller.local.json
+config/cloudflared/*.yml
+!config/cloudflared/*.example.yml
+
+# Legacy code (not part of new release)
+vllm_studio/
+
+# Node
+node_modules/
+.next/
+.turbo/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
 
 # OpenWebUI artifacts
-openwebui-src/node_modules/
-openwebui-src/.venv/
-openwebui-src/build/
-openwebui-src/.svelte-kit/
-openwebui-src/backend/data/
-openwebui-src/backend/static/
-openwebui-src/*.db
-openwebui-src/data/
+openwebui-src/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/

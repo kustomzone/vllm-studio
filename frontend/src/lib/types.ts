@@ -25,7 +25,7 @@ export interface Recipe {
   id: string;
   name: string;
   model_path: string;
-  backend: 'vllm' | 'sglang';
+  backend: 'vllm' | 'sglang' | 'tabbyapi' | 'diffusers' | 'transformers' | 'faster-whisper';
   tp?: number;  // tensor_parallel_size
   pp?: number;  // pipeline_parallel_size
   dp?: number;  // data_parallel_size

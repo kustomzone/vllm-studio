@@ -20,11 +20,14 @@ export async function POST(req: NextRequest) {
     const promptUser = stripBoxTags(user).slice(0, 800);
     const promptAssistant = stripBoxTags(assistant).slice(0, 800);
 
+    const incomingAuth = req.headers.get('authorization');
+    const outgoingAuth = incomingAuth || (API_KEY ? `Bearer ${API_KEY}` : undefined);
+
     const response = await fetch(`${API_URL}/v1/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
+        ...(outgoingAuth ? { Authorization: outgoingAuth } : {}),
       },
       body: JSON.stringify({
         model,
@@ -62,4 +65,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

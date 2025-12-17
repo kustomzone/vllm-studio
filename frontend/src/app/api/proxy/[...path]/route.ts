@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8080';
+const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 const API_KEY = process.env.API_KEY || '';
 
 export async function GET(
@@ -44,11 +44,17 @@ async function handleRequest(request: NextRequest, method: string, path: string[
     console.log(`Proxying ${method} request to:`, targetUrl);
 
     const headers: HeadersInit = {
-      'Content-Type': 'application/json',
       ...(request.headers.get('accept') ? { Accept: request.headers.get('accept') as string } : {}),
     };
 
-    if (API_KEY) {
+    const incomingContentType = request.headers.get('content-type');
+    if (incomingContentType) headers['Content-Type'] = incomingContentType;
+
+    // Prefer per-user Authorization header passed from the browser; fallback to server env API_KEY for local/dev.
+    const incomingAuth = request.headers.get('authorization');
+    if (incomingAuth) {
+      headers['Authorization'] = incomingAuth;
+    } else if (API_KEY) {
       headers['Authorization'] = `Bearer ${API_KEY}`;
     }
 
