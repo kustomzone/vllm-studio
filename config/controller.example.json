@@ -1,0 +1,12 @@
+{
+  "api_host": "0.0.0.0",
+  "api_port": 8080,
+  "admin_key": "sk-admin-change-me",
+  "sqlite_path": "./data/controller.db",
+  "inference_host": "localhost",
+  "inference_port": 8000,
+  "proxy_host": "localhost",
+  "proxy_port": 8001,
+  "enable_openai_passthrough": true,
+  "enable_anthropic_passthrough": true
+}

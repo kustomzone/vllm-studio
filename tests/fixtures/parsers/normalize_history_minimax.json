@@ -1,0 +1,32 @@
+{
+  "family": "minimax",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Hello\n<minimax:tool_call>\n<invoke name=\"weather\">\n<parameter name=\"city\">\nParis\n</parameter>\n</invoke>\n</minimax:tool_call>",
+      "reasoning_details": [
+        {
+          "type": "chain_of_thought",
+          "text": "Thinking..."
+        }
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "role": "assistant",
+      "content": "<think>Thinking...</think>\nHello\n\n<minimax:tool_call>\n<invoke name=\"weather\">\n<parameter name=\"city\">\nParis\n</parameter>\n</invoke>\n</minimax:tool_call>",
+      "tool_calls": [
+        {
+          "id": "call_FIXED",
+          "type": "function",
+          "function": {
+            "name": "weather",
+            "arguments": "{\"city\": \"Paris\"}"
+          }
+        }
+      ]
+    }
+  ]
+}
+

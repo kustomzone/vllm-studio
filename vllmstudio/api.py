@@ -1,7 +1,6 @@
 """FastAPI application for vLLM Studio."""
 
 import asyncio
-import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional, Any
@@ -10,7 +9,7 @@ import httpx
 from pydantic import BaseModel, Field
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -28,6 +27,10 @@ from .model_indexer import ModelIndexer
 from .metrics import MetricsState, parse_vllm_metrics
 from .recipe_generator import generate_recipe_from_path
 from .chat_store import chat_store, ChatSession, ChatMessage
+from .backends import get_backend
+from .models_launch_plan import LaunchPlan
+from .http_proxy import post_streaming
+from parsers.reasoning import strip_box_tags
 
 
 # Global managers
@@ -58,15 +61,6 @@ async def lifespan(app: FastAPI):
 
     yield
 
-
-# Box tags pattern for GLM models - strip these from responses
-BOX_TAGS_PATTERN = re.compile(r"<\|(?:begin|end)_of_box\|>")
-
-def strip_box_tags(text: str) -> str:
-    """Strip <|begin_of_box|> and <|end_of_box|> tags from content."""
-    if not text:
-        return text
-    return BOX_TAGS_PATTERN.sub("", text)
 
 app = FastAPI(
     title="vLLM Studio",
@@ -220,6 +214,20 @@ async def get_recipe(recipe_id: str):
         pid = current.pid
 
     return RecipeWithStatus(**recipe.model_dump(), status=status, pid=pid)
+
+@app.get("/recipes/{recipe_id}/plan", response_model=LaunchPlan)
+async def get_recipe_launch_plan(recipe_id: str):
+    """Preview the exact command/env/log path that would be used for a launch."""
+    recipe = recipe_manager.get_recipe(recipe_id)
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    backend = get_backend(recipe.backend)
+    cmd = backend.build_launch_command(recipe)
+    env = backend.build_launch_env(recipe)
+    log_file = str(backend.default_log_file(recipe.id))
+
+    return LaunchPlan(recipe=recipe, backend=recipe.backend, command=cmd, env=env, log_file=log_file)
 
 
 @app.post("/recipes", response_model=Recipe)
@@ -588,6 +596,39 @@ async def tokenize_chat_request(request: dict):
         result["input_tokens"] += tool_tokens
 
     return result
+
+
+# =============================================================================
+# Anthropic passthrough (Proxy)
+# =============================================================================
+
+@app.post("/v1/messages")
+async def anthropic_messages_passthrough(raw_request: Request):
+    """Forward Anthropic Messages requests to the local proxy service."""
+    target = f"http://{settings.proxy_host}:{settings.proxy_port}/v1/messages"
+    body = await raw_request.body()
+
+    forward_headers = {k: v for k, v in raw_request.headers.items() if k.lower() not in {"host", "content-length"}}
+    proxied = await post_streaming(target, body=body, headers=forward_headers, timeout=None)
+
+    if proxied.stream is not None:
+        passthrough_headers = {
+            "content-type": proxied.content_type,
+            "cache-control": proxied.headers.get("cache-control", "no-cache"),
+        }
+        return StreamingResponse(
+            proxied.stream,
+            status_code=proxied.status_code,
+            headers=passthrough_headers,
+            media_type=proxied.content_type,
+        )
+
+    return Response(
+        content=proxied.body or b"",
+        status_code=proxied.status_code,
+        media_type=proxied.content_type,
+        headers={"content-type": proxied.content_type},
+    )
 
 
 @app.get("/v1/usage", response_model=UsageStats)

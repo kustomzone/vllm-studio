@@ -1,0 +1,44 @@
+version: "3.8"
+
+services:
+  controller:
+    build:
+      context: .
+      dockerfile: docker/controller.Dockerfile
+    container_name: vllm-studio-controller
+    volumes:
+      - ./config/controller.json:/config/controller.json:ro
+      - ./data:/data
+    restart: unless-stopped
+    network_mode: host
+
+  proxy:
+    build:
+      context: .
+      dockerfile: docker/proxy.Dockerfile
+    container_name: vllm-studio-proxy
+    environment:
+      - TABBY_URL=${TABBY_URL:-http://localhost:8000}
+    restart: unless-stopped
+    network_mode: host
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    container_name: vllm-studio-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+      - API_KEY=${API_KEY:-}
+    restart: unless-stopped
+    network_mode: host
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared-vllm-studio
+    command: tunnel --config /etc/cloudflared/config.docker.yml run
+    network_mode: host
+    volumes:
+      - ${CLOUDFLARED_DIR:-$HOME/.cloudflared}:/etc/cloudflared:ro
+    restart: unless-stopped

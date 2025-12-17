@@ -1,0 +1,26 @@
+{
+  "family": "glm",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Hi there\n<tool_call>search\n<arg_key>q</arg_key>\n<arg_value>cats</arg_value>\n</tool_call>"
+    }
+  ],
+  "expected": [
+    {
+      "role": "assistant",
+      "content": "Hi there\n\n<tool_call>search\n<arg_key>q</arg_key>\n<arg_value>cats</arg_value>\n</tool_call>",
+      "tool_calls": [
+        {
+          "id": "call_FIXED",
+          "type": "function",
+          "function": {
+            "name": "search",
+            "arguments": "{\"q\": \"cats\"}"
+          }
+        }
+      ]
+    }
+  ]
+}
+

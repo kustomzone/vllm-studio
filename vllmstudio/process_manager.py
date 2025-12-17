@@ -10,6 +10,7 @@ from pathlib import Path
 import psutil
 
 from .models import Backend, ProcessInfo, Recipe
+from .backends import get_backend
 from .config import settings
 
 
@@ -216,167 +217,7 @@ class ProcessManager:
     @staticmethod
     def build_launch_command(recipe: Recipe) -> List[str]:
         """Build the launch command for a recipe."""
-        if recipe.backend == Backend.VLLM:
-            return ProcessManager._build_vllm_command(recipe)
-        else:
-            return ProcessManager._build_sglang_command(recipe)
-
-    @staticmethod
-    def _build_vllm_command(recipe: Recipe) -> List[str]:
-        """Build vLLM launch command."""
-        def _python_from_venv(venv_path: Optional[str]) -> Optional[str]:
-            if not venv_path:
-                return None
-            p = Path(venv_path)
-            # If a python executable path was provided directly
-            if p.is_file() and p.name.startswith("python"):
-                return str(p)
-            candidate = p / "bin" / "python"
-            if candidate.exists():
-                return str(candidate)
-            candidate = p / ".venv" / "bin" / "python"
-            if candidate.exists():
-                return str(candidate)
-            return None
-
-        # Use custom python if specified, otherwise default vllm
-        python_exe = recipe.python_path or _python_from_venv(getattr(recipe, "venv_path", None))
-        if python_exe:
-            cmd = [python_exe, "-m", "vllm.entrypoints.openai.api_server", "--model", recipe.model_path]
-        else:
-            cmd = ["vllm", "serve", recipe.model_path]
-
-        # Host and port
-        cmd.extend(["--host", recipe.host, "--port", str(recipe.port)])
-
-        # Served model name (what shows up in /v1/models)
-        if recipe.served_model_name:
-            cmd.extend(["--served-model-name", recipe.served_model_name])
-
-        # Allowed media path for vision models
-        if recipe.allowed_local_media_path:
-            cmd.extend(["--allowed-local-media-path", recipe.allowed_local_media_path])
-
-        # Parallelism
-        if recipe.tensor_parallel_size > 1:
-            cmd.extend(["--tensor-parallel-size", str(recipe.tensor_parallel_size)])
-        if recipe.pipeline_parallel_size > 1:
-            cmd.extend(["--pipeline-parallel-size", str(recipe.pipeline_parallel_size)])
-        if recipe.data_parallel_size > 1:
-            cmd.extend(["--data-parallel-size", str(recipe.data_parallel_size)])
-
-        # Memory
-        if recipe.kv_cache_dtype != "auto":
-            cmd.extend(["--kv-cache-dtype", recipe.kv_cache_dtype])
-        cmd.extend(["--max-model-len", str(recipe.max_model_len)])
-        cmd.extend(["--gpu-memory-utilization", str(recipe.gpu_memory_utilization)])
-        cmd.extend(["--swap-space", str(recipe.swap_space)])
-
-        # Batching
-        cmd.extend(["--block-size", str(recipe.block_size)])
-        cmd.extend(["--max-num-seqs", str(recipe.max_num_seqs)])
-        cmd.extend(["--max-num-batched-tokens", str(recipe.max_num_batched_tokens)])
-
-        # Features
-        if recipe.enable_expert_parallel:
-            cmd.append("--enable-expert-parallel")
-        if recipe.disable_custom_all_reduce:
-            cmd.append("--disable-custom-all-reduce")
-        if recipe.disable_log_requests:
-            cmd.append("--disable-log-requests")
-        if recipe.trust_remote_code:
-            cmd.append("--trust-remote-code")
-
-        # Tool calling (only add --enable-auto-tool-choice if tool_call_parser is set)
-        if recipe.tool_call_parser:
-            cmd.extend(["--tool-call-parser", recipe.tool_call_parser])
-            if recipe.enable_auto_tool_choice:
-                cmd.append("--enable-auto-tool-choice")
-        if recipe.reasoning_parser:
-            cmd.extend(["--reasoning-parser", recipe.reasoning_parser])
-
-        # Quantization
-        if recipe.quantization:
-            cmd.extend(["--quantization", recipe.quantization])
-        if recipe.dtype:
-            cmd.extend(["--dtype", recipe.dtype])
-        if recipe.calculate_kv_scales:
-            cmd.append("--calculate-kv-scales")
-
-        # RoPE scaling for extended context
-        if recipe.rope_scaling:
-            import json
-            cmd.extend(["--rope-scaling", json.dumps(recipe.rope_scaling)])
-
-        # Extra args
-        import json
-        for key, value in recipe.extra_args.items():
-            if key is None:
-                continue
-            key_str = str(key).lstrip("-").replace("_", "-")
-            flag = f"--{key_str}"
-            if value is True:
-                cmd.append(flag)
-            elif value is not False and value is not None:
-                if isinstance(value, (dict, list)):
-                    cmd.extend([flag, json.dumps(value)])
-                else:
-                    cmd.extend([flag, str(value)])
-
-        return cmd
-
-    @staticmethod
-    def _build_sglang_command(recipe: Recipe) -> List[str]:
-        """Build SGLang launch command."""
-        def _python_from_venv(venv_path: Optional[str]) -> Optional[str]:
-            if not venv_path:
-                return None
-            p = Path(venv_path)
-            if p.is_file() and p.name.startswith("python"):
-                return str(p)
-            candidate = p / "bin" / "python"
-            if candidate.exists():
-                return str(candidate)
-            candidate = p / ".venv" / "bin" / "python"
-            if candidate.exists():
-                return str(candidate)
-            return None
-
-        # Use custom python if specified, otherwise frozen SGLang venv
-        python_exe = recipe.python_path or _python_from_venv(getattr(recipe, "venv_path", None))
-        if python_exe:
-            sglang_python = python_exe
-        else:
-            sglang_python = "/opt/venvs/frozen/sglang-prod/bin/python"
-        cmd = [sglang_python, "-m", "sglang.launch_server"]
-        cmd.extend(["--model-path", recipe.model_path])
-        cmd.extend(["--host", recipe.host, "--port", str(recipe.port)])
-
-        if recipe.tensor_parallel_size > 1:
-            cmd.extend(["--tp", str(recipe.tensor_parallel_size)])
-
-        cmd.extend(["--context-length", str(recipe.max_model_len)])
-        cmd.extend(["--mem-fraction-static", str(recipe.gpu_memory_utilization)])
-
-        if recipe.trust_remote_code:
-            cmd.append("--trust-remote-code")
-
-        # Extra args for SGLang
-        import json
-        for key, value in recipe.extra_args.items():
-            if key is None:
-                continue
-            key_str = str(key).lstrip("-").replace("_", "-")
-            flag = f"--{key_str}"
-            if value is True:
-                cmd.append(flag)
-            elif value is not False and value is not None:
-                if isinstance(value, (dict, list)):
-                    cmd.extend([flag, json.dumps(value)])
-                else:
-                    cmd.extend([flag, str(value)])
-
-        return cmd
+        return get_backend(recipe.backend).build_launch_command(recipe)
 
     @staticmethod
     async def launch_model(recipe: Recipe) -> Tuple[bool, Optional[int], str]:
@@ -385,14 +226,10 @@ class ProcessManager:
 
         # Set environment
         env = os.environ.copy()
-        if recipe.cuda_visible_devices:
-            env["CUDA_VISIBLE_DEVICES"] = recipe.cuda_visible_devices
-        # Add custom environment variables from recipe
-        if recipe.env_vars:
-            env.update(recipe.env_vars)
+        env.update(get_backend(recipe.backend).build_launch_env(recipe))
 
         # Create log file for vLLM output
-        log_file = Path(f"/tmp/vllm_{recipe.id}.log")
+        log_file = get_backend(recipe.backend).default_log_file(recipe.id)
 
         try:
             # Launch as a detached process with output to log file

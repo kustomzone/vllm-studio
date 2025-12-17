@@ -11,7 +11,7 @@ services:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://homelabai.org}
-      - API_KEY=${API_KEY:-sk-homelabai-3fe751380eb7ac8701f670bee4a56b8ebff8365c68828faa}
+      - API_KEY=${API_KEY:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

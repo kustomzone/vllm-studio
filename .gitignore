@@ -5,6 +5,18 @@ __pycache__/
 *.log
 .pkl_memoize_py3/
 *.egg-info/
+data/*.db
+data/*.sqlite
+data/*.db-shm
+data/*.db-wal
+data/*.sqlite-shm
+data/*.sqlite-wal
+data/logs/
+data/admin_key.txt
+
+# Local configs
+config/controller.json
+config/controller.local.json
 
 # OpenWebUI artifacts
 openwebui-src/node_modules/

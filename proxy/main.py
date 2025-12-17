@@ -26,6 +26,7 @@ from .models import (
 from formatters.anthropic import AnthropicFormatter
 from formatters.openai import OpenAIFormatter
 from parsers.reasoning import ensure_think_wrapped, split_think, strip_enclosing_think, strip_box_tags
+from parsers.pipeline import normalize_history_for_backend
 from parsers.minimax import (
     StreamingParser,
     extract_json_tool_calls,
@@ -74,6 +75,16 @@ def is_glm_model(model_name: str) -> bool:
 def is_mistral_model(model_name: str) -> bool:
     adapter = get_adapter_for_model(model_name)
     return adapter is not None and adapter.kind == AdapterKind.MISTRAL
+
+
+def _normalize_history_for_model(model_name: str, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if is_glm_model(model_name):
+        return normalize_glm_history(messages)
+    if is_mistral_model(model_name):
+        # Mistral/Devstral models typically rely on vLLM's native tool parsing; avoid
+        # injecting inline tool formats unless explicitly enabled elsewhere.
+        return messages
+    return normalize_openai_history(messages)
 
 
 if settings.enable_streaming_debug:
@@ -130,131 +141,15 @@ def extract_session_id(raw_request: Request, extra_body: Optional[Dict[str, Any]
 
 
 def normalize_openai_history(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Normalize assistant messages so Tabby receives inline <think> content.
-
-    Also handles the case where clients send XML tool calls in content without
-    the structured tool_calls field - parses them and adds the tool_calls field.
-    """
-    normalized: List[Dict[str, Any]] = []
-    for message in messages:
-        msg_copy = dict(message)
-        if msg_copy.get("role") == "assistant":
-            reasoning_details = msg_copy.pop("reasoning_details", None)
-            reasoning_text = ""
-            if isinstance(reasoning_details, list):
-                for detail in reasoning_details:
-                    if isinstance(detail, dict):
-                        reasoning_text += str(detail.get("text", ""))
-
-            content = msg_copy.get("content") or ""
-
-            # Parse XML tool calls from content if tool_calls field is missing
-            # This handles clients that send raw XML in content instead of using tool_calls
-            tool_calls = msg_copy.get("tool_calls")
-            if not tool_calls and "<minimax:tool_call>" in content:
-                parsed = parse_tool_calls(content, None)
-                if parsed["tools_called"]:
-                    msg_copy["tool_calls"] = parsed["tool_calls"]
-                    tool_calls = parsed["tool_calls"]
-                    # Update content to the version without XML blocks
-                    if parsed["content"] is not None:
-                        content = parsed["content"]
-                    else:
-                        content = ""
-                    msg_copy["content"] = content
-                    logger.debug(f"Parsed {len(tool_calls)} tool calls from assistant message content")
-
-            if reasoning_text:
-                reason_block = f"<think>{reasoning_text}</think>"
-                if content and not content.startswith("\n"):
-                    reason_block = f"{reason_block}\n"
-                msg_copy["content"] = reason_block + content
-            elif content and "</think>" in content:
-                msg_copy["content"] = ensure_think_wrapped(content)
-
-            tool_calls = msg_copy.get("tool_calls")
-            if tool_calls:
-                xml_block = tool_calls_to_minimax_xml(tool_calls)
-                if xml_block:
-                    updated_content = msg_copy.get("content") or ""
-                    if "</think>" in updated_content and "<think>" not in updated_content:
-                        updated_content = ensure_think_wrapped(updated_content)
-
-                    if xml_block not in updated_content:
-                        stripped = updated_content.rstrip()
-                        if stripped:
-                            msg_copy["content"] = f"{stripped}\n\n{xml_block}"
-                        else:
-                            msg_copy["content"] = xml_block
-                    else:
-                        msg_copy["content"] = updated_content
-
-        normalized.append(msg_copy)
-    return normalized
+    return normalize_history_for_backend(messages, family="minimax", tools=None)
 
 
 def normalize_glm_history(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Normalize assistant messages so TabbyAPI/vLLM receives inline <think> content for GLM.
+    return normalize_history_for_backend(messages, family="glm", tools=None)
 
-    Also handles the case where clients send XML tool calls in content without
-    the structured tool_calls field - parses them and adds the tool_calls field.
-    """
-    normalized: List[Dict[str, Any]] = []
-    for message in messages:
-        msg_copy = dict(message)
-        if msg_copy.get("role") == "assistant":
-            reasoning_details = msg_copy.pop("reasoning_details", None)
-            reasoning_text = ""
-            if isinstance(reasoning_details, list):
-                for detail in reasoning_details:
-                    if isinstance(detail, dict):
-                        reasoning_text += str(detail.get("text", ""))
 
-            content = msg_copy.get("content") or ""
-
-            # Parse XML tool calls from content if tool_calls field is missing
-            # This handles clients that send raw XML in content instead of using tool_calls
-            tool_calls = msg_copy.get("tool_calls")
-            if not tool_calls and "<tool_call>" in content:
-                parsed = parse_glm_tool_calls(content, None)
-                if parsed["tools_called"]:
-                    msg_copy["tool_calls"] = parsed["tool_calls"]
-                    tool_calls = parsed["tool_calls"]
-                    # Update content to the version without XML blocks
-                    if parsed["content"] is not None:
-                        content = parsed["content"]
-                    else:
-                        content = ""
-                    msg_copy["content"] = content
-                    logger.debug(f"Parsed {len(tool_calls)} GLM tool calls from assistant message content")
-
-            if reasoning_text:
-                reason_block = f"<think>{reasoning_text}</think>"
-                if content and not content.startswith("\n"):
-                    reason_block = f"{reason_block}\n"
-                msg_copy["content"] = reason_block + content
-            elif content and "</think>" in content:
-                msg_copy["content"] = ensure_think_wrapped(content)
-
-            tool_calls = msg_copy.get("tool_calls")
-            if tool_calls:
-                xml_block = tool_calls_to_glm_xml(tool_calls)
-                if xml_block:
-                    updated_content = msg_copy.get("content") or ""
-                    if "</think>" in updated_content and "<think>" not in updated_content:
-                        updated_content = ensure_think_wrapped(updated_content)
-
-                    if xml_block not in updated_content:
-                        stripped = updated_content.rstrip()
-                        if stripped:
-                            msg_copy["content"] = f"{stripped}\n\n{xml_block}"
-                        else:
-                            msg_copy["content"] = xml_block
-                    else:
-                        msg_copy["content"] = updated_content
-
-        normalized.append(msg_copy)
-    return normalized
+def normalize_mistral_history(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return normalize_history_for_backend(messages, family="mistral", tools=None)
 
 
 @asynccontextmanager
@@ -407,14 +302,7 @@ async def complete_openai_response(chat_request: OpenAIChatRequest, session_id: 
         )
 
     messages = repair_result.messages
-    # Use appropriate normalizer for the model type
-    # Mistral models use standard OpenAI format, no special normalization needed
-    if use_glm_parsing:
-        normalized_messages = normalize_glm_history(messages)
-    elif use_mistral_parsing:
-        normalized_messages = messages  # Mistral uses standard format
-    else:
-        normalized_messages = normalize_openai_history(messages)
+    normalized_messages = _normalize_history_for_model(chat_request.model, messages)
 
     # Convert tools if present
     tools = None
@@ -630,14 +518,7 @@ async def stream_openai_response(chat_request: OpenAIChatRequest, session_id: Op
         )
 
     messages = repair_result.messages
-    # Use appropriate normalizer for the model type
-    # Mistral models use standard OpenAI format
-    if use_glm_parsing:
-        normalized_messages = normalize_glm_history(messages)
-    elif use_mistral_parsing:
-        normalized_messages = messages  # Mistral uses standard format
-    else:
-        normalized_messages = normalize_openai_history(messages)
+    normalized_messages = _normalize_history_for_model(chat_request.model, messages)
 
     # Convert tools if present
     tools = None
@@ -1177,11 +1058,7 @@ async def complete_anthropic_response(anthropic_request: AnthropicChatRequest, s
         )
 
     openai_messages = repair_result.messages
-    # Use appropriate normalizer for the model type
-    if use_glm_parsing:
-        normalized_messages = normalize_glm_history(openai_messages)
-    else:
-        normalized_messages = normalize_openai_history(openai_messages)
+    normalized_messages = _normalize_history_for_model(anthropic_request.model, openai_messages)
 
     # Convert tools
     tools = anthropic_tools_to_openai(anthropic_request.tools)
@@ -1474,11 +1351,7 @@ async def stream_anthropic_response(anthropic_request: AnthropicChatRequest, ses
         )
 
     openai_messages = repair_result.messages
-    # Use appropriate normalizer for the model type
-    if use_glm_parsing:
-        normalized_messages = normalize_glm_history(openai_messages)
-    else:
-        normalized_messages = normalize_openai_history(openai_messages)
+    normalized_messages = _normalize_history_for_model(anthropic_request.model, openai_messages)
 
     # Debug: Log message structure
     logger.info(f"Sending {len(normalized_messages)} messages to TabbyAPI")
