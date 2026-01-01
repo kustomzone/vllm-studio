@@ -1,6 +1,15 @@
 # vLLM Studio
 
-Model lifecycle management for vLLM and SGLang inference servers.
+[![GitHub release](https://img.shields.io/github/v/release/0xSero/vllm-studio)](https://github.com/0xSero/vllm-studio/releases)
+[![PyPI](https://img.shields.io/pypi/v/vllm-studio)](https://pypi.org/project/vllm-studio/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/0xSero)](https://github.com/sponsors/0xSero)
+
+**Model lifecycle management for vLLM and SGLang inference servers.**
+
+🌐 [Website](https://0xsero.github.io/vllm-studio) • 📖 [Documentation](#api-reference) • 💬 [Discussions](https://github.com/0xSero/vllm-studio/discussions)
+
+---
 
 ## What It Does
 
@@ -29,13 +38,19 @@ Model lifecycle management for vLLM and SGLang inference servers.
 
 ```bash
 # Install controller
-pip install -e .
+pip install vllm-studio
 
 # Run controller
 vllm-studio
 
 # (Optional) Run frontend
 cd frontend && npm install && npm run dev
+```
+
+Or with Docker:
+
+```bash
+docker-compose up -d
 ```
 
 ## API Reference
@@ -160,6 +175,14 @@ docker compose up litellm
 
 Then use `http://localhost:4100` as your API endpoint with any OpenAI-compatible client.
 
+## Support
+
+If you find vLLM Studio useful, consider [sponsoring the project](https://github.com/sponsors/0xSero)!
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
 ## License
 
-Apache 2.0
+Apache 2.0 - see [LICENSE](LICENSE) for details.
