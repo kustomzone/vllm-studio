@@ -1,3 +1,9 @@
+## 1.0.0 (2026-01-01)
+
+### 🚀 Features
+
+* add landing page, sponsorship, and release automation ([b206ddd](https://github.com/0xSero/vllm-studio/commit/b206ddde83b0afd38f2e518a0cad82fef3ce0f59))
+
 # Changelog
 
 All notable changes to vLLM Studio will be documented in this file.
