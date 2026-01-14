@@ -1,0 +1,7 @@
+{
+  "id": "msg-001",
+  "session_id": "chat-001",
+  "role": "user",
+  "content": "Hello, this is a test message",
+  "created_at": "2025-01-14T10:30:00Z"
+}

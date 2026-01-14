@@ -1,0 +1,21 @@
+{
+  "id": "chatcmpl-test001",
+  "object": "chat.completion",
+  "created": 1736851200,
+  "model": "llama-3.1-8b",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I'm a test assistant. How can I help you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 15,
+    "total_tokens": 25
+  }
+}
