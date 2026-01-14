@@ -57,8 +57,32 @@
 - Created `frontend/tests/e2e/smoke.spec.ts` to verify API mocking works
 - Verified: `npx playwright test --list` shows 18 tests across 2 files
 
-### Task 02 - Chat flow E2E
-⚪ NOT STARTED
+### Task 02 - Dashboard and global navigation E2E
+✅ COMPLETE
+
+**Changes:**
+- Created `frontend/tests/e2e/dashboard.spec.ts` with comprehensive dashboard tests:
+  - Dashboard loads and displays model status
+  - GPU information is displayed correctly
+  - Metrics cards show when model is running
+  - Session and lifetime statistics display
+  - Cost analytics section renders
+  - Recipes list with status indicators
+  - Search functionality filters recipes
+  - Logs section displays
+  - Action buttons work (chat, logs)
+  - Loading state handling
+- Created `frontend/tests/e2e/navigation.spec.ts` with navigation tests:
+  - Sidebar displays all navigation items
+  - Navigation links work correctly
+  - Active item is highlighted
+  - Sidebar collapse/expand on desktop
+  - Mobile menu opens and closes
+  - Status indicator shows correct state
+  - Navigation from dashboard buttons
+  - Browser back/forward works
+  - Direct URL navigation
+- Verified: 81 tests across 4 files
 
 ### Task 03 - Recipes page E2E
 ⚪ NOT STARTED
