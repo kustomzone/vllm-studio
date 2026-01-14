@@ -1,0 +1,29 @@
+{
+  "daily_stats": [
+    {
+      "date": "2025-01-14",
+      "requests": 152,
+      "tokens": 48753,
+      "energy_wh": 45.2
+    },
+    {
+      "date": "2025-01-13",
+      "requests": 287,
+      "tokens": 92345,
+      "energy_wh": 89.1
+    },
+    {
+      "date": "2025-01-12",
+      "requests": 198,
+      "tokens": 62156,
+      "energy_wh": 58.3
+    }
+  ],
+  "summary": {
+    "total_requests": 637,
+    "total_tokens": 203254,
+    "total_energy_wh": 192.6,
+    "avg_tokens_per_request": 319,
+    "avg_energy_per_million_tokens": 0.947
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "count": 1,
+  "gpus": [
+    {
+      "index": 0,
+      "name": "NVIDIA GeForce RTX 4090",
+      "memory_total": 25757220864,
+      "memory_total_mb": 24564,
+      "memory_used": 8589934592,
+      "memory_used_mb": 8192,
+      "memory_free": 17167286272,
+      "memory_free_mb": 16372,
+      "utilization": 35,
+      "utilization_pct": 35,
+      "temperature": 65,
+      "temp_c": 65,
+      "power_draw": 285,
+      "power_limit": 450
+    }
+  ]
+}

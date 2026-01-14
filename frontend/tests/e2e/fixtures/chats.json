@@ -1,0 +1,24 @@
+[
+  {
+    "id": "chat-001",
+    "title": "Getting started with vLLM Studio",
+    "model": "llama-3.1-8b",
+    "created_at": "2025-01-14T10:30:00Z",
+    "updated_at": "2025-01-14T10:35:00Z"
+  },
+  {
+    "id": "chat-002",
+    "title": "Understanding model parameters",
+    "model": "llama-3.1-8b",
+    "created_at": "2025-01-13T15:20:00Z",
+    "updated_at": "2025-01-13T15:45:00Z"
+  },
+  {
+    "id": "chat-003",
+    "title": "GPU optimization tips",
+    "model": "mistral-7b",
+    "parent_id": "chat-002",
+    "created_at": "2025-01-12T09:15:00Z",
+    "updated_at": "2025-01-12T09:30:00Z"
+  }
+]

@@ -33,8 +33,29 @@
 - Created `frontend/tests/e2e/` directory with placeholder test
 - Verified setup: `npx playwright test --list` shows 3 tests
 
-### Task 01 - Dashboard and global navigation E2E
-⚪ NOT STARTED
+### Task 01 - Build Playwright fixtures and API mocks
+✅ COMPLETE
+
+**Changes:**
+- Created `frontend/tests/e2e/fixtures/` with JSON fixtures for all API endpoints:
+  - health.json, status.json, gpus.json, metrics.json
+  - recipes.json, v1-models.json, chats.json, logs.json
+  - usage.json, peak-metrics.json
+- Created `frontend/tests/e2e/utils/mock-api.ts` with comprehensive mock helpers:
+  - mockApi() - main function to intercept all API routes
+  - mockEndpoint() - mock specific endpoints with custom responses
+  - mockEndpointWithDelay() - simulate network latency
+  - mockError() - mock error responses
+- Created `frontend/tests/e2e/utils/test-data.ts` with test data generators and helpers:
+  - mockRecipe, mockChat, mockMessage objects
+  - generateMockRecipes(), generateMockChats(), generateMockMessages()
+  - testSelectors with common data-testid selectors
+  - navHelpers with navigation functions
+- Created `frontend/tests/e2e/utils/storage-state.ts` with localStorage helpers:
+  - seedLocalStorage() - set default test state
+  - mockAuthSession(), setTheme() utilities
+- Created `frontend/tests/e2e/smoke.spec.ts` to verify API mocking works
+- Verified: `npx playwright test --list` shows 18 tests across 2 files
 
 ### Task 02 - Chat flow E2E
 ⚪ NOT STARTED

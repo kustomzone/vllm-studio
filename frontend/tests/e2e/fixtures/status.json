@@ -1,0 +1,12 @@
+{
+  "running": true,
+  "process": {
+    "pid": 12345,
+    "backend": "vllm",
+    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "port": 8000,
+    "served_model_name": "llama-3.1-8b"
+  },
+  "inference_port": 8000,
+  "launching": null
+}

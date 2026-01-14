@@ -1,0 +1,17 @@
+{
+  "peak_prefill_tps": 1850,
+  "peak_generation_tps": 92.5,
+  "peak_ttft_ms": 89,
+  "total_tokens": 1524563,
+  "total_requests": 4532,
+  "lifetime_tokens": 1524563,
+  "lifetime_prompt_tokens": 523841,
+  "lifetime_completion_tokens": 1000722,
+  "lifetime_requests": 4532,
+  "lifetime_energy_wh": 245.6,
+  "lifetime_energy_kwh": 0.2456,
+  "lifetime_uptime_hours": 12.5,
+  "kwh_per_million_tokens": 0.161,
+  "kwh_per_million_input": 0.469,
+  "kwh_per_million_output": 0.245
+}

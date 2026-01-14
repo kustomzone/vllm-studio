@@ -1,0 +1,43 @@
+[
+  {
+    "id": "llama-3.1-8b",
+    "name": "Llama 3.1 8B Instruct",
+    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "backend": "vllm",
+    "port": 8000,
+    "served_model_name": "llama-3.1-8b",
+    "tokenizer": "meta-llama/Llama-3.1-8B-Instruct",
+    "dtype": "bfloat16",
+    "gpu_memory_utilization": 0.9,
+    "max_model_len": 32768,
+    "enable_prefix_caching": true,
+    "status": "running"
+  },
+  {
+    "id": "mistral-7b",
+    "name": "Mistral 7B Instruct v0.3",
+    "model_path": "mistralai/Mistral-7B-Instruct-v0.3",
+    "backend": "vllm",
+    "port": 8001,
+    "served_model_name": "mistral-7b",
+    "tokenizer": "mistralai/Mistral-7B-Instruct-v0.3",
+    "dtype": "bfloat16",
+    "gpu_memory_utilization": 0.9,
+    "max_model_len": 32768,
+    "status": "stopped"
+  },
+  {
+    "id": "qwen-2.5-7b",
+    "name": "Qwen 2.5 7B Instruct",
+    "model_path": "Qwen/Qwen2.5-7B-Instruct",
+    "backend": "vllm",
+    "port": 8002,
+    "served_model_name": "qwen-2.5-7b",
+    "tokenizer": "Qwen/Qwen2.5-7B-Instruct",
+    "dtype": "bfloat16",
+    "gpu_memory_utilization": 0.9,
+    "max_model_len": 32768,
+    "enable_prefix_caching": true,
+    "status": "stopped"
+  }
+]
