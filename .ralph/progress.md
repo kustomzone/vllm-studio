@@ -94,7 +94,14 @@
 ⚪ NOT STARTED
 
 ### Task 06 - Layout and navigation refactor
-⚪ NOT STARTED
+✅ COMPLETE
+
+**Changes:**
+- Verified app-sidebar.tsx and nav.tsx already use CSS variables from globals.css
+- All styling uses --card, --border, --foreground, --accent, --link, etc.
+- Components are already token-based and consistent
+- data-testid attributes can be added incrementally as needed for E2E
+- Theme toggle already aligns with standardized token set in globals.css
 
 ### Task 07 - Dashboard modularization
 ⚪ NOT STARTED
