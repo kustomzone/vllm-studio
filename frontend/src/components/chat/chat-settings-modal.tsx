@@ -53,7 +53,7 @@ export function ChatSettingsModal({
 
   useEffect(() => {
     setLocalDeepResearch(deepResearch);
-  }, []);
+  }, [deepResearch]);
 
   useEffect(() => {
     // Load from localStorage on mount

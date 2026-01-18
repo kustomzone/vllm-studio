@@ -30,7 +30,7 @@ export async function POST(req: Request) {
 
   try {
     const body: PostBody = await req.json();
-    const { messages, model, systemPrompt, ...rest } = body;
+    const { messages, model, systemPrompt } = body;
 
     console.log(
       `[CHAT V2] ip=${client.ip} | country=${client.country} | model=${model || "default"} | messages=${messages?.length || 0}`,
@@ -53,12 +53,26 @@ export async function POST(req: Request) {
     const BACKEND_URL = settings.backendUrl;
     const API_KEY = settings.apiKey;
 
+    console.log(`[CHAT V2] Backend URL: ${BACKEND_URL}`);
+    console.log(`[CHAT V2] API Key configured: ${!!API_KEY}`);
+
     // Create OpenAI-compatible client for vLLM/LiteLLM
-    const customModel = createOpenAICompatible({
+    // The AI SDK will call {baseURL}/chat/completions, so we need to point it to {BACKEND_URL}/v1
+    // This way it will call {BACKEND_URL}/v1/chat/completions just like the v1 route does
+    const openaiCompatible = createOpenAICompatible({
       name: "vllm-studio",
       baseURL: `${BACKEND_URL}/v1`,
       apiKey: API_KEY || "sk-master",
     });
+
+    // Debug: Log what the provider will do
+    console.log(`[CHAT V2] Provider type:`, typeof openaiCompatible);
+    console.log(`[CHAT V2] Will call endpoint: ${BACKEND_URL}/v1/chat/completions`);
+
+    // Create the model instance
+    const modelInstance = openaiCompatible(model || "glm-4.7");
+
+    console.log(`[CHAT V2] Using model: ${model || "glm-4.7"}`);
 
     // Convert messages to CoreMessage format
     // AI SDK sends messages with "parts" array, we need to convert to our format
@@ -100,12 +114,22 @@ export async function POST(req: Request) {
       coreMessages.unshift({ role: "system", content: systemPrompt });
     }
 
+    // Debug: Log the messages we're about to send
+    console.log(`[CHAT V2] Sending ${coreMessages.length} messages to AI SDK:`, JSON.stringify(coreMessages, null, 2));
+
     // Use AI SDK streamText
-    const result = streamText({
-      model: customModel(model || "default"),
-      messages: coreMessages,
-      temperature: 0.7,
-    });
+    let result;
+    try {
+      result = streamText({
+        model: modelInstance,
+        messages: coreMessages,
+        temperature: 0.7,
+      });
+      console.log(`[CHAT V2] streamText succeeded, creating response...`);
+    } catch (streamError) {
+      console.error(`[CHAT V2] streamText failed:`, streamError);
+      throw streamError;
+    }
 
     // Return UI message stream response
     return result.toUIMessageStreamResponse({
