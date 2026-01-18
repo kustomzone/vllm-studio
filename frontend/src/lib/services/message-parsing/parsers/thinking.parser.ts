@@ -4,18 +4,18 @@
  * Separates reasoning from visible content
  */
 
-import type { IThinkingParser, ThinkingResult } from '../types';
-import { boxTagsParser } from './box-tags.parser';
+import type { IThinkingParser, ThinkingResult } from "../types";
+import { boxTagsParser } from "./box-tags.parser";
 
-const OPEN_TAGS = ['<think>', '<thinking>'];
-const CLOSE_TAGS = ['</think>', '</thinking>'];
+const OPEN_TAGS = ["<think>", "<thinking>"];
+const CLOSE_TAGS = ["</think>", "</thinking>"];
 
 export class ThinkingParser implements IThinkingParser {
-  readonly name = 'thinking' as const;
+  readonly name = "thinking" as const;
 
   parse(input: string): ThinkingResult {
     if (!input) {
-      return { thinkingContent: null, mainContent: '', isThinkingComplete: true };
+      return { thinkingContent: null, mainContent: "", isThinkingComplete: true };
     }
 
     const reasoningParts: string[] = [];
@@ -26,12 +26,8 @@ export class ThinkingParser implements IThinkingParser {
     while (remaining) {
       const lower = remaining.toLowerCase();
 
-      const openIdxs = OPEN_TAGS
-        .map((t) => lower.indexOf(t))
-        .filter((i) => i !== -1);
-      const closeIdxs = CLOSE_TAGS
-        .map((t) => lower.indexOf(t))
-        .filter((i) => i !== -1);
+      const openIdxs = OPEN_TAGS.map((t) => lower.indexOf(t)).filter((i) => i !== -1);
+      const closeIdxs = CLOSE_TAGS.map((t) => lower.indexOf(t)).filter((i) => i !== -1);
 
       const openIdx = openIdxs.length ? Math.min(...openIdxs) : -1;
       const closeIdx = closeIdxs.length ? Math.min(...closeIdxs) : -1;
@@ -52,14 +48,12 @@ export class ThinkingParser implements IThinkingParser {
         remaining = remaining.slice(openIdx + matchedOpen.length);
 
         const lowerAfter = remaining.toLowerCase();
-        const closeIdxAfter = CLOSE_TAGS
-          .map((t) => lowerAfter.indexOf(t))
-          .filter((i) => i !== -1);
+        const closeIdxAfter = CLOSE_TAGS.map((t) => lowerAfter.indexOf(t)).filter((i) => i !== -1);
         const closePos = closeIdxAfter.length ? Math.min(...closeIdxAfter) : -1;
 
         if (closePos === -1) {
           reasoningParts.push(remaining);
-          remaining = '';
+          remaining = "";
           isComplete = false;
           break;
         }
@@ -78,8 +72,8 @@ export class ThinkingParser implements IThinkingParser {
       remaining = remaining.slice(closeIdx + matchedClose.length);
     }
 
-    const thinkingText = boxTagsParser.parse(reasoningParts.join('')).trim();
-    const visibleText = boxTagsParser.parse(visibleParts.join(''));
+    const thinkingText = boxTagsParser.parse(reasoningParts.join("")).trim();
+    const visibleText = boxTagsParser.parse(visibleParts.join(""));
 
     return {
       thinkingContent: thinkingText || null,
@@ -97,8 +91,8 @@ export class ThinkingParser implements IThinkingParser {
    * Strip thinking tags but keep the text content inside
    */
   stripTagsKeepText(input: string): string {
-    if (!input) return '';
-    return input.replace(/<\/?think(?:ing)?>/gi, '');
+    if (!input) return "";
+    return input.replace(/<\/?think(?:ing)?>/gi, "");
   }
 
   /**

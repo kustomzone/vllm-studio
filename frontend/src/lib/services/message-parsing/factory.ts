@@ -3,12 +3,12 @@
  * Creates configured instances of MessageParsingService
  */
 
-import { MessageParsingService } from './service';
+import { MessageParsingService } from "./service";
 import type {
   IMessageParsingService,
   IMessageParsingServiceFactory,
   MessageParsingConfig,
-} from './types';
+} from "./types";
 
 // Default configuration
 const DEFAULT_MESSAGE_PARSING_CONFIG: MessageParsingConfig = {

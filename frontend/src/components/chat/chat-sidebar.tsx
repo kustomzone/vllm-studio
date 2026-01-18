@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState, useMemo } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { useState, useMemo } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   MessageSquare,
   Plus,
@@ -18,38 +18,57 @@ import {
   FileText,
   BarChart3,
   Layers,
-} from 'lucide-react';
-import type { ChatSession } from '@/lib/types';
+} from "lucide-react";
+import type { ChatSession } from "@/lib/types";
 
 // Navigation items
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/chat', label: 'Chat', icon: MessageSquare },
-  { href: '/recipes', label: 'Recipes', icon: Settings },
-  { href: '/logs', label: 'Logs', icon: FileText },
-  { href: '/usage', label: 'Usage', icon: BarChart3 },
-  { href: '/configs', label: 'Configs', icon: Settings },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/recipes", label: "Recipes", icon: Settings },
+  { href: "/logs", label: "Logs", icon: FileText },
+  { href: "/usage", label: "Usage", icon: BarChart3 },
+  { href: "/configs", label: "Configs", icon: Settings },
 ];
 
 // Empty state illustration - warm, friendly chat bubbles
-function EmptyStateIllustration({ className = '' }: { className?: string }) {
+function EmptyStateIllustration({ className = "" }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 120 100"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-    >
+    <svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
       <ellipse cx="60" cy="85" rx="40" ry="8" fill="currentColor" opacity="0.05" />
       <rect x="20" y="20" width="60" height="45" rx="8" fill="currentColor" opacity="0.1" />
-      <rect x="20" y="20" width="60" height="45" rx="8" stroke="currentColor" strokeWidth="1.5" opacity="0.2" />
+      <rect
+        x="20"
+        y="20"
+        width="60"
+        height="45"
+        rx="8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        opacity="0.2"
+      />
       <path d="M35 65 L30 75 L45 65" fill="currentColor" opacity="0.1" />
-      <path d="M35 65 L30 75 L45 65" stroke="currentColor" strokeWidth="1.5" opacity="0.2" strokeLinejoin="round" />
+      <path
+        d="M35 65 L30 75 L45 65"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        opacity="0.2"
+        strokeLinejoin="round"
+      />
       <rect x="28" y="30" width="35" height="3" rx="1.5" fill="currentColor" opacity="0.15" />
       <rect x="28" y="38" width="44" height="3" rx="1.5" fill="currentColor" opacity="0.12" />
       <rect x="28" y="46" width="28" height="3" rx="1.5" fill="currentColor" opacity="0.1" />
       <rect x="50" y="40" width="50" height="35" rx="6" fill="currentColor" opacity="0.08" />
-      <rect x="50" y="40" width="50" height="35" rx="6" stroke="currentColor" strokeWidth="1.5" opacity="0.15" />
+      <rect
+        x="50"
+        y="40"
+        width="50"
+        height="35"
+        rx="6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        opacity="0.15"
+      />
       <path d="M85 75 L92 82 L78 75" fill="currentColor" opacity="0.08" />
       <rect x="58" y="50" width="30" height="2.5" rx="1.25" fill="currentColor" opacity="0.12" />
       <rect x="58" y="57" width="35" height="2.5" rx="1.25" fill="currentColor" opacity="0.1" />
@@ -83,10 +102,10 @@ function groupSessionsByDate(sessions: ChatSession[]) {
   const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
 
   const groups: { label: string; sessions: ChatSession[] }[] = [
-    { label: 'Today', sessions: [] },
-    { label: 'Yesterday', sessions: [] },
-    { label: 'Last 7 days', sessions: [] },
-    { label: 'Older', sessions: [] },
+    { label: "Today", sessions: [] },
+    { label: "Yesterday", sessions: [] },
+    { label: "Last 7 days", sessions: [] },
+    { label: "Older", sessions: [] },
   ];
 
   sessions.forEach((session) => {
@@ -118,16 +137,14 @@ export function ChatSidebar({
 }: ChatSidebarProps) {
   const pathname = usePathname();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(CHATS_PER_PAGE);
 
   const filteredSessions = useMemo(() => {
     if (!searchQuery.trim()) return sessions;
     const q = searchQuery.toLowerCase();
     return sessions.filter(
-      (s) =>
-        s.title.toLowerCase().includes(q) ||
-        s.model?.toLowerCase().includes(q)
+      (s) => s.title.toLowerCase().includes(q) || s.model?.toLowerCase().includes(q),
     );
   }, [sessions, searchQuery]);
 
@@ -154,17 +171,17 @@ export function ChatSidebar({
   // Desktop collapsed state - minimal rail with nav
   if (isCollapsed && !isMobile) {
     return (
-      <div className="fixed left-0 top-0 bottom-0 w-12 border-r border-[var(--border)] bg-[var(--card)] flex flex-col items-center py-3 z-40">
+      <div className="fixed left-0 top-0 bottom-0 w-12 border-r border-(--border) bg-(--card) flex flex-col items-center py-3 z-40">
         {/* Logo */}
         <Link
           href="/"
-          className="p-2 rounded-lg hover:bg-[var(--accent)] transition-colors mb-2"
+          className="p-2 rounded-lg hover:bg-(--accent) transition-colors mb-2"
           title="vLLM Studio"
         >
-          <Layers className="h-5 w-5 text-[var(--foreground)]" />
+          <Layers className="h-5 w-5 text-(--foreground)" />
         </Link>
 
-        <div className="w-7 h-px bg-[var(--border)] my-1" />
+        <div className="w-7 h-px bg-(--border) my-1" />
 
         {/* Nav items */}
         <div className="flex flex-col items-center gap-1">
@@ -177,8 +194,8 @@ export function ChatSidebar({
                 href={item.href}
                 className={`p-2 rounded-lg transition-colors ${
                   isActive
-                    ? 'bg-[var(--accent)] text-[var(--foreground)]'
-                    : 'text-[#9a9590] hover:text-[var(--foreground)] hover:bg-[var(--accent)]'
+                    ? "bg-(--accent) text-(--foreground)"
+                    : "text-[#9a9590] hover:text-(--foreground) hover:bg-(--accent)"
                 }`}
                 title={item.label}
               >
@@ -188,19 +205,19 @@ export function ChatSidebar({
           })}
         </div>
 
-        <div className="w-7 h-px bg-[var(--border)] my-2" />
+        <div className="w-7 h-px bg-(--border) my-2" />
 
         {/* Expand & New */}
         <button
           onClick={onToggleCollapse}
-          className="p-2 rounded-lg hover:bg-[var(--accent)] transition-colors"
+          className="p-2 rounded-lg hover:bg-(--accent) transition-colors"
           title="Expand sidebar"
         >
           <ChevronRight className="h-4 w-4 text-[#9a9590]" />
         </button>
         <button
           onClick={onNewSession}
-          className="p-2 rounded-lg hover:bg-[var(--accent)] transition-colors"
+          className="p-2 rounded-lg hover:bg-(--accent) transition-colors"
           title="New chat"
         >
           <Plus className="h-4 w-4 text-[#9a9590]" />
@@ -214,8 +231,8 @@ export function ChatSidebar({
               onClick={() => onSelectSession(session.id)}
               className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-medium transition-colors ${
                 currentSessionId === session.id
-                  ? 'bg-[var(--accent)] text-[var(--foreground)]'
-                  : 'hover:bg-[var(--accent)] text-[#9a9590]'
+                  ? "bg-(--accent) text-(--foreground)"
+                  : "hover:bg-(--accent) text-[#9a9590]"
               }`}
               title={session.title}
             >
@@ -235,23 +252,23 @@ export function ChatSidebar({
           className="fixed inset-0 bg-black/60 z-40 animate-fade-in"
           onClick={onToggleCollapse}
         />
-        <div className="fixed left-0 top-0 bottom-0 w-80 bg-[var(--card)] border-r border-[var(--border)] flex flex-col z-50 animate-slide-in-left">
+        <div className="fixed left-0 top-0 bottom-0 w-80 bg-(--card) border-r border-(--border) flex flex-col z-50 animate-slide-in-left">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top,0))] border-b border-[var(--border)]">
+          <div className="flex items-center justify-between px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top,0))] border-b border-(--border)">
             <div className="flex items-center gap-2.5">
-              <Layers className="h-5 w-5 text-[var(--foreground)]" />
+              <Layers className="h-5 w-5 text-(--foreground)" />
               <span className="font-semibold text-sm">vLLM Studio</span>
             </div>
             <button
               onClick={onToggleCollapse}
-              className="p-2 rounded-lg hover:bg-[var(--accent)] transition-colors"
+              className="p-2 rounded-lg hover:bg-(--accent) transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
 
           {/* Navigation */}
-          <div className="px-2 py-2 border-b border-[var(--border)]">
+          <div className="px-2 py-2 border-b border-(--border)">
             <div className="space-y-0.5">
               {navItems.map((item) => {
                 const Icon = item.icon;
@@ -263,8 +280,8 @@ export function ChatSidebar({
                     onClick={onToggleCollapse}
                     className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
                       isActive
-                        ? 'bg-[var(--accent)] text-[var(--foreground)]'
-                        : 'text-[#9a9590] hover:text-[var(--foreground)] hover:bg-[var(--accent)]'
+                        ? "bg-(--accent) text-(--foreground)"
+                        : "text-[#9a9590] hover:text-(--foreground) hover:bg-(--accent)"
                     }`}
                   >
                     <Icon className="h-4 w-4" />
@@ -276,7 +293,7 @@ export function ChatSidebar({
           </div>
 
           {/* Search */}
-          <div className="px-3 py-2 border-b border-[var(--border)]">
+          <div className="px-3 py-2 border-b border-(--border)">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9a9590]" />
               <input
@@ -284,7 +301,7 @@ export function ChatSidebar({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search conversations..."
-                className="w-full pl-9 pr-3 py-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--muted)]"
+                className="w-full pl-9 pr-3 py-2 text-sm bg-(--background) border border-(--border) rounded-lg focus:outline-none focus:border-(--muted)"
               />
             </div>
           </div>
@@ -296,7 +313,7 @@ export function ChatSidebar({
                 onNewSession();
                 onToggleCollapse();
               }}
-              className="w-full flex items-center justify-center gap-2 text-sm bg-[var(--foreground)] text-[var(--background)] px-4 py-2.5 rounded-lg hover:opacity-90 transition-opacity font-medium"
+              className="w-full flex items-center justify-center gap-2 text-sm bg-(--foreground) text-(--background) px-4 py-2.5 rounded-lg hover:opacity-90 transition-opacity font-medium"
             >
               <Sparkles className="h-4 w-4" />
               <span>New Chat</span>
@@ -308,14 +325,20 @@ export function ChatSidebar({
             {isLoading ? (
               <div className="flex justify-center py-8">
                 <div className="flex gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[var(--muted)] animate-pulse-soft" />
-                  <span className="w-2 h-2 rounded-full bg-[var(--muted)] animate-pulse-soft" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 rounded-full bg-[var(--muted)] animate-pulse-soft" style={{ animationDelay: '300ms' }} />
+                  <span className="w-2 h-2 rounded-full bg-(--muted) animate-pulse-soft" />
+                  <span
+                    className="w-2 h-2 rounded-full bg-(--muted) animate-pulse-soft"
+                    style={{ animationDelay: "150ms" }}
+                  />
+                  <span
+                    className="w-2 h-2 rounded-full bg-(--muted) animate-pulse-soft"
+                    style={{ animationDelay: "300ms" }}
+                  />
                 </div>
               </div>
             ) : sessions.length === 0 ? (
               <div className="text-center py-12 px-4">
-                <EmptyStateIllustration className="w-32 h-28 mx-auto mb-4 text-[var(--foreground)]" />
+                <EmptyStateIllustration className="w-32 h-28 mx-auto mb-4 text-(--foreground)" />
                 <p className="text-sm font-medium mb-1">No conversations yet</p>
                 <p className="text-xs text-[#9a9590]">Start a new chat to begin exploring</p>
               </div>
@@ -337,8 +360,8 @@ export function ChatSidebar({
                           key={session.id}
                           className={`group relative rounded-lg transition-colors ${
                             currentSessionId === session.id
-                              ? 'bg-[var(--accent)]'
-                              : 'hover:bg-[var(--accent)]/50'
+                              ? "bg-(--accent)"
+                              : "hover:bg-(--accent)/50"
                           }`}
                         >
                           <button
@@ -348,11 +371,14 @@ export function ChatSidebar({
                             }}
                             className="w-full px-3 py-2.5 text-left"
                           >
-                            <span className="text-sm font-medium truncate block">{session.title}</span>
+                            <span className="text-sm font-medium truncate block">
+                              {session.title}
+                            </span>
                             <div className="flex items-center gap-2 mt-0.5">
                               {session.model && (
                                 <span className="text-xs text-[#9a9590] font-mono truncate max-w-[120px]">
-                                  {session.parent_id ? '↳ ' : ''}{session.model.split('/').pop()}
+                                  {session.parent_id ? "↳ " : ""}
+                                  {session.model.split("/").pop()}
                                 </span>
                               )}
                             </div>
@@ -363,7 +389,7 @@ export function ChatSidebar({
                               e.stopPropagation();
                               onDeleteSession(session.id);
                             }}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg hover:bg-[var(--error)]/20 text-[#9a9590] hover:text-[var(--error)] transition-all opacity-0 group-hover:opacity-100"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg hover:bg-(--error)/20 text-[#9a9590] hover:text-(--error) transition-all opacity-0 group-hover:opacity-100"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -377,7 +403,7 @@ export function ChatSidebar({
                 {hasMore && (
                   <button
                     onClick={loadMore}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs text-[#9a9590] hover:text-[var(--foreground)] hover:bg-[var(--accent)] rounded-lg transition-colors"
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs text-[#9a9590] hover:text-(--foreground) hover:bg-(--accent) rounded-lg transition-colors"
                   >
                     <ChevronDown className="h-3.5 w-3.5" />
                     Load more ({filteredSessions.length - visibleCount} remaining)
@@ -393,16 +419,16 @@ export function ChatSidebar({
 
   // Desktop expanded state
   return (
-    <div className="fixed left-0 top-0 bottom-0 w-60 border-r border-[var(--border)] bg-[var(--card)] flex flex-col z-40">
+    <div className="fixed left-0 top-0 bottom-0 w-60 border-r border-(--border) bg-(--card) flex flex-col z-40">
       {/* Header with logo */}
-      <div className="flex items-center justify-between px-3 py-3 border-b border-[var(--border)]">
+      <div className="flex items-center justify-between px-3 py-3 border-b border-(--border)">
         <Link href="/" className="flex items-center gap-2">
-          <Layers className="h-5 w-5 text-[var(--foreground)]" />
+          <Layers className="h-5 w-5 text-(--foreground)" />
           <span className="font-semibold text-sm">vLLM Studio</span>
         </Link>
         <button
           onClick={onToggleCollapse}
-          className="p-1.5 rounded-lg hover:bg-[var(--accent)] transition-colors"
+          className="p-1.5 rounded-lg hover:bg-(--accent) transition-colors"
           title="Collapse sidebar"
         >
           <ChevronLeft className="h-4 w-4 text-[#9a9590]" />
@@ -410,7 +436,7 @@ export function ChatSidebar({
       </div>
 
       {/* Navigation */}
-      <div className="px-2 py-2 border-b border-[var(--border)]">
+      <div className="px-2 py-2 border-b border-(--border)">
         <div className="space-y-0.5">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -421,8 +447,8 @@ export function ChatSidebar({
                 href={item.href}
                 className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   isActive
-                    ? 'bg-[var(--accent)] text-[var(--foreground)]'
-                    : 'text-[#9a9590] hover:text-[var(--foreground)] hover:bg-[var(--accent)]'
+                    ? "bg-(--accent) text-(--foreground)"
+                    : "text-[#9a9590] hover:text-(--foreground) hover:bg-(--accent)"
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -434,10 +460,10 @@ export function ChatSidebar({
       </div>
 
       {/* New Chat + Search */}
-      <div className="px-2 py-2 border-b border-[var(--border)] space-y-2">
+      <div className="px-2 py-2 border-b border-(--border) space-y-2">
         <button
           onClick={onNewSession}
-          className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-[var(--foreground)] text-[var(--background)] px-3 py-2 rounded-lg hover:opacity-90 transition-opacity"
+          className="w-full flex items-center justify-center gap-1.5 text-xs font-medium bg-(--foreground) text-(--background) px-3 py-2 rounded-lg hover:opacity-90 transition-opacity"
         >
           <Sparkles className="h-3.5 w-3.5" />
           <span>New Chat</span>
@@ -451,7 +477,7 @@ export function ChatSidebar({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search chats..."
-              className="w-full pl-8 pr-2 py-1.5 text-xs bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--muted)]"
+              className="w-full pl-8 pr-2 py-1.5 text-xs bg-(--background) border border-(--border) rounded-lg focus:outline-none focus:border-(--muted)"
             />
           </div>
         )}
@@ -462,14 +488,20 @@ export function ChatSidebar({
         {isLoading ? (
           <div className="flex justify-center py-6">
             <div className="flex gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--muted)] animate-pulse" />
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--muted)] animate-pulse" style={{ animationDelay: '150ms' }} />
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--muted)] animate-pulse" style={{ animationDelay: '300ms' }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-(--muted) animate-pulse" />
+              <span
+                className="w-1.5 h-1.5 rounded-full bg-(--muted) animate-pulse"
+                style={{ animationDelay: "150ms" }}
+              />
+              <span
+                className="w-1.5 h-1.5 rounded-full bg-(--muted) animate-pulse"
+                style={{ animationDelay: "300ms" }}
+              />
             </div>
           </div>
         ) : sessions.length === 0 ? (
           <div className="text-center py-8 px-3">
-            <EmptyStateIllustration className="w-24 h-20 mx-auto mb-3 text-[var(--foreground)]" />
+            <EmptyStateIllustration className="w-24 h-20 mx-auto mb-3 text-(--foreground)" />
             <p className="text-xs text-[#9a9590]">No chats yet</p>
           </div>
         ) : groupedSessions.length === 0 ? (
@@ -490,8 +522,8 @@ export function ChatSidebar({
                     onMouseLeave={() => setHoveredId(null)}
                     className={`group relative mb-0.5 rounded-lg cursor-pointer transition-colors ${
                       currentSessionId === session.id
-                        ? 'bg-[var(--accent)]'
-                        : 'hover:bg-[var(--accent)]/50'
+                        ? "bg-(--accent)"
+                        : "hover:bg-(--accent)/50"
                     }`}
                   >
                     <button
@@ -503,7 +535,8 @@ export function ChatSidebar({
                       </span>
                       {session.model && (
                         <span className="text-[10px] text-[#9a9590] font-mono truncate block mt-0.5">
-                          {session.parent_id ? '↳ ' : ''}{session.model.split('/').pop()}
+                          {session.parent_id ? "↳ " : ""}
+                          {session.model.split("/").pop()}
                         </span>
                       )}
                     </button>
@@ -514,7 +547,7 @@ export function ChatSidebar({
                           e.stopPropagation();
                           onDeleteSession(session.id);
                         }}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-[var(--error)]/20 text-[#9a9590] hover:text-[var(--error)] transition-colors"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-(--error)/20 text-[#9a9590] hover:text-(--error) transition-colors"
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -528,7 +561,7 @@ export function ChatSidebar({
             {hasMore && (
               <button
                 onClick={loadMore}
-                className="w-full flex items-center justify-center gap-1.5 px-2 py-2 text-[10px] text-[#9a9590] hover:text-[var(--foreground)] hover:bg-[var(--accent)] rounded-lg transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 px-2 py-2 text-[10px] text-[#9a9590] hover:text-(--foreground) hover:bg-(--accent) rounded-lg transition-colors"
               >
                 <ChevronDown className="h-3 w-3" />
                 Load more ({filteredSessions.length - visibleCount})

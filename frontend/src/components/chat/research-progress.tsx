@@ -1,18 +1,28 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Search, Globe, CheckCircle, XCircle, Loader2, ExternalLink, BookOpen, Brain, Sparkles } from 'lucide-react';
+import { useState } from "react";
+import {
+  Search,
+  Globe,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  ExternalLink,
+  BookOpen,
+  Brain,
+  Sparkles,
+} from "lucide-react";
 
 export interface ResearchSource {
   title: string;
   url: string;
   snippet?: string;
-  status: 'pending' | 'fetching' | 'done' | 'error';
+  status: "pending" | "fetching" | "done" | "error";
   relevance?: number; // 0-100
 }
 
 export interface ResearchProgress {
-  stage: 'searching' | 'analyzing' | 'synthesizing' | 'done' | 'error';
+  stage: "searching" | "analyzing" | "synthesizing" | "done" | "error";
   message: string;
   sources: ResearchSource[];
   totalSteps: number;
@@ -34,7 +44,7 @@ interface ResearchProgressProps {
 export function ResearchProgressIndicator({
   progress,
   onCancel,
-  className = '',
+  className = "",
 }: ResearchProgressProps) {
   const [expanded, setExpanded] = useState(true);
 
@@ -49,29 +59,35 @@ export function ResearchProgressIndicator({
   };
 
   const stageLabels = {
-    searching: 'Searching the web...',
-    analyzing: 'Analyzing sources...',
-    synthesizing: 'Synthesizing findings...',
-    done: 'Research complete',
-    error: 'Research failed',
+    searching: "Searching the web...",
+    analyzing: "Analyzing sources...",
+    synthesizing: "Synthesizing findings...",
+    done: "Research complete",
+    error: "Research failed",
   };
 
   const progressPct = (progress.currentStep / progress.totalSteps) * 100;
-  const isDone = progress.stage === 'done' || progress.stage === 'error';
+  const isDone = progress.stage === "done" || progress.stage === "error";
 
   return (
-    <div className={`bg-[var(--card)] border border-[var(--border)] rounded-lg overflow-hidden ${className}`}>
+    <div
+      className={`bg-(--card) border border-(--border) rounded-lg overflow-hidden ${className}`}
+    >
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full px-4 py-3 flex items-center justify-between hover:bg-[var(--accent)] transition-colors"
+        className="w-full px-4 py-3 flex items-center justify-between hover:bg-(--accent) transition-colors"
       >
         <div className="flex items-center gap-3">
-          <div className={`p-1.5 rounded-lg ${
-            progress.stage === 'error' ? 'bg-red-500/10' :
-            progress.stage === 'done' ? 'bg-green-500/10' :
-            'bg-blue-500/10'
-          }`}>
+          <div
+            className={`p-1.5 rounded-lg ${
+              progress.stage === "error"
+                ? "bg-red-500/10"
+                : progress.stage === "done"
+                  ? "bg-green-500/10"
+                  : "bg-blue-500/10"
+            }`}
+          >
             {stageIcons[progress.stage]}
           </div>
           <div className="text-left">
@@ -81,11 +97,15 @@ export function ResearchProgressIndicator({
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs font-mono text-[#9a9590]">
-            {progress.sources.filter(s => s.status === 'done').length}/{progress.sources.length} sources
+            {progress.sources.filter((s) => s.status === "done").length}/{progress.sources.length}{" "}
+            sources
           </span>
           {!isDone && onCancel && (
             <button
-              onClick={(e) => { e.stopPropagation(); onCancel(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onCancel();
+              }}
               className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/30 hover:bg-red-500/10"
             >
               Cancel
@@ -95,12 +115,14 @@ export function ResearchProgressIndicator({
       </button>
 
       {/* Progress Bar */}
-      <div className="h-0.5 bg-[var(--border)]">
+      <div className="h-0.5 bg-(--border)">
         <div
           className={`h-full transition-all duration-500 ${
-            progress.stage === 'error' ? 'bg-red-500' :
-            progress.stage === 'done' ? 'bg-green-500' :
-            'bg-blue-500'
+            progress.stage === "error"
+              ? "bg-red-500"
+              : progress.stage === "done"
+                ? "bg-green-500"
+                : "bg-blue-500"
           }`}
           style={{ width: `${progressPct}%` }}
         />
@@ -108,11 +130,13 @@ export function ResearchProgressIndicator({
 
       {/* Expanded Content */}
       {expanded && (
-        <div className="px-4 py-3 border-t border-[var(--border)] space-y-3">
+        <div className="px-4 py-3 border-t border-(--border) space-y-3">
           {/* Search Queries */}
           {progress.searchQueries && progress.searchQueries.length > 0 && (
             <div>
-              <div className="text-[10px] uppercase text-[#9a9590] font-medium mb-2">Search Queries</div>
+              <div className="text-[10px] uppercase text-[#9a9590] font-medium mb-2">
+                Search Queries
+              </div>
               <div className="flex flex-wrap gap-1.5">
                 {progress.searchQueries.map((query, i) => (
                   <span
@@ -133,26 +157,36 @@ export function ResearchProgressIndicator({
               {progress.sources.map((source, i) => (
                 <div
                   key={i}
-                  className="flex items-start gap-2 p-2 bg-[var(--background)] rounded-lg"
+                  className="flex items-start gap-2 p-2 bg-(--background) rounded-lg"
                 >
                   {/* Status Icon */}
                   <div className="mt-0.5 flex-shrink-0">
-                    {source.status === 'pending' && <div className="w-3 h-3 rounded-full bg-[var(--muted)]" />}
-                    {source.status === 'fetching' && <Loader2 className="h-3 w-3 text-blue-400 animate-spin" />}
-                    {source.status === 'done' && <CheckCircle className="h-3 w-3 text-green-400" />}
-                    {source.status === 'error' && <XCircle className="h-3 w-3 text-red-400" />}
+                    {source.status === "pending" && (
+                      <div className="w-3 h-3 rounded-full bg-(--muted)" />
+                    )}
+                    {source.status === "fetching" && (
+                      <Loader2 className="h-3 w-3 text-blue-400 animate-spin" />
+                    )}
+                    {source.status === "done" && <CheckCircle className="h-3 w-3 text-green-400" />}
+                    {source.status === "error" && <XCircle className="h-3 w-3 text-red-400" />}
                   </div>
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium truncate">{source.title || 'Loading...'}</span>
+                      <span className="text-xs font-medium truncate">
+                        {source.title || "Loading..."}
+                      </span>
                       {source.relevance !== undefined && (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                          source.relevance > 70 ? 'bg-green-500/10 text-green-400' :
-                          source.relevance > 40 ? 'bg-yellow-500/10 text-yellow-400' :
-                          'bg-[var(--muted)]/10 text-[#9a9590]'
-                        }`}>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded ${
+                            source.relevance > 70
+                              ? "bg-green-500/10 text-green-400"
+                              : source.relevance > 40
+                                ? "bg-yellow-500/10 text-yellow-400"
+                                : "bg-(--muted)/10 text-[#9a9590]"
+                          }`}
+                        >
                           {source.relevance}%
                         </span>
                       )}
@@ -162,7 +196,7 @@ export function ResearchProgressIndicator({
                         href={source.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[10px] text-[#9a9590] hover:text-[var(--accent)] truncate flex items-center gap-1"
+                        className="text-[10px] text-[#9a9590] hover:text-(--accent) truncate flex items-center gap-1"
                       >
                         <Globe className="h-2.5 w-2.5 flex-shrink-0" />
                         <span className="truncate">{new URL(source.url).hostname}</span>
@@ -170,7 +204,9 @@ export function ResearchProgressIndicator({
                       </a>
                     )}
                     {source.snippet && (
-                      <p className="text-[10px] text-[#9a9590] mt-1 line-clamp-2">{source.snippet}</p>
+                      <p className="text-[10px] text-[#9a9590] mt-1 line-clamp-2">
+                        {source.snippet}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -198,13 +234,13 @@ interface CitationsPanelProps {
   className?: string;
 }
 
-export function CitationsPanel({ sources, className = '' }: CitationsPanelProps) {
+export function CitationsPanel({ sources, className = "" }: CitationsPanelProps) {
   if (!sources || sources.length === 0) return null;
 
-  const completedSources = sources.filter(s => s.status === 'done');
+  const completedSources = sources.filter((s) => s.status === "done");
 
   return (
-    <div className={`bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 ${className}`}>
+    <div className={`bg-(--card) border border-(--border) rounded-lg p-3 ${className}`}>
       <div className="flex items-center gap-2 mb-3">
         <BookOpen className="h-4 w-4 text-[#9a9590]" />
         <span className="text-xs font-medium uppercase text-[#9a9590]">
@@ -219,13 +255,13 @@ export function CitationsPanel({ sources, className = '' }: CitationsPanelProps)
             href={source.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-start gap-2 p-2 bg-[var(--background)] rounded-lg hover:bg-[var(--accent)] transition-colors group"
+            className="flex items-start gap-2 p-2 bg-(--background) rounded-lg hover:bg-(--accent) transition-colors group"
           >
-            <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center text-[10px] font-mono bg-[var(--muted)]/10 rounded text-[#9a9590]">
+            <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center text-[10px] font-mono bg-(--muted)/10 rounded text-[#9a9590]">
               {i + 1}
             </span>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-medium truncate group-hover:text-[var(--accent)]">
+              <div className="text-xs font-medium truncate group-hover:text-(--accent)">
                 {source.title}
               </div>
               <div className="text-[10px] text-[#9a9590] truncate flex items-center gap-1">

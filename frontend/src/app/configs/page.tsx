@@ -1,72 +1,26 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Settings, Activity, Server, Database, Globe, FolderOpen, Key, RefreshCw, Link, Eye, EyeOff, Check, X, Loader2 } from 'lucide-react';
-import api from '@/lib/api';
-
-interface ServiceInfo {
-  name: string;
-  port: number;
-  internal_port: number;
-  protocol: string;
-  status: string;
-  description: string | null;
-}
-
-interface SystemConfig {
-  host: string;
-  port: number;
-  inference_port: number;
-  api_key_configured: boolean;
-  models_dir: string;
-  data_dir: string;
-  db_path: string;
-  sglang_python: string | null;
-  tabby_api_dir: string | null;
-}
-
-interface EnvironmentInfo {
-  controller_url: string;
-  inference_url: string;
-  litellm_url: string;
-  frontend_url: string;
-}
-
-interface ConfigData {
-  config: SystemConfig;
-  services: ServiceInfo[];
-  environment: EnvironmentInfo;
-}
-
-function getStatusColor(status: string): string {
-  switch (status.toLowerCase()) {
-    case 'running':
-      return 'text-[#7d9a6a]';
-    case 'stopped':
-      return 'text-[#363432]';
-    case 'error':
-      return 'text-[#c97a6b]';
-    case 'degraded':
-      return 'text-[#c9a66b]';
-    default:
-      return 'text-[#c9a66b]';
-  }
-}
-
-function getStatusBg(status: string): string {
-  switch (status.toLowerCase()) {
-    case 'running':
-      return 'bg-[#7d9a6a]';
-    case 'stopped':
-      return 'bg-[#363432]';
-    case 'error':
-      return 'bg-[#c97a6b]';
-    case 'degraded':
-      return 'bg-[#c9a66b]';
-    default:
-      return 'bg-[#c9a66b]';
-  }
-}
+import { useState, useEffect } from "react";
+import {
+  Settings,
+  Activity,
+  Server,
+  Database,
+  Globe,
+  FolderOpen,
+  Key,
+  RefreshCw,
+  Link,
+  Eye,
+  EyeOff,
+  Check,
+  X,
+  Loader2,
+} from "lucide-react";
+import api from "@/lib/api";
+import type { ServiceInfo, ConfigData } from "@/lib/types";
+import { getStatusColor, getStatusBg } from "@/lib/colors";
+import { ConfigRow } from "@/components/shared";
 
 interface ApiConnectionSettings {
   backendUrl: string;
@@ -83,36 +37,38 @@ export default function ConfigsPage() {
 
   // API Connection settings state
   const [apiSettings, setApiSettings] = useState<ApiConnectionSettings>({
-    backendUrl: 'http://localhost:8080',
-    apiKey: '',
+    backendUrl: "http://localhost:8080",
+    apiKey: "",
     hasApiKey: false,
-    voiceUrl: '',
-    voiceModel: 'whisper-1',
+    voiceUrl: "",
+    voiceModel: "whisper-1",
   });
   const [apiSettingsLoading, setApiSettingsLoading] = useState(true);
   const [showApiKey, setShowApiKey] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'connected' | 'error'>('unknown');
-  const [statusMessage, setStatusMessage] = useState<string>('');
+  const [connectionStatus, setConnectionStatus] = useState<"unknown" | "connected" | "error">(
+    "unknown",
+  );
+  const [statusMessage, setStatusMessage] = useState<string>("");
 
   // Load API connection settings
   const loadApiSettings = async () => {
     try {
       setApiSettingsLoading(true);
-      const res = await fetch('/api/settings');
+      const res = await fetch("/api/settings");
       if (res.ok) {
         const settings = await res.json();
         setApiSettings({
-          backendUrl: settings.backendUrl || 'http://localhost:8080',
-          apiKey: settings.apiKey || '',
+          backendUrl: settings.backendUrl || "http://localhost:8080",
+          apiKey: settings.apiKey || "",
           hasApiKey: settings.hasApiKey || false,
-          voiceUrl: settings.voiceUrl || '',
-          voiceModel: settings.voiceModel || 'whisper-1',
+          voiceUrl: settings.voiceUrl || "",
+          voiceModel: settings.voiceModel || "whisper-1",
         });
       }
     } catch (e) {
-      console.error('Failed to load API settings:', e);
+      console.error("Failed to load API settings:", e);
     } finally {
       setApiSettingsLoading(false);
     }
@@ -122,10 +78,10 @@ export default function ConfigsPage() {
   const saveApiSettings = async () => {
     try {
       setSaving(true);
-      setStatusMessage('');
-      const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      setStatusMessage("");
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           backendUrl: apiSettings.backendUrl,
           apiKey: apiSettings.apiKey,
@@ -142,17 +98,17 @@ export default function ConfigsPage() {
           voiceUrl: updated.voiceUrl || apiSettings.voiceUrl,
           voiceModel: updated.voiceModel || apiSettings.voiceModel,
         });
-        setStatusMessage('Settings saved');
+        setStatusMessage("Settings saved");
         // Reload system config with new settings
         loadConfig();
       } else {
         const err = await res.json();
-        setStatusMessage(err.error || 'Failed to save');
-        setConnectionStatus('error');
+        setStatusMessage(err.error || "Failed to save");
+        setConnectionStatus("error");
       }
     } catch {
-      setStatusMessage('Failed to save settings');
-      setConnectionStatus('error');
+      setStatusMessage("Failed to save settings");
+      setConnectionStatus("error");
     } finally {
       setSaving(false);
     }
@@ -162,22 +118,26 @@ export default function ConfigsPage() {
   const testConnection = async () => {
     try {
       setTesting(true);
-      setConnectionStatus('unknown');
-      setStatusMessage('Testing...');
+      setConnectionStatus("unknown");
+      setStatusMessage("Testing...");
 
       // Try to reach the backend health endpoint directly
-      const baseUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || process.env.VLLM_STUDIO_BACKEND_URL || 'https://<your-api-domain>';
+      const baseUrl =
+        process.env.BACKEND_URL ||
+        process.env.NEXT_PUBLIC_BACKEND_URL ||
+        process.env.VLLM_STUDIO_BACKEND_URL ||
+        "https://<your-api-domain>";
       const res = await fetch(`${baseUrl}/health`);
       if (res.ok) {
-        setConnectionStatus('connected');
-        setStatusMessage('Connected');
+        setConnectionStatus("connected");
+        setStatusMessage("Connected");
       } else {
-        setConnectionStatus('error');
+        setConnectionStatus("error");
         setStatusMessage(`Error: ${res.status}`);
       }
     } catch {
-      setConnectionStatus('error');
-      setStatusMessage('Connection failed');
+      setConnectionStatus("error");
+      setStatusMessage("Connection failed");
     } finally {
       setTesting(false);
     }
@@ -207,11 +167,10 @@ export default function ConfigsPage() {
   return (
     <div className="h-full overflow-y-auto overflow-x-hidden bg-[#1b1b1b] text-[#f0ebe3]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 w-full">
-
         {/* Header */}
         <div className="flex items-center justify-between mb-6 sm:mb-8">
           <div className="flex items-center gap-3">
-            <Settings className="h-5 w-5 text-[var(--accent-purple)]" />
+            <Settings className="h-5 w-5 text-(--accent-purple)" />
             <h1 className="text-lg font-medium">System Configuration</h1>
           </div>
           <button
@@ -219,7 +178,7 @@ export default function ConfigsPage() {
             disabled={loading}
             className="p-2 hover:bg-[#363432] rounded-lg transition-colors"
           >
-            <RefreshCw className={`h-4 w-4 text-[#9a9088] ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 text-[#9a9088] ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
 
@@ -241,7 +200,7 @@ export default function ConfigsPage() {
                     value={apiSettings.backendUrl}
                     onChange={(e) => setApiSettings({ ...apiSettings, backendUrl: e.target.value })}
                     placeholder="https://api.example.com"
-                    className="w-full px-3 py-2 bg-[#1b1b1b] border border-[#363432] rounded-lg text-sm text-[#f0ebe3] placeholder-[#9a9088]/50 focus:outline-none focus:border-[var(--accent-purple)]"
+                    className="w-full px-3 py-2 bg-[#1b1b1b] border border-[#363432] rounded-lg text-sm text-[#f0ebe3] placeholder-[#9a9088]/50 focus:outline-none focus:border-(--accent-purple)"
                   />
                 </div>
 
@@ -250,11 +209,11 @@ export default function ConfigsPage() {
                   <label className="block text-xs text-[#9a9088] mb-1.5">API Key</label>
                   <div className="relative">
                     <input
-                      type={showApiKey ? 'text' : 'password'}
+                      type={showApiKey ? "text" : "password"}
                       value={apiSettings.apiKey}
                       onChange={(e) => setApiSettings({ ...apiSettings, apiKey: e.target.value })}
-                      placeholder={apiSettings.hasApiKey ? '••••••••' : 'Optional'}
-                      className="w-full px-3 py-2 pr-10 bg-[#1b1b1b] border border-[#363432] rounded-lg text-sm text-[#f0ebe3] placeholder-[#9a9088]/50 focus:outline-none focus:border-[var(--accent-purple)]"
+                      placeholder={apiSettings.hasApiKey ? "••••••••" : "Optional"}
+                      className="w-full px-3 py-2 pr-10 bg-[#1b1b1b] border border-[#363432] rounded-lg text-sm text-[#f0ebe3] placeholder-[#9a9088]/50 focus:outline-none focus:border-(--accent-purple)"
                     />
                     <button
                       type="button"
@@ -274,7 +233,7 @@ export default function ConfigsPage() {
                     value={apiSettings.voiceUrl}
                     onChange={(e) => setApiSettings({ ...apiSettings, voiceUrl: e.target.value })}
                     placeholder="https://voice.example.com"
-                    className="w-full px-3 py-2 bg-[#1b1b1b] border border-[#363432] rounded-lg text-sm text-[#f0ebe3] placeholder-[#9a9088]/50 focus:outline-none focus:border-[var(--accent-purple)]"
+                    className="w-full px-3 py-2 bg-[#1b1b1b] border border-[#363432] rounded-lg text-sm text-[#f0ebe3] placeholder-[#9a9088]/50 focus:outline-none focus:border-(--accent-purple)"
                   />
                 </div>
 
@@ -286,7 +245,7 @@ export default function ConfigsPage() {
                     value={apiSettings.voiceModel}
                     onChange={(e) => setApiSettings({ ...apiSettings, voiceModel: e.target.value })}
                     placeholder="whisper-1"
-                    className="w-full px-3 py-2 bg-[#1b1b1b] border border-[#363432] rounded-lg text-sm text-[#f0ebe3] placeholder-[#9a9088]/50 focus:outline-none focus:border-[var(--accent-purple)]"
+                    className="w-full px-3 py-2 bg-[#1b1b1b] border border-[#363432] rounded-lg text-sm text-[#f0ebe3] placeholder-[#9a9088]/50 focus:outline-none focus:border-(--accent-purple)"
                   />
                 </div>
 
@@ -298,27 +257,41 @@ export default function ConfigsPage() {
                       disabled={testing}
                       className="px-3 py-1.5 bg-[#363432] rounded-lg text-xs text-[#f0ebe3] hover:bg-[#4a4846] disabled:opacity-50 flex items-center gap-1.5"
                     >
-                      {testing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link className="h-3 w-3" />}
+                      {testing ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Link className="h-3 w-3" />
+                      )}
                       Test
                     </button>
                     <button
                       onClick={saveApiSettings}
                       disabled={saving}
-                      className="px-3 py-1.5 bg-[var(--accent-purple)] rounded-lg text-xs text-[#f0ebe3] hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
+                      className="px-3 py-1.5 bg-(--accent-purple) rounded-lg text-xs text-[#f0ebe3] hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
                     >
-                      {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                      {saving ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Check className="h-3 w-3" />
+                      )}
                       Save
                     </button>
                   </div>
                   {/* Status */}
                   {statusMessage && (
-                    <div className={`flex items-center gap-1.5 text-xs ${
-                      connectionStatus === 'connected' ? 'text-[#7d9a6a]' :
-                      connectionStatus === 'error' ? 'text-[#c97a6b]' :
-                      'text-[#9a9088]'
-                    }`}>
-                      {connectionStatus === 'connected' && <div className="w-2 h-2 rounded-full bg-[#7d9a6a]" />}
-                      {connectionStatus === 'error' && <X className="h-3 w-3" />}
+                    <div
+                      className={`flex items-center gap-1.5 text-xs ${
+                        connectionStatus === "connected"
+                          ? "text-[#7d9a6a]"
+                          : connectionStatus === "error"
+                            ? "text-[#c97a6b]"
+                            : "text-[#9a9088]"
+                      }`}
+                    >
+                      {connectionStatus === "connected" && (
+                        <div className="w-2 h-2 rounded-full bg-[#7d9a6a]" />
+                      )}
+                      {connectionStatus === "error" && <X className="h-3 w-3" />}
                       {statusMessage}
                     </div>
                   )}
@@ -339,10 +312,13 @@ export default function ConfigsPage() {
                     ) : (
                       <Server className="h-4 w-4 text-[#c9a66b]" />
                     )}
-                    <span>{isInitialLoading ? 'Checking controller connection…' : 'No backend detected'}</span>
+                    <span>
+                      {isInitialLoading ? "Checking controller connection…" : "No backend detected"}
+                    </span>
                   </div>
                   <p className="text-xs text-[#9a9088]">
-                    Configure the API connection above and click Test or Retry to load system details.
+                    Configure the API connection above and click Test or Retry to load system
+                    details.
                   </p>
                   {error && !isInitialLoading && (
                     <p className="text-[10px] text-[#c97a6b]">Last error: {error}</p>
@@ -362,24 +338,26 @@ export default function ConfigsPage() {
 
         {data && (
           <div className="grid lg:grid-cols-3 gap-6 sm:gap-8">
-
             {/* Left Column - Service Topology */}
             <div className="lg:col-span-2 space-y-6">
-
               {/* Services Grid */}
               <div>
-                <div className="text-xs text-[#9a9088] uppercase tracking-wider mb-3">Service Topology</div>
+                <div className="text-xs text-[#9a9088] uppercase tracking-wider mb-3">
+                  Service Topology
+                </div>
 
                 {/* Mobile: Card Layout */}
                 <div className="sm:hidden space-y-2">
-                  {data.services.map((service) => (
+                  {data.services.map((service: ServiceInfo) => (
                     <div key={service.name} className="bg-[#1e1e1e] rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <div className={`w-2 h-2 rounded-full ${getStatusBg(service.status)}`} />
                           <span className="text-[#f0ebe3] font-medium">{service.name}</span>
                         </div>
-                        <span className={`text-xs ${getStatusColor(service.status)}`}>{service.status}</span>
+                        <span className={`text-xs ${getStatusColor(service.status)}`}>
+                          {service.status}
+                        </span>
                       </div>
                       <div className="space-y-1 text-xs text-[#9a9088]">
                         <div className="flex justify-between">
@@ -416,15 +394,22 @@ export default function ConfigsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.services.map((service, i) => (
-                        <tr key={service.name} className={i > 0 ? 'border-t border-[#363432]/50' : ''}>
+                      {data.services.map((service: ServiceInfo, i: number) => (
+                        <tr
+                          key={service.name}
+                          className={i > 0 ? "border-t border-[#363432]/50" : ""}
+                        >
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-3">
-                              <div className={`w-2 h-2 rounded-full ${getStatusBg(service.status)}`} />
+                              <div
+                                className={`w-2 h-2 rounded-full ${getStatusBg(service.status)}`}
+                              />
                               <div>
                                 <div className="text-[#f0ebe3]">{service.name}</div>
                                 {service.description && (
-                                  <div className="text-[10px] text-[#9a9088]">{service.description}</div>
+                                  <div className="text-[10px] text-[#9a9088]">
+                                    {service.description}
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -432,7 +417,9 @@ export default function ConfigsPage() {
                           <td className="py-3 px-4 text-[#f0ebe3]">
                             {service.port}
                             {service.port !== service.internal_port && (
-                              <span className="text-[#9a9088] text-xs ml-1">→ {service.internal_port}</span>
+                              <span className="text-[#9a9088] text-xs ml-1">
+                                → {service.internal_port}
+                              </span>
                             )}
                           </td>
                           <td className="py-3 px-4">
@@ -441,7 +428,9 @@ export default function ConfigsPage() {
                             </span>
                           </td>
                           <td className="py-3 px-4">
-                            <span className={`text-sm ${getStatusColor(service.status)}`}>{service.status}</span>
+                            <span className={`text-sm ${getStatusColor(service.status)}`}>
+                              {service.status}
+                            </span>
                           </td>
                         </tr>
                       ))}
@@ -452,19 +441,23 @@ export default function ConfigsPage() {
 
               {/* Connection Flow */}
               <div>
-                <div className="text-xs text-[#9a9088] uppercase tracking-wider mb-3">Connection Flow</div>
+                <div className="text-xs text-[#9a9088] uppercase tracking-wider mb-3">
+                  Connection Flow
+                </div>
                 <div className="bg-[#1e1e1e] rounded-lg p-4 sm:p-6">
                   {/* Mobile: Vertical list */}
                   <div className="sm:hidden space-y-3">
                     {[
-                      { name: 'Client', port: '3000', color: 'bg-[#363432]' },
-                      { name: 'UI', port: '8080', color: 'bg-[var(--accent-purple)]' },
-                      { name: 'API', port: '4100', color: 'bg-[var(--accent-purple)]' },
-                      { name: 'LiteLLM', port: '8000', color: 'bg-[var(--accent-purple)]' },
-                      { name: 'vLLM', port: '', color: 'bg-[var(--accent-purple)]' },
+                      { name: "Client", port: "3000", color: "bg-[#363432]" },
+                      { name: "UI", port: "8080", color: "bg-(--accent-purple)" },
+                      { name: "API", port: "4100", color: "bg-(--accent-purple)" },
+                      { name: "LiteLLM", port: "8000", color: "bg-(--accent-purple)" },
+                      { name: "vLLM", port: "", color: "bg-(--accent-purple)" },
                     ].map((item, i, arr) => (
                       <div key={item.name} className="flex items-center gap-3">
-                        <div className={`w-12 h-12 rounded-lg ${item.color} flex items-center justify-center text-[#f0ebe3] text-xs font-medium`}>
+                        <div
+                          className={`w-12 h-12 rounded-lg ${item.color} flex items-center justify-center text-[#f0ebe3] text-xs font-medium`}
+                        >
                           {item.name}
                         </div>
                         {i < arr.length - 1 && (
@@ -489,7 +482,7 @@ export default function ConfigsPage() {
                       <span className="text-[#9a9088] text-xs px-1">:3000</span>
                     </div>
                     <div className="flex flex-col items-center gap-2">
-                      <div className="w-16 h-16 rounded-lg bg-[var(--accent-purple)] flex items-center justify-center text-[#f0ebe3] font-medium">
+                      <div className="w-16 h-16 rounded-lg bg-(--accent-purple) flex items-center justify-center text-[#f0ebe3] font-medium">
                         UI
                       </div>
                     </div>
@@ -498,7 +491,7 @@ export default function ConfigsPage() {
                       <span className="text-[#9a9088] text-xs px-1">:8080</span>
                     </div>
                     <div className="flex flex-col items-center gap-2">
-                      <div className="w-16 h-16 rounded-lg bg-[var(--accent-purple)] flex items-center justify-center text-[#f0ebe3] font-medium">
+                      <div className="w-16 h-16 rounded-lg bg-(--accent-purple) flex items-center justify-center text-[#f0ebe3] font-medium">
                         API
                       </div>
                     </div>
@@ -507,7 +500,7 @@ export default function ConfigsPage() {
                       <span className="text-[#9a9088] text-xs px-1">:4100</span>
                     </div>
                     <div className="flex flex-col items-center gap-2">
-                      <div className="w-16 h-16 rounded-lg bg-[var(--accent-purple)] flex items-center justify-center text-[#f0ebe3] font-medium">
+                      <div className="w-16 h-16 rounded-lg bg-(--accent-purple) flex items-center justify-center text-[#f0ebe3] font-medium">
                         LLM
                       </div>
                     </div>
@@ -516,7 +509,7 @@ export default function ConfigsPage() {
                       <span className="text-[#9a9088] text-xs px-1">:8000</span>
                     </div>
                     <div className="flex flex-col items-center gap-2">
-                      <div className="w-16 h-16 rounded-lg bg-[var(--accent-purple)] flex items-center justify-center text-[#f0ebe3] font-medium">
+                      <div className="w-16 h-16 rounded-lg bg-(--accent-purple) flex items-center justify-center text-[#f0ebe3] font-medium">
                         vLLM
                       </div>
                     </div>
@@ -526,22 +519,32 @@ export default function ConfigsPage() {
                   </div>
                 </div>
               </div>
-
             </div>
 
             {/* Right Column - Configuration */}
             <div className="space-y-6 sm:space-y-8">
-
               {/* Network Configuration */}
               <div>
                 <div className="text-xs text-[#9a9088] uppercase tracking-wider mb-3">Network</div>
                 <div className="bg-[#1e1e1e] rounded-lg p-3 sm:p-4 space-y-3">
-                  <ConfigRow label="Host" value={data.config.host} icon={<Server className="h-3 w-3" />} />
-                  <ConfigRow label="Controller Port" value={data.config.port.toString()} icon={<Server className="h-3 w-3" />} />
-                  <ConfigRow label="Inference Port" value={data.config.inference_port.toString()} icon={<Server className="h-3 w-3" />} />
+                  <ConfigRow
+                    label="Host"
+                    value={data.config.host}
+                    icon={<Server className="h-3 w-3" />}
+                  />
+                  <ConfigRow
+                    label="Controller Port"
+                    value={data.config.port.toString()}
+                    icon={<Server className="h-3 w-3" />}
+                  />
+                  <ConfigRow
+                    label="Inference Port"
+                    value={data.config.inference_port.toString()}
+                    icon={<Server className="h-3 w-3" />}
+                  />
                   <ConfigRow
                     label="API Key"
-                    value={data.config.api_key_configured ? 'Configured' : 'Not set'}
+                    value={data.config.api_key_configured ? "Configured" : "Not set"}
                     icon={<Key className="h-3 w-3" />}
                     accent={data.config.api_key_configured}
                   />
@@ -552,9 +555,24 @@ export default function ConfigsPage() {
               <div>
                 <div className="text-xs text-[#9a9088] uppercase tracking-wider mb-3">Storage</div>
                 <div className="bg-[#1e1e1e] rounded-lg p-3 sm:p-4 space-y-3">
-                  <ConfigRow label="Models" value={data.config.models_dir} icon={<FolderOpen className="h-3 w-3" />} truncate />
-                  <ConfigRow label="Data" value={data.config.data_dir} icon={<FolderOpen className="h-3 w-3" />} truncate />
-                  <ConfigRow label="Database" value={data.config.db_path} icon={<Database className="h-3 w-3" />} truncate />
+                  <ConfigRow
+                    label="Models"
+                    value={data.config.models_dir}
+                    icon={<FolderOpen className="h-3 w-3" />}
+                    truncate
+                  />
+                  <ConfigRow
+                    label="Data"
+                    value={data.config.data_dir}
+                    icon={<FolderOpen className="h-3 w-3" />}
+                    truncate
+                  />
+                  <ConfigRow
+                    label="Database"
+                    value={data.config.db_path}
+                    icon={<Database className="h-3 w-3" />}
+                    truncate
+                  />
                 </div>
               </div>
 
@@ -564,13 +582,13 @@ export default function ConfigsPage() {
                 <div className="bg-[#1e1e1e] rounded-lg p-3 sm:p-4 space-y-3">
                   <ConfigRow
                     label="SGLang"
-                    value={data.config.sglang_python || 'Not configured'}
+                    value={data.config.sglang_python || "Not configured"}
                     icon={<Settings className="h-3 w-3" />}
                     truncate
                   />
                   <ConfigRow
                     label="TabbyAPI"
-                    value={data.config.tabby_api_dir || 'Not configured'}
+                    value={data.config.tabby_api_dir || "Not configured"}
                     icon={<Settings className="h-3 w-3" />}
                     truncate
                   />
@@ -579,45 +597,40 @@ export default function ConfigsPage() {
 
               {/* Environment URLs */}
               <div>
-                <div className="text-xs text-[#9a9088] uppercase tracking-wider mb-3">Environment</div>
+                <div className="text-xs text-[#9a9088] uppercase tracking-wider mb-3">
+                  Environment
+                </div>
                 <div className="bg-[#1e1e1e] rounded-lg p-3 sm:p-4 space-y-3">
-                  <ConfigRow label="Controller" value={data.environment.controller_url} icon={<Globe className="h-3 w-3" />} truncate />
-                  <ConfigRow label="Inference" value={data.environment.inference_url} icon={<Globe className="h-3 w-3" />} truncate />
-                  <ConfigRow label="LiteLLM" value={data.environment.litellm_url} icon={<Globe className="h-3 w-3" />} truncate />
-                  <ConfigRow label="Frontend" value={data.environment.frontend_url} icon={<Globe className="h-3 w-3" />} truncate />
+                  <ConfigRow
+                    label="Controller"
+                    value={data.environment.controller_url}
+                    icon={<Globe className="h-3 w-3" />}
+                    truncate
+                  />
+                  <ConfigRow
+                    label="Inference"
+                    value={data.environment.inference_url}
+                    icon={<Globe className="h-3 w-3" />}
+                    truncate
+                  />
+                  <ConfigRow
+                    label="LiteLLM"
+                    value={data.environment.litellm_url}
+                    icon={<Globe className="h-3 w-3" />}
+                    truncate
+                  />
+                  <ConfigRow
+                    label="Frontend"
+                    value={data.environment.frontend_url}
+                    icon={<Globe className="h-3 w-3" />}
+                    truncate
+                  />
                 </div>
               </div>
-
             </div>
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function ConfigRow({
-  label,
-  value,
-  icon,
-  truncate,
-  accent
-}: {
-  label: string;
-  value: string;
-  icon?: React.ReactNode;
-  truncate?: boolean;
-  accent?: boolean;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-2">
-      <div className="flex items-center gap-2 text-[#9a9088] text-sm min-w-0 flex-shrink-0">
-        {icon}
-        <span>{label}</span>
-      </div>
-      <span className={`text-xs sm:text-sm font-mono ${accent ? 'text-[#7d9a6a]' : 'text-[#f0ebe3]'} ${truncate ? 'truncate' : ''} text-right flex-1`}>
-        {value}
-      </span>
     </div>
   );
 }

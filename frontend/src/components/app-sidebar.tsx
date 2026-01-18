@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Layers,
@@ -15,19 +15,19 @@ import {
   Wrench,
   Compass,
   Plus,
-} from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
-import api from '@/lib/api';
-import { useAppStore } from '@/store';
+} from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import api from "@/lib/api";
+import { useAppStore } from "@/store";
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/chat', label: 'Chat', icon: MessageSquare },
-  { href: '/recipes', label: 'Recipes', icon: Wrench },
-  { href: '/discover', label: 'Discover', icon: Compass },
-  { href: '/logs', label: 'Logs', icon: FileText },
-  { href: '/usage', label: 'Usage', icon: BarChart3 },
-  { href: '/configs', label: 'Configs', icon: Settings },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/recipes", label: "Recipes", icon: Wrench },
+  { href: "/discover", label: "Discover", icon: Compass },
+  { href: "/logs", label: "Logs", icon: FileText },
+  { href: "/usage", label: "Usage", icon: BarChart3 },
+  { href: "/configs", label: "Configs", icon: Settings },
 ];
 
 interface AppSidebarProps {
@@ -37,24 +37,25 @@ interface AppSidebarProps {
 export function AppSidebar({ children }: AppSidebarProps) {
   const pathname = usePathname();
   // Use consistent defaults for SSR to avoid hydration mismatch
-  const [collapsed, setCollapsed] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
-
-  // Hydrate state from localStorage after mount
-  useEffect(() => {
-    const mobile = window.innerWidth < 768;
-    setIsMobile(mobile);
-    if (mobile) {
-      setCollapsed(true);
-    } else {
-      const saved = localStorage.getItem('app-sidebar-collapsed');
-      setCollapsed(saved === 'true');
+  const [hydrationState] = useState(() => {
+    if (typeof window === "undefined") {
+      return { mobile: false, collapsed: false };
     }
-    setHydrated(true);
-  }, []);
-  const [status, setStatus] = useState<{ online: boolean; inferenceOnline: boolean; model?: string }>({
+    const mobile = window.innerWidth < 768;
+    if (mobile) {
+      return { mobile, collapsed: true };
+    }
+    const saved = localStorage.getItem("app-sidebar-collapsed");
+    return { mobile, collapsed: saved === "true" };
+  });
+  const [collapsed, setCollapsed] = useState(hydrationState.collapsed);
+  const [isMobile, setIsMobile] = useState(hydrationState.mobile);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [status, setStatus] = useState<{
+    online: boolean;
+    inferenceOnline: boolean;
+    model?: string;
+  }>({
     online: false,
     inferenceOnline: false,
   });
@@ -73,8 +74,8 @@ export function AppSidebar({ children }: AppSidebarProps) {
         setCollapsed(true);
       }
     };
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   // Save collapsed state
@@ -82,7 +83,7 @@ export function AppSidebar({ children }: AppSidebarProps) {
     const newVal = !collapsed;
     setCollapsed(newVal);
     if (!isMobile) {
-      localStorage.setItem('app-sidebar-collapsed', String(newVal));
+      localStorage.setItem("app-sidebar-collapsed", String(newVal));
     }
   };
 
@@ -92,9 +93,9 @@ export function AppSidebar({ children }: AppSidebarProps) {
       try {
         const health = await api.getHealth();
         setStatus({
-          online: health.status === 'ok',
+          online: health.status === "ok",
           inferenceOnline: health.backend_reachable,
-          model: health.running_model?.split('/').pop(),
+          model: health.running_model?.split("/").pop(),
         });
       } catch {
         setStatus({ online: false, inferenceOnline: false });
@@ -105,24 +106,25 @@ export function AppSidebar({ children }: AppSidebarProps) {
 
     // Also check when page becomes visible (mobile PWA support)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === "visible") {
         checkStatus();
       }
     };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
   // Load chat sessions once when on chat page
   useEffect(() => {
-    if (pathname === '/chat' && !loadingSessionsRef.current) {
+    if (pathname === "/chat" && !loadingSessionsRef.current) {
       loadingSessionsRef.current = true;
-      api.getChatSessions()
-        .then(result => setSessions(result.sessions || []))
+      api
+        .getChatSessions()
+        .then((result) => setSessions(result.sessions || []))
         .catch(() => setSessions([]))
         .finally(() => {
           loadingSessionsRef.current = false;
@@ -132,7 +134,7 @@ export function AppSidebar({ children }: AppSidebarProps) {
 
   const createNewChat = () => {
     setMobileOpen(false);
-    router.push('/chat?new=1');
+    router.push("/chat?new=1");
   };
 
   return (
@@ -148,17 +150,19 @@ export function AppSidebar({ children }: AppSidebarProps) {
       {/* Sidebar */}
       <aside
         className={`
-          ${isMobile ? 'fixed left-0 top-0 bottom-0 z-50' : 'relative'}
-          ${isMobile && !mobileOpen ? '-translate-x-full' : 'translate-x-0'}
-          ${collapsed && !isMobile ? 'w-16' : 'w-56'}
+          ${isMobile ? "fixed left-0 top-0 bottom-0 z-50" : "relative"}
+          ${isMobile && !mobileOpen ? "-translate-x-full" : "translate-x-0"}
+          ${collapsed && !isMobile ? "w-16" : "w-56"}
           flex-shrink-0 bg-[#1a1917] border-r border-[#2a2725]
           flex flex-col transition-all duration-200 ease-out
         `}
-        style={{ paddingTop: 'env(safe-area-inset-top, 0)' }}
+        style={{ paddingTop: "env(safe-area-inset-top, 0)" }}
       >
         {/* Logo */}
-        <div className={`flex items-center h-14 px-3 border-b border-[#2a2725] ${collapsed && !isMobile ? 'justify-center' : 'gap-2'}`}>
-          <Layers className="h-6 w-6 text-[var(--link)] flex-shrink-0" />
+        <div
+          className={`flex items-center h-14 px-3 border-b border-[#2a2725] ${collapsed && !isMobile ? "justify-center" : "gap-2"}`}
+        >
+          <Layers className="h-6 w-6 text-(--link) flex-shrink-0" />
           {(!collapsed || isMobile) && (
             <span className="font-semibold text-sm truncate">vLLM Studio</span>
           )}
@@ -169,20 +173,23 @@ export function AppSidebar({ children }: AppSidebarProps) {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
-            const isChat = item.href === '/chat';
+            const isChat = item.href === "/chat";
 
             return (
               <div key={item.href}>
                 <Link
                   href={item.href}
-                  onClick={() => { if (isMobile) setMobileOpen(false); }}
+                  onClick={() => {
+                    if (isMobile) setMobileOpen(false);
+                  }}
                   className={`
                     flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 transition-colors
-                    ${isActive
-                      ? 'bg-[var(--accent)] text-[var(--foreground)]'
-                      : 'text-[#9a9590] hover:text-[var(--foreground)] hover:bg-[var(--accent)]/50'
+                    ${
+                      isActive
+                        ? "bg-(--accent) text-(--foreground)"
+                        : "text-[#9a9590] hover:text-(--foreground) hover:bg-(--accent)/50"
                     }
-                    ${collapsed && !isMobile ? 'justify-center' : ''}
+                    ${collapsed && !isMobile ? "justify-center" : ""}
                   `}
                   title={collapsed && !isMobile ? item.label : undefined}
                 >
@@ -193,7 +200,7 @@ export function AppSidebar({ children }: AppSidebarProps) {
                 </Link>
 
                 {/* Chat sessions section */}
-                {isChat && pathname === '/chat' && (!collapsed || isMobile) && (
+                {isChat && pathname === "/chat" && (!collapsed || isMobile) && (
                   <div className="ml-2 mt-2 mb-2">
                     <button
                       onClick={createNewChat}
@@ -209,20 +216,24 @@ export function AppSidebar({ children }: AppSidebarProps) {
                           onClick={() => setChatHistoryOpen(!chatHistoryOpen)}
                           className="w-full flex items-center gap-2 px-3 py-1.5 text-[#9a9590] hover:text-[#b0a8a0] text-xs font-medium transition-colors"
                         >
-                          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${chatHistoryOpen ? '' : '-rotate-90'}`} />
+                          <ChevronDown
+                            className={`h-3.5 w-3.5 transition-transform ${chatHistoryOpen ? "" : "-rotate-90"}`}
+                          />
                           <span>Your chats</span>
                         </button>
 
                         {chatHistoryOpen && (
                           <div className="space-y-0.5 max-h-96 overflow-y-auto ml-4">
                             {chatSessions.map((session) => {
-                              const displayTitle = session.title || 'New Chat';
+                              const displayTitle = session.title || "New Chat";
                               return (
                                 <Link
                                   key={session.id}
                                   href={`/chat?session=${session.id}`}
-                                  onClick={() => { if (isMobile) setMobileOpen(false); }}
-                                  className="block px-3 py-1.5 text-xs text-[#9a9590] hover:text-[#b0a8a0] hover:bg-[var(--accent)]/10 rounded transition-colors truncate"
+                                  onClick={() => {
+                                    if (isMobile) setMobileOpen(false);
+                                  }}
+                                  className="block px-3 py-1.5 text-xs text-[#9a9590] hover:text-[#b0a8a0] hover:bg-(--accent)/10 rounded transition-colors truncate"
                                   title={displayTitle}
                                 >
                                   {displayTitle}
@@ -235,25 +246,32 @@ export function AppSidebar({ children }: AppSidebarProps) {
                     )}
                   </div>
                 )}
-
               </div>
             );
           })}
         </nav>
 
         {/* Status */}
-        <div className={`px-3 py-3 border-t border-[#2a2725] ${collapsed && !isMobile ? 'flex justify-center' : ''}`}>
-          <div className={`flex items-center gap-2 ${collapsed && !isMobile ? '' : ''}`}>
-            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-              status.inferenceOnline ? 'bg-[var(--success)]' : status.online ? 'bg-yellow-500' : 'bg-[var(--error)]'
-            }`} />
+        <div
+          className={`px-3 py-3 border-t border-[#2a2725] ${collapsed && !isMobile ? "flex justify-center" : ""}`}
+        >
+          <div className={`flex items-center gap-2 ${collapsed && !isMobile ? "" : ""}`}>
+            <div
+              className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                status.inferenceOnline
+                  ? "bg-(--success)"
+                  : status.online
+                    ? "bg-yellow-500"
+                    : "bg-(--error)"
+              }`}
+            />
             {(!collapsed || isMobile) && (
               <span className="text-xs text-[#9a9590] truncate">
                 {status.inferenceOnline
-                  ? (status.model || 'Ready')
+                  ? status.model || "Ready"
                   : status.online
-                    ? 'No model'
-                    : 'Offline'}
+                    ? "No model"
+                    : "Offline"}
               </span>
             )}
           </div>
@@ -275,27 +293,38 @@ export function AppSidebar({ children }: AppSidebarProps) {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 min-w-0 h-full overflow-y-auto overflow-x-hidden bg-[var(--background)]">
+      <main className="flex-1 min-w-0 h-full overflow-y-auto overflow-x-hidden bg-(--background)">
         {/* Mobile header */}
         {isMobile && (
-          <div className="sticky top-0 z-30 bg-[var(--card)] border-b border-[var(--border)] px-3 py-2 flex items-center gap-2"
-            style={{ paddingTop: 'calc(0.5rem + env(safe-area-inset-top, 0))' }}
+          <div
+            className="sticky top-0 z-30 bg-(--card) border-b border-(--border) px-3 py-2 flex items-center gap-2"
+            style={{ paddingTop: "calc(0.5rem + env(safe-area-inset-top, 0))" }}
           >
             <button
               onClick={() => setMobileOpen(true)}
-              className="p-1 -ml-1 rounded hover:bg-[var(--accent)]"
+              className="p-1 -ml-1 rounded hover:bg-(--accent)"
             >
-              <Layers className="h-4 w-4 text-[var(--link)]" />
+              <Layers className="h-4 w-4 text-(--link)" />
             </button>
             <span className="font-medium text-xs">
-              {navItems.find(item => item.href === pathname)?.label || 'vLLM Studio'}
+              {navItems.find((item) => item.href === pathname)?.label || "vLLM Studio"}
             </span>
             <div className="ml-auto flex items-center gap-1.5">
-              <div className={`w-1.5 h-1.5 rounded-full ${
-                status.inferenceOnline ? 'bg-[var(--success)]' : status.online ? 'bg-yellow-500' : 'bg-[var(--error)]'
-              }`} />
+              <div
+                className={`w-1.5 h-1.5 rounded-full ${
+                  status.inferenceOnline
+                    ? "bg-(--success)"
+                    : status.online
+                      ? "bg-yellow-500"
+                      : "bg-(--error)"
+                }`}
+              />
               <span className="text-[11px] text-[#9a9590]">
-                {status.inferenceOnline ? (status.model?.slice(0, 12) || 'Ready') : status.online ? 'No model' : 'Offline'}
+                {status.inferenceOnline
+                  ? status.model?.slice(0, 12) || "Ready"
+                  : status.online
+                    ? "No model"
+                    : "Offline"}
               </span>
             </div>
           </div>

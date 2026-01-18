@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, RefreshCw, Trash2, Download, ChevronRight, ChevronLeft, Menu } from 'lucide-react';
-import api from '@/lib/api';
-import type { LogSession } from '@/lib/types';
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Search, RefreshCw, Trash2, Download, ChevronRight, ChevronLeft, Menu } from "lucide-react";
+import api from "@/lib/api";
+import type { LogSession } from "@/lib/types";
 
 export default function LogsPage() {
   const [sessions, setSessions] = useState<LogSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
-  const [logContent, setLogContent] = useState<string>('');
-  const [filter, setFilter] = useState('');
-  const [contentFilter, setContentFilter] = useState('');
+  const [logContent, setLogContent] = useState<string>("");
+  const [filter, setFilter] = useState("");
+  const [contentFilter, setContentFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadingContent, setLoadingContent] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -25,7 +25,7 @@ export default function LogsPage() {
       setSessions(data.sessions || []);
       if (data.sessions?.length > 0 && !selectedSession) setSelectedSession(data.sessions[0].id);
     } catch (e) {
-      console.error('Failed to load log sessions:', e);
+      console.error("Failed to load log sessions:", e);
     } finally {
       setLoading(false);
     }
@@ -35,10 +35,10 @@ export default function LogsPage() {
     if (!silent) setLoadingContent(true);
     try {
       const data = await api.getLogContent(sessionId, 2000);
-      setLogContent(data.content || '');
+      setLogContent(data.content || "");
     } catch (e) {
-      console.error('Failed to load log content:', e);
-      setLogContent('Failed to load log content');
+      console.error("Failed to load log content:", e);
+      setLogContent("Failed to load log content");
     } finally {
       if (!silent) setLoadingContent(false);
     }
@@ -59,7 +59,9 @@ export default function LogsPage() {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, [autoRefresh, loadLogContent, selectedSession]);
 
   useEffect(() => {
@@ -69,48 +71,62 @@ export default function LogsPage() {
   }, [logContent, autoScroll]);
 
   const deleteSession = async (sessionId: string) => {
-    if (!confirm('Delete this log session?')) return;
+    if (!confirm("Delete this log session?")) return;
     try {
       await api.deleteLogSession(sessionId);
-      if (selectedSession === sessionId) { setSelectedSession(null); setLogContent(''); }
+      if (selectedSession === sessionId) {
+        setSelectedSession(null);
+        setLogContent("");
+      }
       await loadSessions();
     } catch (e) {
-      alert('Failed to delete: ' + (e as Error).message);
+      alert("Failed to delete: " + (e as Error).message);
     }
   };
 
   const downloadLog = () => {
     if (!selectedSession || !logContent) return;
-    const blob = new Blob([logContent], { type: 'text/plain' });
+    const blob = new Blob([logContent], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `${selectedSession}.log`; a.click();
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${selectedSession}.log`;
+    a.click();
     URL.revokeObjectURL(url);
   };
 
-  const filteredSessions = filter ? sessions.filter(s =>
-    s.model?.toLowerCase().includes(filter.toLowerCase()) || s.id.toLowerCase().includes(filter.toLowerCase())
-  ) : sessions;
+  const filteredSessions = filter
+    ? sessions.filter(
+        (s) =>
+          s.model?.toLowerCase().includes(filter.toLowerCase()) ||
+          s.id.toLowerCase().includes(filter.toLowerCase()),
+      )
+    : sessions;
 
-  const formatDateTime = (d: string) => new Date(d).toLocaleString('en-US', {
-    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-  });
+  const formatDateTime = (d: string) =>
+    new Date(d).toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
   const getLogLineClass = (line: string) => {
-    if (line.includes('ERROR') || line.includes('error')) return 'text-[#c97a6b]';
-    if (line.includes('WARNING') || line.includes('warn')) return 'text-[#c9a66b]';
-    if (line.includes('INFO')) return 'text-[#6b9ac9]';
-    if (line.includes('loaded') || line.includes('started') || line.includes('success')) return 'text-[#7d9a6a]';
-    return 'text-[#9a9088]';
+    if (line.includes("ERROR") || line.includes("error")) return "text-[#c97a6b]";
+    if (line.includes("WARNING") || line.includes("warn")) return "text-[#c9a66b]";
+    if (line.includes("INFO")) return "text-[#6b9ac9]";
+    if (line.includes("loaded") || line.includes("started") || line.includes("success"))
+      return "text-[#7d9a6a]";
+    return "text-[#9a9088]";
   };
 
   const renderLogs = () => {
-    const lines = logContent.split('\n');
+    const lines = logContent.split("\n");
     const q = contentFilter.trim().toLowerCase();
-    const visible = q ? lines.filter(l => l.toLowerCase().includes(q)) : lines;
+    const visible = q ? lines.filter((l) => l.toLowerCase().includes(q)) : lines;
     return visible.map((line, i) => (
       <div key={i} className={`${getLogLineClass(line)} hover:bg-[#2a2826] px-2 py-0.5`}>
-        {line || '\u00A0'}
+        {line || "\u00A0"}
       </div>
     ));
   };
@@ -121,14 +137,15 @@ export default function LogsPage() {
     setSidebarOpen(false);
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-full bg-[#1b1b1b]">
-      <div className="flex items-center gap-2 text-[#9a9088]">
-        <RefreshCw className="h-4 w-4 animate-spin" />
-        <span className="text-sm">Loading logs...</span>
+  if (loading)
+    return (
+      <div className="flex items-center justify-center h-full bg-[#1b1b1b]">
+        <div className="flex items-center gap-2 text-[#9a9088]">
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          <span className="text-sm">Loading logs...</span>
+        </div>
       </div>
-    </div>
-  );
+    );
 
   return (
     <div className="flex h-full bg-[#1b1b1b] text-[#f0ebe3] relative">
@@ -144,7 +161,9 @@ export default function LogsPage() {
       <div className="w-72 border-r border-[#363432] flex-col bg-[#1b1b1b] shrink-0 hidden md:flex">
         <div className="p-4 border-b border-[#363432]">
           <div className="flex items-center justify-between mb-3">
-            <h1 className="text-sm font-medium text-[#9a9088] uppercase tracking-wider">Log Sessions</h1>
+            <h1 className="text-sm font-medium text-[#9a9088] uppercase tracking-wider">
+              Log Sessions
+            </h1>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#9a9088]" />
@@ -166,39 +185,61 @@ export default function LogsPage() {
                 key={s.id}
                 onClick={() => handleSelectSession(s.id)}
                 className={`w-full text-left p-3 border-b border-[#363432]/50 transition-colors group ${
-                  selectedSession === s.id ? 'bg-[#2a2826]' : 'hover:bg-[#1e1e1e]'
+                  selectedSession === s.id ? "bg-[#2a2826]" : "hover:bg-[#1e1e1e]"
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-[#f0ebe3] truncate">{s.model || s.id}</div>
-                    <div className="text-[11px] text-[#9a9088] mt-1">{formatDateTime(s.created_at)}</div>
+                    <div className="text-sm font-medium text-[#f0ebe3] truncate">
+                      {s.model || s.id}
+                    </div>
+                    <div className="text-[11px] text-[#9a9088] mt-1">
+                      {formatDateTime(s.created_at)}
+                    </div>
                     {s.backend && (
-                      <span className={`inline-block mt-1.5 px-1.5 py-0.5 rounded text-[10px] ${
-                        s.backend === 'vllm' ? 'bg-[#6b9ac9]/10 text-[#6b9ac9]' : 'bg-[#9a6bc9]/10 text-[#9a6bc9]'
-                      }`}>{s.backend}</span>
+                      <span
+                        className={`inline-block mt-1.5 px-1.5 py-0.5 rounded text-[10px] ${
+                          s.backend === "vllm"
+                            ? "bg-[#6b9ac9]/10 text-[#6b9ac9]"
+                            : "bg-[#9a6bc9]/10 text-[#9a6bc9]"
+                        }`}
+                      >
+                        {s.backend}
+                      </span>
                     )}
                   </div>
                   <button
-                    onClick={(e) => { e.stopPropagation(); deleteSession(s.id); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteSession(s.id);
+                    }}
                     className="p-1 text-[#9a9088] opacity-0 group-hover:opacity-100 hover:text-[#c97a6b] transition-all"
-                  ><Trash2 className="h-3.5 w-3.5" /></button>
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </button>
             ))
           )}
         </div>
         <div className="p-3 border-t border-[#363432] text-[11px] text-[#9a9088]">
-          {sessions.length} session{sessions.length !== 1 ? 's' : ''}
+          {sessions.length} session{sessions.length !== 1 ? "s" : ""}
         </div>
       </div>
 
       {/* Mobile Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-30 w-72 border-r border-[#363432] flex flex-col bg-[#1b1b1b] transform transition-transform duration-200 ease-in-out md:hidden ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div
+        className={`fixed inset-y-0 left-0 z-30 w-72 border-r border-[#363432] flex flex-col bg-[#1b1b1b] transform transition-transform duration-200 ease-in-out md:hidden ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+      >
         <div className="p-4 border-b border-[#363432]">
           <div className="flex items-center justify-between mb-3">
-            <h1 className="text-sm font-medium text-[#9a9088] uppercase tracking-wider">Log Sessions</h1>
-            <button onClick={() => setSidebarOpen(false)} className="p-1 hover:bg-[#2a2826] rounded">
+            <h1 className="text-sm font-medium text-[#9a9088] uppercase tracking-wider">
+              Log Sessions
+            </h1>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="p-1 hover:bg-[#2a2826] rounded"
+            >
               <ChevronLeft className="h-4 w-4 text-[#9a9088]" />
             </button>
           </div>
@@ -222,30 +263,45 @@ export default function LogsPage() {
                 key={s.id}
                 onClick={() => handleSelectSession(s.id)}
                 className={`w-full text-left p-3 border-b border-[#363432]/50 transition-colors group ${
-                  selectedSession === s.id ? 'bg-[#2a2826]' : 'hover:bg-[#1e1e1e]'
+                  selectedSession === s.id ? "bg-[#2a2826]" : "hover:bg-[#1e1e1e]"
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-[#f0ebe3] truncate">{s.model || s.id}</div>
-                    <div className="text-[11px] text-[#9a9088] mt-1">{formatDateTime(s.created_at)}</div>
+                    <div className="text-sm font-medium text-[#f0ebe3] truncate">
+                      {s.model || s.id}
+                    </div>
+                    <div className="text-[11px] text-[#9a9088] mt-1">
+                      {formatDateTime(s.created_at)}
+                    </div>
                     {s.backend && (
-                      <span className={`inline-block mt-1.5 px-1.5 py-0.5 rounded text-[10px] ${
-                        s.backend === 'vllm' ? 'bg-[#6b9ac9]/10 text-[#6b9ac9]' : 'bg-[#9a6bc9]/10 text-[#9a6bc9]'
-                      }`}>{s.backend}</span>
+                      <span
+                        className={`inline-block mt-1.5 px-1.5 py-0.5 rounded text-[10px] ${
+                          s.backend === "vllm"
+                            ? "bg-[#6b9ac9]/10 text-[#6b9ac9]"
+                            : "bg-[#9a6bc9]/10 text-[#9a6bc9]"
+                        }`}
+                      >
+                        {s.backend}
+                      </span>
                     )}
                   </div>
                   <button
-                    onClick={(e) => { e.stopPropagation(); deleteSession(s.id); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteSession(s.id);
+                    }}
                     className="p-1 text-[#9a9088] opacity-0 group-hover:opacity-100 hover:text-[#c97a6b] transition-all"
-                  ><Trash2 className="h-3.5 w-3.5" /></button>
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </button>
             ))
           )}
         </div>
         <div className="p-3 border-t border-[#363432] text-[11px] text-[#9a9088]">
-          {sessions.length} session{sessions.length !== 1 ? 's' : ''}
+          {sessions.length} session{sessions.length !== 1 ? "s" : ""}
         </div>
       </div>
 
@@ -263,7 +319,9 @@ export default function LogsPage() {
                   <Menu className="h-4 w-4 text-[#9a9088]" />
                 </button>
                 <ChevronRight className="h-3.5 w-3.5 text-[#9a9088] hidden sm:block flex-shrink-0" />
-                <span className="text-[#f0ebe3] font-mono truncate text-xs sm:text-sm">{selectedSession}</span>
+                <span className="text-[#f0ebe3] font-mono truncate text-xs sm:text-sm">
+                  {selectedSession}
+                </span>
               </div>
               <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                 <label className="hidden sm:flex items-center gap-1.5 text-[11px] text-[#9a9088] cursor-pointer">
@@ -297,7 +355,9 @@ export default function LogsPage() {
                   className="p-1.5 hover:bg-[#2a2826] rounded transition-colors"
                   title="Refresh"
                 >
-                  <RefreshCw className={`h-3.5 w-3.5 text-[#9a9088] ${loadingContent ? 'animate-spin' : ''}`} />
+                  <RefreshCw
+                    className={`h-3.5 w-3.5 text-[#9a9088] ${loadingContent ? "animate-spin" : ""}`}
+                  />
                 </button>
                 <button
                   onClick={downloadLog}

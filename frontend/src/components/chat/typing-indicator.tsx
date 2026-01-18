@@ -1,17 +1,20 @@
-'use client';
+"use client";
 
-import { motion } from 'framer-motion';
+import { motion } from "framer-motion";
 
 interface TypingIndicatorProps {
-  size?: 'sm' | 'md' | 'lg';
+  size?: "sm" | "md" | "lg";
   color?: string;
 }
 
-export function TypingIndicator({ size = 'md', color = 'var(--foreground)' }: TypingIndicatorProps) {
+export function TypingIndicator({
+  size = "md",
+  color = "var(--foreground)",
+}: TypingIndicatorProps) {
   const sizeClasses = {
-    sm: 'scale-75 gap-1',
-    md: 'scale-100 gap-1.5',
-    lg: 'scale-125 gap-2',
+    sm: "scale-75 gap-1",
+    md: "scale-100 gap-1.5",
+    lg: "scale-125 gap-2",
   };
 
   const dotSize = {
@@ -45,7 +48,7 @@ export function TypingIndicator({ size = 'md', color = 'var(--foreground)' }: Ty
             duration: 1.2,
             repeat: Infinity,
             delay: i * 0.15,
-            ease: 'easeInOut',
+            ease: "easeInOut",
           }}
         />
       ))}
@@ -57,7 +60,7 @@ interface StreamingCursorProps {
   color?: string;
 }
 
-export function StreamingCursor({ color = 'var(--foreground)' }: StreamingCursorProps) {
+export function StreamingCursor({ color = "var(--foreground)" }: StreamingCursorProps) {
   return (
     <motion.span
       className="inline-block w-0.5 h-4 ml-0.5 rounded-sm"
@@ -68,7 +71,7 @@ export function StreamingCursor({ color = 'var(--foreground)' }: StreamingCursor
       transition={{
         duration: 0.8,
         repeat: Infinity,
-        ease: 'easeInOut',
+        ease: "easeInOut",
       }}
     />
   );

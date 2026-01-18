@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 import {
   ChevronRight,
   Loader2,
@@ -14,8 +14,8 @@ import {
   Copy,
   Check,
   ExternalLink,
-} from 'lucide-react';
-import type { ToolCall, ToolResult } from '@/lib/types';
+} from "lucide-react";
+import type { ToolCall, ToolResult } from "@/lib/types";
 
 interface ToolCallCardProps {
   toolCall: ToolCall;
@@ -39,7 +39,7 @@ function ToolResultModal({ toolName, result, onClose }: ToolResultModalProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (e) {
-      console.error('Failed to copy:', e);
+      console.error("Failed to copy:", e);
     }
   };
 
@@ -49,7 +49,9 @@ function ToolResultModal({ toolName, result, onClose }: ToolResultModalProps) {
       <div className="fixed inset-0 md:inset-12 z-[101] bg-[#1e1e1e] md:rounded-lg flex flex-col overflow-hidden border border-[#363432] max-w-full">
         <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-4 md:py-3 border-b border-[#363432] bg-[#1e1e1e]">
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <span className="font-medium text-base md:text-sm text-[#f0ebe3] truncate">{toolName}</span>
+            <span className="font-medium text-base md:text-sm text-[#f0ebe3] truncate">
+              {toolName}
+            </span>
             <span className="text-sm md:text-xs text-[#9a9088] flex-shrink-0">
               {result.content.length.toLocaleString()} chars
             </span>
@@ -78,9 +80,11 @@ function ToolResultModal({ toolName, result, onClose }: ToolResultModalProps) {
           </div>
         </div>
         <div className="flex-1 overflow-auto p-4 md:p-4">
-          <pre className={`text-base md:text-sm font-mono whitespace-pre-wrap break-words leading-relaxed ${
-            result.isError ? 'text-[#c97a6b]' : 'text-[#f0ebe3]'
-          }`}>
+          <pre
+            className={`text-base md:text-sm font-mono whitespace-pre-wrap break-words leading-relaxed ${
+              result.isError ? "text-[#c97a6b]" : "text-[#f0ebe3]"
+            }`}
+          >
             {result.content}
           </pre>
         </div>
@@ -90,23 +94,28 @@ function ToolResultModal({ toolName, result, onClose }: ToolResultModalProps) {
 }
 
 const TOOL_ICONS: Record<string, React.ReactNode> = {
-  'brave_web_search': <Globe className="h-3.5 w-3.5 sm:h-4 sm:w-4" />,
-  'brave_local_search': <Search className="h-3.5 w-3.5 sm:h-4 sm:w-4" />,
-  'search': <Search className="h-3.5 w-3.5 sm:h-4 sm:w-4" />,
-  'fetch': <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4" />,
-  'get_current_time': <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />,
-  'getContents': <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4" />,
-  'findSimilar': <Search className="h-3.5 w-3.5 sm:h-4 sm:w-4" />,
+  brave_web_search: <Globe className="h-3.5 w-3.5 sm:h-4 sm:w-4" />,
+  brave_local_search: <Search className="h-3.5 w-3.5 sm:h-4 sm:w-4" />,
+  search: <Search className="h-3.5 w-3.5 sm:h-4 sm:w-4" />,
+  fetch: <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4" />,
+  get_current_time: <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />,
+  getContents: <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4" />,
+  findSimilar: <Search className="h-3.5 w-3.5 sm:h-4 sm:w-4" />,
 };
 
-export function ToolCallCard({ toolCall, result, isExecuting, compact = false }: ToolCallCardProps) {
+export function ToolCallCard({
+  toolCall,
+  result,
+  isExecuting,
+  compact = false,
+}: ToolCallCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
   // Parse server__toolname format
   const fullName = toolCall.function.name;
-  const [serverName, ...nameParts] = fullName.split('__');
-  const toolName = nameParts.length > 0 ? nameParts.join('__') : fullName;
+  const [serverName, ...nameParts] = fullName.split("__");
+  const toolName = nameParts.length > 0 ? nameParts.join("__") : fullName;
   const displayServer = toolCall.server || (nameParts.length > 0 ? serverName : null);
 
   let args: Record<string, unknown> = {};
@@ -118,23 +127,24 @@ export function ToolCallCard({ toolCall, result, isExecuting, compact = false }:
 
   // Get a preview of the main argument (usually query or url)
   const mainArg = args.query || args.url || args.text || Object.values(args)[0];
-  const argPreview = typeof mainArg === 'string' ? mainArg.slice(0, 60) : JSON.stringify(mainArg)?.slice(0, 60);
+  const argPreview =
+    typeof mainArg === "string" ? mainArg.slice(0, 60) : JSON.stringify(mainArg)?.slice(0, 60);
 
   const icon = TOOL_ICONS[toolName] || <Globe className="h-3 w-3" />;
   const hasResult = result !== undefined;
   const isError = result?.isError;
 
   // Truncate result for inline display
-  const resultContent = result?.content || '';
+  const resultContent = result?.content || "";
   const isLongResult = resultContent.length > 300;
 
   // Extract meaningful preview from result
   const getResultPreview = () => {
-    if (!resultContent) return '';
+    if (!resultContent) return "";
     // Try to get first meaningful line
-    const lines = resultContent.split('\n').filter(l => l.trim());
-    const preview = lines[0] || '';
-    return preview.length > 100 ? preview.slice(0, 100) + '...' : preview;
+    const lines = resultContent.split("\n").filter((l) => l.trim());
+    const preview = lines[0] || "";
+    return preview.length > 100 ? preview.slice(0, 100) + "..." : preview;
   };
 
   if (compact) {
@@ -143,12 +153,18 @@ export function ToolCallCard({ toolCall, result, isExecuting, compact = false }:
         {isExecuting ? (
           <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin text-[#c9a66b]" />
         ) : hasResult ? (
-          isError ? <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#c97a6b]" /> : <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#7d9a6a]" />
+          isError ? (
+            <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#c97a6b]" />
+          ) : (
+            <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#7d9a6a]" />
+          )
         ) : (
           icon
         )}
         <span className="font-medium">{toolName}</span>
-        {argPreview && <span className="text-[#9a9088]/60 truncate max-w-[160px]">{argPreview}</span>}
+        {argPreview && (
+          <span className="text-[#9a9088]/60 truncate max-w-[160px]">{argPreview}</span>
+        )}
       </div>
     );
   }
@@ -156,11 +172,7 @@ export function ToolCallCard({ toolCall, result, isExecuting, compact = false }:
   return (
     <>
       {showModal && result && (
-        <ToolResultModal
-          toolName={toolName}
-          result={result}
-          onClose={() => setShowModal(false)}
-        />
+        <ToolResultModal toolName={toolName} result={result} onClose={() => setShowModal(false)} />
       )}
 
       <div className="group">
@@ -169,14 +181,18 @@ export function ToolCallCard({ toolCall, result, isExecuting, compact = false }:
           onClick={() => setIsExpanded(!isExpanded)}
           className="flex items-center gap-2 text-xs sm:text-sm text-[#9a9088] hover:text-[#c9a66b] transition-colors w-full text-left py-0.5 sm:py-1"
         >
-          <span className={`transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
+          <span className={`transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}>
             <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </span>
 
           {isExecuting ? (
             <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin text-[#c9a66b]" />
           ) : hasResult ? (
-            isError ? <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#c97a6b]" /> : <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#7d9a6a]" />
+            isError ? (
+              <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#c97a6b]" />
+            ) : (
+              <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#7d9a6a]" />
+            )
           ) : (
             <span className="text-[#9a9088]">{icon}</span>
           )}
@@ -209,7 +225,10 @@ export function ToolCallCard({ toolCall, result, isExecuting, compact = false }:
                   </span>
                   {isLongResult && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); setShowModal(true); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowModal(true);
+                      }}
                       className="flex items-center gap-1 text-[10px] text-[#9a9088] hover:text-[#c9a66b] py-1"
                     >
                       <Maximize2 className="h-3.5 w-3.5" />
@@ -217,10 +236,12 @@ export function ToolCallCard({ toolCall, result, isExecuting, compact = false }:
                     </button>
                   )}
                 </div>
-                <pre className={`mt-1 text-xs font-mono overflow-x-auto whitespace-pre-wrap max-h-36 overflow-y-auto ${
-                  isError ? 'text-[#c97a6b]' : 'text-[#9a9088]'
-                }`}>
-                  {isLongResult ? resultContent.slice(0, 300) + '...' : resultContent}
+                <pre
+                  className={`mt-1 text-xs font-mono overflow-x-auto whitespace-pre-wrap max-h-36 overflow-y-auto ${
+                    isError ? "text-[#c97a6b]" : "text-[#9a9088]"
+                  }`}
+                >
+                  {isLongResult ? resultContent.slice(0, 300) + "..." : resultContent}
                 </pre>
               </div>
             )}
@@ -252,7 +273,11 @@ interface ToolCallsDisplayProps {
   executingTools: Set<string>;
 }
 
-export function ToolCallsDisplay({ toolCalls, toolResults, executingTools }: ToolCallsDisplayProps) {
+export function ToolCallsDisplay({
+  toolCalls,
+  toolResults,
+  executingTools,
+}: ToolCallsDisplayProps) {
   if (toolCalls.length === 0) return null;
 
   return (

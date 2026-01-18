@@ -1,19 +1,19 @@
-'use client';
+"use client";
 
 /**
  * Context Management Hooks
  */
 
-import { useContext, useCallback } from 'react';
-import { ContextManagementContext } from './context';
-import { getContextManagementService } from './factory';
+import { useContext, useCallback } from "react";
+import { ContextManagementContext } from "./context";
+import { getContextManagementService } from "./factory";
 import type {
   IContextManagementService,
   ContextConfig,
   ContextMessage,
   CompactionStrategy,
   UtilizationLevel,
-} from './types';
+} from "./types";
 
 /**
  * Hook to access the ContextManagementService
@@ -54,36 +54,33 @@ export function useContextManagement() {
   const service = useContextManagementService();
   const config = useContextManagementConfig();
 
-  const estimateTokens = useCallback(
-    (text: string) => service.estimateTokens(text),
-    [service]
-  );
+  const estimateTokens = useCallback((text: string) => service.estimateTokens(text), [service]);
 
   const calculateMessageTokens = useCallback(
     (messages: ContextMessage[]) => service.calculateMessageTokens(messages),
-    [service]
+    [service],
   );
 
   const compactMessages = useCallback(
     (messages: ContextMessage[], maxContext: number, strategy?: CompactionStrategy) =>
       service.compactMessages(messages, maxContext, strategy),
-    [service]
+    [service],
   );
 
   const getUtilizationLevel = useCallback(
     (utilization: number): UtilizationLevel => service.getUtilizationLevel(utilization),
-    [service]
+    [service],
   );
 
   const formatTokenCount = useCallback(
     (tokens: number) => service.formatTokenCount(tokens),
-    [service]
+    [service],
   );
 
   const calculateStats = useCallback(
     (messages: ContextMessage[], maxContext: number, systemPrompt?: string, tools?: unknown[]) =>
       service.calculateStats(messages, maxContext, systemPrompt, tools),
-    [service]
+    [service],
   );
 
   return {

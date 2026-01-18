@@ -1,12 +1,12 @@
-import type { StateCreator } from 'zustand';
-import type { ChatSession, ToolCall, ToolResult } from '@/lib/types';
-import type { DeepResearchSettings, MCPServerConfig } from '@/components/chat';
-import type { ResearchProgress, ResearchSource } from '@/components/chat/research-progress';
-import { loadState } from '@/lib/chat-state-persistence';
+import type { StateCreator } from "zustand";
+import type { ChatSession, ToolCall, ToolResult } from "@/lib/types";
+import type { DeepResearchSettings, MCPServerConfig } from "@/components/chat";
+import type { ResearchProgress, ResearchSource } from "@/components/chat/research-progress";
+import { loadState } from "@/lib/chat-state-persistence";
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
   images?: string[];
   isStreaming?: boolean;
@@ -63,7 +63,7 @@ export interface ChatState {
   sidebarCollapsed: boolean;
   isMobile: boolean;
   toolPanelOpen: boolean;
-  activePanel: 'tools' | 'artifacts';
+  activePanel: "tools" | "artifacts";
   historyDropdownOpen: boolean;
 
   mcpEnabled: boolean;
@@ -114,14 +114,16 @@ export interface ChatActions {
   setRunningModel: (runningModel: string | null) => void;
   setModelName: (modelName: string) => void;
   setSelectedModel: (selectedModel: string) => void;
-  setAvailableModels: (availableModels: Array<{ id: string; root?: string; max_model_len?: number }>) => void;
+  setAvailableModels: (
+    availableModels: Array<{ id: string; root?: string; max_model_len?: number }>,
+  ) => void;
   setPageLoading: (pageLoading: boolean) => void;
 
   setCopiedIndex: (copiedIndex: number | null) => void;
   setSidebarCollapsed: (sidebarCollapsed: boolean) => void;
   setIsMobile: (isMobile: boolean) => void;
   setToolPanelOpen: (toolPanelOpen: boolean) => void;
-  setActivePanel: (activePanel: 'tools' | 'artifacts') => void;
+  setActivePanel: (activePanel: "tools" | "artifacts") => void;
   setHistoryDropdownOpen: (historyDropdownOpen: boolean) => void;
 
   setMcpEnabled: (mcpEnabled: boolean) => void;
@@ -132,7 +134,9 @@ export interface ChatActions {
   setExecutingTools: (executingTools: Set<string>) => void;
   updateExecutingTools: (updater: (executingTools: Set<string>) => Set<string>) => void;
   setToolResultsMap: (toolResultsMap: Map<string, ToolResult>) => void;
-  updateToolResultsMap: (updater: (toolResultsMap: Map<string, ToolResult>) => Map<string, ToolResult>) => void;
+  updateToolResultsMap: (
+    updater: (toolResultsMap: Map<string, ToolResult>) => Map<string, ToolResult>,
+  ) => void;
 
   setSystemPrompt: (systemPrompt: string) => void;
   setChatSettingsOpen: (chatSettingsOpen: boolean) => void;
@@ -160,15 +164,15 @@ const DEFAULT_DEEP_RESEARCH: DeepResearchSettings = {
   numSources: 5,
   autoSummarize: true,
   includeCitations: true,
-  searchDepth: 'normal',
+  searchDepth: "normal",
 };
 
 const getPersistedState = () => {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === "undefined") return null;
   const restored = loadState();
   let deepResearch = DEFAULT_DEEP_RESEARCH;
   try {
-    const stored = localStorage.getItem('vllm-studio-deep-research');
+    const stored = localStorage.getItem("vllm-studio-deep-research");
     if (stored) deepResearch = { ...deepResearch, ...JSON.parse(stored) };
   } catch {}
 
@@ -188,22 +192,22 @@ const persisted = getPersistedState();
 export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set) => ({
   sessions: [],
   currentSessionId: null,
-  currentSessionTitle: 'New Chat',
+  currentSessionTitle: "New Chat",
   sessionsLoading: true,
   sessionsAvailable: true,
 
   messages: [],
-  input: persisted?.input ?? '',
+  input: persisted?.input ?? "",
   isLoading: false,
   error: null,
 
   streamingStartTime: null,
   elapsedSeconds: 0,
-  queuedContext: '',
+  queuedContext: "",
 
   runningModel: null,
-  modelName: '',
-  selectedModel: persisted?.selectedModel ?? '',
+  modelName: "",
+  selectedModel: persisted?.selectedModel ?? "",
   availableModels: [],
   pageLoading: true,
 
@@ -211,7 +215,7 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set)
   sidebarCollapsed: persisted?.sidebarCollapsed ?? false,
   isMobile: false,
   toolPanelOpen: true,
-  activePanel: 'tools',
+  activePanel: "tools",
   historyDropdownOpen: false,
 
   mcpEnabled: persisted?.mcpEnabled ?? false,
@@ -222,7 +226,7 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set)
   executingTools: new Set(),
   toolResultsMap: new Map(),
 
-  systemPrompt: persisted?.systemPrompt ?? '',
+  systemPrompt: persisted?.systemPrompt ?? "",
   chatSettingsOpen: false,
 
   deepResearch: persisted?.deepResearch ?? DEFAULT_DEEP_RESEARCH,
@@ -236,7 +240,7 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set)
   messageSearchOpen: false,
   bookmarkedMessages: new Set(),
   editingTitle: false,
-  titleDraft: '',
+  titleDraft: "",
   userScrolledUp: false,
 
   setSessions: (sessions) => set({ sessions }),
@@ -276,9 +280,11 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set)
   setMcpSettingsOpen: (mcpSettingsOpen) => set({ mcpSettingsOpen }),
   setMcpTools: (mcpTools) => set({ mcpTools }),
   setExecutingTools: (executingTools) => set({ executingTools }),
-  updateExecutingTools: (updater) => set((state) => ({ executingTools: updater(state.executingTools) })),
+  updateExecutingTools: (updater) =>
+    set((state) => ({ executingTools: updater(state.executingTools) })),
   setToolResultsMap: (toolResultsMap) => set({ toolResultsMap }),
-  updateToolResultsMap: (updater) => set((state) => ({ toolResultsMap: updater(state.toolResultsMap) })),
+  updateToolResultsMap: (updater) =>
+    set((state) => ({ toolResultsMap: updater(state.toolResultsMap) })),
 
   setSystemPrompt: (systemPrompt) => set({ systemPrompt }),
   setChatSettingsOpen: (chatSettingsOpen) => set({ chatSettingsOpen }),
@@ -293,7 +299,8 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set)
 
   setMessageSearchOpen: (messageSearchOpen) => set({ messageSearchOpen }),
   setBookmarkedMessages: (bookmarkedMessages) => set({ bookmarkedMessages }),
-  updateBookmarkedMessages: (updater) => set((state) => ({ bookmarkedMessages: updater(state.bookmarkedMessages) })),
+  updateBookmarkedMessages: (updater) =>
+    set((state) => ({ bookmarkedMessages: updater(state.bookmarkedMessages) })),
   setEditingTitle: (editingTitle) => set({ editingTitle }),
   setTitleDraft: (titleDraft) => set({ titleDraft }),
   setUserScrolledUp: (userScrolledUp) => set({ userScrolledUp }),

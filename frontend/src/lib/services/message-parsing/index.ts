@@ -44,23 +44,23 @@ export type {
   IMcpXmlParser,
   IArtifactsParser,
   IMarkdownParser,
-} from './types';
+} from "./types";
 
 // Default config
-export { DEFAULT_CONFIG } from './types';
+export { DEFAULT_CONFIG } from "./types";
 
 // Service
-export { MessageParsingService } from './service';
+export { MessageParsingService } from "./service";
 
 // Factory
 export {
   MessageParsingServiceFactory,
   messageParsingServiceFactory,
   getMessageParsingService,
-} from './factory';
+} from "./factory";
 
 // Context
-export { MessageParsingContext, MessageParsingProvider } from './context';
+export { MessageParsingContext, MessageParsingProvider } from "./context";
 
 // Hooks
 export {
@@ -71,7 +71,7 @@ export {
   useThinkingContent,
   useArtifacts,
   useMarkdownSegments,
-} from './hooks';
+} from "./hooks";
 
 // Individual parsers (for advanced use cases)
 export {
@@ -85,4 +85,4 @@ export {
   artifactsParser,
   MarkdownParser,
   markdownParser,
-} from './parsers';
+} from "./parsers";

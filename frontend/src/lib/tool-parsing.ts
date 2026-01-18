@@ -1,16 +1,16 @@
 export const isPlainObject = (value: unknown): value is Record<string, unknown> => {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 };
 
 export const extractLastJsonValue = (text: string): unknown => {
-  const raw = (text || '').trim();
+  const raw = (text || "").trim();
   if (!raw) return undefined;
 
   let lastParsed: unknown = undefined;
   for (let start = 0; start < raw.length; start++) {
     const startChar = raw[start];
-    if (startChar !== '{' && startChar !== '[') continue;
-    const endChar = startChar === '{' ? '}' : ']';
+    if (startChar !== "{" && startChar !== "[") continue;
+    const endChar = startChar === "{" ? "}" : "]";
     let depth = 0;
     let inString = false;
     let escape = false;
@@ -20,7 +20,7 @@ export const extractLastJsonValue = (text: string): unknown => {
       if (inString) {
         if (escape) {
           escape = false;
-        } else if (ch === '\\') {
+        } else if (ch === "\\") {
           escape = true;
         } else if (ch === '"') {
           inString = false;
@@ -51,8 +51,8 @@ export const extractLastJsonValue = (text: string): unknown => {
 };
 
 export const normalizeToolArgumentsJson = (raw: string): string => {
-  const text = (raw || '').trim();
-  if (!text) return '{}';
+  const text = (raw || "").trim();
+  if (!text) return "{}";
 
   try {
     const parsed = JSON.parse(text) as unknown;
@@ -67,7 +67,7 @@ export const normalizeToolArgumentsJson = (raw: string): string => {
 
     const m = text.match(/^[a-zA-Z0-9_.:-]+\s*\(([\s\S]*)\)\s*$/);
     if (m) {
-      const inside = (m[1] || '').trim();
+      const inside = (m[1] || "").trim();
       if (inside) {
         try {
           const parsed = JSON.parse(inside) as unknown;
@@ -88,9 +88,9 @@ export const normalizeToolArgumentsJson = (raw: string): string => {
 };
 
 export const isCompleteJson = (text: string): boolean => {
-  const t = (text || '').trim();
+  const t = (text || "").trim();
   if (!t) return false;
-  if (!(t.startsWith('{') || t.startsWith('['))) return false;
+  if (!(t.startsWith("{") || t.startsWith("["))) return false;
   try {
     JSON.parse(t);
     return true;
@@ -100,8 +100,8 @@ export const isCompleteJson = (text: string): boolean => {
 };
 
 export const mergeToolCallArguments = (existing: string, incoming: string): string => {
-  const prev = existing || '';
-  const next = incoming || '';
+  const prev = existing || "";
+  const next = incoming || "";
   if (!next) return prev;
   if (!prev) return next;
   if (prev === next) return prev;
@@ -111,4 +111,3 @@ export const mergeToolCallArguments = (existing: string, incoming: string): stri
   if (prev.startsWith(next)) return prev;
   return prev + next;
 };
-

@@ -1,0 +1,3 @@
+[tool.deptry]
+exclude = [".venv", "frontend", "data", "config", "controller/__pycache__"]
+ignore_obsolete = ["pytest", "ruff", "mypy", "deptry"]

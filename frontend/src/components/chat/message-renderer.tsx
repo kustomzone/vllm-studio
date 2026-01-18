@@ -1,18 +1,17 @@
-'use client';
+"use client";
 
-import { useState, useMemo, useEffect, useRef, useId } from 'react';
-import { AlertCircle } from 'lucide-react';
-import mermaid from 'mermaid';
-import { ArtifactRenderer } from './artifact-renderer';
-import { EnhancedCodeBlock } from './enhanced-code-block';
-import { TypingIndicator, StreamingCursor } from './typing-indicator';
-import { MessageActions } from './message-actions';
+import { useState, useEffect, useRef, useId } from "react";
+import { AlertCircle } from "lucide-react";
+import mermaid from "mermaid";
+import { EnhancedCodeBlock } from "./enhanced-code-block";
+import { TypingIndicator, StreamingCursor } from "./typing-indicator";
+import { MessageActions } from "./message-actions";
 import {
   useParsedMessage,
   useMessageParsing,
   thinkingParser,
-} from '@/lib/services/message-parsing';
-import type { Artifact, MarkdownSegment, ThinkingResult } from '@/lib/services/message-parsing';
+} from "@/lib/services/message-parsing";
+import type { MarkdownSegment, ThinkingResult } from "@/lib/services/message-parsing";
 
 // Re-export splitThinking for backward compatibility (used by ChatSidePanel)
 export { thinkingParser };
@@ -23,10 +22,10 @@ export function splitThinking(content: string): ThinkingResult {
 // Initialize mermaid with dark theme
 mermaid.initialize({
   startOnLoad: false,
-  theme: 'dark',
-  securityLevel: 'loose',
-  fontFamily: 'inherit',
-  logLevel: 'fatal',
+  theme: "dark",
+  securityLevel: "loose",
+  fontFamily: "inherit",
+  logLevel: "fatal",
   suppressErrorRendering: true,
 });
 
@@ -40,9 +39,9 @@ interface MessageRendererProps {
 
 function MermaidDiagram({ code }: { code: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [svg, setSvg] = useState<string>('');
+  const [svg, setSvg] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const id = useId().replace(/:/g, '_');
+  const id = useId().replace(/:/g, "_");
   const renderSeqRef = useRef(0);
 
   useEffect(() => {
@@ -53,11 +52,13 @@ function MermaidDiagram({ code }: { code: string }) {
 
       const looksLikeMermaid =
         /^(?:graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|stateDiagram-v2|erDiagram|journey|gantt|pie|mindmap|timeline|gitGraph|C4Context|C4Container|C4Component|C4Dynamic|C4Deployment)\b/.test(
-          code.trim()
+          code.trim(),
         );
       if (!looksLikeMermaid) {
-        setSvg('');
-        setError('Not a valid Mermaid diagram (missing diagram header like `graph TD` or `sequenceDiagram`).');
+        setSvg("");
+        setError(
+          "Not a valid Mermaid diagram (missing diagram header like `graph TD` or `sequenceDiagram`).",
+        );
         return;
       }
 
@@ -68,8 +69,8 @@ function MermaidDiagram({ code }: { code: string }) {
         setError(null);
       } catch (e) {
         if (seq !== renderSeqRef.current) return;
-        setError(e instanceof Error ? e.message : 'Failed to render diagram');
-        setSvg('');
+        setError(e instanceof Error ? e.message : "Failed to render diagram");
+        setSvg("");
       }
     };
 
@@ -95,7 +96,7 @@ function MermaidDiagram({ code }: { code: string }) {
   return (
     <div
       ref={containerRef}
-      className="my-3 p-4 rounded-lg border border-[var(--border)] bg-[var(--card)] overflow-x-auto"
+      className="my-3 p-4 rounded-lg border border-(--border) bg-(--card) overflow-x-auto"
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );
@@ -108,14 +109,16 @@ interface CodeBlockProps {
 }
 
 function CodeBlock({ segment, artifactsEnabled, isStreaming }: CodeBlockProps) {
-  const lang = segment.language || '';
+  const lang = segment.language || "";
 
   // Handle mermaid diagrams
-  if (lang === 'mermaid') {
+  if (lang === "mermaid") {
     if (isStreaming) {
       return (
-        <div className="my-3 p-4 rounded-lg border border-[var(--border)] bg-[var(--card)] animate-in fade-in">
-          <div className="text-xs text-[#b8b4ad] mb-2">Mermaid preview renders after streaming completes.</div>
+        <div className="my-3 p-4 rounded-lg border border-(--border) bg-(--card) animate-in fade-in">
+          <div className="text-xs text-[#b8b4ad] mb-2">
+            Mermaid preview renders after streaming completes.
+          </div>
           <pre className="text-xs text-[#d8d4cd] overflow-x-auto">{segment.content}</pre>
         </div>
       );
@@ -140,12 +143,7 @@ interface MarkdownBlockProps {
 }
 
 function MarkdownBlock({ html }: MarkdownBlockProps) {
-  return (
-    <div
-      className="chat-markdown"
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
-  );
+  return <div className="chat-markdown" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 export function MessageRenderer({
@@ -158,12 +156,12 @@ export function MessageRenderer({
   // Use the parsing service with memoization
   const parsed = useParsedMessage(content, {
     isStreaming,
-    extractArtifacts: artifactsEnabled,
+    extractArtifacts: false,
   });
 
   const { renderMarkdown } = useMessageParsing();
 
-  const { thinking, artifacts, segments } = parsed;
+  const { thinking, segments } = parsed;
   const mainContent = thinking.mainContent;
 
   return (
@@ -177,9 +175,9 @@ export function MessageRenderer({
 
       {/* Main content */}
       {mainContent && (
-        <div style={{ color: '#e8e4dd' }}>
+        <div style={{ color: "#e8e4dd" }}>
           {segments.map((segment, index) => {
-            if (segment.type === 'code') {
+            if (segment.type === "code") {
               return (
                 <CodeBlock
                   key={`code-${index}`}
@@ -196,17 +194,6 @@ export function MessageRenderer({
         </div>
       )}
 
-      {/* Render explicit artifacts */}
-      {artifacts.length > 0 && artifactsEnabled && (
-        <div className="mt-3 space-y-3">
-          {artifacts.map((artifact) => (
-            <ArtifactRenderer
-              key={artifact.id}
-              artifact={artifact as Artifact}
-            />
-          ))}
-        </div>
-      )}
 
       {/* Streaming indicators */}
       {!mainContent && !thinking.thinkingContent && isStreaming && (
@@ -215,9 +202,7 @@ export function MessageRenderer({
         </div>
       )}
 
-      {mainContent && isStreaming && (
-        <StreamingCursor />
-      )}
+      {mainContent && isStreaming && <StreamingCursor />}
     </div>
   );
 }

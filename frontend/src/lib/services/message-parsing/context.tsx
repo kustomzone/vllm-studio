@@ -1,17 +1,17 @@
-'use client';
+"use client";
 
 /**
  * Message Parsing Context
  * Provides dependency injection for MessageParsingService in React components
  */
 
-import { createContext, useMemo, type ReactNode } from 'react';
-import { messageParsingServiceFactory } from './factory';
+import { createContext, useMemo, type ReactNode } from "react";
+import { messageParsingServiceFactory } from "./factory";
 import type {
   IMessageParsingService,
   MessageParsingConfig,
   MessageParsingContextValue,
-} from './types';
+} from "./types";
 
 // Default configuration
 const DEFAULT_CONFIG: MessageParsingConfig = {
@@ -25,7 +25,7 @@ const DEFAULT_CONFIG: MessageParsingConfig = {
 // Create context with undefined default (must be used within provider)
 export const MessageParsingContext = createContext<MessageParsingContextValue | null>(null);
 
-MessageParsingContext.displayName = 'MessageParsingContext';
+MessageParsingContext.displayName = "MessageParsingContext";
 
 interface MessageParsingProviderProps {
   children: ReactNode;
@@ -46,11 +46,11 @@ export function MessageParsingProvider({
 }: MessageParsingProviderProps) {
   const contextValue = useMemo<MessageParsingContextValue>(() => {
     // Use provided service or create from factory
-    const service = providedService ?? (
-      config
+    const service =
+      providedService ??
+      (config
         ? messageParsingServiceFactory.create(config)
-        : messageParsingServiceFactory.createDefault()
-    );
+        : messageParsingServiceFactory.createDefault());
 
     const finalConfig: MessageParsingConfig = {
       ...DEFAULT_CONFIG,
@@ -64,8 +64,6 @@ export function MessageParsingProvider({
   }, [config, providedService]);
 
   return (
-    <MessageParsingContext.Provider value={contextValue}>
-      {children}
-    </MessageParsingContext.Provider>
+    <MessageParsingContext.Provider value={contextValue}>{children}</MessageParsingContext.Provider>
   );
 }

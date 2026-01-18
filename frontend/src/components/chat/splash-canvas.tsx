@@ -95,11 +95,9 @@ const buildGeometry = (width: number, height: number): SplashGeometry => {
     const ringPoints: SplashPoint[] = [];
 
     for (let pointIndex = 0; pointIndex < pointsInRing; pointIndex += 1) {
-      const baseAngle =
-        (pointIndex / pointsInRing) * Math.PI * 2 + ringRotation;
+      const baseAngle = (pointIndex / pointsInRing) * Math.PI * 2 + ringRotation;
       const wobble = Math.sin(baseAngle * 3 + ringIndex * 1.2) * swirl * 8;
-      const angle =
-        baseAngle + Math.sin(ringRadius * 0.015 + ringIndex) * swirl * 0.2;
+      const angle = baseAngle + Math.sin(ringRadius * 0.015 + ringIndex) * swirl * 0.2;
       const positionX = centerX + Math.cos(angle) * (ringRadius + wobble);
       const positionY = centerY + Math.sin(angle) * (ringRadius + wobble);
 
@@ -126,8 +124,7 @@ const buildGeometry = (width: number, height: number): SplashGeometry => {
         point: outerPoint,
         index: outerIndex,
         distance: Math.sqrt(
-          (outerPoint.x - innerPoint.x) ** 2 +
-            (outerPoint.y - innerPoint.y) ** 2,
+          (outerPoint.x - innerPoint.x) ** 2 + (outerPoint.y - innerPoint.y) ** 2,
         ),
       }));
       distances.sort((left, right) => left.distance - right.distance);
@@ -211,14 +208,7 @@ const drawCenterDisc = (
 
   // Main disc
   ctx.save();
-  const gradient = ctx.createRadialGradient(
-    centerX,
-    centerY,
-    0,
-    centerX,
-    centerY,
-    radius * 1.1,
-  );
+  const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius * 1.1);
   gradient.addColorStop(0, "hsl(30, 5%, 10.5%)");
   gradient.addColorStop(0.7, "hsl(30, 5%, 10.5%)");
   gradient.addColorStop(1, "hsla(30, 5%, 10.5%, 0.95)");
@@ -239,11 +229,7 @@ const drawCenterDisc = (
   ctx.restore();
 };
 
-const drawRings = (
-  ctx: CanvasRenderingContext2D,
-  geometry: SplashGeometry,
-  timeValue: number,
-) => {
+const drawRings = (ctx: CanvasRenderingContext2D, geometry: SplashGeometry, timeValue: number) => {
   const ringCount = geometry.rings.length || geometry.ringCount;
   if (!ringCount) return;
 
@@ -285,8 +271,7 @@ const drawRings = (
   // Draw radial lines
   geometry.radialLines.forEach((line) => {
     const edgeAlpha = getEdgeAlpha(line.ringIndex);
-    const pulsePosition =
-      (wavePrimary / (Math.PI * 2) + line.from.baseAngle / (Math.PI * 2)) % 1;
+    const pulsePosition = (wavePrimary / (Math.PI * 2) + line.from.baseAngle / (Math.PI * 2)) % 1;
     const pulseIntensity = Math.sin(pulsePosition * Math.PI * 2) * 0.5 + 0.5;
 
     // Glow layer
@@ -308,8 +293,7 @@ const drawRings = (
     ctx.stroke();
 
     if (pulseIntensity > 0.7) {
-      ctx.globalAlpha =
-        baseAlpha * 0.25 * ((pulseIntensity - 0.7) / 0.3) * edgeAlpha;
+      ctx.globalAlpha = baseAlpha * 0.25 * ((pulseIntensity - 0.7) / 0.3) * edgeAlpha;
       ctx.strokeStyle = splashPalette.highlight;
       ctx.lineWidth = 1.2;
       ctx.beginPath();
@@ -324,12 +308,7 @@ const drawRings = (
     const edgeAlpha = getEdgeAlpha(connection.ringIndex);
     const waveValue =
       Math.sin(wavePrimary - connection.ringIndex * 0.7) * 0.5 +
-      Math.sin(
-        waveSecondary -
-          connection.ringIndex * 1.1 +
-          connection.from.pointIndex * 0.4,
-      ) *
-        0.3;
+      Math.sin(waveSecondary - connection.ringIndex * 1.1 + connection.from.pointIndex * 0.4) * 0.3;
     const intensity = (waveValue + 0.8) / 1.6;
 
     // Glow layer
@@ -377,8 +356,7 @@ const drawRings = (
 
       // Bright core for high-intensity nodes at edges
       if (intensity > 0.6 && edgeAlpha > 0.3) {
-        ctx.globalAlpha =
-          baseAlpha * 0.7 * ((intensity - 0.6) / 0.4) * edgeAlpha;
+        ctx.globalAlpha = baseAlpha * 0.7 * ((intensity - 0.6) / 0.4) * edgeAlpha;
         ctx.fillStyle = splashPalette.highlightBright;
         ctx.beginPath();
         ctx.arc(point.x, point.y, nodeSize * 0.45, 0, Math.PI * 2);
@@ -389,22 +367,14 @@ const drawRings = (
 
   // Traveling particles
   const particleCount = 12;
-  for (
-    let particleIndex = 0;
-    particleIndex < particleCount;
-    particleIndex += 1
-  ) {
-    const particleProgress =
-      (timeValue * 0.6 + particleIndex / particleCount) % 1;
-    const particleRingIndex = Math.floor(
-      ringCount * 0.4 + particleProgress * ringCount * 0.55,
-    );
+  for (let particleIndex = 0; particleIndex < particleCount; particleIndex += 1) {
+    const particleProgress = (timeValue * 0.6 + particleIndex / particleCount) % 1;
+    const particleRingIndex = Math.floor(ringCount * 0.4 + particleProgress * ringCount * 0.55);
     const ringPoints = geometry.rings[particleRingIndex];
     if (!ringPoints || ringPoints.length === 0) continue;
 
     const particleAngle =
-      (waveTertiary + (particleIndex * Math.PI * 2) / particleCount) %
-      (Math.PI * 2);
+      (waveTertiary + (particleIndex * Math.PI * 2) / particleCount) % (Math.PI * 2);
     const nearestPoint = ringPoints.reduce(
       (best, point) => {
         const diff = Math.abs(point.angle - particleAngle);
@@ -415,31 +385,17 @@ const drawRings = (
 
     if (nearestPoint.point) {
       const particleEdgeAlpha = getEdgeAlpha(particleRingIndex);
-      ctx.globalAlpha =
-        baseAlpha * 0.6 * envelopeValue(particleProgress) * particleEdgeAlpha;
+      ctx.globalAlpha = baseAlpha * 0.6 * envelopeValue(particleProgress) * particleEdgeAlpha;
       ctx.fillStyle = splashPalette.warmPulse;
       ctx.beginPath();
-      ctx.arc(
-        nearestPoint.point.x,
-        nearestPoint.point.y,
-        2.5,
-        0,
-        Math.PI * 2,
-      );
+      ctx.arc(nearestPoint.point.x, nearestPoint.point.y, 2.5, 0, Math.PI * 2);
       ctx.fill();
 
       // Bright core
-      ctx.globalAlpha =
-        baseAlpha * 0.8 * envelopeValue(particleProgress) * particleEdgeAlpha;
+      ctx.globalAlpha = baseAlpha * 0.8 * envelopeValue(particleProgress) * particleEdgeAlpha;
       ctx.fillStyle = splashPalette.highlightBright;
       ctx.beginPath();
-      ctx.arc(
-        nearestPoint.point.x,
-        nearestPoint.point.y,
-        1.2,
-        0,
-        Math.PI * 2,
-      );
+      ctx.arc(nearestPoint.point.x, nearestPoint.point.y, 1.2, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -473,11 +429,7 @@ export function ChatSplashCanvas({ active }: { active: boolean }) {
       const height = Math.max(wrapper.clientHeight, 1);
       const nextScale = Math.min(window.devicePixelRatio || 1, 2);
 
-      if (
-        width === lastWidth &&
-        height === lastHeight &&
-        Math.abs(nextScale - lastScale) < 0.01
-      ) {
+      if (width === lastWidth && height === lastHeight && Math.abs(nextScale - lastScale) < 0.01) {
         return;
       }
 

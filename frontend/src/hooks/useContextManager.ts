@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   useContextManagement,
   type ContextConfig,
@@ -9,7 +9,7 @@ import {
   type CompactionStrategy,
   type ContextMessage,
   DEFAULT_CONTEXT_CONFIG,
-} from '@/lib/services/context-management';
+} from "@/lib/services/context-management";
 
 type Message = ContextMessage;
 
@@ -36,17 +36,17 @@ interface UseContextManagerReturn {
   isWarning: boolean;
   isCritical: boolean;
   canSendMessage: boolean;
-  utilizationLevel: 'low' | 'medium' | 'high' | 'critical';
+  utilizationLevel: "low" | "medium" | "high" | "critical";
   compact: (strategy?: CompactionStrategy) => void;
   updateConfig: (updates: Partial<ContextConfig>) => void;
   refreshStats: () => void;
 }
 
-const STORAGE_KEY = 'vllm_context_config';
-const HISTORY_KEY = 'vllm_compaction_history';
+const STORAGE_KEY = "vllm_context_config";
+const HISTORY_KEY = "vllm_compaction_history";
 
 function loadConfig(): ContextConfig {
-  if (typeof window === 'undefined') return DEFAULT_CONTEXT_CONFIG;
+  if (typeof window === "undefined") return DEFAULT_CONTEXT_CONFIG;
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -59,7 +59,7 @@ function loadConfig(): ContextConfig {
 }
 
 function saveConfig(config: ContextConfig): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
   } catch {
@@ -68,7 +68,7 @@ function saveConfig(config: ContextConfig): void {
 }
 
 function loadHistory(): CompactionEvent[] {
-  if (typeof window === 'undefined') return [];
+  if (typeof window === "undefined") return [];
   try {
     const stored = localStorage.getItem(HISTORY_KEY);
     if (stored) {
@@ -86,7 +86,7 @@ function loadHistory(): CompactionEvent[] {
 }
 
 function saveHistory(history: CompactionEvent[]): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   try {
     // Keep only last 50 events
     const trimmed = history.slice(-50);
@@ -126,11 +126,12 @@ export function useContextManager({
     const totalCompactions = compactionHistory.length;
     const totalTokensCompacted = compactionHistory.reduce(
       (sum, e) => sum + (e.beforeTokens - e.afterTokens),
-      0
+      0,
     );
-    const lastCompaction = compactionHistory.length > 0
-      ? compactionHistory[compactionHistory.length - 1].timestamp
-      : undefined;
+    const lastCompaction =
+      compactionHistory.length > 0
+        ? compactionHistory[compactionHistory.length - 1].timestamp
+        : undefined;
 
     return {
       ...baseStats,
@@ -147,27 +148,30 @@ export function useContextManager({
   const canSendMessage = stats.utilization < 0.95;
 
   // Manual compact function
-  const compact = useCallback((strategy: CompactionStrategy = 'sliding_window') => {
-    if (messages.length <= config.preserveRecentMessages) {
-      return; // Nothing to compact
-    }
+  const compact = useCallback(
+    (strategy: CompactionStrategy = "sliding_window") => {
+      if (messages.length <= config.preserveRecentMessages) {
+        return; // Nothing to compact
+      }
 
-    const { messages: newMessages, event } = serviceCompactMessages(
-      messages,
-      maxContext,
-      strategy
-    );
+      const { messages: newMessages, event } = serviceCompactMessages(
+        messages,
+        maxContext,
+        strategy,
+      );
 
-    if (event.messagesRemoved > 0) {
-      setCompactionHistory(prev => {
-        const updated = [...prev, event];
-        saveHistory(updated);
-        return updated;
-      });
+      if (event.messagesRemoved > 0) {
+        setCompactionHistory((prev) => {
+          const updated = [...prev, event];
+          saveHistory(updated);
+          return updated;
+        });
 
-      onCompact?.(newMessages, event);
-    }
-  }, [messages, maxContext, config.preserveRecentMessages, onCompact, serviceCompactMessages]);
+        onCompact?.(newMessages, event);
+      }
+    },
+    [messages, maxContext, config.preserveRecentMessages, onCompact, serviceCompactMessages],
+  );
 
   // Auto-compact check
   useEffect(() => {
@@ -180,7 +184,7 @@ export function useContextManager({
 
       if (stats.utilization >= config.compactionThreshold) {
         lastAutoCompactRef.current = now;
-        compact('sliding_window');
+        compact("sliding_window");
       }
     };
 
@@ -196,7 +200,7 @@ export function useContextManager({
 
   // Update config
   const updateConfig = useCallback((updates: Partial<ContextConfig>) => {
-    setConfig(prev => {
+    setConfig((prev) => {
       const updated = { ...prev, ...updates };
       saveConfig(updated);
       return updated;

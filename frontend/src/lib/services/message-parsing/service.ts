@@ -3,14 +3,14 @@
  * Orchestrates all parsing operations with caching
  */
 
-import { LRUCache, hashString } from '../types';
+import { LRUCache, hashString } from "../types";
 import {
   boxTagsParser,
   thinkingParser,
   mcpXmlParser,
   artifactsParser,
   markdownParser,
-} from './parsers';
+} from "./parsers";
 import type {
   IMessageParsingService,
   MessageParsingConfig,
@@ -21,11 +21,10 @@ import type {
   MarkdownSegment,
   ArtifactType,
   Artifact,
-  DEFAULT_CONFIG,
-} from './types';
+} from "./types";
 
 export class MessageParsingService implements IMessageParsingService {
-  readonly name = 'message-parsing' as const;
+  readonly name = "message-parsing" as const;
   readonly config: MessageParsingConfig;
 
   private cache: LRUCache<string, ParsedMessage>;
@@ -40,7 +39,7 @@ export class MessageParsingService implements IMessageParsingService {
    */
   parse(content: string, options: ParseOptions = {}): ParsedMessage {
     if (!content) {
-      return this.createEmptyResult('', options.isStreaming ?? false);
+      return this.createEmptyResult("", options.isStreaming ?? false);
     }
 
     const hash = this.createHash(content, options);
@@ -127,13 +126,11 @@ export class MessageParsingService implements IMessageParsingService {
    */
   parseThinking(content: string): ThinkingResult {
     if (!content) {
-      return { thinkingContent: null, mainContent: '', isThinkingComplete: true };
+      return { thinkingContent: null, mainContent: "", isThinkingComplete: true };
     }
 
     // Strip box tags first
-    const cleaned = this.config.enableBoxTagStripping
-      ? boxTagsParser.parse(content)
-      : content;
+    const cleaned = this.config.enableBoxTagStripping ? boxTagsParser.parse(content) : content;
 
     return thinkingParser.parse(cleaned);
   }
@@ -151,13 +148,11 @@ export class MessageParsingService implements IMessageParsingService {
    */
   parseArtifacts(content: string): ArtifactsResult {
     if (!content) {
-      return { text: '', artifacts: [] };
+      return { text: "", artifacts: [] };
     }
 
     // Strip box tags first
-    const cleaned = this.config.enableBoxTagStripping
-      ? boxTagsParser.parse(content)
-      : content;
+    const cleaned = this.config.enableBoxTagStripping ? boxTagsParser.parse(content) : content;
 
     return artifactsParser.parse(cleaned);
   }
@@ -193,7 +188,7 @@ export class MessageParsingService implements IMessageParsingService {
    * Render markdown to HTML
    */
   renderMarkdown(content: string): string {
-    if (!content) return '';
+    if (!content) return "";
     return markdownParser.renderToHtml(content);
   }
 
@@ -236,9 +231,9 @@ export class MessageParsingService implements IMessageParsingService {
    */
   private createHash(content: string, options: ParseOptions): string {
     const optionsKey = [
-      options.extractArtifacts ?? 'default',
-      options.extractThinking ?? 'default',
-    ].join('-');
+      options.extractArtifacts ?? "default",
+      options.extractThinking ?? "default",
+    ].join("-");
     return hashString(`${content}:${optionsKey}`);
   }
 
@@ -248,10 +243,10 @@ export class MessageParsingService implements IMessageParsingService {
   private createEmptyResult(raw: string, isStreaming: boolean): ParsedMessage {
     return {
       raw,
-      hash: '',
-      thinking: { thinkingContent: null, mainContent: '', isThinkingComplete: true },
+      hash: "",
+      thinking: { thinkingContent: null, mainContent: "", isThinkingComplete: true },
       artifacts: [],
-      contentWithoutArtifacts: '',
+      contentWithoutArtifacts: "",
       segments: [],
       isStreaming,
       parsedAt: Date.now(),

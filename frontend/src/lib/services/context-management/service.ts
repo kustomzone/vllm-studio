@@ -12,10 +12,10 @@ import type {
   CompactionStrategy,
   UtilizationLevel,
   ContextStats,
-} from './types';
+} from "./types";
 
 export class ContextManagementService implements IContextManagementService {
-  readonly name = 'context-management' as const;
+  readonly name = "context-management" as const;
   readonly config: ContextConfig;
 
   constructor(config: ContextConfig) {
@@ -35,7 +35,7 @@ export class ContextManagementService implements IContextManagementService {
    */
   calculateMessageTokens(messages: ContextMessage[]): number {
     return messages.reduce((total, msg) => {
-      const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+      const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
       return total + this.estimateTokens(content) + 4; // +4 for role/formatting overhead
     }, 0);
   }
@@ -46,7 +46,7 @@ export class ContextManagementService implements IContextManagementService {
   compactMessages(
     messages: ContextMessage[],
     maxContext: number,
-    strategy: CompactionStrategy = 'sliding_window'
+    strategy: CompactionStrategy = "sliding_window",
   ): { messages: ContextMessage[]; event: CompactionEvent } {
     const beforeTokens = this.calculateMessageTokens(messages);
     const targetTokens = Math.floor(maxContext * this.config.targetAfterCompaction);
@@ -55,7 +55,7 @@ export class ContextManagementService implements IContextManagementService {
     let summary: string | undefined;
 
     switch (strategy) {
-      case 'summarize': {
+      case "summarize": {
         const recentMessages = messages.slice(-this.config.preserveRecentMessages);
         const olderMessages = messages.slice(0, -this.config.preserveRecentMessages);
 
@@ -71,10 +71,10 @@ export class ContextManagementService implements IContextManagementService {
         }
         break;
       }
-      case 'truncate':
+      case "truncate":
         result = this.compactTruncate(messages, targetTokens);
         break;
-      case 'sliding_window':
+      case "sliding_window":
       default:
         result = this.compactSlidingWindow(messages, targetTokens);
     }
@@ -102,10 +102,10 @@ export class ContextManagementService implements IContextManagementService {
    * Get utilization level for color coding
    */
   getUtilizationLevel(utilization: number): UtilizationLevel {
-    if (utilization < 0.5) return 'low';
-    if (utilization < 0.75) return 'medium';
-    if (utilization < 0.9) return 'high';
-    return 'critical';
+    if (utilization < 0.5) return "low";
+    if (utilization < 0.75) return "medium";
+    if (utilization < 0.9) return "high";
+    return "critical";
   }
 
   /**
@@ -128,8 +128,11 @@ export class ContextManagementService implements IContextManagementService {
     messages: ContextMessage[],
     maxContext: number,
     systemPrompt?: string,
-    tools?: unknown[]
-  ): Omit<ContextStats, 'compactionHistory' | 'lastCompaction' | 'totalCompactions' | 'totalTokensCompacted'> {
+    tools?: unknown[],
+  ): Omit<
+    ContextStats,
+    "compactionHistory" | "lastCompaction" | "totalCompactions" | "totalTokensCompacted"
+  > {
     const systemPromptTokens = systemPrompt ? this.estimateTokens(systemPrompt) : 0;
     const toolsTokens = tools?.length ? this.estimateTokens(JSON.stringify(tools)) : 0;
     const conversationTokens = this.calculateMessageTokens(messages);
@@ -138,12 +141,9 @@ export class ContextManagementService implements IContextManagementService {
     const headroom = Math.max(0, maxContext - currentTokens);
 
     // Estimate messages until limit based on average message size
-    const avgMessageTokens = messages.length > 0
-      ? conversationTokens / messages.length
-      : 100; // Default estimate
-    const estimatedMessagesUntilLimit = avgMessageTokens > 0
-      ? Math.floor(headroom / avgMessageTokens)
-      : 0;
+    const avgMessageTokens = messages.length > 0 ? conversationTokens / messages.length : 100; // Default estimate
+    const estimatedMessagesUntilLimit =
+      avgMessageTokens > 0 ? Math.floor(headroom / avgMessageTokens) : 0;
 
     return {
       currentTokens,
@@ -216,18 +216,19 @@ export class ContextManagementService implements IContextManagementService {
    */
   private createSummaryMessage(removedMessages: ContextMessage[]): ContextMessage {
     const summary = removedMessages
-      .filter(m => m.role !== 'system')
-      .map(m => {
-        const role = m.role === 'user' ? 'User' : 'Assistant';
-        const content = typeof m.content === 'string'
-          ? m.content.slice(0, 200)
-          : JSON.stringify(m.content).slice(0, 200);
-        return `${role}: ${content}${m.content.length > 200 ? '...' : ''}`;
+      .filter((m) => m.role !== "system")
+      .map((m) => {
+        const role = m.role === "user" ? "User" : "Assistant";
+        const content =
+          typeof m.content === "string"
+            ? m.content.slice(0, 200)
+            : JSON.stringify(m.content).slice(0, 200);
+        return `${role}: ${content}${m.content.length > 200 ? "..." : ""}`;
       })
-      .join('\n');
+      .join("\n");
 
     return {
-      role: 'system',
+      role: "system",
       content: `[Previous conversation summary (${removedMessages.length} messages compacted)]:\n${summary}`,
     };
   }

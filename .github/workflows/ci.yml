@@ -21,6 +21,14 @@ jobs:
         run: python -m compileall -q controller
       - name: Lint
         run: ruff check controller
+      - name: Format
+        run: ruff format --check controller
+      - name: Typecheck
+        run: mypy controller
+      - name: Dependency check
+        run: deptry . -ee "frontend|data|config|controller/__pycache__" --ignore DEP002
+      - name: Tests
+        run: pytest controller/tests
 
   frontend:
     runs-on: ubuntu-latest
@@ -38,3 +46,9 @@ jobs:
         run: npm ci
       - name: Lint
         run: npm run lint
+      - name: Format
+        run: npm run format:check
+      - name: Dependency check
+        run: npm run depcheck
+      - name: Unit tests
+        run: npm run test

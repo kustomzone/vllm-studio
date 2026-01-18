@@ -32,26 +32,26 @@ export type {
   ContextMessage,
   IContextManagementService,
   ContextManagementContextValue,
-} from './types';
+} from "./types";
 
-export { DEFAULT_CONTEXT_CONFIG } from './types';
+export { DEFAULT_CONTEXT_CONFIG } from "./types";
 
 // Service
-export { ContextManagementService } from './service';
+export { ContextManagementService } from "./service";
 
 // Factory
 export {
   ContextManagementServiceFactory,
   contextManagementServiceFactory,
   getContextManagementService,
-} from './factory';
+} from "./factory";
 
 // Context
-export { ContextManagementContext, ContextManagementProvider } from './context';
+export { ContextManagementContext, ContextManagementProvider } from "./context";
 
 // Hooks
 export {
   useContextManagementService,
   useContextManagementConfig,
   useContextManagement,
-} from './hooks';
+} from "./hooks";

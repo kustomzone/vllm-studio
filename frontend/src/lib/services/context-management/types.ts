@@ -3,7 +3,7 @@
  * Defines all types for context/token management
  */
 
-import type { IService } from '../types';
+import type { IService } from "../types";
 
 // ============================================================================
 // Configuration Types
@@ -34,7 +34,7 @@ export const DEFAULT_CONTEXT_CONFIG: ContextConfig = {
 // Compaction Types
 // ============================================================================
 
-export type CompactionStrategy = 'sliding_window' | 'summarize' | 'truncate';
+export type CompactionStrategy = "sliding_window" | "summarize" | "truncate";
 
 export interface CompactionEvent {
   id: string;
@@ -75,14 +75,14 @@ export interface ContextStats {
   totalTokensCompacted: number;
 }
 
-export type UtilizationLevel = 'low' | 'medium' | 'high' | 'critical';
+export type UtilizationLevel = "low" | "medium" | "high" | "critical";
 
 // ============================================================================
 // Message Types
 // ============================================================================
 
 export interface ContextMessage {
-  role: 'user' | 'assistant' | 'system';
+  role: "user" | "assistant" | "system";
   content: string;
   [key: string]: unknown;
 }
@@ -92,7 +92,7 @@ export interface ContextMessage {
 // ============================================================================
 
 export interface IContextManagementService extends IService {
-  readonly name: 'context-management';
+  readonly name: "context-management";
   readonly config: ContextConfig;
 
   /** Estimate tokens for text */
@@ -105,7 +105,7 @@ export interface IContextManagementService extends IService {
   compactMessages(
     messages: ContextMessage[],
     maxContext: number,
-    strategy?: CompactionStrategy
+    strategy?: CompactionStrategy,
   ): { messages: ContextMessage[]; event: CompactionEvent };
 
   /** Get utilization level for color coding */
@@ -119,8 +119,11 @@ export interface IContextManagementService extends IService {
     messages: ContextMessage[],
     maxContext: number,
     systemPrompt?: string,
-    tools?: unknown[]
-  ): Omit<ContextStats, 'compactionHistory' | 'lastCompaction' | 'totalCompactions' | 'totalTokensCompacted'>;
+    tools?: unknown[],
+  ): Omit<
+    ContextStats,
+    "compactionHistory" | "lastCompaction" | "totalCompactions" | "totalTokensCompacted"
+  >;
 }
 
 // ============================================================================

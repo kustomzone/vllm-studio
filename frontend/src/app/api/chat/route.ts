@@ -1,12 +1,16 @@
-import { NextRequest } from 'next/server';
-import { mergeToolCallArguments } from '@/lib/tool-parsing';
-import { getApiSettings } from '@/lib/api-settings';
+import { NextRequest } from "next/server";
+import { mergeToolCallArguments } from "@/lib/tool-parsing";
+import { getApiSettings } from "@/lib/api-settings";
 
 // Fallback API key (from env if not configured in settings)
-const LITELLM_API_KEY = process.env.LITELLM_MASTER_KEY || process.env.LITELLM_API_KEY || process.env.API_KEY || 'sk-master';
+const LITELLM_API_KEY =
+  process.env.LITELLM_MASTER_KEY ||
+  process.env.LITELLM_API_KEY ||
+  process.env.API_KEY ||
+  "sk-master";
 
 interface StreamEvent {
-  type: 'text' | 'tool_calls' | 'done' | 'error';
+  type: "text" | "tool_calls" | "done" | "error";
   content?: string;
   tool_calls?: ToolCall[];
   error?: string;
@@ -14,7 +18,7 @@ interface StreamEvent {
 
 interface ToolCall {
   id: string;
-  type: 'function';
+  type: "function";
   function: { name: string; arguments: string };
 }
 
@@ -31,7 +35,7 @@ interface OpenAIDelta {
   }>;
 }
 
-type OpenAIToolCallDelta = NonNullable<OpenAIDelta['tool_calls']>[number];
+type OpenAIToolCallDelta = NonNullable<OpenAIDelta["tool_calls"]>[number];
 
 interface OpenAIChunk {
   id: string;
@@ -45,18 +49,18 @@ interface OpenAIChunk {
 // Clean GLM-4.6V box tokens from content
 const cleanGLMBoxTokens = (text: string): string => {
   return text
-    .replace(/<\|begin_of_box\|>/g, '')
-    .replace(/<\|end_of_box\|>/g, '')
-    .replace(/^\n+/, ''); // Clean leading newlines that GLM adds before content
+    .replace(/<\|begin_of_box\|>/g, "")
+    .replace(/<\|end_of_box\|>/g, "")
+    .replace(/^\n+/, ""); // Clean leading newlines that GLM adds before content
 };
 
-
 function getClientInfo(req: NextRequest) {
-  const ip = req.headers.get('CF-Connecting-IP') ||
-             req.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ||
-             req.headers.get('X-Real-IP') ||
-             'unknown';
-  const country = req.headers.get('CF-IPCountry') || '-';
+  const ip =
+    req.headers.get("CF-Connecting-IP") ||
+    req.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ||
+    req.headers.get("X-Real-IP") ||
+    "unknown";
+  const country = req.headers.get("CF-IPCountry") || "-";
   return { ip, country };
 }
 
@@ -67,31 +71,40 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { messages, model, tools, ...rest } = body;
 
-    console.log(`[CHAT] ip=${client.ip} | country=${client.country} | model=${model || 'default'} | messages=${messages?.length || 0} | tools=${tools?.length || 0}`);
+    console.log(
+      `[CHAT] ip=${client.ip} | country=${client.country} | model=${model || "default"} | messages=${messages?.length || 0} | tools=${tools?.length || 0}`,
+    );
 
     // Debug: Log message roles to verify tool results are included
-    const msgRoles = messages?.map((m: { role?: string; tool_call_id?: string; tool_calls?: unknown[] }) => `${m.role}${m.tool_call_id ? `(${m.tool_call_id.slice(0,8)})` : m.tool_calls ? `[${m.tool_calls.length} calls]` : ''}`).join(', ');
+    const msgRoles = messages
+      ?.map(
+        (m: { role?: string; tool_call_id?: string; tool_calls?: unknown[] }) =>
+          `${m.role}${m.tool_call_id ? `(${m.tool_call_id.slice(0, 8)})` : m.tool_calls ? `[${m.tool_calls.length} calls]` : ""}`,
+      )
+      .join(", ");
     console.log(`[CHAT DEBUG] Message roles: ${msgRoles}`);
 
     // Check if we have tool results in this request (indicates multi-turn tool calling)
-    const toolMessages = messages?.filter((m: { role?: string }) => m.role === 'tool') || [];
+    const toolMessages = messages?.filter((m: { role?: string }) => m.role === "tool") || [];
     if (toolMessages.length > 0) {
       console.log(`[CHAT DEBUG] Found ${toolMessages.length} tool result messages:`);
       for (const tm of toolMessages) {
-        console.log(`  - tool_call_id: ${tm.tool_call_id}, name: ${tm.name}, content_len: ${tm.content?.length || 0}`);
+        console.log(
+          `  - tool_call_id: ${tm.tool_call_id}, name: ${tm.name}, content_len: ${tm.content?.length || 0}`,
+        );
       }
     }
 
     if (!messages || !Array.isArray(messages)) {
-      return new Response(JSON.stringify({ error: 'Messages required' }), {
+      return new Response(JSON.stringify({ error: "Messages required" }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { "Content-Type": "application/json" },
       });
     }
 
     // Build an OpenAI-compatible request body (forwarding extra params through unchanged).
     const requestBody: Record<string, unknown> = {
-      model: model || 'default',
+      model: model || "default",
       messages,
       ...rest,
       stream: true,
@@ -100,7 +113,7 @@ export async function POST(req: NextRequest) {
     // Add tools if provided
     if (tools && tools.length > 0) {
       requestBody.tools = tools;
-      requestBody.tool_choice = 'auto';
+      requestBody.tool_choice = "auto";
     }
 
     // Get dynamic settings
@@ -109,15 +122,17 @@ export async function POST(req: NextRequest) {
     const API_KEY = settings.apiKey;
     const CHAT_ENDPOINT = `${BACKEND_URL}/v1/chat/completions`;
 
-    const incomingAuth = req.headers.get('authorization');
-    const outgoingAuth = incomingAuth || (API_KEY ? `Bearer ${API_KEY}` : LITELLM_API_KEY ? `Bearer ${LITELLM_API_KEY}` : undefined);
+    const incomingAuth = req.headers.get("authorization");
+    const outgoingAuth =
+      incomingAuth ||
+      (API_KEY ? `Bearer ${API_KEY}` : LITELLM_API_KEY ? `Bearer ${LITELLM_API_KEY}` : undefined);
 
     // Route through controller for auto-eviction support (falls back to LiteLLM internally)
     console.log(`[CHAT] Routing to controller: ${CHAT_ENDPOINT}`);
     const response = await fetch(CHAT_ENDPOINT, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...(outgoingAuth ? { Authorization: outgoingAuth } : {}),
       },
       body: JSON.stringify(requestBody),
@@ -136,7 +151,7 @@ export async function POST(req: NextRequest) {
     // Track tool calls being assembled (streaming deltas can split id/name/args)
     const toolCallsInProgress: Map<number, ToolCall> = new Map();
     let toolsEmitted = false;
-    let assistantContentFull = '';
+    let assistantContentFull = "";
 
     // Generate unique fallback IDs for tool calls when provider doesn't supply valid ones
     const requestId = Math.random().toString(36).slice(2, 10);
@@ -144,7 +159,7 @@ export async function POST(req: NextRequest) {
     // Filter chatcmpl IDs - some providers incorrectly use the response ID as the tool call ID
     const isValidToolCallId = (id: string | undefined): boolean => {
       if (!id) return false;
-      return !id.startsWith('chatcmpl');
+      return !id.startsWith("chatcmpl");
     };
 
     const upsertToolCallDelta = (tc: OpenAIToolCallDelta) => {
@@ -152,15 +167,17 @@ export async function POST(req: NextRequest) {
 
       // Debug: Log incoming tool call delta
       if (tc.id) {
-        console.log(`[TOOL DELTA] index=${idx} id=${tc.id} name=${tc.function?.name || 'N/A'} valid=${isValidToolCallId(tc.id)}`);
+        console.log(
+          `[TOOL DELTA] index=${idx} id=${tc.id} name=${tc.function?.name || "N/A"} valid=${isValidToolCallId(tc.id)}`,
+        );
       }
 
       const existing =
         toolCallsInProgress.get(idx) ||
         ({
           id: isValidToolCallId(tc.id) ? tc.id! : `call_${requestId}_${idx}`,
-          type: 'function' as const,
-          function: { name: tc.function?.name || '', arguments: tc.function?.arguments || '' },
+          type: "function" as const,
+          function: { name: tc.function?.name || "", arguments: tc.function?.arguments || "" },
         } satisfies ToolCall);
 
       // Only accept IDs that look like proper tool call IDs (call_xxx or toolu_xxx)
@@ -174,7 +191,7 @@ export async function POST(req: NextRequest) {
       if (tc.function?.arguments) {
         existing.function.arguments = mergeToolCallArguments(
           existing.function.arguments,
-          tc.function.arguments
+          tc.function.arguments,
         );
       }
 
@@ -188,13 +205,16 @@ export async function POST(req: NextRequest) {
         .map(([, v]) => v);
 
       // Debug: Log the final tool calls being emitted
-      console.log('[TOOL EMIT] Emitting tool calls to frontend:', completedTools.map(tc => ({
-        id: tc.id,
-        name: tc.function.name,
-        args_preview: tc.function.arguments.slice(0, 100)
-      })));
+      console.log(
+        "[TOOL EMIT] Emitting tool calls to frontend:",
+        completedTools.map((tc) => ({
+          id: tc.id,
+          name: tc.function.name,
+          args_preview: tc.function.arguments.slice(0, 100),
+        })),
+      );
 
-      controller.enqueue(sendEvent({ type: 'tool_calls', tool_calls: completedTools }));
+      controller.enqueue(sendEvent({ type: "tool_calls", tool_calls: completedTools }));
       toolsEmitted = true;
     };
 
@@ -202,24 +222,24 @@ export async function POST(req: NextRequest) {
       async start(controller) {
         try {
           const reader = response.body?.getReader();
-          if (!reader) throw new Error('No response body');
+          if (!reader) throw new Error("No response body");
 
           const decoder = new TextDecoder();
-          let buffer = '';
+          let buffer = "";
 
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
             buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
 
             for (const line of lines) {
-              if (!line.startsWith('data: ')) continue;
+              if (!line.startsWith("data: ")) continue;
               const data = line.slice(6).trim();
               if (!data) continue;
-              if (data === '[DONE]') {
+              if (data === "[DONE]") {
                 continue;
               }
 
@@ -232,27 +252,33 @@ export async function POST(req: NextRequest) {
                 const reasoningText = delta.reasoning || delta.reasoning_content;
                 if (reasoningText) {
                   // Check if we need to open <think> tag
-                  if (!assistantContentFull.includes('<think>') || assistantContentFull.includes('</think>')) {
-                    controller.enqueue(sendEvent({ type: 'text', content: '<think>' }));
-                    assistantContentFull += '<think>';
+                  if (
+                    !assistantContentFull.includes("<think>") ||
+                    assistantContentFull.includes("</think>")
+                  ) {
+                    controller.enqueue(sendEvent({ type: "text", content: "<think>" }));
+                    assistantContentFull += "<think>";
                   }
-                  controller.enqueue(sendEvent({ type: 'text', content: reasoningText }));
+                  controller.enqueue(sendEvent({ type: "text", content: reasoningText }));
                   assistantContentFull += reasoningText;
                 }
 
                 // Handle regular content
                 if (delta.content) {
                   // Close thinking tag if we were in thinking mode and now have regular content
-                  if (assistantContentFull.includes('<think>') && !assistantContentFull.includes('</think>')) {
-                    controller.enqueue(sendEvent({ type: 'text', content: '</think>\n\n' }));
-                    assistantContentFull += '</think>\n\n';
+                  if (
+                    assistantContentFull.includes("<think>") &&
+                    !assistantContentFull.includes("</think>")
+                  ) {
+                    controller.enqueue(sendEvent({ type: "text", content: "</think>\n\n" }));
+                    assistantContentFull += "</think>\n\n";
                   }
 
                   // Clean GLM-4.6V box tokens and emit content directly
                   const cleanedContent = cleanGLMBoxTokens(delta.content);
                   if (cleanedContent) {
                     assistantContentFull += cleanedContent;
-                    controller.enqueue(sendEvent({ type: 'text', content: cleanedContent }));
+                    controller.enqueue(sendEvent({ type: "text", content: cleanedContent }));
                   }
                 }
 
@@ -274,38 +300,47 @@ export async function POST(req: NextRequest) {
           }
 
           emitCompletedToolsIfAny(controller);
-          try { controller.enqueue(sendEvent({ type: 'done' })); } catch {}
+          try {
+            controller.enqueue(sendEvent({ type: "done" }));
+          } catch {}
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           const lowered = message.toLowerCase();
-          const isTerminated = lowered.includes('terminated') || lowered.includes('aborted') || lowered.includes('cancelled');
-          console.error('[Chat API] Stream error:', error);
+          const isTerminated =
+            lowered.includes("terminated") ||
+            lowered.includes("aborted") ||
+            lowered.includes("cancelled");
+          console.error("[Chat API] Stream error:", error);
           emitCompletedToolsIfAny(controller);
           try {
             if (isTerminated) {
-              controller.enqueue(sendEvent({ type: 'done' }));
+              controller.enqueue(sendEvent({ type: "done" }));
             } else {
-              controller.enqueue(sendEvent({ type: 'error', error: message }));
+              controller.enqueue(sendEvent({ type: "error", error: message }));
             }
           } catch {}
         } finally {
-          try { controller.close(); } catch {}
+          try {
+            controller.close();
+          } catch {}
         }
       },
     });
 
     return new Response(stream, {
       headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
       },
     });
   } catch (error) {
-    console.error(`[CHAT ERROR] ip=${client.ip} | country=${client.country} | error=${String(error)}`);
+    console.error(
+      `[CHAT ERROR] ip=${client.ip} | country=${client.country} | error=${String(error)}`,
+    );
     return new Response(JSON.stringify({ error: String(error) }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { "Content-Type": "application/json" },
     });
   }
 }

@@ -2,8 +2,8 @@
  * Context Management Service Factory
  */
 
-import { ContextManagementService } from './service';
-import type { IContextManagementService, ContextConfig, DEFAULT_CONTEXT_CONFIG } from './types';
+import { ContextManagementService } from "./service";
+import type { IContextManagementService, ContextConfig } from "./types";
 
 const DEFAULT_CONTEXT_MANAGEMENT_CONFIG: ContextConfig = {
   compactionThreshold: 0.85,

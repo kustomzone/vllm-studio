@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
 /**
  * Message Parsing Hooks
  * React hooks for consuming the MessageParsingService
  */
 
-import { useContext, useMemo, useCallback } from 'react';
-import { MessageParsingContext } from './context';
-import { getMessageParsingService } from './factory';
+import { useContext, useMemo, useCallback } from "react";
+import { MessageParsingContext } from "./context";
+import { getMessageParsingService } from "./factory";
 import type {
   IMessageParsingService,
   ParsedMessage,
@@ -17,7 +17,7 @@ import type {
   MarkdownSegment,
   ArtifactType,
   MessageParsingConfig,
-} from './types';
+} from "./types";
 
 /**
  * Hook to access the MessageParsingService
@@ -66,70 +66,70 @@ export function useMessageParsing() {
     (content: string, options?: ParseOptions): ParsedMessage => {
       return service.parse(content, options);
     },
-    [service]
+    [service],
   );
 
   const parseThinking = useCallback(
     (content: string): ThinkingResult => {
       return service.parseThinking(content);
     },
-    [service]
+    [service],
   );
 
   const extractThinkingBlocks = useCallback(
     (content: string): Array<{ content: string; isComplete: boolean }> => {
       return service.extractThinkingBlocks(content);
     },
-    [service]
+    [service],
   );
 
   const parseArtifacts = useCallback(
     (content: string): ArtifactsResult => {
       return service.parseArtifacts(content);
     },
-    [service]
+    [service],
   );
 
   const stripTags = useCallback(
     (content: string): string => {
       return service.stripTags(content);
     },
-    [service]
+    [service],
   );
 
   const getSegments = useCallback(
     (content: string): MarkdownSegment[] => {
       return service.getSegments(content);
     },
-    [service]
+    [service],
   );
 
   const renderMarkdown = useCallback(
     (content: string): string => {
       return service.renderMarkdown(content);
     },
-    [service]
+    [service],
   );
 
   const getArtifactType = useCallback(
     (language: string): ArtifactType | null => {
       return service.getArtifactType(language);
     },
-    [service]
+    [service],
   );
 
   const getCached = useCallback(
     (content: string): ParsedMessage | null => {
       return service.getCached(content);
     },
-    [service]
+    [service],
   );
 
   const invalidateCache = useCallback(
     (content?: string): void => {
       service.invalidateCache(content);
     },
-    [service]
+    [service],
   );
 
   return {
@@ -158,10 +158,7 @@ export function useMessageParsing() {
  * Hook for parsing a single message with memoization
  * Useful when you need the full parsed result for a specific message
  */
-export function useParsedMessage(
-  content: string,
-  options?: ParseOptions
-): ParsedMessage {
+export function useParsedMessage(content: string, options?: ParseOptions): ParsedMessage {
   const service = useMessageParsingService();
 
   return useMemo(() => {

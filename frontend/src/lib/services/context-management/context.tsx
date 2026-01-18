@@ -1,17 +1,17 @@
-'use client';
+"use client";
 
 /**
  * Context Management Context
  * Provides dependency injection for ContextManagementService
  */
 
-import { createContext, useMemo, type ReactNode } from 'react';
-import { contextManagementServiceFactory } from './factory';
+import { createContext, useMemo, type ReactNode } from "react";
+import { contextManagementServiceFactory } from "./factory";
 import type {
   IContextManagementService,
   ContextConfig,
   ContextManagementContextValue,
-} from './types';
+} from "./types";
 
 const DEFAULT_CONTEXT_CONFIG: ContextConfig = {
   compactionThreshold: 0.85,
@@ -23,7 +23,7 @@ const DEFAULT_CONTEXT_CONFIG: ContextConfig = {
 
 export const ContextManagementContext = createContext<ContextManagementContextValue | null>(null);
 
-ContextManagementContext.displayName = 'ContextManagementContext';
+ContextManagementContext.displayName = "ContextManagementContext";
 
 interface ContextManagementProviderProps {
   children: ReactNode;
@@ -37,11 +37,11 @@ export function ContextManagementProvider({
   service: providedService,
 }: ContextManagementProviderProps) {
   const contextValue = useMemo<ContextManagementContextValue>(() => {
-    const service = providedService ?? (
-      config
+    const service =
+      providedService ??
+      (config
         ? contextManagementServiceFactory.create(config)
-        : contextManagementServiceFactory.createDefault()
-    );
+        : contextManagementServiceFactory.createDefault());
 
     const finalConfig: ContextConfig = {
       ...DEFAULT_CONTEXT_CONFIG,

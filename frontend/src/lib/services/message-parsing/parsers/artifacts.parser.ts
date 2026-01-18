@@ -4,47 +4,42 @@
  * Supports multiple formats: <artifact> tags, ```artifact-* code blocks
  */
 
-import type { IArtifactsParser, ArtifactsResult, Artifact, ArtifactType } from '../types';
+import type { IArtifactsParser, ArtifactsResult, Artifact, ArtifactType } from "../types";
 
 // Pattern for <artifact type="html" title="...">...</artifact>
-const ARTIFACT_TAG_REGEX = /<artifact\s+type="([^"]+)"(?:\s+title="([^"]*)")?\s*>([\s\S]*?)<\/artifact>/g;
+const ARTIFACT_TAG_REGEX =
+  /<artifact\s+type="([^"]+)"(?:\s+title="([^"]*)")?\s*>([\s\S]*?)<\/artifact>/g;
 
 // Pattern for ```artifact-html ... ``` or ```artifact-react ... ```
-const ARTIFACT_CODE_BLOCK_REGEX = /```artifact-(html|react|javascript|python|svg|mermaid)\s*\n([\s\S]*?)```/g;
+const ARTIFACT_CODE_BLOCK_REGEX =
+  /```artifact-(html|react|javascript|python|svg|mermaid)\s*\n([\s\S]*?)```/g;
 
 // Language to artifact type mapping
 const LANGUAGE_TYPE_MAP: Record<string, ArtifactType> = {
-  'artifact-html': 'html',
-  'artifact-react': 'react',
-  'artifact-javascript': 'javascript',
-  'artifact-python': 'python',
-  'artifact-svg': 'svg',
-  'artifact-mermaid': 'mermaid',
-  'html': 'html',
-  'react': 'react',
-  'jsx': 'react',
-  'tsx': 'react',
-  'svg': 'svg',
-  'javascript': 'javascript',
-  'js': 'javascript',
+  "artifact-html": "html",
+  "artifact-react": "react",
+  "artifact-javascript": "javascript",
+  "artifact-python": "python",
+  "artifact-svg": "svg",
+  "artifact-mermaid": "mermaid",
 };
 
 // Languages that are explicitly artifact-prefixed
 const ARTIFACT_LANGUAGES = [
-  'artifact-html',
-  'artifact-react',
-  'artifact-javascript',
-  'artifact-python',
-  'artifact-svg',
-  'artifact-mermaid',
+  "artifact-html",
+  "artifact-react",
+  "artifact-javascript",
+  "artifact-python",
+  "artifact-svg",
+  "artifact-mermaid",
 ];
 
 export class ArtifactsParser implements IArtifactsParser {
-  readonly name = 'artifacts' as const;
+  readonly name = "artifacts" as const;
 
   parse(input: string): ArtifactsResult {
     if (!input) {
-      return { text: '', artifacts: [] };
+      return { text: "", artifacts: [] };
     }
 
     const artifacts: Artifact[] = [];
@@ -52,10 +47,10 @@ export class ArtifactsParser implements IArtifactsParser {
     let match: RegExpExecArray | null;
 
     // Pattern 1: <artifact type="html" title="...">...</artifact>
-    const tagRegex = new RegExp(ARTIFACT_TAG_REGEX.source, 'g');
+    const tagRegex = new RegExp(ARTIFACT_TAG_REGEX.source, "g");
     while ((match = tagRegex.exec(input)) !== null) {
       const type = this.normalizeType(match[1]);
-      const title = match[2] || '';
+      const title = match[2] || "";
       const code = match[3].trim();
 
       // Only add if type is recognized
@@ -71,7 +66,7 @@ export class ArtifactsParser implements IArtifactsParser {
     }
 
     // Pattern 2: ```artifact-html ... ``` or ```artifact-react ... ```
-    const codeBlockRegex = new RegExp(ARTIFACT_CODE_BLOCK_REGEX.source, 'g');
+    const codeBlockRegex = new RegExp(ARTIFACT_CODE_BLOCK_REGEX.source, "g");
     while ((match = codeBlockRegex.exec(input)) !== null) {
       const type = this.normalizeType(match[1]);
       const code = match[2].trim();
@@ -81,7 +76,7 @@ export class ArtifactsParser implements IArtifactsParser {
         artifacts.push({
           id: `artifact-${artifacts.length}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           type,
-          title: '',
+          title: "",
           code,
         });
         text = text.replace(match[0], `[Artifact: ${type}]`);
@@ -92,10 +87,7 @@ export class ArtifactsParser implements IArtifactsParser {
   }
 
   canParse(input: string): boolean {
-    return (
-      ARTIFACT_TAG_REGEX.test(input) ||
-      ARTIFACT_CODE_BLOCK_REGEX.test(input)
-    );
+    return ARTIFACT_TAG_REGEX.test(input) || ARTIFACT_CODE_BLOCK_REGEX.test(input);
   }
 
   getArtifactType(language: string): ArtifactType | null {
@@ -122,48 +114,25 @@ export class ArtifactsParser implements IArtifactsParser {
    * Extract artifacts from thinking content
    * Used to surface renderable code from inside <think> blocks
    */
-  extractFromThinking(thinkingContent: string): { remainingThinking: string; artifacts: Artifact[] } {
+  extractFromThinking(thinkingContent: string): {
+    remainingThinking: string;
+    artifacts: Artifact[];
+  } {
     if (!thinkingContent) {
-      return { remainingThinking: '', artifacts: [] };
+      return { remainingThinking: "", artifacts: [] };
     }
 
-    const artifacts: Artifact[] = [];
-    const keptChunks: string[] = [];
-    let lastIndex = 0;
-
-    const fenceRegex = /```([a-zA-Z0-9_-]+)?\s*\n([\s\S]*?)```/g;
-    let m: RegExpExecArray | null;
-
-    while ((m = fenceRegex.exec(thinkingContent)) !== null) {
-      const lang = (m[1] || '').trim();
-      const code = (m[2] || '').trim();
-      const lowered = lang.toLowerCase() === 'mermaidgraph' ? 'mermaid' : lang.toLowerCase();
-      const artifactType = this.getArtifactType(lowered);
-      const canPreview = artifactType && ['html', 'react', 'javascript', 'svg'].includes(artifactType);
-
-      if (artifactType && canPreview) {
-        artifacts.push({
-          id: `think-artifact-${artifactType}-${artifacts.length}-${code.length}`,
-          type: artifactType,
-          title: lang ? `${lang} (from thinking)` : 'Artifact (from thinking)',
-          code,
-        });
-        keptChunks.push(thinkingContent.slice(lastIndex, m.index));
-        keptChunks.push(`[Artifact: ${artifactType}]`);
-        lastIndex = m.index + m[0].length;
-      }
+    const { text, artifacts } = this.parse(thinkingContent);
+    if (artifacts.length === 0) {
+      return { remainingThinking: thinkingContent, artifacts: [] };
     }
 
-    if (artifacts.length > 0) {
-      keptChunks.push(thinkingContent.slice(lastIndex));
-      return {
-        remainingThinking: keptChunks.join('').trim(),
-        artifacts,
-      };
-    }
-
-    return { remainingThinking: thinkingContent, artifacts: [] };
+    return {
+      remainingThinking: text.trim(),
+      artifacts,
+    };
   }
 }
+
 
 export const artifactsParser = new ArtifactsParser();

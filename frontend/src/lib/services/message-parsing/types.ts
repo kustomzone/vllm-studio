@@ -3,13 +3,13 @@
  * Defines all types specific to message parsing functionality
  */
 
-import type { IParser, ICacheableService, IServiceFactory } from '../types';
+import type { IParser, ICacheableService, IServiceFactory } from "../types";
 
 // ============================================================================
 // Artifact Types
 // ============================================================================
 
-export type ArtifactType = 'html' | 'react' | 'javascript' | 'svg' | 'python' | 'mermaid';
+export type ArtifactType = "html" | "react" | "javascript" | "svg" | "python" | "mermaid";
 
 export interface Artifact {
   id: string;
@@ -37,7 +37,7 @@ export interface ThinkingResult {
 // Markdown Types
 // ============================================================================
 
-export type MarkdownSegmentType = 'markdown' | 'code';
+export type MarkdownSegmentType = "markdown" | "code";
 
 export interface MarkdownSegment {
   type: MarkdownSegmentType;
@@ -73,24 +73,24 @@ export interface ParsedMessage {
 // ============================================================================
 
 export interface IBoxTagsParser extends IParser<string, string> {
-  readonly name: 'box-tags';
+  readonly name: "box-tags";
 }
 
 export interface IThinkingParser extends IParser<string, ThinkingResult> {
-  readonly name: 'thinking';
+  readonly name: "thinking";
 }
 
 export interface IMcpXmlParser extends IParser<string, string> {
-  readonly name: 'mcp-xml';
+  readonly name: "mcp-xml";
 }
 
 export interface IArtifactsParser extends IParser<string, ArtifactsResult> {
-  readonly name: 'artifacts';
+  readonly name: "artifacts";
   getArtifactType(language: string): ArtifactType | null;
 }
 
 export interface IMarkdownParser extends IParser<string, MarkdownSegment[]> {
-  readonly name: 'markdown';
+  readonly name: "markdown";
   renderToHtml(markdown: string): string;
 }
 
@@ -139,7 +139,7 @@ export interface ParseOptions {
 // ============================================================================
 
 export interface IMessageParsingService extends ICacheableService<string, ParsedMessage> {
-  readonly name: 'message-parsing';
+  readonly name: "message-parsing";
   readonly config: MessageParsingConfig;
 
   /**
@@ -188,8 +188,10 @@ export interface IMessageParsingService extends ICacheableService<string, Parsed
 // Factory Interface
 // ============================================================================
 
-export interface IMessageParsingServiceFactory
-  extends IServiceFactory<Partial<MessageParsingConfig>, IMessageParsingService> {
+export interface IMessageParsingServiceFactory extends IServiceFactory<
+  Partial<MessageParsingConfig>,
+  IMessageParsingService
+> {
   create(config: Partial<MessageParsingConfig>): IMessageParsingService;
   createDefault(): IMessageParsingService;
 }

@@ -7,3 +7,45 @@ repos:
         language: system
         pass_filenames: false
         stages: [commit, push]
+      - id: frontend-format-check
+        name: frontend format check
+        entry: npm --prefix frontend run format:check
+        language: system
+        pass_filenames: false
+        stages: [commit, push]
+      - id: frontend-depcheck
+        name: frontend dependency check
+        entry: npm --prefix frontend run depcheck
+        language: system
+        pass_filenames: false
+        stages: [commit, push]
+      - id: controller-lint
+        name: controller lint
+        entry: ruff check controller
+        language: system
+        pass_filenames: false
+        stages: [commit, push]
+      - id: controller-format-check
+        name: controller format check
+        entry: ruff format --check controller
+        language: system
+        pass_filenames: false
+        stages: [commit, push]
+      - id: controller-mypy
+        name: controller type check
+        entry: mypy controller
+        language: system
+        pass_filenames: false
+        stages: [commit, push]
+      - id: controller-deptry
+        name: controller dependency check
+        entry: deptry /Users/sero/projects/vllm-studio -ee "frontend|data|config|controller/__pycache__" --ignore DEP002
+        language: system
+        pass_filenames: false
+        stages: [commit, push]
+      - id: controller-tests
+        name: controller tests
+        entry: pytest controller/tests
+        language: system
+        pass_filenames: false
+        stages: [push]

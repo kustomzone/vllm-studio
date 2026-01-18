@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Bookmark, BookmarkCheck, ThumbsUp, ThumbsDown, Copy, Check } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from "react";
+import { Bookmark, BookmarkCheck, ThumbsUp, ThumbsDown, Copy, Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface MessageActionsProps {
   content: string;
   messageId: string;
   onBookmark?: (messageId: string, bookmarked: boolean) => void;
-  onReact?: (messageId: string, reaction: 'up' | 'down' | null) => void;
+  onReact?: (messageId: string, reaction: "up" | "down" | null) => void;
 }
 
 interface Reaction {
-  type: 'up' | 'down' | null;
+  type: "up" | "down" | null;
   count: number;
 }
 
@@ -33,8 +33,14 @@ export function MessageActions({ content, messageId, onBookmark, onReact }: Mess
     onBookmark?.(messageId, newState);
   };
 
-  const handleReaction = (type: 'up' | 'down') => {
-    const newReaction = reaction?.type === type ? null : { type, count: (reaction?.type === type ? reaction.count - 1 : reaction?.count || 0) + 1 };
+  const handleReaction = (type: "up" | "down") => {
+    const newReaction =
+      reaction?.type === type
+        ? null
+        : {
+            type,
+            count: (reaction?.type === type ? reaction.count - 1 : reaction?.count || 0) + 1,
+          };
     setReaction(newReaction);
     onReact?.(messageId, newReaction?.type || null);
   };
@@ -46,8 +52,8 @@ export function MessageActions({ content, messageId, onBookmark, onReact }: Mess
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
         onClick={handleBookmark}
-        className="p-2 md:p-1.5 rounded-lg hover:bg-[var(--accent)] transition-all duration-200 text-[#9a9590] hover:text-[var(--warning)]"
-        title={bookmarked ? 'Remove bookmark' : 'Bookmark message'}
+        className="p-2 md:p-1.5 rounded-lg hover:bg-(--accent) transition-all duration-200 text-[#9a9590] hover:text-(--warning)"
+        title={bookmarked ? "Remove bookmark" : "Bookmark message"}
       >
         <AnimatePresence mode="wait">
           {bookmarked ? (
@@ -56,9 +62,9 @@ export function MessageActions({ content, messageId, onBookmark, onReact }: Mess
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
             >
-              <BookmarkCheck className="h-4 w-4 md:h-3.5 md:w-3.5 text-[var(--warning)]" />
+              <BookmarkCheck className="h-4 w-4 md:h-3.5 md:w-3.5 text-(--warning)" />
             </motion.div>
           ) : (
             <motion.div
@@ -66,7 +72,7 @@ export function MessageActions({ content, messageId, onBookmark, onReact }: Mess
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
             >
               <Bookmark className="h-4 w-4 md:h-3.5 md:w-3.5" />
             </motion.div>
@@ -78,14 +84,14 @@ export function MessageActions({ content, messageId, onBookmark, onReact }: Mess
       <motion.button
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
-        onClick={() => handleReaction('up')}
-        className={`p-2 md:p-1.5 rounded-lg hover:bg-[var(--accent)] transition-all duration-200 ${
-          reaction?.type === 'up' ? 'text-[var(--success)] bg-[var(--accent)]' : 'text-[#9a9590]'
+        onClick={() => handleReaction("up")}
+        className={`p-2 md:p-1.5 rounded-lg hover:bg-(--accent) transition-all duration-200 ${
+          reaction?.type === "up" ? "text-(--success) bg-(--accent)" : "text-[#9a9590]"
         }`}
         title="Helpful"
       >
         <ThumbsUp className="h-4 w-4 md:h-3.5 md:w-3.5" />
-        {reaction?.type === 'up' && reaction.count > 1 && (
+        {reaction?.type === "up" && reaction.count > 1 && (
           <span className="ml-1 text-sm md:text-xs font-medium">{reaction.count}</span>
         )}
       </motion.button>
@@ -94,14 +100,16 @@ export function MessageActions({ content, messageId, onBookmark, onReact }: Mess
       <motion.button
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
-        onClick={() => handleReaction('down')}
-        className={`p-2 md:p-1.5 rounded-lg hover:bg-[var(--accent)] transition-all duration-200 ${
-          reaction?.type === 'down' ? 'text-[var(--destructive)] bg-[var(--accent)]' : 'text-[#9a9590]'
+        onClick={() => handleReaction("down")}
+        className={`p-2 md:p-1.5 rounded-lg hover:bg-(--accent) transition-all duration-200 ${
+          reaction?.type === "down"
+            ? "text-(--destructive) bg-(--accent)"
+            : "text-[#9a9590]"
         }`}
         title="Not helpful"
       >
         <ThumbsDown className="h-4 w-4 md:h-3.5 md:w-3.5" />
-        {reaction?.type === 'down' && reaction.count > 1 && (
+        {reaction?.type === "down" && reaction.count > 1 && (
           <span className="ml-1 text-sm md:text-xs font-medium">{reaction.count}</span>
         )}
       </motion.button>
@@ -111,7 +119,7 @@ export function MessageActions({ content, messageId, onBookmark, onReact }: Mess
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
         onClick={handleCopy}
-        className="p-2 md:p-1.5 rounded-lg hover:bg-[var(--accent)] transition-all duration-200 text-[#9a9590]"
+        className="p-2 md:p-1.5 rounded-lg hover:bg-(--accent) transition-all duration-200 text-[#9a9590]"
         title="Copy message"
       >
         <AnimatePresence mode="wait">
@@ -121,9 +129,9 @@ export function MessageActions({ content, messageId, onBookmark, onReact }: Mess
               initial={{ scale: 0, rotate: -180 }}
               animate={{ scale: 1, rotate: 0 }}
               exit={{ scale: 0, rotate: 180 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
             >
-              <Check className="h-4 w-4 md:h-3.5 md:w-3.5 text-[var(--success)]" />
+              <Check className="h-4 w-4 md:h-3.5 md:w-3.5 text-(--success)" />
             </motion.div>
           ) : (
             <motion.div
@@ -131,7 +139,7 @@ export function MessageActions({ content, messageId, onBookmark, onReact }: Mess
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
             >
               <Copy className="h-4 w-4 md:h-3.5 md:w-3.5" />
             </motion.div>

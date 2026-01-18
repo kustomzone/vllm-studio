@@ -1,0 +1,22 @@
+{
+  "ignoreMatches": [
+    "@types/react",
+    "@types/react-dom",
+    "@types/node",
+    "@types/react-syntax-highlighter",
+    "eslint-config-next",
+    "tailwindcss",
+    "@tailwindcss/postcss"
+  ],
+  "ignorePatterns": [
+    "**/*.d.ts",
+    "**/.next/**",
+    "**/playwright-report/**",
+    "**/node_modules/**"
+  ],
+  "specials": [
+    "next",
+    "webpack",
+    "babel"
+  ]
+}

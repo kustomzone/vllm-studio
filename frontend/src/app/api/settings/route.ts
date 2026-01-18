@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getApiSettings, saveApiSettings, maskApiKey, ApiSettings } from '@/lib/api-settings';
+import { NextRequest, NextResponse } from "next/server";
+import { getApiSettings, saveApiSettings, maskApiKey, ApiSettings } from "@/lib/api-settings";
 
 export async function GET() {
   try {
@@ -14,8 +14,8 @@ export async function GET() {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: 'Failed to load settings', details: String(error) },
-      { status: 500 }
+      { error: "Failed to load settings", details: String(error) },
+      { status: 500 },
     );
   }
 }
@@ -27,17 +27,11 @@ export async function POST(request: NextRequest) {
 
     // Validate URL
     if (backendUrl && !isValidUrl(backendUrl)) {
-      return NextResponse.json(
-        { error: 'Invalid backend URL format' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid backend URL format" }, { status: 400 });
     }
 
     if (voiceUrl && !isValidUrl(voiceUrl)) {
-      return NextResponse.json(
-        { error: 'Invalid voice URL format' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid voice URL format" }, { status: 400 });
     }
 
     // Get current settings to preserve unchanged values
@@ -46,7 +40,7 @@ export async function POST(request: NextRequest) {
     const newSettings: ApiSettings = {
       backendUrl: backendUrl || current.backendUrl,
       // Only update API key if explicitly provided (not masked value)
-      apiKey: apiKey && !apiKey.includes('••••') ? apiKey : current.apiKey,
+      apiKey: apiKey && !apiKey.includes("••••") ? apiKey : current.apiKey,
       voiceUrl: voiceUrl || current.voiceUrl,
       voiceModel: voiceModel || current.voiceModel,
     };
@@ -63,8 +57,8 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: 'Failed to save settings', details: String(error) },
-      { status: 500 }
+      { error: "Failed to save settings", details: String(error) },
+      { status: 500 },
     );
   }
 }

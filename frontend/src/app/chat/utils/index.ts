@@ -1,33 +1,33 @@
-'use client';
+"use client";
 
-import type { ChatMessage } from '@/store';
-import type { ToolResult, StoredMessage, StoredToolCall } from '@/lib/types';
+import type { ChatMessage } from "@/store";
+import type { ToolResult, StoredMessage, StoredToolCall } from "@/lib/types";
 
 // Re-export ChatMessage as Message for convenience
 export type Message = ChatMessage;
 
 // OpenAI API types
 export type OpenAIContentPart =
-  | { type: 'text'; text: string }
-  | { type: 'image_url'; image_url: { url: string } };
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
 
 export type OpenAIToolCall = {
   id: string;
-  type: 'function';
+  type: "function";
   function: { name: string; arguments: string };
 };
 
 export type OpenAIMessage =
   | {
-      role: 'user' | 'assistant' | 'system';
+      role: "user" | "assistant" | "system";
       content: string | null | OpenAIContentPart[];
       tool_calls?: OpenAIToolCall[];
     }
-  | { role: 'tool'; tool_call_id: string; name?: string; content: string };
+  | { role: "tool"; tool_call_id: string; name?: string; content: string };
 
 // Types
 export interface StreamEvent {
-  type: 'text' | 'tool_calls' | 'done' | 'error';
+  type: "text" | "tool_calls" | "done" | "error";
   content?: string;
   tool_calls?: Array<{
     id: string;
@@ -39,21 +39,21 @@ export interface StreamEvent {
 
 // Parse Server-Sent Events from a stream
 export async function* parseSSEEvents(
-  reader: ReadableStreamDefaultReader<Uint8Array>
+  reader: ReadableStreamDefaultReader<Uint8Array>,
 ): AsyncGenerator<StreamEvent> {
   const decoder = new TextDecoder();
-  let buffer = '';
+  let buffer = "";
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
 
     buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
 
     for (const line of lines) {
-      if (line.startsWith('data: ')) {
+      if (line.startsWith("data: ")) {
         const data = line.slice(6).trim();
         if (data) {
           try {
@@ -68,10 +68,10 @@ export async function* parseSSEEvents(
 }
 
 // Download text as file
-export function downloadTextFile(filename: string, content: string, mime = 'text/plain'): void {
+export function downloadTextFile(filename: string, content: string, mime = "text/plain"): void {
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
@@ -87,15 +87,15 @@ export function extractToolResults(toolCalls: StoredToolCall[] = []): ToolResult
     .map((tc) => {
       const rawResult = tc.result;
       const content =
-        typeof rawResult === 'string'
+        typeof rawResult === "string"
           ? rawResult
-          : rawResult && typeof rawResult === 'object' && 'content' in rawResult
-            ? String(rawResult.content ?? '')
+          : rawResult && typeof rawResult === "object" && "content" in rawResult
+            ? String(rawResult.content ?? "")
             : rawResult != null
               ? JSON.stringify(rawResult)
-              : '';
+              : "";
       const isError =
-        rawResult && typeof rawResult === 'object' && 'isError' in rawResult
+        rawResult && typeof rawResult === "object" && "isError" in rawResult
           ? Boolean((rawResult as { isError?: boolean }).isError)
           : undefined;
       return { tool_call_id: tc.id, content, isError };

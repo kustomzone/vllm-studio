@@ -2,13 +2,13 @@
  * Chat state persistence layer using localStorage with optional IndexedDB for larger data
  */
 
-const STORAGE_KEY = 'vllm_chat_state';
+const STORAGE_KEY = "vllm_chat_state";
 const STATE_VERSION = 1;
 const EXPIRY_DAYS = 7;
 
 export interface PersistedMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
   images?: string[];
   model?: string;
@@ -33,11 +33,11 @@ const defaultState: PersistedChatState = {
   version: STATE_VERSION,
   currentSessionId: null,
   messages: [],
-  input: '',
-  selectedModel: '',
+  input: "",
+  selectedModel: "",
   mcpEnabled: false,
   artifactsEnabled: false,
-  systemPrompt: '',
+  systemPrompt: "",
   lastUpdated: Date.now(),
   sidebarCollapsed: true,
 };
@@ -58,14 +58,14 @@ export function saveState(state: Partial<PersistedChatState>): void {
     }
 
     // Remove base64 images from persisted state to save space
-    merged.messages = merged.messages.map(m => ({
+    merged.messages = merged.messages.map((m) => ({
       ...m,
       images: undefined, // Don't persist images
     }));
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
   } catch (e) {
-    console.warn('Failed to save chat state:', e);
+    console.warn("Failed to save chat state:", e);
   }
 }
 
@@ -78,21 +78,21 @@ export function loadState(): PersistedChatState {
 
     // Check version and expiry
     if (parsed.version !== STATE_VERSION) {
-      console.log('State version mismatch, clearing');
+      console.log("State version mismatch, clearing");
       clearState();
       return { ...defaultState };
     }
 
     const expiryMs = EXPIRY_DAYS * 24 * 60 * 60 * 1000;
     if (Date.now() - parsed.lastUpdated > expiryMs) {
-      console.log('State expired, clearing');
+      console.log("State expired, clearing");
       clearState();
       return { ...defaultState };
     }
 
     return parsed;
   } catch (e) {
-    console.warn('Failed to load chat state:', e);
+    console.warn("Failed to load chat state:", e);
     return { ...defaultState };
   }
 }
@@ -101,7 +101,7 @@ export function clearState(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);
   } catch (e) {
-    console.warn('Failed to clear chat state:', e);
+    console.warn("Failed to clear chat state:", e);
   }
 }
 

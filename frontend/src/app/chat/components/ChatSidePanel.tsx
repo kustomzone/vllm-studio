@@ -1,47 +1,12 @@
-'use client';
+"use client";
 
-import { useMemo, useState, useEffect, useRef } from 'react';
-import { X, Loader2, Check, ChevronDown, ChevronRight } from 'lucide-react';
-import { ArtifactPanel } from '@/components/chat';
-import type { ToolCall, ToolResult, Artifact } from '@/lib/types';
-import type { ResearchProgress, ResearchSource } from '@/components/chat/research-progress';
+import { useMemo, useState, useEffect, useRef } from "react";
+import { X, Loader2, Check, ChevronDown, ChevronRight } from "lucide-react";
+import { ArtifactPanel } from "@/components/chat";
+import type { ToolResult } from "@/lib/types";
+import type { ResearchProgress, ResearchSource } from "@/components/chat/research-progress";
 
-interface ExtendedToolCall extends ToolCall {
-  messageId: string;
-  model?: string;
-}
-
-interface ThinkingActivityItem {
-  type: 'thinking';
-  id: string;
-  content: string;
-  isComplete: boolean;
-  isStreaming: boolean;
-}
-
-interface ToolActivityItem {
-  type: 'tool';
-  id: string;
-  toolCall: ExtendedToolCall;
-}
-
-type ActivityItem = ThinkingActivityItem | ToolActivityItem;
-
-interface ChatSidePanelProps {
-  isOpen: boolean;
-  onClose: () => void;
-  activePanel: 'tools' | 'artifacts';
-  onSetActivePanel: (panel: 'tools' | 'artifacts') => void;
-  allToolCalls: ExtendedToolCall[];
-  toolResultsMap: Map<string, ToolResult>;
-  executingTools: Set<string>;
-  sessionArtifacts: Artifact[];
-  researchProgress: ResearchProgress | null;
-  researchSources: ResearchSource[];
-  thinkingContent: string | null;
-  thinkingActive: boolean;
-  activityItems: ActivityItem[];
-}
+import { ExtendedToolCall, ActivityItem, ChatSidePanelProps } from "./types";
 
 export function ChatSidePanel({
   isOpen,
@@ -61,52 +26,43 @@ export function ChatSidePanel({
   if (!isOpen) return null;
 
   return (
-    <div className="w-[22rem] flex-shrink-0 border-l border-[var(--border)] bg-[var(--background)] flex flex-col overflow-hidden">
+    <div className="w-[22rem] flex-shrink-0 border-l border-(--border) bg-(--background) flex flex-col overflow-hidden">
       {/* Header with elegant tabs */}
-      <div className="border-b border-[var(--border)] bg-[var(--background)]">
+      <div className="border-b border-(--border) bg-(--background)">
         <div className="flex items-center justify-between px-2 py-1">
           <div className="flex items-center gap-0.5">
             <button
-              onClick={() => onSetActivePanel('tools')}
+              onClick={() => onSetActivePanel("tools")}
               className={`relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
-                activePanel === 'tools'
-                  ? 'text-[#e8e4dd]'
-                  : 'text-[#9a9590] hover:text-[#b0a8a0]'
+                activePanel === "tools" ? "text-[#e8e4dd]" : "text-[#9a9590] hover:text-[#b0a8a0]"
               }`}
             >
               <span>Tools</span>
               {(executingTools.size > 0 || thinkingActive) && (
                 <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute h-full w-full rounded-full bg-[var(--success)] opacity-75" />
-                  <span className="relative h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
+                  <span className="animate-ping absolute h-full w-full rounded-full bg-(--success) opacity-75" />
+                  <span className="relative h-1.5 w-1.5 rounded-full bg-(--success)" />
                 </span>
               )}
               {allToolCalls.length > 0 && (
-                <span className="text-[10px] px-1.5 py-0.5">
-                  {allToolCalls.length}
-                </span>
+                <span className="text-[10px] px-1.5 py-0.5">{allToolCalls.length}</span>
               )}
             </button>
             <button
-              onClick={() => onSetActivePanel('artifacts')}
+              onClick={() => onSetActivePanel("artifacts")}
               className={`relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
-                activePanel === 'artifacts'
-                  ? 'text-[#e8e4dd]'
-                  : 'text-[#9a9590] hover:text-[#b0a8a0]'
+                activePanel === "artifacts"
+                  ? "text-[#e8e4dd]"
+                  : "text-[#9a9590] hover:text-[#b0a8a0]"
               }`}
             >
               <span>Artifacts</span>
               {sessionArtifacts.length > 0 && (
-                <span className="text-[10px] px-1.5 py-0.5">
-                  {sessionArtifacts.length}
-                </span>
+                <span className="text-[10px] px-1.5 py-0.5">{sessionArtifacts.length}</span>
               )}
             </button>
           </div>
-          <button 
-            onClick={onClose} 
-            className="p-1.5 hover:opacity-80 transition-opacity"
-          >
+          <button onClick={onClose} className="p-1.5 hover:opacity-80 transition-opacity">
             <X className="h-3.5 w-3.5 text-[#9a9590] hover:text-[#b0a8a0]" />
           </button>
         </div>
@@ -114,7 +70,7 @@ export function ChatSidePanel({
 
       {/* Panel content */}
       <div className="flex-1 min-h-0 overflow-y-auto text-sm">
-        {activePanel === 'tools' && (
+        {activePanel === "tools" && (
           <ToolsPanel
             allToolCalls={allToolCalls}
             toolResultsMap={toolResultsMap}
@@ -126,7 +82,7 @@ export function ChatSidePanel({
             activityItems={activityItems}
           />
         )}
-        {activePanel === 'artifacts' && (
+        {activePanel === "artifacts" && (
           <ArtifactPanel artifacts={sessionArtifacts} isOpen={true} />
         )}
       </div>
@@ -159,14 +115,10 @@ function ToolsPanel({
   const toolCount = allToolCalls.length;
   const listRef = useRef<HTMLDivElement | null>(null);
   const prevCountRef = useRef(0);
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(
-    new Set(activityItems.map((item) => item.id))
-  );
-
-  useEffect(() => {
+  const derivedExpandedItems = useMemo(() => {
     const nextExpanded = new Set<string>();
     activityItems.forEach((item) => {
-      if (item.type === 'thinking') {
+      if (item.type === "thinking") {
         nextExpanded.add(item.id);
         return;
       }
@@ -175,8 +127,9 @@ function ToolsPanel({
       if (!result && !isExecuting) return;
       nextExpanded.add(item.id);
     });
-    setExpandedItems(nextExpanded);
+    return nextExpanded;
   }, [activityItems, executingTools, toolResultsMap]);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(derivedExpandedItems);
 
   useEffect(() => {
     const count = activityItems.length;
@@ -186,7 +139,7 @@ function ToolsPanel({
       return;
     }
     if (count !== prevCountRef.current) {
-      list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+      list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
       prevCountRef.current = count;
     }
   }, [activityItems.length]);
@@ -207,32 +160,30 @@ function ToolsPanel({
     return activityItems.map((item, index) => {
       const isExpanded = expandedItems.has(item.id);
       const isLast = index === activityItems.length - 1;
-      const isFirst = index === 0;
-      
-      if (item.type === 'thinking') {
+
+      if (item.type === "thinking") {
         // Extract first few words for preview
-        const preview = item.content.trim().split(/\s+/).slice(0, 8).join(' ');
-        const label = preview ? `thought: ${preview}${item.content.trim().split(/\s+/).length > 8 ? '...' : ''}` : 'thought:';
+        const preview = item.content.trim().split(/\s+/).slice(0, 8).join(" ");
+        const label = preview
+          ? `thought: ${preview}${item.content.trim().split(/\s+/).length > 8 ? "..." : ""}`
+          : "thought:";
         return (
-          <div 
-            key={item.id} 
-            className="group relative transition-all"
-          >
+          <div key={item.id} className="group relative transition-all">
             {/* Sequence connector line */}
-            <div className="absolute left-6 top-0 bottom-0 w-px bg-gradient-to-b from-[var(--border)]/20 via-[var(--border)]/30 to-transparent" />
+            <div className="absolute left-6 top-0 bottom-0 w-px bg-gradient-to-b from-(--border)/20 via-(--border)/30 to-transparent" />
             {!isLast && (
-              <div className="absolute left-6 top-[44px] bottom-0 w-px bg-[var(--border)]/20" />
+              <div className="absolute left-6 top-[44px] bottom-0 w-px bg-(--border)/20" />
             )}
-            
-            <div className="relative border-b border-[var(--border)]/30 last:border-b-0">
+
+            <div className="relative border-b border-(--border)/30 last:border-b-0">
               <button
                 onClick={() => toggleItem(item.id)}
                 className="w-full px-4 py-3 pl-8 flex items-center gap-3 text-left transition-all duration-150"
               >
                 {/* Sequence dot */}
-                <div className="absolute left-5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[var(--accent)]/40 border-2 border-[var(--background)] z-10 transition-colors" />
-                
-                <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded bg-[var(--accent)]/10 transition-colors">
+                <div className="absolute left-5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-(--accent)/40 border-2 border-(--background) z-10 transition-colors" />
+
+                <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded bg-(--accent)/10 transition-colors">
                   {isExpanded ? (
                     <ChevronDown className="h-3 w-3 text-[#b0a8a0]" />
                   ) : (
@@ -244,8 +195,8 @@ function ToolsPanel({
                     <span className="text-sm font-medium text-[#d0c8c0]">{label}</span>
                     {item.isStreaming && (
                       <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute h-full w-full rounded-full bg-[var(--warning)] opacity-75" />
-                        <span className="relative h-2 w-2 rounded-full bg-[var(--warning)]" />
+                        <span className="animate-ping absolute h-full w-full rounded-full bg-(--warning) opacity-75" />
+                        <span className="relative h-2 w-2 rounded-full bg-(--warning)" />
                       </span>
                     )}
                   </div>
@@ -268,68 +219,69 @@ function ToolsPanel({
       const isExecuting = executingTools.has(tc.id);
       let args: Record<string, unknown> = {};
       try {
-        args = JSON.parse(tc.function.arguments || '{}');
+        args = JSON.parse(tc.function.arguments || "{}");
       } catch {}
       const mainArg = args.query || args.url || args.text || Object.values(args)[0];
-      const parts = tc.function.name.split('__');
-      const toolName = parts.length > 1 ? parts.slice(1).join('__') : tc.function.name;
-      const hasContent = Boolean((mainArg != null && String(mainArg).trim()) || result?.content?.trim());
+      const parts = tc.function.name.split("__");
+      const toolName = parts.length > 1 ? parts.slice(1).join("__") : tc.function.name;
+      const hasContent = Boolean(
+        (mainArg != null && String(mainArg).trim()) || result?.content?.trim(),
+      );
 
       return (
-        <div 
-          key={item.id} 
-          className="group relative transition-all"
-        >
+        <div key={item.id} className="group relative transition-all">
           {/* Sequence connector line */}
-          <div className="absolute left-6 top-0 bottom-0 w-px bg-gradient-to-b from-[var(--border)]/20 via-[var(--border)]/30 to-transparent" />
-          {!isLast && (
-            <div className="absolute left-6 top-[44px] bottom-0 w-px bg-[var(--border)]/20" />
-          )}
-          
-          <div className="relative border-b border-[var(--border)]/30 last:border-b-0">
+          <div className="absolute left-6 top-0 bottom-0 w-px bg-gradient-to-b from-(--border)/20 via-(--border)/30 to-transparent" />
+          {!isLast && <div className="absolute left-6 top-[44px] bottom-0 w-px bg-(--border)/20" />}
+
+          <div className="relative border-b border-(--border)/30 last:border-b-0">
             <button
               onClick={() => toggleItem(item.id)}
               className="w-full px-4 py-3 pl-8 flex items-center gap-3 text-left transition-all duration-150"
             >
               {/* Sequence dot */}
-              <div className={`absolute left-5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full border-2 border-[var(--background)] z-10 transition-colors ${
-                isExecuting 
-                  ? 'bg-[var(--warning)]/60' 
-                  : result 
-                    ? result.isError 
-                      ? 'bg-[var(--error)]/60'
-                      : 'bg-[var(--success)]/60'
-                    : 'bg-[var(--accent)]/40'
-              }`} />
-              
-              <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded bg-[var(--accent)]/10 transition-colors">
+              <div
+                className={`absolute left-5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full border-2 border-(--background) z-10 transition-colors ${
+                  isExecuting
+                    ? "bg-(--warning)/60"
+                    : result
+                      ? result.isError
+                        ? "bg-(--error)/60"
+                        : "bg-(--success)/60"
+                      : "bg-(--accent)/40"
+                }`}
+              />
+
+              <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded bg-(--accent)/10 transition-colors">
                 {isExecuting ? (
-                  <Loader2 className="h-3 w-3 text-[var(--warning)] animate-spin" />
+                  <Loader2 className="h-3 w-3 text-(--warning) animate-spin" />
                 ) : result ? (
                   result.isError ? (
-                    <X className="h-3 w-3 text-[var(--error)]" />
+                    <X className="h-3 w-3 text-(--error)" />
                   ) : (
-                    <Check className="h-3 w-3 text-[var(--success)]" />
+                    <Check className="h-3 w-3 text-(--success)" />
+                  )
+                ) : hasContent ? (
+                  isExpanded ? (
+                    <ChevronDown className="h-3 w-3 text-[#b0a8a0]" />
+                  ) : (
+                    <ChevronRight className="h-3 w-3 text-[#b0a8a0]" />
                   )
                 ) : (
-                  hasContent ? (
-                    isExpanded ? (
-                      <ChevronDown className="h-3 w-3 text-[#b0a8a0]" />
-                    ) : (
-                      <ChevronRight className="h-3 w-3 text-[#b0a8a0]" />
-                    )
-                  ) : (
-                    <span className="h-2 w-2 rounded-full border border-[var(--border)]" />
-                  )
+                  <span className="h-2 w-2 rounded-full border border-(--border)" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-[#d0c8c0] truncate">{toolName}</div>
                 {mainArg != null && !isExpanded && (
-                  <div className="text-xs text-[#9a9590] truncate mt-0.5">{String(mainArg as string | number | boolean)}</div>
+                  <div className="text-xs text-[#9a9590] truncate mt-0.5">
+                    {String(mainArg as string | number | boolean)}
+                  </div>
                 )}
                 {result && !isExpanded && !isExecuting && result.content && (
-                  <div className={`text-[10px] mt-0.5 ${result.isError ? 'text-[var(--error)]/80' : 'text-[#9a9590]'} truncate`}>
+                  <div
+                    className={`text-[10px] mt-0.5 ${result.isError ? "text-(--error)/80" : "text-[#9a9590]"} truncate`}
+                  >
                     {result.content}
                   </div>
                 )}
@@ -343,9 +295,11 @@ function ToolsPanel({
                   </div>
                 )}
                 {result && !isExecuting && (
-                  <div className={`text-xs font-mono leading-relaxed whitespace-pre-wrap break-words max-h-96 overflow-y-auto ${
-                    result.isError ? 'text-[var(--error)]' : 'text-[#b0a8a0]'
-                  }`}>
+                  <div
+                    className={`text-xs font-mono leading-relaxed whitespace-pre-wrap break-words max-h-96 overflow-y-auto ${
+                      result.isError ? "text-(--error)" : "text-[#b0a8a0]"
+                    }`}
+                  >
                     {result.content}
                   </div>
                 )}
@@ -360,32 +314,36 @@ function ToolsPanel({
   return (
     <>
       {researchProgress && (
-        <div className="px-3 py-2 border-b border-[var(--border)]/50">
+        <div className="px-3 py-2 border-b border-(--border)/50">
           <div className="flex items-center gap-2 text-xs text-[#b0a8a0]">
             <Loader2 className="h-3 w-3 text-blue-500 animate-spin" />
-            <span>{researchProgress.message || 'Researching...'}</span>
+            <span>{researchProgress.message || "Researching..."}</span>
           </div>
         </div>
       )}
 
-       <div className="flex flex-col min-h-0">
-         <div className="px-3 py-2 text-xs font-medium text-[#b0a8a0] border-b border-[var(--border)]/50">
-           <span className="uppercase tracking-wider text-[10px]">Activity</span>
-           {toolCount > 0 && (
-             <span className="ml-2 text-[10px] text-[#9a9590]">({toolCount})</span>
-           )}
-         </div>
-         <div ref={listRef} className="relative overflow-y-auto">
-           {activityRows}
-           {activityRows.length === 0 && !researchProgress && !researchSources.length && !thinkingActive && !thinkingContent && (
-             <div className="px-3 py-6 text-center text-xs text-[#9a9590]">No tool activity yet</div>
-           )}
-         </div>
-       </div>
+      <div className="flex flex-col min-h-0">
+        <div className="px-3 py-2 text-xs font-medium text-[#b0a8a0] border-b border-(--border)/50">
+          <span className="uppercase tracking-wider text-[10px]">Activity</span>
+          {toolCount > 0 && <span className="ml-2 text-[10px] text-[#9a9590]">({toolCount})</span>}
+        </div>
+        <div ref={listRef} className="relative overflow-y-auto">
+          {activityRows}
+          {activityRows.length === 0 &&
+            !researchProgress &&
+            !researchSources.length &&
+            !thinkingActive &&
+            !thinkingContent && (
+              <div className="px-3 py-6 text-center text-xs text-[#9a9590]">
+                No tool activity yet
+              </div>
+            )}
+        </div>
+      </div>
 
       {researchSources.length > 0 && (
-        <div className="border-t border-[var(--border)]/50">
-          <div className="px-3 py-2 text-xs font-medium text-[#b0a8a0] border-b border-[var(--border)]/50">
+        <div className="border-t border-(--border)/50">
+          <div className="px-3 py-2 text-xs font-medium text-[#b0a8a0] border-b border-(--border)/50">
             <span className="uppercase tracking-wider text-[10px]">Sources</span>
           </div>
           <div>
@@ -395,7 +353,7 @@ function ToolsPanel({
                 href={source.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block px-3 py-2 transition-colors border-b border-[var(--border)]/30 last:border-b-0"
+                className="block px-3 py-2 transition-colors border-b border-(--border)/30 last:border-b-0"
               >
                 <div className="text-xs line-clamp-1">{source.title}</div>
                 <div className="text-[10px] text-[#9a9590] truncate mt-0.5">{source.url}</div>

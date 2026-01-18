@@ -1,15 +1,15 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { useSSE } from './useSSE';
-import type { GPU, Metrics, ProcessInfo } from '@/lib/types';
+import { useState, useCallback, useEffect, useRef } from "react";
+import { useSSE } from "./useSSE";
+import type { GPU, Metrics, ProcessInfo } from "@/lib/types";
 
 function getApiKey(): string {
   const envKey = process.env.NEXT_PUBLIC_VLLM_STUDIO_API_KEY || process.env.VLLM_STUDIO_API_KEY;
   if (envKey) return envKey;
-  if (typeof window === 'undefined') return '';
+  if (typeof window === "undefined") return "";
   try {
-    return window.localStorage.getItem('vllmstudio_api_key') || '';
+    return window.localStorage.getItem("vllmstudio_api_key") || "";
   } catch {
-    return '';
+    return "";
   }
 }
 
@@ -26,7 +26,7 @@ interface GPUData {
 
 interface LaunchProgressData {
   recipe_id: string;
-  stage: 'preempting' | 'evicting' | 'launching' | 'waiting' | 'ready' | 'cancelled' | 'error';
+  stage: "preempting" | "evicting" | "launching" | "waiting" | "ready" | "cancelled" | "error";
   message: string;
   progress?: number;
 }
@@ -52,13 +52,12 @@ interface SSEEvent {
  * @example
  * const { status, gpus, metrics, launchProgress } = useRealtimeStatus();
  */
-// eslint-disable-next-line import/no-default
-export function useRealtimeStatus(apiBaseUrl: string = (
-  process.env.BACKEND_URL ||
-  process.env.NEXT_PUBLIC_BACKEND_URL ||
-  process.env.VLLM_STUDIO_BACKEND_URL ||
-  'https://<your-api-domain>'
-)) {
+export function useRealtimeStatus(
+  apiBaseUrl: string = process.env.BACKEND_URL ||
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    process.env.VLLM_STUDIO_BACKEND_URL ||
+    "https://<your-api-domain>",
+) {
   const [status, setStatus] = useState<StatusData | null>(null);
   const [gpus, setGpus] = useState<GPU[]>([]);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
@@ -69,42 +68,46 @@ export function useRealtimeStatus(apiBaseUrl: string = (
     try {
       // Parse the SSE data payload
       const payload: SSEEvent = JSON.parse(event.data);
-      const eventType = (event as { type?: string }).type || 'message';
+      const eventType = (event as { type?: string }).type || "message";
 
       switch (eventType) {
-        case 'status':
+        case "status":
           setStatus(payload.data as StatusData);
           lastSSEUpdate.current = Date.now();
           break;
 
-        case 'gpu':
+        case "gpu":
           const gpuData = payload.data as GPUData;
           setGpus(gpuData.gpus || []);
           lastSSEUpdate.current = Date.now();
           break;
 
-        case 'metrics':
+        case "metrics":
           setMetrics(payload.data as Metrics);
           lastSSEUpdate.current = Date.now();
           break;
 
-        case 'launch_progress':
+        case "launch_progress":
           const progressData = payload.data as LaunchProgressData;
           setLaunchProgress(progressData);
           lastSSEUpdate.current = Date.now();
 
           // Auto-clear progress after success/error
-          if (progressData.stage === 'ready' || progressData.stage === 'error' || progressData.stage === 'cancelled') {
+          if (
+            progressData.stage === "ready" ||
+            progressData.stage === "error" ||
+            progressData.stage === "cancelled"
+          ) {
             setTimeout(() => setLaunchProgress(null), 5000);
           }
           break;
 
         default:
           // Don't update lastSSEUpdate for unknown events - keep polling active
-          console.log('[SSE] Unknown event type:', eventType);
+          console.log("[SSE] Unknown event type:", eventType);
       }
     } catch (e) {
-      console.error('[SSE] Failed to parse event:', e, event.data);
+      console.error("[SSE] Failed to parse event:", e, event.data);
     }
   }, []);
 
@@ -116,12 +119,12 @@ export function useRealtimeStatus(apiBaseUrl: string = (
 
   const { isConnected, error, reconnectAttempts } = useSSE(
     sseUrl,
-    true,  // Always enabled
+    true, // Always enabled
     {
       onMessage: handleMessage,
-      reconnectDelay: 2000,  // 2 second initial delay
+      reconnectDelay: 2000, // 2 second initial delay
       maxReconnectAttempts: 10,
-    }
+    },
   );
 
   // Fetch status immediately (used on mount and visibility change)
@@ -129,13 +132,13 @@ export function useRealtimeStatus(apiBaseUrl: string = (
     const headers: Record<string, string> = {};
     const key = getApiKey();
     if (key) {
-      headers['Authorization'] = `Bearer ${key}`;
+      headers["Authorization"] = `Bearer ${key}`;
     }
 
     try {
       const [statusRes] = await Promise.all([
-        fetch(`${apiBaseUrl}/status`, { headers }).then(r => r.json()),
-        fetch(`${apiBaseUrl}/health`, { headers }).then(r => r.json()),
+        fetch(`${apiBaseUrl}/status`, { headers }).then((r) => r.json()),
+        fetch(`${apiBaseUrl}/health`, { headers }).then((r) => r.json()),
       ]);
 
       // Update status from polling
@@ -149,7 +152,7 @@ export function useRealtimeStatus(apiBaseUrl: string = (
 
       // Try to get GPU data from a separate endpoint if available
       try {
-        const gpuRes = await fetch(`${apiBaseUrl}/gpus`, { headers }).then(r => r.json());
+        const gpuRes = await fetch(`${apiBaseUrl}/gpus`, { headers }).then((r) => r.json());
         if (gpuRes?.gpus) {
           setGpus(gpuRes.gpus);
         }
@@ -157,7 +160,7 @@ export function useRealtimeStatus(apiBaseUrl: string = (
         // GPU endpoint might not exist, ignore
       }
     } catch (e) {
-      console.error('[Status] Failed to fetch status:', e);
+      console.error("[Status] Failed to fetch status:", e);
     }
   }, [apiBaseUrl]);
 
@@ -178,30 +181,30 @@ export function useRealtimeStatus(apiBaseUrl: string = (
   // Force refresh when page becomes visible (mobile PWA support)
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        console.log('[Status] Page became visible, fetching fresh status...');
+      if (document.visibilityState === "visible") {
+        console.log("[Status] Page became visible, fetching fresh status...");
         // Reset last SSE update to force a poll
         lastSSEUpdate.current = 0;
         fetchStatusNow();
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     // Also handle pageshow for bfcache
     const handlePageShow = (event: PageTransitionEvent) => {
       if (event.persisted) {
-        console.log('[Status] Page restored from bfcache, fetching status...');
+        console.log("[Status] Page restored from bfcache, fetching status...");
         lastSSEUpdate.current = 0;
         fetchStatusNow();
       }
     };
 
-    window.addEventListener('pageshow', handlePageShow);
+    window.addEventListener("pageshow", handlePageShow);
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('pageshow', handlePageShow);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pageshow", handlePageShow);
     };
   }, [fetchStatusNow]);
 
