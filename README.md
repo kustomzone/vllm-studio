@@ -154,6 +154,17 @@ vllm-studio/
 └── docker-compose.yml
 ```
 
+## controller-new (Bun canary, optional)
+
+`controller-new/` is an experimental Bun-based canary that keeps the controller as a **full OpenAI `/v1/*` endpoint** while allowing **per-endpoint upstream routing**.
+
+Use it when you want to route different OpenAI surfaces to different backends, e.g.:
+- route `/v1/chat/*` to a remote vLLM server
+- route `/v1/audio/*` to a transcription service
+- route `/v1/images/*` to an image generator
+
+See `controller-new/README.md`.
+
 ## With LiteLLM (Optional)
 
 For OpenAI/Anthropic API compatibility:

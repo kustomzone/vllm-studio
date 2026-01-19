@@ -38,6 +38,11 @@ export interface MCPServer {
   icon?: string;
 }
 
+export interface ModelOption {
+  id: string;
+  name?: string;
+}
+
 interface ToolBeltProps {
   value: string;
   onChange: (value: string) => void;
@@ -46,6 +51,10 @@ interface ToolBeltProps {
   isLoading?: boolean;
   placeholder?: string;
   onStop?: () => void;
+  // Model selection
+  selectedModel?: string;
+  availableModels?: ModelOption[];
+  onModelChange?: (modelId: string) => void;
   // MCP & Artifacts toggles
   mcpEnabled?: boolean;
   onMcpToggle?: () => void;
@@ -73,6 +82,9 @@ export function ToolBelt({
   isLoading,
   placeholder = "Message...",
   onStop,
+  selectedModel,
+  availableModels = [],
+  onModelChange,
   mcpEnabled = false,
   onMcpToggle,
   artifactsEnabled = false,
@@ -564,7 +576,23 @@ export function ToolBelt({
               </button>
             </div>
 
-            <div className="flex items-center">
+            <div className="flex items-center gap-2">
+              {/* Model Selector */}
+              {availableModels.length > 0 && onModelChange && (
+                <select
+                  value={selectedModel || ""}
+                  onChange={(e) => onModelChange(e.target.value)}
+                  disabled={disabled || isLoading}
+                  className="px-2 py-1 text-xs bg-(--background) border border-(--border) rounded-lg text-[#9a9590] focus:outline-none focus:ring-1 focus:ring-(--link)/50 disabled:opacity-50 max-w-[140px] truncate"
+                  title="Select model"
+                >
+                  {availableModels.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.id}
+                    </option>
+                  ))}
+                </select>
+              )}
               {isLoading ? (
                 <button
                   onClick={onStop}

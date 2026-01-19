@@ -52,7 +52,7 @@ export function OverviewMetrics(stats: UsageStats) {
           <div className="text-lg font-medium tabular-nums">
             {formatNumber(stats.week_over_week.this_week.requests)}
           </div>
-          <div className="mt-0.5">{ChangeIndicator(stats.week_over_week.change_pct.requests)}</div>
+          <div className="mt-0.5">{ChangeIndicator({ value: stats.week_over_week.change_pct.requests })}</div>
         </div>
         <div>
           <div className="text-xs text-(--muted-foreground) mb-1">Cache Hit Rate</div>

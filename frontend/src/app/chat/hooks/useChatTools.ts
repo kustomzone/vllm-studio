@@ -1,131 +1,116 @@
 "use client";
 
-import { useCallback } from "react";
+import { useState, useCallback } from "react";
 import { api } from "@/lib/api";
-import type { ToolCall, ToolResult } from "@/lib/types";
+import type { MCPTool, MCPServer, ToolDefinition } from "../types";
+import type { ToolResult } from "@/lib/types";
 
 interface UseChatToolsOptions {
   mcpEnabled: boolean;
-  mcpTools: Array<{
-    server: string;
-    name: string;
-    description?: string;
-    inputSchema?: Record<string, unknown>;
-  }>;
-  setMcpServers: (
-    servers: Array<{
-      name: string;
-      command: string;
-      args: string[];
-      env: Record<string, string>;
-      enabled: boolean;
-      icon?: string;
-    }>,
-  ) => void;
-  setMcpTools: (
-    tools: Array<{
-      server: string;
-      name: string;
-      description?: string;
-      inputSchema?: Record<string, unknown>;
-    }>,
-  ) => void;
 }
 
-export function useChatTools({
-  mcpEnabled,
-  mcpTools,
-  setMcpServers,
-  setMcpTools,
-}: UseChatToolsOptions) {
+export function useChatTools({ mcpEnabled }: UseChatToolsOptions) {
+  const [mcpTools, setMcpTools] = useState<MCPTool[]>([]);
+  const [mcpServers, setMcpServers] = useState<MCPServer[]>([]);
+  const [executingTools, setExecutingTools] = useState<Set<string>>(new Set());
+  const [toolResultsMap, setToolResultsMap] = useState<Map<string, ToolResult>>(new Map());
+
   const loadMCPServers = useCallback(async () => {
     try {
-      const servers = await api.getMCPServers();
-      setMcpServers(
-        servers.map((server) => ({
-          ...server,
-          args: server.args || [],
-          env: server.env || {},
-          enabled: server.enabled ?? true,
-        })),
-      );
-    } catch {}
-  }, [setMcpServers]);
+      const { servers } = await api.getMCPServers();
+      const normalizedServers: MCPServer[] = servers.map((server) => ({
+        name: server.name,
+        enabled: server.enabled ?? true,
+        icon: server.icon,
+      }));
+      setMcpServers(normalizedServers);
+    } catch (err) {
+      console.error("Failed to load MCP servers:", err);
+    }
+  }, []);
 
   const loadMCPTools = useCallback(async () => {
-    try {
-      const response = await api.getMCPTools();
-      setMcpTools(response.tools || []);
-    } catch {
+    if (!mcpEnabled) {
       setMcpTools([]);
+      return;
     }
-  }, [setMcpTools]);
+    try {
+      const data = await api.getMCPTools();
+      setMcpTools(data.tools || []);
+    } catch (err) {
+      console.error("Failed to load MCP tools:", err);
+    }
+  }, [mcpEnabled]);
 
-  const getOpenAITools = useCallback(() => {
-    if (!mcpEnabled || !mcpTools.length) return [];
-    return mcpTools.map((tool) => ({
-      type: "function" as const,
-      function: {
-        name: `${tool.server}__${tool.name}`,
-        description: tool.description || `Tool ${tool.name} from ${tool.server}`,
-        parameters: tool.inputSchema || { type: "object", properties: {} },
-      },
-    }));
-  }, [mcpEnabled, mcpTools]);
+  const getToolDefinitions = useCallback((): ToolDefinition[] => {
+    if (!mcpEnabled) return [];
+    const enabledServers = new Set(
+      mcpServers.filter((server) => server.enabled).map((server) => server.name),
+    );
+    return mcpTools
+      .filter((tool) => enabledServers.has(tool.server))
+      .map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+      }));
+  }, [mcpEnabled, mcpTools, mcpServers]);
 
-  const executeMCPTool = useCallback(
-    async (toolCall: ToolCall): Promise<ToolResult> => {
-      const funcName = toolCall.function?.name || "";
-      const parts = funcName.split("__");
-      let server = parts.length > 1 ? parts[0] : "";
-      let toolName = parts.length > 1 ? parts.slice(1).join("__") : funcName;
-      if (!server && mcpTools.length > 0) {
-        const matchingTool = mcpTools.find(
-          (tool) => tool.name === funcName || tool.name === toolName,
-        );
-        if (matchingTool) {
-          server = matchingTool.server;
-          toolName = matchingTool.name;
-        }
-      }
-      if (!server) {
-        return {
-          tool_call_id: toolCall.id,
-          content: `Error: Could not determine MCP server for tool "${funcName}"`,
-          isError: true,
-        };
-      }
+  const executeTool = useCallback(
+    async (toolCall: { toolCallId: string; toolName: string; args?: Record<string, unknown> }) => {
+      const { toolCallId, toolName, args } = toolCall;
+
+      setExecutingTools((prev) => new Set(prev).add(toolCallId));
+
       try {
-        let args: Record<string, unknown> = {};
-        const rawArgs = (toolCall.function?.arguments || "").trim();
-        if (rawArgs) {
-          try {
-            args = JSON.parse(rawArgs);
-          } catch {
-            args = { raw: rawArgs };
-          }
-        }
-        const result = await api.callMCPTool(server, toolName, args);
-        return {
-          tool_call_id: toolCall.id,
-          content:
-            typeof result.result === "string" ? result.result : JSON.stringify(result.result),
+        // Find the tool to get its server
+        const tool = mcpTools.find((t) => t.name === toolName);
+        const server = tool?.server || "default";
+
+        const result = await api.callMCPTool(server, toolName, args || {});
+
+        const toolResult: ToolResult = {
+          tool_call_id: toolCallId,
+          content: typeof result.result === "string" ? result.result : JSON.stringify(result.result),
+          isError: false,
         };
-      } catch (error) {
-        return {
-          tool_call_id: toolCall.id,
-          content: `Error: ${error instanceof Error ? error.message : String(error)}`,
+
+        setToolResultsMap((prev) => new Map(prev).set(toolCallId, toolResult));
+        return toolResult;
+      } catch (err) {
+        const errorResult: ToolResult = {
+          tool_call_id: toolCallId,
+          content: err instanceof Error ? err.message : "Tool execution failed",
           isError: true,
         };
+        setToolResultsMap((prev) => new Map(prev).set(toolCallId, errorResult));
+        return errorResult;
+      } finally {
+        setExecutingTools((prev) => {
+          const next = new Set(prev);
+          next.delete(toolCallId);
+          return next;
+        });
       }
     },
     [mcpTools],
   );
 
+  const clearToolResults = useCallback(() => {
+    setToolResultsMap(new Map());
+    setExecutingTools(new Set());
+  }, []);
+
   return {
+    mcpTools,
+    mcpServers,
+    executingTools,
+    toolResultsMap,
     loadMCPServers,
     loadMCPTools,
-    getOpenAITools,
-    executeMCPTool,
+    getToolDefinitions,
+    executeTool,
+    clearToolResults,
+    setMcpServers,
   };
 }

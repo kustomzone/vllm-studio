@@ -1,60 +1,43 @@
-import { NextRequest } from "next/server";
-import { mergeToolCallArguments } from "@/lib/tool-parsing";
+import { streamText, jsonSchema, type ToolSet, type ModelMessage } from "ai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { getApiSettings } from "@/lib/api-settings";
 
-// Fallback API key (from env if not configured in settings)
-const LITELLM_API_KEY =
-  process.env.LITELLM_MASTER_KEY ||
-  process.env.LITELLM_API_KEY ||
-  process.env.API_KEY ||
-  "sk-master";
+// Allow streaming responses up to 5 minutes (model launches can take time)
+export const maxDuration = 300;
 
-interface StreamEvent {
-  type: "text" | "tool_calls" | "done" | "error";
-  content?: string;
-  tool_calls?: ToolCall[];
-  error?: string;
-}
-
-interface ToolCall {
-  id: string;
-  type: "function";
-  function: { name: string; arguments: string };
-}
-
-interface OpenAIDelta {
-  role?: string;
-  content?: string | null;
-  reasoning?: string | null;
-  reasoning_content?: string | null;
-  tool_calls?: Array<{
-    index: number;
-    id?: string;
-    type?: string;
-    function?: { name?: string; arguments?: string };
+interface PostBody {
+  messages: Array<{
+    id: string;
+    role: "system" | "user" | "assistant";
+    parts: Array<
+      | { type: "text"; text: string }
+      | { type: "file"; mediaType: string; url: string; filename?: string }
+      | {
+          type: "tool";
+          toolCallId: string;
+          toolName: string;
+          state:
+            | "input-streaming"
+            | "input-available"
+            | "output-available"
+            | "output-error";
+          input?: unknown;
+          output?: unknown;
+          errorText?: string;
+          providerExecuted?: boolean;
+        }
+    >;
   }>;
-}
-
-type OpenAIToolCallDelta = NonNullable<OpenAIDelta["tool_calls"]>[number];
-
-interface OpenAIChunk {
-  id: string;
-  choices: Array<{
-    index: number;
-    delta: OpenAIDelta;
-    finish_reason: string | null;
+  model?: string;
+  tools?: Array<{
+    name: string;
+    description?: string;
+    inputSchema?: Record<string, unknown>;
   }>;
+  system?: string;
 }
 
-// Clean GLM-4.6V box tokens from content
-const cleanGLMBoxTokens = (text: string): string => {
-  return text
-    .replace(/<\|begin_of_box\|>/g, "")
-    .replace(/<\|end_of_box\|>/g, "")
-    .replace(/^\n+/, ""); // Clean leading newlines that GLM adds before content
-};
-
-function getClientInfo(req: NextRequest) {
+function getClientInfo(req: Request) {
   const ip =
     req.headers.get("CF-Connecting-IP") ||
     req.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ||
@@ -64,36 +47,16 @@ function getClientInfo(req: NextRequest) {
   return { ip, country };
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   const client = getClientInfo(req);
 
   try {
-    const body = await req.json();
-    const { messages, model, tools, ...rest } = body;
+    const body: PostBody = await req.json();
+    const { messages, model, tools, system } = body;
 
     console.log(
-      `[CHAT] ip=${client.ip} | country=${client.country} | model=${model || "default"} | messages=${messages?.length || 0} | tools=${tools?.length || 0}`,
+      `[CHAT V5] ip=${client.ip} | country=${client.country} | model=${model || "default"} | messages=${messages?.length || 0} | tools=${tools?.length || 0}`,
     );
-
-    // Debug: Log message roles to verify tool results are included
-    const msgRoles = messages
-      ?.map(
-        (m: { role?: string; tool_call_id?: string; tool_calls?: unknown[] }) =>
-          `${m.role}${m.tool_call_id ? `(${m.tool_call_id.slice(0, 8)})` : m.tool_calls ? `[${m.tool_calls.length} calls]` : ""}`,
-      )
-      .join(", ");
-    console.log(`[CHAT DEBUG] Message roles: ${msgRoles}`);
-
-    // Check if we have tool results in this request (indicates multi-turn tool calling)
-    const toolMessages = messages?.filter((m: { role?: string }) => m.role === "tool") || [];
-    if (toolMessages.length > 0) {
-      console.log(`[CHAT DEBUG] Found ${toolMessages.length} tool result messages:`);
-      for (const tm of toolMessages) {
-        console.log(
-          `  - tool_call_id: ${tm.tool_call_id}, name: ${tm.name}, content_len: ${tm.content?.length || 0}`,
-        );
-      }
-    }
 
     if (!messages || !Array.isArray(messages)) {
       return new Response(JSON.stringify({ error: "Messages required" }), {
@@ -102,241 +65,76 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Build an OpenAI-compatible request body (forwarding extra params through unchanged).
-    const requestBody: Record<string, unknown> = {
-      model: model || "default",
-      messages,
-      ...rest,
-      stream: true,
-    };
-
-    // Add tools if provided
-    if (tools && tools.length > 0) {
-      requestBody.tools = tools;
-      requestBody.tool_choice = "auto";
-    }
-
     // Get dynamic settings
     const settings = await getApiSettings();
     const BACKEND_URL = settings.backendUrl;
     const API_KEY = settings.apiKey;
-    const CHAT_ENDPOINT = `${BACKEND_URL}/v1/chat/completions`;
 
-    const incomingAuth = req.headers.get("authorization");
-    const outgoingAuth =
-      incomingAuth ||
-      (API_KEY ? `Bearer ${API_KEY}` : LITELLM_API_KEY ? `Bearer ${LITELLM_API_KEY}` : undefined);
-
-    // Route through controller for auto-eviction support (falls back to LiteLLM internally)
-    console.log(`[CHAT] Routing to controller: ${CHAT_ENDPOINT}`);
-    const response = await fetch(CHAT_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(outgoingAuth ? { Authorization: outgoingAuth } : {}),
-      },
-      body: JSON.stringify(requestBody),
+    // Create OpenAI-compatible client for vLLM/LiteLLM
+    const openaiCompatible = createOpenAICompatible({
+      name: "vllm-studio",
+      baseURL: `${BACKEND_URL}/v1`,
+      apiKey: API_KEY || "sk-master",
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`LiteLLM error ${response.status}: ${errorText}`);
-    }
+    const modelInstance = openaiCompatible(model || "default");
 
-    const encoder = new TextEncoder();
-    const sendEvent = (event: StreamEvent): Uint8Array => {
-      return encoder.encode(`data: ${JSON.stringify(event)}\n\n`);
-    };
+    // Build tool set with model-only schemas (no server execution)
+    // Tools will be emitted to client for execution via onToolCall
+    const toolSet = (tools || []).reduce<Record<string, { description?: string; inputSchema: unknown }>>(
+      (acc, tool) => {
+        acc[tool.name] = {
+          description: tool.description,
+          inputSchema: jsonSchema(tool.inputSchema || { type: "object", properties: {} }),
+        };
+        return acc;
+      },
+      {},
+    );
 
-    // Track tool calls being assembled (streaming deltas can split id/name/args)
-    const toolCallsInProgress: Map<number, ToolCall> = new Map();
-    let toolsEmitted = false;
-    let assistantContentFull = "";
-
-    // Generate unique fallback IDs for tool calls when provider doesn't supply valid ones
-    const requestId = Math.random().toString(36).slice(2, 10);
-
-    // Filter chatcmpl IDs - some providers incorrectly use the response ID as the tool call ID
-    const isValidToolCallId = (id: string | undefined): boolean => {
-      if (!id) return false;
-      return !id.startsWith("chatcmpl");
-    };
-
-    const upsertToolCallDelta = (tc: OpenAIToolCallDelta) => {
-      const idx = tc.index;
-
-      // Debug: Log incoming tool call delta
-      if (tc.id) {
-        console.log(
-          `[TOOL DELTA] index=${idx} id=${tc.id} name=${tc.function?.name || "N/A"} valid=${isValidToolCallId(tc.id)}`,
-        );
+    const coreMessages = (messages || []).map((msg): ModelMessage => {
+      const role = msg.role as ModelMessage["role"];
+      if (Array.isArray(msg.parts) && msg.parts.length > 0) {
+        const textParts = msg.parts
+          .filter((part): part is { type: "text"; text: string } =>
+            part.type === "text" && typeof part.text === "string",
+          )
+          .map((part) => part.text)
+          .join("");
+        return { role, content: textParts } as ModelMessage;
       }
-
-      const existing =
-        toolCallsInProgress.get(idx) ||
-        ({
-          id: isValidToolCallId(tc.id) ? tc.id! : `call_${requestId}_${idx}`,
-          type: "function" as const,
-          function: { name: tc.function?.name || "", arguments: tc.function?.arguments || "" },
-        } satisfies ToolCall);
-
-      // Only accept IDs that look like proper tool call IDs (call_xxx or toolu_xxx)
-      // Reject response IDs like chatcmpl-xxx
-      if (isValidToolCallId(tc.id)) {
-        existing.id = tc.id!;
+      if (typeof msg === "object" && typeof (msg as { content?: string }).content === "string") {
+        return { role, content: (msg as { content?: string }).content as string } as ModelMessage;
       }
-      if (tc.function?.name) {
-        existing.function.name = tc.function.name;
-      }
-      if (tc.function?.arguments) {
-        existing.function.arguments = mergeToolCallArguments(
-          existing.function.arguments,
-          tc.function.arguments,
-        );
-      }
+      return { role, content: "" } as ModelMessage;
+    });
 
-      toolCallsInProgress.set(idx, existing);
-    };
-
-    const emitCompletedToolsIfAny = (controller: ReadableStreamDefaultController) => {
-      if (toolsEmitted || toolCallsInProgress.size === 0) return;
-      const completedTools = Array.from(toolCallsInProgress.entries())
-        .sort(([a], [b]) => a - b)
-        .map(([, v]) => v);
-
-      // Debug: Log the final tool calls being emitted
-      console.log(
-        "[TOOL EMIT] Emitting tool calls to frontend:",
-        completedTools.map((tc) => ({
-          id: tc.id,
-          name: tc.function.name,
-          args_preview: tc.function.arguments.slice(0, 100),
-        })),
-      );
-
-      controller.enqueue(sendEvent({ type: "tool_calls", tool_calls: completedTools }));
-      toolsEmitted = true;
-    };
-
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          const reader = response.body?.getReader();
-          if (!reader) throw new Error("No response body");
-
-          const decoder = new TextDecoder();
-          let buffer = "";
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || "";
-
-            for (const line of lines) {
-              if (!line.startsWith("data: ")) continue;
-              const data = line.slice(6).trim();
-              if (!data) continue;
-              if (data === "[DONE]") {
-                continue;
-              }
-
-              try {
-                const chunk: OpenAIChunk = JSON.parse(data);
-                const delta = chunk.choices[0]?.delta;
-                if (!delta) continue;
-
-                // Handle reasoning content (thinking tokens) - wrap in <think> tags
-                const reasoningText = delta.reasoning || delta.reasoning_content;
-                if (reasoningText) {
-                  // Check if we need to open <think> tag
-                  if (
-                    !assistantContentFull.includes("<think>") ||
-                    assistantContentFull.includes("</think>")
-                  ) {
-                    controller.enqueue(sendEvent({ type: "text", content: "<think>" }));
-                    assistantContentFull += "<think>";
-                  }
-                  controller.enqueue(sendEvent({ type: "text", content: reasoningText }));
-                  assistantContentFull += reasoningText;
-                }
-
-                // Handle regular content
-                if (delta.content) {
-                  // Close thinking tag if we were in thinking mode and now have regular content
-                  if (
-                    assistantContentFull.includes("<think>") &&
-                    !assistantContentFull.includes("</think>")
-                  ) {
-                    controller.enqueue(sendEvent({ type: "text", content: "</think>\n\n" }));
-                    assistantContentFull += "</think>\n\n";
-                  }
-
-                  // Clean GLM-4.6V box tokens and emit content directly
-                  const cleanedContent = cleanGLMBoxTokens(delta.content);
-                  if (cleanedContent) {
-                    assistantContentFull += cleanedContent;
-                    controller.enqueue(sendEvent({ type: "text", content: cleanedContent }));
-                  }
-                }
-
-                // Handle tool calls
-                if (delta.tool_calls) {
-                  for (const tc of delta.tool_calls) {
-                    upsertToolCallDelta(tc);
-                  }
-                }
-
-                // Check for finish
-                if (chunk.choices[0]?.finish_reason) {
-                  emitCompletedToolsIfAny(controller);
-                }
-              } catch {
-                // Skip malformed JSON
-              }
-            }
-          }
-
-          emitCompletedToolsIfAny(controller);
-          try {
-            controller.enqueue(sendEvent({ type: "done" }));
-          } catch {}
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          const lowered = message.toLowerCase();
-          const isTerminated =
-            lowered.includes("terminated") ||
-            lowered.includes("aborted") ||
-            lowered.includes("cancelled");
-          console.error("[Chat API] Stream error:", error);
-          emitCompletedToolsIfAny(controller);
-          try {
-            if (isTerminated) {
-              controller.enqueue(sendEvent({ type: "done" }));
-            } else {
-              controller.enqueue(sendEvent({ type: "error", error: message }));
-            }
-          } catch {}
-        } finally {
-          try {
-            controller.close();
-          } catch {}
+    const result = streamText({
+      model: modelInstance,
+      messages: coreMessages,
+      system: system?.trim() || undefined,
+      tools: toolSet as unknown as ToolSet,
+      temperature: 0.7,
+      onChunk: ({ chunk }) => {
+        if (chunk.type === "reasoning-delta") {
+          console.log(`[CHAT V5] ip=${client.ip} | country=${client.country} | reasoning_delta=${chunk.text.length}`);
+        } else if (chunk.type === "text-delta") {
+          console.log(`[CHAT V5] ip=${client.ip} | country=${client.country} | text_delta=${chunk.text.length}`);
         }
       },
     });
 
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
+    return result.toUIMessageStreamResponse({
+      onError: (error) => {
+        if (error == null) return "Unknown error";
+        if (typeof error === "string") return error;
+        if (error instanceof Error) return error.message;
+        return JSON.stringify(error);
       },
     });
   } catch (error) {
     console.error(
-      `[CHAT ERROR] ip=${client.ip} | country=${client.country} | error=${String(error)}`,
+      `[CHAT V5 ERROR] ip=${client.ip} | country=${client.country} | error=${String(error)}`,
     );
     return new Response(JSON.stringify({ error: String(error) }), {
       status: 500,

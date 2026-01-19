@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { generateText } from "ai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { getMessageParsingService } from "@/lib/services/message-parsing";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-const API_KEY = process.env.API_KEY || "";
+import { getApiSettings } from "@/lib/api-settings";
 
 function cleanTitle(raw: string): string {
   let title = String(raw || "");
@@ -70,45 +70,33 @@ export async function POST(req: NextRequest) {
     const assistantThinking = parsingService.parseThinking(assistant);
     const promptAssistant = assistantThinking.mainContent.slice(0, 500);
 
+    const { backendUrl, apiKey } = await getApiSettings();
     const incomingAuth = req.headers.get("authorization");
-    const outgoingAuth = incomingAuth || (API_KEY ? `Bearer ${API_KEY}` : undefined);
+    const normalizedToken = incomingAuth ? incomingAuth.replace(/^Bearer\s+/i, "").trim() : "";
+    const effectiveKey = normalizedToken || apiKey || "sk-master";
 
-    const response = await fetch(`${API_URL}/v1/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(outgoingAuth ? { Authorization: outgoingAuth } : {}),
-      },
-      body: JSON.stringify({
-        model,
-        stream: false,
-        temperature: 0.3,
-        max_tokens: 15,
-        messages: [
-          {
-            role: "user",
-            content: `Generate a 3-5 word title for this conversation. Reply with ONLY the title words, no quotes, no punctuation, no explanation.
+    const openaiCompatible = createOpenAICompatible({
+      name: "vllm-studio-title",
+      baseURL: `${backendUrl}/v1`,
+      apiKey: effectiveKey,
+    });
+
+    const prompt = `Generate a 3-5 word title for this conversation. Reply with ONLY the title words, no quotes, no punctuation, no explanation.
 
 User said: ${promptUser}
 
 Assistant replied: ${promptAssistant.slice(0, 200)}
 
-Title:`,
-          },
-        ],
-      }),
+Title:`;
+
+    const result = await generateText({
+      model: openaiCompatible(model),
+      temperature: 0.3,
+      maxOutputTokens: 20,
+      prompt,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Title API error:", errorText);
-      return NextResponse.json({ title: "New Chat" });
-    }
-
-    const data = (await response.json().catch(() => null)) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    } | null;
-    const rawContent = data?.choices?.[0]?.message?.content ?? "";
+    const rawContent = result.text || "";
 
     const title = cleanTitle(rawContent);
 

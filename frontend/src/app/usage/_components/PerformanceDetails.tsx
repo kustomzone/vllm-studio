@@ -7,8 +7,8 @@ interface LatencyStats {
   p50_ms: number;
   p95_ms: number;
   p99_ms: number;
-  min_ms: number;
-  max_ms: number;
+  min_ms?: number;
+  max_ms?: number;
 }
 
 interface PerformanceStats {
@@ -49,10 +49,12 @@ export function PerformanceDetails(stats: PerformanceStats) {
                 {formatDuration(stats.latency.p99_ms)}
               </span>
             </div>
-            <div className="pt-2 mt-2 border-t border-(--border)/20 flex items-center justify-between text-xs text-(--muted-foreground)">
-              <span>Min: {formatDuration(stats.latency.min_ms)}</span>
-              <span>Max: {formatDuration(stats.latency.max_ms)}</span>
-            </div>
+            {stats.latency.min_ms !== undefined && stats.latency.max_ms !== undefined && (
+              <div className="pt-2 mt-2 border-t border-(--border)/20 flex items-center justify-between text-xs text-(--muted-foreground)">
+                <span>Min: {formatDuration(stats.latency.min_ms)}</span>
+                <span>Max: {formatDuration(stats.latency.max_ms)}</span>
+              </div>
+            )}
           </div>
         </section>
 

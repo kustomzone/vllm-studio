@@ -63,6 +63,7 @@ export default function Dashboard() {
   useEffect(() => {
     loadRecipes();
   }, [loadRecipes]);
+
   useEffect(() => {
     if (
       launchProgress?.stage === "ready" ||
@@ -115,7 +116,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-full bg-(--background) text-(--foreground)">
+    <div className="min-h-full bg-background text-foreground">
       {/* Connection Warning */}
       {!isConnected && (
         <div className="fixed top-4 right-4 z-50 px-3 py-1.5 text-xs text-(--muted-foreground) bg-(--card) border border-(--border)">
@@ -140,7 +141,7 @@ export default function Dashboard() {
         <div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Left Column */}
           <div className="lg:col-span-2 space-y-6">
-            <GpuStatusSection gpus={gpus} />
+            <GpuStatusSection />
 
             <QuickLaunchSection
               recipes={recipes}

@@ -1,133 +1,145 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
-import { normalizeStoredMessage, type Message } from "../utils";
-import type { ChatSession, ToolResult } from "@/lib/types";
+import type { ChatSession } from "../types";
+import type { StoredMessage } from "@/lib/types";
+import type { UIMessage } from "@ai-sdk/react";
 
-interface UseChatSessionsOptions {
-  currentSessionId: string | null;
-  isMobile: boolean;
-  setSessions: (sessions: ChatSession[]) => void;
-  updateSessions: (updater: (sessions: ChatSession[]) => ChatSession[]) => void;
-  setCurrentSessionId: (sessionId: string | null) => void;
-  setCurrentSessionTitle: (title: string) => void;
-  setSessionsLoading: (loading: boolean) => void;
-  setSessionsAvailable: (available: boolean) => void;
-  setMessages: (messages: Message[]) => void;
-  setSelectedModel: (modelId: string) => void;
-  setSidebarCollapsed: (collapsed: boolean) => void;
-  setTitleDraft: (title: string) => void;
-  setToolResultsMap: (map: Map<string, ToolResult>) => void;
-  refreshUsage: (sessionId: string) => void;
+/**
+ * Convert stored messages from backend to UIMessage format for AI SDK
+ * Note: We only restore text content for simplicity - tool calls would need
+ * complex state reconstruction that's not worth the effort for history display
+ */
+function convertStoredToUIMessages(storedMessages: StoredMessage[]): UIMessage[] {
+  return storedMessages.map((msg) => {
+    const parts: UIMessage["parts"] = [];
+
+    // Add text content part
+    if (msg.content) {
+      parts.push({ type: "text", text: msg.content });
+    }
+
+    // For tool calls, just add a text summary instead of reconstructing complex tool parts
+    if (msg.tool_calls && msg.tool_calls.length > 0) {
+      const toolSummary = msg.tool_calls
+        .map(tc => {
+          const hasResult = tc.result !== undefined && tc.result !== null;
+          return `[Tool: ${tc.function.name}${hasResult ? " (completed)" : ""}]`;
+        })
+        .join("\n");
+      if (toolSummary && !msg.content?.includes("[Tool:")) {
+        parts.push({ type: "text", text: toolSummary });
+      }
+    }
+
+    return {
+      id: msg.id,
+      role: msg.role,
+      parts,
+    };
+  });
 }
 
-export function useChatSessions({
-  currentSessionId,
-  isMobile,
-  setSessions,
-  updateSessions,
-  setCurrentSessionId,
-  setCurrentSessionTitle,
-  setSessionsLoading,
-  setSessionsAvailable,
-  setMessages,
-  setSelectedModel,
-  setSidebarCollapsed,
-  setTitleDraft,
-  setToolResultsMap,
-  refreshUsage,
-}: UseChatSessionsOptions) {
-  const loadingSessionRef = useRef(false);
+export function useChatSessions() {
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [currentSessionTitle, setCurrentSessionTitle] = useState<string>("New Chat");
+  const [sessionsLoading, setSessionsLoading] = useState(false);
   const activeSessionRef = useRef<string | null>(null);
 
   const loadSessions = useCallback(async () => {
+    setSessionsLoading(true);
     try {
       const data = await api.getChatSessions();
-      setSessions(data.sessions);
-      setSessionsAvailable(true);
-      if (currentSessionId) {
-        const found = data.sessions.find((s) => s.id === currentSessionId);
-        if (found?.title) setCurrentSessionTitle(found.title);
-      }
-    } catch {
-      setSessions([]);
-      setSessionsAvailable(false);
+      setSessions(data.sessions || []);
+    } catch (err) {
+      console.error("Failed to load sessions:", err);
     } finally {
       setSessionsLoading(false);
     }
-  }, [
-    currentSessionId,
-    setCurrentSessionTitle,
-    setSessions,
-    setSessionsAvailable,
-    setSessionsLoading,
-  ]);
+  }, []);
 
-  const loadSession = useCallback(
-    async (sessionId: string) => {
-      if (!sessionId || loadingSessionRef.current) return;
-      loadingSessionRef.current = true;
-      try {
-        const { session } = await api.getChatSession(sessionId);
-        if (activeSessionRef.current && activeSessionRef.current !== session.id) return;
-        setCurrentSessionId(session.id);
-        setCurrentSessionTitle(session.title);
-        setTitleDraft(session.title);
-        if (session.model) setSelectedModel(session.model);
-        const msgs: Message[] = (session.messages || []).map(normalizeStoredMessage);
-        setMessages(msgs);
-        setToolResultsMap(new Map());
-        refreshUsage(session.id);
-        setSidebarCollapsed(isMobile);
-      } catch {
-        console.log("Failed to load session");
-      } finally {
-        loadingSessionRef.current = false;
-      }
-    },
-    [
-      isMobile,
-      refreshUsage,
-      setCurrentSessionId,
-      setCurrentSessionTitle,
-      setMessages,
-      setSelectedModel,
-      setSidebarCollapsed,
-      setTitleDraft,
-      setToolResultsMap,
-    ],
-  );
+  const loadSession = useCallback(async (sessionId: string): Promise<UIMessage[] | null> => {
+    if (activeSessionRef.current === sessionId) return null;
+    activeSessionRef.current = sessionId;
+
+    try {
+      const data = await api.getChatSession(sessionId);
+      setCurrentSessionId(sessionId);
+      setCurrentSessionTitle(data.session?.title || "Chat");
+
+      // Convert stored messages to UIMessage format
+      const storedMessages = data.session?.messages || [];
+      const uiMessages = convertStoredToUIMessages(storedMessages);
+      return uiMessages;
+    } catch (err) {
+      console.error("Failed to load session:", err);
+      return null;
+    }
+  }, []);
 
   const startNewSession = useCallback(() => {
     activeSessionRef.current = null;
+    setCurrentSessionId(null);
+    setCurrentSessionTitle("New Chat");
   }, []);
 
-  const setActiveSessionRef = useCallback((sessionId: string | null) => {
-    activeSessionRef.current = sessionId;
-  }, []);
-
-  const bumpSessionUpdatedAt = useCallback(
-    (sessionId: string | null) => {
-      if (!sessionId) return;
-      updateSessions((prev) => {
-        const existing = prev.find((s) => s.id === sessionId);
-        const updated = existing
-          ? { ...existing, updated_at: new Date().toISOString() }
-          : undefined;
-        return updated ? [updated, ...prev.filter((s) => s.id !== sessionId)] : prev;
+  const createSession = useCallback(async (title: string, model?: string) => {
+    try {
+      const { session } = await api.createChatSession({
+        title,
+        model,
       });
-    },
-    [updateSessions],
-  );
+      setSessions((prev) => [session, ...prev]);
+      setCurrentSessionId(session.id);
+      setCurrentSessionTitle(session.title);
+      activeSessionRef.current = session.id;
+      return session;
+    } catch (err) {
+      console.error("Failed to create session:", err);
+      return null;
+    }
+  }, []);
+
+  const updateSessionTitle = useCallback(async (sessionId: string, title: string) => {
+    try {
+      await api.updateChatSession(sessionId, { title });
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, title } : s)),
+      );
+      if (currentSessionId === sessionId) {
+        setCurrentSessionTitle(title);
+      }
+    } catch (err) {
+      console.error("Failed to update session title:", err);
+    }
+  }, [currentSessionId]);
+
+  const deleteSession = useCallback(async (sessionId: string) => {
+    try {
+      await api.deleteChatSession(sessionId);
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      if (currentSessionId === sessionId) {
+        startNewSession();
+      }
+    } catch (err) {
+      console.error("Failed to delete session:", err);
+    }
+  }, [currentSessionId, startNewSession]);
 
   return {
+    sessions,
+    currentSessionId,
+    currentSessionTitle,
+    sessionsLoading,
     loadSessions,
     loadSession,
     startNewSession,
-    setActiveSessionRef,
-    bumpSessionUpdatedAt,
-    loadingSessionRef,
-    activeSessionRef,
+    createSession,
+    updateSessionTitle,
+    deleteSession,
+    setCurrentSessionId,
+    setCurrentSessionTitle,
   };
 }

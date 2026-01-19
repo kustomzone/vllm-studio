@@ -209,6 +209,7 @@ export interface MCPServer {
   args?: string[];
   env?: Record<string, string>;
   enabled?: boolean;
+  icon?: string;
 }
 
 export interface MCPTool {

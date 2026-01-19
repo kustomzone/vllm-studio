@@ -12,15 +12,14 @@
     "depcheck": "depcheck --ignores=\"@types/react,@types/react-dom,@types/node,@types/react-syntax-highlighter,eslint-config-next,tailwindcss,@tailwindcss/postcss,depcheck,prettier,@ai-sdk/openai,@ai-sdk/openai-compatible,@ai-sdk/react,ai,rehype-highlight,zod\" --ignore-patterns=\"*.d.ts,.next/**,playwright-report/**\" --specials=next,webpack,babel --skip-missing",
     "analyze": "ANALYZE=true next build",
     "test": "vitest run",
-    "test:integration": "playwright test",
-    "dupcheck": "jscpd --min-lines 20 --min-tokens 100 --reporters console --ignore **/*.test.ts --ignore **/*.spec.ts --ignore **/*.d.ts src"
+    "test:integration": "playwright test"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^2.0.88",
-    "@ai-sdk/openai-compatible": "^1.0.29",
-    "@ai-sdk/react": "^2.0.118",
+    "@ai-sdk/openai": "^3.0.12",
+    "@ai-sdk/openai-compatible": "^2.0.13",
+    "@ai-sdk/react": "^3.0.43",
     "@types/react-syntax-highlighter": "^15.5.13",
-    "ai": "^5.0.116",
+    "ai": "^6.0.41",
     "framer-motion": "^12.24.10",
     "lucide-react": "^0.561.0",
     "markdown-it": "^14.1.0",
@@ -44,7 +43,6 @@
     "eslint": "^9",
     "eslint-config-next": "16.0.10",
     "eslint-plugin-boundaries": "^5.3.1",
-    "jscpd": "^4.0.7",
     "jsdom": "^26.1.0",
     "prettier": "^3.8.0",
     "tailwindcss": "^4",

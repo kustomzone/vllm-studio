@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, Settings, Trash2, Search, Globe, Zap, BookOpen, Sparkles, Brain } from "lucide-react";
 
 export interface DeepResearchSettings {
@@ -46,14 +46,22 @@ export function ChatSettingsModal({
 }: ChatSettingsModalProps) {
   const [localPrompt, setLocalPrompt] = useState(systemPrompt);
   const [localDeepResearch, setLocalDeepResearch] = useState(deepResearch);
+  const initializedRef = useRef(false);
 
   useEffect(() => {
     setLocalPrompt(systemPrompt);
   }, [systemPrompt]);
 
+  // Only sync when modal opens, not on every deepResearch change
   useEffect(() => {
-    setLocalDeepResearch(deepResearch);
-  }, [deepResearch]);
+    if (isOpen && !initializedRef.current) {
+      setLocalDeepResearch(deepResearch);
+      initializedRef.current = true;
+    }
+    if (!isOpen) {
+      initializedRef.current = false;
+    }
+  }, [isOpen, deepResearch]);
 
   useEffect(() => {
     // Load from localStorage on mount
@@ -61,7 +69,8 @@ export function ChatSettingsModal({
     if (saved && !systemPrompt) {
       onSystemPromptChange(saved);
     }
-  }, [onSystemPromptChange, systemPrompt]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!isOpen) return null;
 

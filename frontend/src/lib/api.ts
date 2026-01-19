@@ -268,9 +268,10 @@ class APIClient {
     return this.request(`/chats/${sessionId}/usage`);
   }
 
-  async getMCPServers(): Promise<MCPServer[]> {
-    const data = await this.request<MCPServer[]>("/mcp/servers");
-    return Array.isArray(data) ? data : [];
+  async getMCPServers(): Promise<{ servers: MCPServer[] }> {
+    const data = await this.request<MCPServer[] | { servers?: MCPServer[] }>("/mcp/servers");
+    const servers = Array.isArray(data) ? data : data?.servers ?? [];
+    return { servers };
   }
 
   async getMCPTools(): Promise<{ tools: MCPTool[] }> {
@@ -305,6 +306,14 @@ class APIClient {
       method: "POST",
       body: JSON.stringify(args),
     });
+  }
+
+  async executeMCPTool(
+    server: string,
+    tool: string,
+    args: Record<string, unknown>,
+  ): Promise<{ result: unknown }> {
+    return this.callMCPTool(server, tool, args);
   }
 
   async tokenizeChatCompletions(data: {

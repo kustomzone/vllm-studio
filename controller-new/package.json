@@ -1,0 +1,9 @@
+{
+  "name": "controller-new",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot src/index.ts",
+    "start": "bun src/index.ts"
+  }
+}

@@ -1,125 +1,122 @@
 "use client";
 
-import type { ToolCall, Artifact } from "@/lib/types";
-import type { Message } from "../utils";
+import { useMemo } from "react";
+import type { UIMessage } from "@ai-sdk/react";
+import type { ActivityItem, ThinkingState } from "../types";
+import type { ToolResult } from "@/lib/types";
+import { thinkingParser } from "@/lib/services/message-parsing";
 
 interface UseChatDerivedOptions {
-  messages: Message[];
+  messages: UIMessage[];
   isLoading: boolean;
   executingTools: Set<string>;
-  researchProgress: unknown;
-  sessionArtifacts: Artifact[];
-  parseThinking: (content: string) => {
-    thinkingContent: string | null;
-    isThinkingComplete: boolean;
-  };
-  extractThinkingBlocks: (content: string) => Array<{ content: string; isComplete: boolean }>;
+  toolResultsMap: Map<string, ToolResult>;
 }
-
-interface ActivityItemThinking {
-  type: "thinking";
-  id: string;
-  content: string;
-  isComplete: boolean;
-  isStreaming: boolean;
-}
-
-interface ActivityItemTool {
-  type: "tool";
-  id: string;
-  toolCall: ToolCall & { messageId: string; model?: string };
-}
-
-export type ActivityItem = ActivityItemThinking | ActivityItemTool;
 
 export function useChatDerived({
   messages,
   isLoading,
   executingTools,
-  researchProgress,
-  sessionArtifacts,
-  parseThinking,
-  extractThinkingBlocks,
+  toolResultsMap,
 }: UseChatDerivedOptions) {
-  const allToolCalls = messages.flatMap((m) =>
-    (m.toolCalls || []).map((tc) => ({
-      ...tc,
-      messageId: m.id,
-      model: m.model,
-    })),
-  );
+  // Extract thinking/reasoning content from the last assistant message
+  // Combines both AI SDK reasoning parts AND <think>/<thinking> tags from text content
+  const thinkingState = useMemo<ThinkingState>(() => {
+    const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+    if (!lastAssistant) return { content: "", isComplete: true };
 
-  const latestAssistantMessage = [...messages].reverse().find((m) => m.role === "assistant");
+    // 1. Extract AI SDK reasoning parts
+    const reasoningParts = lastAssistant.parts.filter(
+      (part): part is { type: "reasoning"; text: string } => part.type === "reasoning",
+    );
+    const aiSdkReasoning = reasoningParts.map((p) => p.text).filter(Boolean).join("\n");
 
-  const lastMessage = messages[messages.length - 1];
-  const lastAssistantMessage = lastMessage?.role === "assistant" ? lastMessage : null;
+    // 2. Extract <think>/<thinking> tags from text content
+    const textContent = lastAssistant.parts
+      .filter((p): p is { type: "text"; text: string } => p.type === "text")
+      .map((p) => p.text)
+      .join("");
+    const parsed = thinkingParser.parse(textContent);
+    const thinkTagContent = parsed.thinkingContent || "";
 
-  const thinkingState = (() => {
-    if (!latestAssistantMessage?.content) {
-      return { content: null as string | null, isComplete: true };
-    }
-    const { thinkingContent, isThinkingComplete } = parseThinking(latestAssistantMessage.content);
-    return { content: thinkingContent, isComplete: isThinkingComplete };
-  })();
+    // 3. Combine both sources
+    const combined = [aiSdkReasoning, thinkTagContent].filter(Boolean).join("\n\n");
 
-  const thinkingActive = Boolean(isLoading && thinkingState.content);
+    return {
+      content: combined,
+      isComplete: !isLoading && parsed.isThinkingComplete,
+    };
+  }, [messages, isLoading]);
 
-  const activityItems: ActivityItem[] = [];
-  messages.forEach((msg) => {
-    if (msg.role !== "assistant" || !msg.content) return;
-    const blocks = extractThinkingBlocks(msg.content);
-    const toolCalls = msg.toolCalls || [];
-    let toolIndex = 0;
+  const thinkingActive = isLoading && thinkingState.content.length > 0;
 
-    if (blocks.length === 0 && toolCalls.length === 0) return;
+  const isToolPart = (
+    part: UIMessage["parts"][number],
+  ): part is UIMessage["parts"][number] & { toolCallId: string; input?: unknown } => {
+    if (typeof part.type !== "string") return false;
+    if (part.type === "dynamic-tool") return "toolCallId" in part;
+    return part.type.startsWith("tool-") && "toolCallId" in part;
+  };
 
-    blocks.forEach((block, idx) => {
-      activityItems.push({
-        type: "thinking",
-        id: `thinking-${msg.id}-${idx}`,
-        content: block.content,
-        isComplete: block.isComplete,
-        isStreaming: Boolean(msg.isStreaming) && !block.isComplete,
-      });
-      if (toolIndex < toolCalls.length) {
-        const toolCall = toolCalls[toolIndex];
-        activityItems.push({
-          type: "tool",
-          id: `tool-${msg.id}-${toolCall.id}`,
-          toolCall: { ...toolCall, messageId: msg.id, model: msg.model },
+  // Build activity items from tool calls across all messages
+  const activityItems = useMemo<ActivityItem[]>(() => {
+    const items: ActivityItem[] = [];
+    let idCounter = 0;
+
+    messages.forEach((msg) => {
+      if (msg.role !== "assistant") return;
+
+      msg.parts.forEach((part) => {
+        if (!isToolPart(part)) return;
+
+        const toolCallId = String(part.toolCallId);
+        const result = toolResultsMap.get(toolCallId);
+        const isExecuting = executingTools.has(toolCallId);
+
+        const toolName =
+          part.type === "dynamic-tool"
+            ? "toolName" in part
+              ? String(part.toolName)
+              : "tool"
+            : part.type.replace(/^tool-/, "");
+
+        items.push({
+          id: `activity-${idCounter++}`,
+          type: "tool-call",
+          timestamp: Date.now(),
+          toolName,
+          toolCallId,
+          state: isExecuting
+            ? "running"
+            : result
+              ? result.isError
+                ? "error"
+                : "complete"
+              : "pending",
+          input: "input" in part ? part.input : undefined,
+          output: result?.content,
         });
-        toolIndex += 1;
-      }
+      });
     });
 
-    while (toolIndex < toolCalls.length) {
-      const toolCall = toolCalls[toolIndex];
-      activityItems.push({
-        type: "tool",
-        id: `tool-${msg.id}-${toolCall.id}`,
-        toolCall: { ...toolCall, messageId: msg.id, model: msg.model },
-      });
-      toolIndex += 1;
-    }
-  });
+    return items;
+  }, [messages, executingTools, toolResultsMap]);
 
-  const hasArtifacts = sessionArtifacts.length > 0;
-  const hasToolActivity =
-    messages.some((m) => m.toolCalls?.length) ||
-    executingTools.size > 0 ||
-    researchProgress !== null ||
-    thinkingActive;
-  const hasSidePanelContent = hasToolActivity || hasArtifacts;
+  const hasToolActivity = activityItems.length > 0 || executingTools.size > 0;
+
+  const hasSidePanelContent = hasToolActivity || thinkingState.content.length > 0;
+
+  // Last assistant message for actions
+  const lastAssistantMessage = useMemo(() => {
+    return [...messages].reverse().find((m) => m.role === "assistant") || null;
+  }, [messages]);
 
   return {
-    allToolCalls,
-    latestAssistantMessage,
-    lastAssistantMessage,
     thinkingState,
     thinkingActive,
     activityItems,
-    hasArtifacts,
     hasToolActivity,
     hasSidePanelContent,
+    lastAssistantMessage,
   };
 }

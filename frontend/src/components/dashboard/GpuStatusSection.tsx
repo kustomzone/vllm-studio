@@ -1,10 +1,9 @@
-import type { GPU } from "@/lib/types";
+import { useRealtimeStatus } from "@/hooks/useRealtimeStatus";
 
-interface GpuStatusSectionProps {
-  gpus: GPU[];
-}
+export function GpuStatusSection() {
+  const { gpus: realtimeGpus } = useRealtimeStatus();
 
-export function GpuStatusSection({ gpus }: GpuStatusSectionProps) {
+  const gpus = realtimeGpus.length > 0 ? realtimeGpus : [];
   const toGB = (value: number): number => {
     if (value > 1e10) return value / (1024 * 1024 * 1024);
     if (value > 1e8) return value / (1024 * 1024 * 1024);
