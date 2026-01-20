@@ -29,7 +29,7 @@ export function ChatPage() {
 
   // Local UI state
   const [input, setInput] = useState("");
-  const [selectedModel, setSelectedModel] = useState<string>("default");
+  const [selectedModel, setSelectedModel] = useState<string>("");
   const [systemPrompt, setSystemPrompt] = useState<string>("");
   const [toolPanelOpen, setToolPanelOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<ActivePanel>("tools");
@@ -50,7 +50,9 @@ export function ChatPage() {
   const [mcpSettingsOpen, setMcpSettingsOpen] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [availableModels, setAvailableModels] = useState<Array<{ id: string; name?: string; path?: string }>>([]);
+  const [availableModels, setAvailableModels] = useState<
+    Array<{ id: string; name?: string; path?: string }>
+  >([]);
   const [sessionUsage, setSessionUsage] = useState<SessionUsage | null>(null);
 
   // Refs
@@ -84,11 +86,7 @@ export function ChatPage() {
   const { refreshUsage } = useChatUsage({ setSessionUsage });
 
   // Transport hook for persistence
-  const {
-    persistMessage,
-    createSessionWithMessage,
-    generateTitle,
-  } = useChatTransport({
+  const { persistMessage, createSessionWithMessage, generateTitle } = useChatTransport({
     currentSessionId,
     setCurrentSessionId,
     setCurrentSessionTitle,
@@ -98,29 +96,40 @@ export function ChatPage() {
   // Track the last user input for title generation
   const lastUserInputRef = useRef<string>("");
 
-  // Create transport for useChat
+  // Keep request config current for AI SDK transport (prevents stale model/tools)
+  const requestConfigRef = useRef({
+    model: selectedModel,
+    systemPrompt,
+    getToolDefinitions,
+  });
+
+  useEffect(() => {
+    requestConfigRef.current = {
+      model: selectedModel,
+      systemPrompt,
+      getToolDefinitions,
+    };
+  }, [selectedModel, systemPrompt, getToolDefinitions]);
+
+  // Create transport for useChat (body resolved at request time)
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
-        api: "/api/chat-v2",
-        body: {
-          model: selectedModel,
-          system: systemPrompt || undefined,
-          tools: getToolDefinitions(),
+        api: "/api/chat",
+        body: () => {
+          const { model, systemPrompt, getToolDefinitions } = requestConfigRef.current;
+          return {
+            model: model || undefined,
+            system: systemPrompt?.trim() ? systemPrompt.trim() : undefined,
+            tools: getToolDefinitions?.() ?? [],
+          };
         },
       }),
-    [selectedModel, systemPrompt, getToolDefinitions],
+    [requestConfigRef],
   );
 
   // AI SDK useChat - the source of truth for messages
-  const {
-    messages,
-    sendMessage,
-    stop,
-    status,
-    error,
-    setMessages,
-  } = useChat({
+  const { messages, sendMessage, stop, status, error, setMessages } = useChat({
     transport,
     onToolCall: async ({ toolCall }) => {
       await executeTool({
@@ -157,12 +166,7 @@ export function ChatPage() {
   const isLoading = status === "streaming" || status === "submitted";
 
   // Derived state from messages
-  const {
-    thinkingState,
-    thinkingActive,
-    activityItems,
-    hasSidePanelContent,
-  } = useChatDerived({
+  const { thinkingState, thinkingActive, activityItems, hasSidePanelContent } = useChatDerived({
     messages,
     isLoading,
     executingTools,
@@ -239,28 +243,41 @@ export function ChatPage() {
     }
   }, [mcpEnabled, loadMCPTools]);
 
-  // Load available models on mount
+  // Load available models from recipes on mount
   useEffect(() => {
     const loadModels = async () => {
       try {
-        const data = await api.getModels();
-        const mappedModels = (data.models || []).map((model) => ({
-          // Use recipe ID if available (non-empty array), otherwise use model name as ID
-          id: model.recipe_ids && model.recipe_ids.length > 0 ? model.recipe_ids[0] : model.name,
-          name: model.name,
-          path: model.path,
-          hasRecipe: model.has_recipe ?? false,
-        }));
+        const data = await api.getRecipes();
+        // Map recipes to model options - ONLY use served_model_name
+        const mappedModels = (data.recipes || [])
+          .filter((recipe) => recipe.served_model_name) // Only recipes with served_model_name
+          .map((recipe) => ({
+            id: recipe.served_model_name!,
+            name: recipe.served_model_name!,
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+
         setAvailableModels(mappedModels);
 
         // Try to restore last used model from localStorage
         const lastModel = localStorage.getItem("vllm-studio-last-model");
-        if (lastModel && mappedModels.some((m) => m.id === lastModel)) {
-          setSelectedModel(lastModel);
-        } else if (mappedModels.length && selectedModel === "default") {
-          // Auto-select first model if none selected
-          setSelectedModel(mappedModels[0].id);
-        }
+        const fallbackModel = mappedModels[0]?.id || "";
+
+        setSelectedModel((current) => {
+          let next = current;
+          if (lastModel && mappedModels.some((m) => m.id === lastModel)) {
+            next = lastModel;
+          } else if (!current || !mappedModels.some((m) => m.id === current)) {
+            // Auto-select first model if none selected or selection is invalid
+            next = fallbackModel;
+          }
+
+          if (next && next !== current) {
+            localStorage.setItem("vllm-studio-last-model", next);
+          }
+
+          return next;
+        });
       } catch (err) {
         console.error("Failed to load models:", err);
       }
@@ -332,63 +349,75 @@ export function ChatPage() {
   }, [currentSessionId, currentSessionTitle, selectedModel, messages]);
 
   // Handle send with persistence and attachments
-  const handleSend = useCallback(async (attachments?: Attachment[]) => {
-    if (!input.trim() && (!attachments || attachments.length === 0)) return;
-    if (isLoading) return;
+  const handleSend = useCallback(
+    async (attachments?: Attachment[]) => {
+      if (!selectedModel) return;
+      if (!input.trim() && (!attachments || attachments.length === 0)) return;
+      if (isLoading) return;
 
-    setStreamingStartTime(Date.now());
-    const userInput = input;
-    setInput("");
+      setStreamingStartTime(Date.now());
+      const userInput = input;
+      setInput("");
 
-    // Store for title generation
-    lastUserInputRef.current = userInput;
+      // Store for title generation
+      lastUserInputRef.current = userInput;
 
-    // Build message parts including attachments
-    const parts: UIMessage["parts"] = [];
-    if (userInput.trim()) {
-      parts.push({ type: "text", text: userInput });
-    }
+      // Build message parts including attachments
+      const parts: UIMessage["parts"] = [];
+      if (userInput.trim()) {
+        parts.push({ type: "text", text: userInput });
+      }
 
-    // Add image attachments as file parts
-    if (attachments) {
-      for (const att of attachments) {
-        if (att.type === "image" && att.base64) {
-          // Note: AI SDK supports image parts, add as experimental_attachments in sendMessage
-          parts.push({
-            type: "text",
-            text: `[Image: ${att.name}]`,
-          });
-        } else if (att.type === "file" && att.file) {
-          // For files, add file name reference
-          parts.push({
-            type: "text",
-            text: `[File: ${att.name}]`,
-          });
+      // Add image attachments as file parts
+      if (attachments) {
+        for (const att of attachments) {
+          if (att.type === "image" && att.base64) {
+            // Note: AI SDK supports image parts, add as experimental_attachments in sendMessage
+            parts.push({
+              type: "text",
+              text: `[Image: ${att.name}]`,
+            });
+          } else if (att.type === "file" && att.file) {
+            // For files, add file name reference
+            parts.push({
+              type: "text",
+              text: `[File: ${att.name}]`,
+            });
+          }
         }
       }
-    }
 
-    const userMessage: UIMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      parts,
-    };
+      const userMessage: UIMessage = {
+        id: `user-${Date.now()}`,
+        role: "user",
+        parts,
+      };
 
-    // Create session if needed, then persist user message
-    let sessionId = currentSessionId;
-    if (!sessionId) {
-      sessionId = await createSessionWithMessage(userMessage);
-    } else {
-      await persistMessage(sessionId, userMessage);
-    }
+      // Create session if needed, then persist user message
+      let sessionId = currentSessionId;
+      if (!sessionId) {
+        sessionId = await createSessionWithMessage(userMessage);
+      } else {
+        await persistMessage(sessionId, userMessage);
+      }
 
-    // Send the message via AI SDK - use simple text format
-    // Note: For image attachments, the files would need to be passed as FileList
-    // but our current attachment handling uses base64. For now, just send text.
-    sendMessage({
-      text: userInput,
-    });
-  }, [input, isLoading, sendMessage, currentSessionId, createSessionWithMessage, persistMessage]);
+      // Send the message via AI SDK - use simple text format
+      // Note: For image attachments, the files would need to be passed as FileList
+      // but our current attachment handling uses base64. For now, just send text.
+      sendMessage({
+        text: userInput,
+      });
+    },
+    [
+      input,
+      isLoading,
+      sendMessage,
+      currentSessionId,
+      createSessionWithMessage,
+      persistMessage,
+      selectedModel,
+    ],
+  );
 
   // Handle stop
   const handleStop = useCallback(() => {
@@ -398,10 +427,14 @@ export function ChatPage() {
   }, [stop]);
 
   // Handle model change and persist to localStorage
-  const handleModelChange = useCallback((modelId: string) => {
-    setSelectedModel(modelId);
-    localStorage.setItem("vllm-studio-last-model", modelId);
-  }, []);
+  const handleModelChange = useCallback(
+    (modelId: string) => {
+      setSelectedModel(modelId);
+      requestConfigRef.current = { ...requestConfigRef.current, model: modelId };
+      localStorage.setItem("vllm-studio-last-model", modelId);
+    },
+    [requestConfigRef],
+  );
 
   const toolBelt = (
     <ToolBelt

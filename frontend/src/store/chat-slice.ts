@@ -1,7 +1,5 @@
 import type { StateCreator } from "zustand";
 import type { ChatSession, ToolCall, ToolResult } from "@/lib/types";
-import type { DeepResearchSettings, MCPServerConfig } from "@/components/chat";
-import type { ResearchProgress, ResearchSource } from "@/components/chat/research-progress";
 import { loadState } from "@/lib/chat-state-persistence";
 
 export interface ChatMessage {
@@ -23,11 +21,46 @@ export interface ChatMessage {
   estimated_cost_usd?: number | null;
 }
 
+export interface MCPServerConfig {
+  name: string;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  enabled: boolean;
+  icon?: string;
+}
+
 export interface MCPTool {
   server: string;
   name: string;
   description?: string;
   inputSchema?: Record<string, unknown>;
+}
+
+export interface ResearchSource {
+  title: string;
+  url: string;
+  snippet?: string;
+  status: "pending" | "fetching" | "done" | "error";
+  relevance?: number;
+}
+
+export interface ResearchProgress {
+  stage: "searching" | "analyzing" | "synthesizing" | "done" | "error";
+  message: string;
+  sources: ResearchSource[];
+  totalSteps: number;
+  currentStep: number;
+  searchQueries?: string[];
+  error?: string;
+}
+
+export interface DeepResearchSettings {
+  enabled: boolean;
+  numSources: number;
+  autoSummarize: boolean;
+  includeCitations: boolean;
+  searchDepth: "quick" | "normal" | "thorough";
 }
 
 export interface SessionUsage {
