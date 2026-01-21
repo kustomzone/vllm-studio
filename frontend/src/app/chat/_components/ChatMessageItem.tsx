@@ -11,7 +11,11 @@ interface ChatMessageItemProps {
   artifactsEnabled?: boolean;
 }
 
-function ChatMessageItemBase({ message, isStreaming, artifactsEnabled = false }: ChatMessageItemProps) {
+function ChatMessageItemBase({
+  message,
+  isStreaming,
+  artifactsEnabled = false,
+}: ChatMessageItemProps) {
   const isUser = message.role === "user";
 
   // Extract text content from parts
@@ -22,7 +26,7 @@ function ChatMessageItemBase({ message, isStreaming, artifactsEnabled = false }:
 
   // For assistant messages, parse thinking content and get mainContent without <think> tags
   const parsedThinking = !isUser ? thinkingParser.parse(rawTextContent) : null;
-  const textContent = isUser ? rawTextContent : (parsedThinking?.mainContent || "");
+  const textContent = isUser ? rawTextContent : parsedThinking?.mainContent || "";
   const hasThinkingContent = !isUser && parsedThinking?.thinkingContent;
 
   // Extract tool parts (they have type starting with "tool-")
@@ -39,7 +43,7 @@ function ChatMessageItemBase({ message, isStreaming, artifactsEnabled = false }:
   if (isUser) {
     return (
       <div id={`message-${message.id}`} className="flex justify-end">
-        <div className="ml-auto max-w-[75%] md:max-w-[62%] rounded-xl border border-[var(--border)] bg-[var(--card)]/70 px-3 py-2">
+        <div className="ml-auto max-w-[75%] md:max-w-[62%] rounded-xl border border-(--border) bg-(--card)/70 px-3 py-2">
           <div className="text-[10px] uppercase tracking-[0.2em] text-[#9a9590] mb-1">You</div>
           <div className="text-[16px] leading-relaxed text-[#e8e4dd] whitespace-pre-wrap break-words">
             {textContent}
@@ -70,7 +74,7 @@ function ChatMessageItemBase({ message, isStreaming, artifactsEnabled = false }:
 
         {/* Tool invocations preview */}
         {toolParts.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-[var(--border)]">
+          <div className="mt-3 pt-3 border-t border-(--border)">
             {toolParts.map((tool) => {
               const toolName = tool.type.replace(/^tool-/, "");
               const state = tool.state;
@@ -94,7 +98,7 @@ function ChatMessageItemBase({ message, isStreaming, artifactsEnabled = false }:
       {/* Reasoning preview (collapsed) */}
       {hasReasoningContent && (
         <div className="mt-2 text-xs text-[#6a6560]">
-          <span className="italic">Reasoning available in side panel</span>
+          <span className="italic">Reasoning available in activity panel</span>
         </div>
       )}
     </div>

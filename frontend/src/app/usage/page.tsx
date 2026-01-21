@@ -32,22 +32,22 @@ export default function UsagePage() {
     error,
     onLoad: loadStats,
   });
-  if (pageStateRender) return <div className="min-h-full bg-[var(--background)]">{pageStateRender}</div>;
+  if (pageStateRender) return <div className="min-h-full bg-(--background)">{pageStateRender}</div>;
 
   if (!stats) return null;
 
   return (
-    <div className="min-h-full bg-[var(--background)] text-[var(--foreground)] overflow-y-auto">
+    <div className="min-h-full bg-(--background) text-(--foreground) overflow-y-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6 pb-4 border-b border-[var(--border)]/40">
+        <div className="flex items-center justify-between mb-6 pb-4 border-b border-(--border)/40">
           <div>
-            <h1 className="text-lg font-medium text-[var(--foreground)]">Usage Analytics</h1>
-            <p className="text-xs text-[var(--muted-foreground)] mt-1">
+            <h1 className="text-lg font-medium text-(--foreground)">Usage Analytics</h1>
+            <p className="text-xs text-(--muted-foreground) mt-1">
               Comprehensive insights into your model usage
             </p>
           </div>
-          {RefreshButton({ onRefresh: loadStats, loading, className: "hover:bg-[var(--card)]/50" })}
+          {RefreshButton({ onRefresh: loadStats, loading, className: "hover:bg-(--card)/50" })}
         </div>
 
         {/* Overview Metrics */}

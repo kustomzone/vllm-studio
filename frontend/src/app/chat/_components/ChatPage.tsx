@@ -6,6 +6,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { PanelRightOpen, Settings, BarChart3, Download, Server } from "lucide-react";
 import { api } from "@/lib/api";
+import { extractArtifacts } from "@/components/chat/artifact-renderer";
 import { ToolBelt, type Attachment } from "@/components/chat/tool-belt";
 import { ChatMessageList } from "./ChatMessageList";
 import { ChatSidePanel } from "./ChatSidePanel";
@@ -21,6 +22,7 @@ import { useChatDerived } from "../hooks/useChatDerived";
 import { useChatTransport } from "../hooks/useChatTransport";
 import type { ActivePanel, DeepResearchConfig, SessionUsage } from "../types";
 import type { UIMessage } from "@ai-sdk/react";
+import type { Artifact } from "@/lib/types";
 
 export function ChatPage() {
   const searchParams = useSearchParams();
@@ -32,7 +34,7 @@ export function ChatPage() {
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [systemPrompt, setSystemPrompt] = useState<string>("");
   const [toolPanelOpen, setToolPanelOpen] = useState(false);
-  const [activePanel, setActivePanel] = useState<ActivePanel>("tools");
+  const [activePanel, setActivePanel] = useState<ActivePanel>("activity");
   const [mcpEnabled, setMcpEnabled] = useState(false);
   const [artifactsEnabled, setArtifactsEnabled] = useState(false);
   const [deepResearch, setDeepResearch] = useState<DeepResearchConfig>({
@@ -95,19 +97,13 @@ export function ChatPage() {
 
   // Track the last user input for title generation
   const lastUserInputRef = useRef<string>("");
+  const autoArtifactSwitchRef = useRef(false);
 
-  // Keep request config current for AI SDK transport (prevents stale model/tools)
-  const requestConfigRef = useRef({
-    model: selectedModel,
-    systemPrompt,
-    getToolDefinitions,
-  });
-
-  useEffect(() => {
-    requestConfigRef.current = {
-      model: selectedModel,
-      systemPrompt,
-      getToolDefinitions,
+  const getRequestBody = useCallback(() => {
+    return {
+      model: selectedModel || undefined,
+      system: systemPrompt?.trim() ? systemPrompt.trim() : undefined,
+      tools: getToolDefinitions?.() ?? [],
     };
   }, [selectedModel, systemPrompt, getToolDefinitions]);
 
@@ -116,16 +112,9 @@ export function ChatPage() {
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
-        body: () => {
-          const { model, systemPrompt, getToolDefinitions } = requestConfigRef.current;
-          return {
-            model: model || undefined,
-            system: systemPrompt?.trim() ? systemPrompt.trim() : undefined,
-            tools: getToolDefinitions?.() ?? [],
-          };
-        },
+        body: getRequestBody,
       }),
-    [requestConfigRef],
+    [getRequestBody],
   );
 
   // AI SDK useChat - the source of truth for messages
@@ -166,12 +155,57 @@ export function ChatPage() {
   const isLoading = status === "streaming" || status === "submitted";
 
   // Derived state from messages
-  const { thinkingState, thinkingActive, activityItems, hasSidePanelContent } = useChatDerived({
+  const { thinkingState, thinkingActive, activityItems } = useChatDerived({
     messages,
     isLoading,
     executingTools,
     toolResultsMap,
   });
+
+  const activityCount = activityItems.length + (thinkingState.content ? 1 : 0);
+
+  const sessionArtifacts = useMemo(() => {
+    if (!artifactsEnabled || messages.length === 0) return [];
+
+    const artifacts: Artifact[] = [];
+    messages.forEach((msg) => {
+      if (msg.role !== "assistant") return;
+
+      const textContent = msg.parts
+        .filter((p): p is { type: "text"; text: string } => p.type === "text")
+        .map((p) => p.text)
+        .join("");
+
+      if (!textContent) return;
+
+      const { artifacts: extracted } = extractArtifacts(textContent);
+      extracted.forEach((artifact, index) => {
+        artifacts.push({
+          ...artifact,
+          id: `${msg.id}-${index}`,
+          message_id: msg.id,
+          session_id: currentSessionId || undefined,
+        });
+      });
+    });
+
+    return artifacts;
+  }, [messages, artifactsEnabled, currentSessionId]);
+
+  useEffect(() => {
+    if (sessionArtifacts.length === 0) {
+      autoArtifactSwitchRef.current = false;
+      return;
+    }
+
+    if (!autoArtifactSwitchRef.current) {
+      autoArtifactSwitchRef.current = true;
+      const timeoutId = window.setTimeout(() => {
+        setActivePanel("artifacts");
+      }, 0);
+      return () => window.clearTimeout(timeoutId);
+    }
+  }, [sessionArtifacts.length]);
 
   const showEmptyState = messages.length === 0 && !isLoading && !error;
 
@@ -283,7 +317,7 @@ export function ChatPage() {
       }
     };
     loadModels();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Load MCP servers when settings modal opens
   useEffect(() => {
@@ -355,6 +389,8 @@ export function ChatPage() {
       if (!input.trim() && (!attachments || attachments.length === 0)) return;
       if (isLoading) return;
 
+      setToolPanelOpen(true);
+      setActivePanel("activity");
       setStreamingStartTime(Date.now());
       const userInput = input;
       setInput("");
@@ -427,14 +463,10 @@ export function ChatPage() {
   }, [stop]);
 
   // Handle model change and persist to localStorage
-  const handleModelChange = useCallback(
-    (modelId: string) => {
-      setSelectedModel(modelId);
-      requestConfigRef.current = { ...requestConfigRef.current, model: modelId };
-      localStorage.setItem("vllm-studio-last-model", modelId);
-    },
-    [requestConfigRef],
-  );
+  const handleModelChange = useCallback((modelId: string) => {
+    setSelectedModel(modelId);
+    localStorage.setItem("vllm-studio-last-model", modelId);
+  }, []);
 
   const toolBelt = (
     <ToolBelt
@@ -504,40 +536,40 @@ export function ChatPage() {
             <div className="absolute right-3 top-3 z-10 hidden md:flex flex-col items-center gap-2">
               <button
                 onClick={() => setToolPanelOpen(true)}
-                className="relative p-1.5 bg-[var(--card)] border border-[var(--border)] rounded hover:bg-[var(--accent)]"
-                title="Show tools"
+                className="relative p-1.5 bg-(--card) border border-(--border) rounded hover:bg-(--accent)"
+                title="Show activity"
               >
                 <PanelRightOpen className="h-4 w-4 text-[#9a9590]" />
-                {(executingTools.size > 0 || thinkingActive) && (
-                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[var(--success)] rounded-full text-[9px] text-white font-medium flex items-center justify-center">
-                    {executingTools.size || "·"}
+                {activityCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-(--success) rounded-full text-[9px] text-white font-medium flex items-center justify-center">
+                    {activityCount}
                   </span>
                 )}
               </button>
               <button
                 onClick={() => setSettingsOpen(true)}
-                className="p-1.5 bg-[var(--card)] border border-[var(--border)] rounded hover:bg-[var(--accent)]"
+                className="p-1.5 bg-(--card) border border-(--border) rounded hover:bg-(--accent)"
                 title="Settings"
               >
                 <Settings className="h-4 w-4 text-[#9a9590]" />
               </button>
               <button
                 onClick={() => setMcpSettingsOpen(true)}
-                className="p-1.5 bg-[var(--card)] border border-[var(--border)] rounded hover:bg-[var(--accent)]"
+                className="p-1.5 bg-(--card) border border-(--border) rounded hover:bg-(--accent)"
                 title="MCP Servers"
               >
                 <Server className="h-4 w-4 text-[#9a9590]" />
               </button>
               <button
                 onClick={() => setUsageOpen(true)}
-                className="p-1.5 bg-[var(--card)] border border-[var(--border)] rounded hover:bg-[var(--accent)]"
+                className="p-1.5 bg-(--card) border border-(--border) rounded hover:bg-(--accent)"
                 title="Usage"
               >
                 <BarChart3 className="h-4 w-4 text-[#9a9590]" />
               </button>
               <button
                 onClick={() => setExportOpen(true)}
-                className="p-1.5 bg-[var(--card)] border border-[var(--border)] rounded hover:bg-[var(--accent)]"
+                className="p-1.5 bg-(--card) border border-(--border) rounded hover:bg-(--accent)"
                 title="Export"
               >
                 <Download className="h-4 w-4 text-[#9a9590]" />
@@ -548,7 +580,7 @@ export function ChatPage() {
           </div>
 
           {/* Side panel */}
-          {hasSidePanelContent && toolPanelOpen && (
+          {toolPanelOpen && (
             <ChatSidePanel
               isOpen={toolPanelOpen}
               onClose={() => setToolPanelOpen(false)}
@@ -557,6 +589,8 @@ export function ChatPage() {
               thinkingContent={thinkingState.content}
               thinkingActive={thinkingActive}
               activityItems={activityItems}
+              executingTools={executingTools}
+              artifacts={sessionArtifacts}
             />
           )}
         </div>

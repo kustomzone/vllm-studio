@@ -77,11 +77,11 @@ export function ToolBelt({
   };
 
   return (
-    <div className="px-0 md:px-3 pb-0 md:pb-0 bg-[var(--background)]">
+    <div className="px-0 md:px-3 pb-0 md:pb-0 bg-(--background)">
       <div className="max-w-4xl mx-auto w-full px-2 md:px-0">
         <div
-          className={`relative flex flex-col border rounded-2xl md:rounded-xl bg-[var(--card)] shadow-sm ${
-            isLoading ? "border-blue-500/30" : "border-[var(--border)]"
+          className={`relative flex flex-col border rounded-2xl md:rounded-xl bg-(--card) shadow-sm ${
+            isLoading ? "border-blue-500/30" : "border-(--border)"
           }`}
         >
           {/* Textarea */}
@@ -108,7 +108,7 @@ export function ToolBelt({
           />
 
           {/* Tool Bar */}
-          <div className="flex items-center justify-between px-2 py-1 border-t border-[var(--border)]">
+          <div className="flex items-center justify-between px-2 py-1 border-t border-(--border)">
             <div className="flex items-center gap-0.5">
               {/* Streaming Timer */}
               {isLoading && elapsedSeconds !== undefined && (
@@ -127,8 +127,8 @@ export function ToolBelt({
                 disabled={disabled}
                 className={`flex items-center gap-2 px-2 py-1.5 md:px-2 md:py-1 rounded-lg transition-all disabled:opacity-50 ${
                   mcpEnabled
-                    ? "bg-[var(--card-hover)] text-[#e8e4dd] border border-[var(--border)]/50"
-                    : "hover:bg-[var(--accent)] text-[#9a9590]"
+                    ? "bg-(--card-hover) text-[#e8e4dd] border border-(--border)/50"
+                    : "hover:bg-(--accent) text-[#9a9590]"
                 }`}
                 title={mcpEnabled ? "Disable tools" : "Enable tools"}
               >
@@ -142,8 +142,8 @@ export function ToolBelt({
                 disabled={disabled}
                 className={`flex items-center gap-2 px-2 py-1.5 md:px-2 md:py-1 rounded-lg transition-all disabled:opacity-50 ${
                   artifactsEnabled
-                    ? "bg-[var(--card-hover)] text-[#e8e4dd] border border-[var(--border)]/50"
-                    : "hover:bg-[var(--accent)] text-[#9a9590]"
+                    ? "bg-(--card-hover) text-[#e8e4dd] border border-(--border)/50"
+                    : "hover:bg-(--accent) text-[#9a9590]"
                 }`}
                 title={artifactsEnabled ? "Disable preview" : "Enable preview"}
               >
@@ -158,8 +158,8 @@ export function ToolBelt({
                   disabled={disabled}
                   className={`flex items-center gap-2 px-2 py-1.5 md:px-2 md:py-1 rounded-lg transition-all disabled:opacity-50 ${
                     deepResearchEnabled
-                      ? "bg-[var(--card-hover)] text-[#e8e4dd] border border-[var(--border)]/50"
-                      : "hover:bg-[var(--accent)] text-[#9a9590]"
+                      ? "bg-(--card-hover) text-[#e8e4dd] border border-(--border)/50"
+                      : "hover:bg-(--accent) text-[#9a9590]"
                   }`}
                   title={deepResearchEnabled ? "Deep Research enabled" : "Enable Deep Research"}
                 >
@@ -174,8 +174,8 @@ export function ToolBelt({
                 disabled={disabled}
                 className={`flex items-center gap-2 px-2 py-1.5 md:px-2 md:py-1 rounded-lg transition-all disabled:opacity-50 ${
                   hasSystemPrompt
-                    ? "bg-[var(--card-hover)] text-[#e8e4dd] border border-[var(--border)]/50"
-                    : "hover:bg-[var(--accent)] text-[#9a9590]"
+                    ? "bg-(--card-hover) text-[#e8e4dd] border border-(--border)/50"
+                    : "hover:bg-(--accent) text-[#9a9590]"
                 }`}
                 title="Configure system prompt"
               >
@@ -188,7 +188,7 @@ export function ToolBelt({
               {isLoading ? (
                 <button
                   onClick={onStop}
-                  className="p-2 md:p-2 rounded-lg bg-[var(--error)] text-white hover:opacity-90 transition-all active:scale-95"
+                  className="p-2 md:p-2 rounded-lg bg-(--error) text-white hover:opacity-90 transition-all active:scale-95"
                   title="Stop"
                 >
                   <StopCircle className="h-4 w-4" />
@@ -197,7 +197,7 @@ export function ToolBelt({
                 <button
                   onClick={handleSubmit}
                   disabled={!value.trim() || disabled}
-                  className="p-2 md:p-2 rounded-lg bg-[var(--foreground)] text-[var(--background)] hover:opacity-90 transition-all active:scale-95 disabled:opacity-30 disabled:active:scale-100"
+                  className="p-2 md:p-2 rounded-lg bg-(--foreground) text-(--background) hover:opacity-90 transition-all active:scale-95 disabled:opacity-30 disabled:active:scale-100"
                   title="Send"
                 >
                   <Send className="h-4 w-4" />

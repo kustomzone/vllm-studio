@@ -7,17 +7,15 @@ import {
   Image as ImageIcon,
   Mic,
   MicOff,
-  Volume2,
-  VolumeX,
   X,
   FileText,
   Send,
   StopCircle,
   Globe,
   Code,
+  Brain,
   Settings,
   SlidersHorizontal,
-  Brain,
   Clock,
   Loader2,
 } from "lucide-react";
@@ -102,7 +100,6 @@ export function ToolBelt({
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
-  const [isTTSEnabled, setIsTTSEnabled] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -487,29 +484,11 @@ export function ToolBelt({
                 )}
               </button>
 
-              {/* TTS Toggle */}
-              <button
-                onClick={() => setIsTTSEnabled(!isTTSEnabled)}
-                disabled={disabled}
-                className={`p-1.5 rounded transition-colors disabled:opacity-50 hidden md:inline-flex ${
-                  isTTSEnabled
-                    ? "bg-(--success)/20 text-(--success)"
-                    : "hover:bg-(--accent)"
-                }`}
-                title={isTTSEnabled ? "Disable TTS" : "Enable TTS"}
-              >
-                {isTTSEnabled ? (
-                  <Volume2 className="h-3.5 w-3.5" />
-                ) : (
-                  <VolumeX className="h-3.5 w-3.5 text-[#9a9590]" />
-                )}
-              </button>
-
               {/* Tools Toggle */}
               <button
                 onClick={onMcpToggle}
                 disabled={disabled}
-                className={`flex items-center gap-2 px-2 py-1.5 md:px-2 md:py-1 rounded-lg transition-all disabled:opacity-50 ${
+                className={`p-1.5 md:p-2 rounded-lg transition-all disabled:opacity-50 ${
                   mcpEnabled
                     ? "bg-(--card-hover) text-[#e8e4dd] border border-(--border)/50"
                     : "hover:bg-(--accent) text-[#9a9590]"
@@ -517,62 +496,63 @@ export function ToolBelt({
                 title={mcpEnabled ? "Disable web search & tools" : "Enable web search & tools"}
               >
                 <Globe className="h-4 w-4" />
-                <span className="text-xs hidden sm:inline">Tools</span>
               </button>
 
-              {/* Preview Toggle */}
-              <button
-                onClick={onArtifactsToggle}
-                disabled={disabled}
-                className={`flex items-center gap-2 px-2 py-1.5 md:px-2 md:py-1 rounded-lg transition-all disabled:opacity-50 ${
-                  artifactsEnabled
-                    ? "bg-(--card-hover) text-[#e8e4dd] border border-(--border)/50"
-                    : "hover:bg-(--accent) text-[#9a9590]"
-                }`}
-                title={artifactsEnabled ? "Disable code preview" : "Enable code preview & sandbox"}
-              >
-                <Code className="h-4 w-4" />
-                <span className="text-xs hidden sm:inline">Preview</span>
-              </button>
-
-              {/* Research Toggle */}
-              {onDeepResearchToggle && (
+              {onArtifactsToggle && (
                 <button
-                  onClick={onDeepResearchToggle}
+                  onClick={onArtifactsToggle}
                   disabled={disabled}
-                  className={`flex items-center gap-2 px-2 py-1.5 md:px-2 md:py-1 rounded-lg transition-all disabled:opacity-50 ${
-                    deepResearchEnabled
+                  className={`p-1.5 md:p-2 rounded-lg transition-all disabled:opacity-50 ${
+                    artifactsEnabled
                       ? "bg-(--card-hover) text-[#e8e4dd] border border-(--border)/50"
                       : "hover:bg-(--accent) text-[#9a9590]"
                   }`}
                   title={
-                    deepResearchEnabled ? "Deep Research enabled" : "Enable Deep Research mode"
+                    artifactsEnabled ? "Disable code preview" : "Enable code preview & sandbox"
                   }
                 >
-                  <Brain className="h-4 w-4" />
-                  <span className="text-xs hidden sm:inline">Research</span>
+                  <Code className="h-4 w-4" />
                 </button>
               )}
 
-              {/* MCP Settings */}
-              <button
-                onClick={onOpenMcpSettings}
-                disabled={disabled}
-                className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-(--accent) transition-colors disabled:opacity-50 hidden sm:inline-flex text-[#9a9590]"
-                title="Configure MCP servers"
-              >
-                <Settings className="h-3.5 w-3.5" />
-              </button>
+              {onDeepResearchToggle && (
+                <button
+                  onClick={onDeepResearchToggle}
+                  disabled={disabled}
+                  className={`p-1.5 md:p-2 rounded-lg transition-all disabled:opacity-50 ${
+                    deepResearchEnabled
+                      ? "bg-(--card-hover) text-[#e8e4dd] border border-(--border)/50"
+                      : "hover:bg-(--accent) text-[#9a9590]"
+                  }`}
+                  title={deepResearchEnabled ? "Deep Research enabled" : "Enable Deep Research"}
+                >
+                  <Brain className="h-4 w-4" />
+                </button>
+              )}
+
+              {onOpenMcpSettings && (
+                <button
+                  onClick={onOpenMcpSettings}
+                  disabled={disabled}
+                  className="p-1.5 md:p-2 rounded-lg hover:bg-(--accent) transition-colors disabled:opacity-50 text-[#9a9590]"
+                  title="Configure MCP servers"
+                >
+                  <Settings className="h-4 w-4" />
+                </button>
+              )}
 
               {/* System Prompt */}
               <button
                 onClick={onOpenChatSettings}
                 disabled={disabled}
-                className="flex items-center gap-2 px-2 py-1.5 md:px-2 md:py-1 rounded-lg transition-all disabled:opacity-50 hover:bg-(--accent) text-[#9a9590]"
+                className={`p-1.5 md:p-2 rounded-lg transition-all disabled:opacity-50 ${
+                  hasSystemPrompt
+                    ? "bg-(--card-hover) text-[#e8e4dd] border border-(--border)/50"
+                    : "hover:bg-(--accent) text-[#9a9590]"
+                }`}
                 title={hasSystemPrompt ? "System prompt active" : "Configure system prompt"}
               >
                 <SlidersHorizontal className="h-4 w-4" />
-                <span className="text-xs hidden sm:inline">System</span>
               </button>
             </div>
 

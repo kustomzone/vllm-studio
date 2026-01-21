@@ -96,4 +96,4 @@ export interface ThinkingState {
 }
 
 // Panel types
-export type ActivePanel = "tools" | "artifacts";
+export type ActivePanel = "activity" | "artifacts";

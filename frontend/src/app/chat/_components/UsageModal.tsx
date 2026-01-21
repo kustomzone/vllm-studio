@@ -31,16 +31,16 @@ export function UsageModal({
         onClick={onClose}
         aria-label="Close"
       />
-      <div className="relative w-full max-w-md mx-4 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-xl">
+      <div className="relative w-full max-w-md mx-4 bg-(--card) border border-(--border) rounded-xl shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-(--border)">
           <div className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-[#9a9590]" />
             <h2 className="text-lg font-semibold">Session Usage</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded hover:bg-[var(--accent)]"
+            className="p-1.5 rounded hover:bg-(--accent)"
           >
             <X className="h-5 w-5 text-[#9a9590]" />
           </button>
@@ -51,7 +51,7 @@ export function UsageModal({
           {sessionUsage ? (
             <>
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-[var(--background)] border border-[var(--border)] rounded-lg">
+                <div className="p-4 bg-(--background) border border-(--border) rounded-lg">
                   <div className="text-xs text-[#6a6560] uppercase tracking-wide mb-1">
                     Prompt Tokens
                   </div>
@@ -59,7 +59,7 @@ export function UsageModal({
                     {formatNumber(sessionUsage.prompt_tokens)}
                   </div>
                 </div>
-                <div className="p-4 bg-[var(--background)] border border-[var(--border)] rounded-lg">
+                <div className="p-4 bg-(--background) border border-(--border) rounded-lg">
                   <div className="text-xs text-[#6a6560] uppercase tracking-wide mb-1">
                     Completion Tokens
                   </div>
@@ -69,7 +69,7 @@ export function UsageModal({
                 </div>
               </div>
 
-              <div className="p-4 bg-[var(--background)] border border-[var(--border)] rounded-lg">
+              <div className="p-4 bg-(--background) border border-(--border) rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-xs text-[#6a6560] uppercase tracking-wide mb-1">
@@ -83,7 +83,7 @@ export function UsageModal({
                     <div className="text-xs text-[#6a6560] uppercase tracking-wide mb-1">
                       Estimated Cost
                     </div>
-                    <div className="text-xl font-semibold text-[var(--link)]">
+                    <div className="text-xl font-semibold text-(--link)">
                       {formatCost(sessionUsage.estimated_cost)}
                     </div>
                   </div>

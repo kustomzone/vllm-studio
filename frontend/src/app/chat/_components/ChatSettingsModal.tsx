@@ -35,16 +35,16 @@ export function ChatSettingsModal({
         onClick={onClose}
         aria-label="Close"
       />
-      <div className="relative w-full max-w-lg mx-4 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-xl">
+      <div className="relative w-full max-w-lg mx-4 bg-(--card) border border-(--border) rounded-xl shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-(--border)">
           <div className="flex items-center gap-2">
             <Settings className="h-5 w-5 text-[#9a9590]" />
             <h2 className="text-lg font-semibold">Chat Settings</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded hover:bg-[var(--accent)]"
+            className="p-1.5 rounded hover:bg-(--accent)"
           >
             <X className="h-5 w-5 text-[#9a9590]" />
           </button>
@@ -60,7 +60,7 @@ export function ChatSettingsModal({
             <select
               value={selectedModel}
               onChange={(e) => onSelectedModelChange(e.target.value)}
-              className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--link)]/50"
+              className="w-full px-3 py-2 bg-(--background) border border-(--border) rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-(--link)/50"
             >
               <option value="">Select a model</option>
               {availableModels.map((model) => (
@@ -81,7 +81,7 @@ export function ChatSettingsModal({
               onChange={(e) => onSystemPromptChange(e.target.value)}
               rows={4}
               placeholder="Enter a system prompt..."
-              className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--link)]/50"
+              className="w-full px-3 py-2 bg-(--background) border border-(--border) rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-(--link)/50"
             />
           </div>
 
@@ -94,7 +94,7 @@ export function ChatSettingsModal({
                 onChange={(e) =>
                   onDeepResearchChange({ ...deepResearch, enabled: e.target.checked })
                 }
-                className="w-4 h-4 rounded border-[var(--border)] bg-[var(--background)]"
+                className="w-4 h-4 rounded border-(--border) bg-(--background)"
               />
               <span className="text-sm font-medium text-[#c8c4bd]">
                 Enable Deep Research

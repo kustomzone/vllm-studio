@@ -1,12 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Copy, Check, Play, Code2, Maximize2, Minimize2 } from "lucide-react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { CodeSandbox } from "./code-sandbox";
 import { ArtifactRenderer } from "./artifact-renderer";
 import { useMessageParsing } from "@/lib/services/message-parsing";
+
+// Map common code languages to artifact types
+const IMPLICIT_ARTIFACT_MAP: Record<string, string> = {
+  jsx: "react",
+  tsx: "react",
+  react: "react",
+  html: "html",
+  javascript: "javascript",
+  js: "javascript",
+  svg: "svg",
+};
 
 interface EnhancedCodeBlockProps {
   children: string;
@@ -23,25 +34,45 @@ export function EnhancedCodeBlock({
   language,
 }: EnhancedCodeBlockProps) {
   const [copied, setCopied] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const hasAutoShownRef = useRef(false);
   const { getArtifactType } = useMessageParsing();
   const lang = language || className?.replace("language-", "") || "text";
   const code = String(children).replace(/\n$/, "");
+
+  // Allow previews for explicit artifact fences OR common code languages when artifacts enabled
+  const isExplicitArtifact = lang.startsWith("artifact-");
+
+  // Get artifact type - either from explicit artifact- prefix or implicit mapping
+  const artifactType = useMemo(() => {
+    if (isExplicitArtifact) {
+      return getArtifactType(lang);
+    }
+    return artifactsEnabled ? IMPLICIT_ARTIFACT_MAP[lang.toLowerCase()] : null;
+  }, [isExplicitArtifact, getArtifactType, lang, artifactsEnabled]);
+
+  const canPreview =
+    artifactsEnabled &&
+    artifactType &&
+    ["html", "react", "javascript", "svg"].includes(artifactType);
+
+  // Auto-show preview when artifacts enabled and code is previewable (only once)
+  useEffect(() => {
+    if (canPreview && !hasAutoShownRef.current) {
+      const timeoutId = window.setTimeout(() => {
+        setShowPreview(true);
+        hasAutoShownRef.current = true;
+      }, 0);
+      return () => window.clearTimeout(timeoutId);
+    }
+  }, [canPreview]);
 
   const copyCode = () => {
     navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
-  // Only allow inline previews for explicit artifact fences
-  const isExplicitArtifact = lang.startsWith("artifact-");
-  const artifactType = isExplicitArtifact ? getArtifactType(lang) : null;
-  const canPreview =
-    artifactsEnabled &&
-    artifactType &&
-    ["html", "react", "javascript", "svg"].includes(artifactType);
 
   // If showing preview, render CodeSandbox
   if (showPreview && canPreview && artifactType) {
