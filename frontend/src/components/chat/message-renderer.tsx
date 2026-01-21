@@ -5,7 +5,6 @@ import { AlertCircle } from "lucide-react";
 import mermaid from "mermaid";
 import { EnhancedCodeBlock } from "./enhanced-code-block";
 import { TypingIndicator, StreamingCursor } from "./typing-indicator";
-import { MessageActions } from "./message-actions";
 import {
   useParsedMessage,
   useMessageParsing,
@@ -33,8 +32,6 @@ interface MessageRendererProps {
   content: string;
   isStreaming?: boolean;
   artifactsEnabled?: boolean;
-  messageId?: string;
-  showActions?: boolean;
 }
 
 function MermaidDiagram({ code }: { code: string }) {
@@ -146,13 +143,7 @@ function MarkdownBlock({ html }: MarkdownBlockProps) {
   return <div className="chat-markdown" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-export function MessageRenderer({
-  content,
-  isStreaming,
-  artifactsEnabled,
-  messageId,
-  showActions = true,
-}: MessageRendererProps) {
+export function MessageRenderer({ content, isStreaming, artifactsEnabled }: MessageRendererProps) {
   // Use the parsing service with memoization
   const parsed = useParsedMessage(content, {
     isStreaming,
@@ -166,13 +157,6 @@ export function MessageRenderer({
 
   return (
     <div className="message-content min-w-0 break-words overflow-hidden max-w-full group relative text-inherit">
-      {/* Message Actions */}
-      {showActions && messageId && content && (
-        <div className="absolute -top-2 right-0 z-10">
-          <MessageActions content={content} messageId={messageId} />
-        </div>
-      )}
-
       {/* Main content */}
       {mainContent && (
         <div style={{ color: "#e8e4dd" }}>
@@ -193,7 +177,6 @@ export function MessageRenderer({
           })}
         </div>
       )}
-
 
       {/* Streaming indicators */}
       {!mainContent && !thinking.thinkingContent && isStreaming && (

@@ -17,6 +17,14 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return [
+      {
+        source: "/api/chat-v2",
+        destination: "/api/chat",
+      },
+    ];
+  },
 };
 
 export default withBundleAnalyzer(nextConfig);

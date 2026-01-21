@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import type { ChatSession } from "../types";
 import type { StoredMessage } from "@/lib/types";
 import type { UIMessage } from "@ai-sdk/react";
+import type { LanguageModelUsage } from "ai";
 
 /**
  * Convert stored messages from backend to UIMessage format for AI SDK
@@ -23,7 +24,7 @@ function convertStoredToUIMessages(storedMessages: StoredMessage[]): UIMessage[]
     // For tool calls, just add a text summary instead of reconstructing complex tool parts
     if (msg.tool_calls && msg.tool_calls.length > 0) {
       const toolSummary = msg.tool_calls
-        .map(tc => {
+        .map((tc) => {
           const hasResult = tc.result !== undefined && tc.result !== null;
           return `[Tool: ${tc.function.name}${hasResult ? " (completed)" : ""}]`;
         })
@@ -33,10 +34,45 @@ function convertStoredToUIMessages(storedMessages: StoredMessage[]): UIMessage[]
       }
     }
 
+    const inputTokens = msg.request_total_input_tokens ?? msg.prompt_tokens ?? undefined;
+    const outputTokens = msg.request_completion_tokens ?? msg.completion_tokens ?? undefined;
+    const totalTokens =
+      msg.total_tokens ??
+      (inputTokens != null || outputTokens != null
+        ? (inputTokens ?? 0) + (outputTokens ?? 0)
+        : undefined);
+
+    const usage: LanguageModelUsage | undefined =
+      inputTokens != null || outputTokens != null || totalTokens != null
+        ? {
+            inputTokens,
+            inputTokenDetails: {
+              noCacheTokens: undefined,
+              cacheReadTokens: undefined,
+              cacheWriteTokens: undefined,
+            },
+            outputTokens,
+            outputTokenDetails: {
+              textTokens: undefined,
+              reasoningTokens: undefined,
+            },
+            totalTokens,
+          }
+        : undefined;
+
+    const metadata =
+      msg.model || usage
+        ? {
+            model: msg.model,
+            usage,
+          }
+        : undefined;
+
     return {
       id: msg.id,
       role: msg.role,
       parts,
+      metadata,
     };
   });
 }

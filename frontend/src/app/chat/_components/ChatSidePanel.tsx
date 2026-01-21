@@ -2,7 +2,7 @@
 
 import { X, Wrench, Layers, Loader2, Check } from "lucide-react";
 import { ArtifactPanel } from "@/components/chat/artifact-panel";
-import type { ActivePanel, ActivityItem } from "../types";
+import type { ActivePanel, ActivityGroup } from "../types";
 import type { Artifact } from "@/lib/types";
 
 interface ChatSidePanelProps {
@@ -10,9 +10,9 @@ interface ChatSidePanelProps {
   onClose: () => void;
   activePanel: ActivePanel;
   onSetActivePanel: (panel: ActivePanel) => void;
-  thinkingContent: string;
+  activityGroups: ActivityGroup[];
+  activityCount: number;
   thinkingActive: boolean;
-  activityItems: ActivityItem[];
   executingTools: Set<string>;
   artifacts: Artifact[];
 }
@@ -22,15 +22,14 @@ export function ChatSidePanel({
   onClose,
   activePanel,
   onSetActivePanel,
-  thinkingContent,
+  activityGroups,
+  activityCount,
   thinkingActive,
-  activityItems,
   executingTools,
   artifacts,
 }: ChatSidePanelProps) {
   if (!isOpen) return null;
 
-  const activityCount = activityItems.length + (thinkingContent ? 1 : 0);
   const showPing = executingTools.size > 0 || thinkingActive;
 
   return (
@@ -78,13 +77,7 @@ export function ChatSidePanel({
 
       {/* Panel content */}
       <div className="flex-1 overflow-y-auto text-sm">
-        {activePanel === "activity" && (
-          <ActivityPanel
-            thinkingContent={thinkingContent}
-            thinkingActive={thinkingActive}
-            activityItems={activityItems}
-          />
-        )}
+        {activePanel === "activity" && <ActivityPanel activityGroups={activityGroups} />}
         {activePanel === "artifacts" && <ArtifactPanel artifacts={artifacts} isOpen={true} />}
       </div>
     </div>
@@ -92,12 +85,10 @@ export function ChatSidePanel({
 }
 
 interface ActivityPanelProps {
-  thinkingContent: string;
-  thinkingActive: boolean;
-  activityItems: ActivityItem[];
+  activityGroups: ActivityGroup[];
 }
 
-function ActivityPanel({ thinkingContent, thinkingActive, activityItems }: ActivityPanelProps) {
+function ActivityPanel({ activityGroups }: ActivityPanelProps) {
   const getMainArg = (input?: unknown) => {
     if (input == null) return undefined;
     if (typeof input === "string" || typeof input === "number" || typeof input === "boolean") {
@@ -113,78 +104,115 @@ function ActivityPanel({ thinkingContent, thinkingActive, activityItems }: Activ
     return undefined;
   };
 
-  const activityEmpty = activityItems.length === 0 && !thinkingContent && !thinkingActive;
+  const stripMarkdown = (value: string) =>
+    value
+      .replace(/```[\s\S]*?```/g, (match) => match.replace(/```/g, ""))
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
+      .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+      .replace(/^\s*[-*+]\s+/gm, "")
+      .replace(/^\s*\d+\.\s+/gm, "")
+      .replace(/[*_~>]+/g, "")
+      .trim();
+
+  const activityEmpty = activityGroups.length === 0;
 
   return (
     <>
-      {thinkingActive && (
-        <div className="px-3 py-2 border-b border-(--border) bg-blue-500/5">
-          <div className="flex items-center gap-2">
-            <Loader2 className="h-3 w-3 text-blue-500 animate-spin" />
-            <span className="text-xs">Thinking...</span>
-          </div>
-        </div>
-      )}
-
-      {thinkingContent && (
-        <div className="px-3 py-2 border-b border-(--border)">
-          <div className="text-[10px] uppercase tracking-wider text-[#9a9590] mb-1">Reasoning</div>
-          <pre className="text-[11px] text-[#9a9590] whitespace-pre-wrap break-words max-h-48 overflow-auto">
-            {thinkingContent}
-          </pre>
-        </div>
-      )}
-
-      {activityItems.map((item) => {
-        const isExecuting = item.state === "running";
-        const hasResult = item.output != null;
-        const isError = item.state === "error";
-        const mainArg = getMainArg(item.input);
-        const outputText =
-          typeof item.output === "string"
-            ? item.output
-            : item.output != null
-              ? JSON.stringify(item.output, null, 2)
-              : "";
-
-        return (
-          <div
-            key={item.id}
-            className={`px-3 py-2 border-b border-(--border) ${
-              isExecuting ? "bg-(--warning)/5" : ""
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              {isExecuting ? (
-                <Loader2 className="h-3 w-3 text-(--warning) animate-spin" />
-              ) : hasResult ? (
-                isError ? (
-                  <X className="h-3 w-3 text-(--error)" />
-                ) : (
-                  <Check className="h-3 w-3 text-(--success)" />
-                )
-              ) : (
-                <Wrench className="h-3 w-3 text-[#9a9590]" />
-              )}
-              <span className="text-xs font-medium truncate">{item.toolName || "tool"}</span>
+      {activityGroups.map((group) => (
+        <div key={group.id} className="border-b border-(--border)">
+          <div className={`px-3 py-2 ${group.isLatest ? "bg-(--accent)/50" : "bg-(--accent)/20"}`}>
+            <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-[#9a9590]">
+              <span>{group.title}</span>
+              <span className="font-mono">
+                {group.toolItems.length} tool{group.toolItems.length === 1 ? "" : "s"}
+                {group.thinkingContent ? " • reasoning" : ""}
+              </span>
             </div>
-            {mainArg && (
-              <p className="text-[11px] text-[#9a9590] mt-1 line-clamp-2 pl-5">
-                {mainArg.slice(0, 80)}
-              </p>
-            )}
-            {outputText && !isExecuting && (
-              <p
-                className={`text-[11px] font-mono line-clamp-3 mt-1.5 pl-5 ${
-                  isError ? "text-(--error)" : "text-[#9a9590]"
-                }`}
-              >
-                {outputText.slice(0, 150)}
-              </p>
-            )}
           </div>
-        );
-      })}
+
+          <div className="relative px-3 pb-2">
+            <div className="absolute left-4 top-3 bottom-3 w-px bg-(--border)/70" />
+            <div className="flex flex-col gap-2 pl-4">
+              {group.thinkingActive && (
+                <div className="relative">
+                  <span className="absolute left-[-13px] top-2 h-2 w-2 rounded-full bg-blue-500" />
+                  <div className="flex items-center gap-2 text-xs text-[#9a9590]">
+                    <Loader2 className="h-3 w-3 text-blue-500 animate-spin" />
+                    Thinking...
+                  </div>
+                </div>
+              )}
+
+              {group.thinkingContent && (
+                <div className="relative">
+                  <span className="absolute left-[-13px] top-2 h-2 w-2 rounded-full bg-[#9a9590]" />
+                  <div className="text-[10px] uppercase tracking-wider text-[#9a9590] mb-1">
+                    Reasoning
+                  </div>
+                  <p className="text-[11px] text-[#9a9590] whitespace-pre-wrap break-words max-h-48 overflow-auto">
+                    {stripMarkdown(group.thinkingContent)}
+                  </p>
+                </div>
+              )}
+
+              {group.toolItems.map((item) => {
+                const isExecuting = item.state === "running";
+                const hasResult = item.output != null;
+                const isError = item.state === "error";
+                const mainArg = getMainArg(item.input);
+                const outputText =
+                  typeof item.output === "string"
+                    ? item.output
+                    : item.output != null
+                      ? JSON.stringify(item.output, null, 2)
+                      : "";
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`relative rounded border border-(--border)/50 px-2 py-2 ${
+                      isExecuting ? "bg-(--warning)/5" : "bg-(--background)"
+                    }`}
+                  >
+                    <span className="absolute left-[-13px] top-3 h-2 w-2 rounded-full bg-(--accent)" />
+                    <div className="flex items-center gap-2">
+                      {isExecuting ? (
+                        <Loader2 className="h-3 w-3 text-(--warning) animate-spin" />
+                      ) : hasResult ? (
+                        isError ? (
+                          <X className="h-3 w-3 text-(--error)" />
+                        ) : (
+                          <Check className="h-3 w-3 text-(--success)" />
+                        )
+                      ) : (
+                        <Wrench className="h-3 w-3 text-[#9a9590]" />
+                      )}
+                      <span className="text-xs font-medium truncate">
+                        {item.toolName || "tool"}
+                      </span>
+                    </div>
+                    {mainArg && (
+                      <p className="text-[11px] text-[#9a9590] mt-1 line-clamp-2 pl-5">
+                        {mainArg.slice(0, 80)}
+                      </p>
+                    )}
+                    {outputText && !isExecuting && (
+                      <p
+                        className={`text-[11px] font-mono line-clamp-3 mt-1.5 pl-5 ${
+                          isError ? "text-(--error)" : "text-[#9a9590]"
+                        }`}
+                      >
+                        {stripMarkdown(outputText).slice(0, 150)}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ))}
 
       {activityEmpty && (
         <div className="px-3 py-6 text-center text-xs text-[#9a9590]">No activity yet</div>

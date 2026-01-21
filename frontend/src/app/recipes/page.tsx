@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Calculator,
   ChevronDown,
@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 import api from "@/lib/api";
-import type { Recipe, RecipeWithStatus, VRAMCalculation } from "@/lib/types";
+import type { Recipe, RecipeWithStatus, VRAMCalculation, ModelInfo } from "@/lib/types";
 import { useRealtimeStatus } from "@/hooks/useRealtimeStatus";
 
 type Tab = "recipes" | "tools";
@@ -58,6 +58,9 @@ function RecipesContent() {
   const [vramResult, setVramResult] = useState<VRAMCalculation | null>(null);
   const [calculating, setCalculating] = useState(false);
 
+  // Available models for selection
+  const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
+
   const { launchProgress } = useRealtimeStatus();
 
   // Load pinned recipes from localStorage
@@ -83,13 +86,17 @@ function RecipesContent() {
 
   const loadRecipes = useCallback(async () => {
     try {
-      const recipesData = await api
-        .getRecipes()
-        .catch(() => ({ recipes: [] as RecipeWithStatus[] }));
+      const [recipesData, modelsData] = await Promise.all([
+        api.getRecipes().catch(() => ({ recipes: [] as RecipeWithStatus[] })),
+        api.getModels().catch(() => ({ models: [] as ModelInfo[] })),
+      ]);
       const recipesList = recipesData.recipes || [];
       setRecipes(recipesList);
       const running = recipesList.find((r) => r.status === "running")?.id || null;
       setRunningRecipeId(running);
+
+      // Store available models for selection dropdown
+      setAvailableModels(modelsData.models || []);
     } catch (e) {
       console.error("Failed to load recipes:", e);
     }
@@ -117,7 +124,19 @@ function RecipesContent() {
   };
 
   const handleEditRecipe = (recipe: RecipeWithStatus) => {
-    setModalRecipe({ ...recipe });
+    // Clean up legacy extra_args keys when opening for edit
+    const cleanedRecipe = { ...recipe };
+    if (cleanedRecipe.extra_args) {
+      const extraArgs = { ...cleanedRecipe.extra_args } as Record<string, unknown>;
+      // Migrate enable_thinking to enable-reasoning
+      if (extraArgs["enable_thinking"] || extraArgs["enable-thinking"]) {
+        extraArgs["enable-reasoning"] = true;
+        delete extraArgs["enable_thinking"];
+        delete extraArgs["enable-thinking"];
+      }
+      cleanedRecipe.extra_args = extraArgs;
+    }
+    setModalRecipe(cleanedRecipe);
     setModalOpen(true);
     setRecipeMenuOpen(null);
   };
@@ -125,10 +144,20 @@ function RecipesContent() {
   const handleSaveRecipe = async () => {
     if (!modalRecipe) return;
 
+    // Clean up legacy extra_args before saving
+    const recipeToSave = { ...modalRecipe };
+    if (recipeToSave.extra_args) {
+      const extraArgs = { ...recipeToSave.extra_args } as Record<string, unknown>;
+      delete extraArgs["enable_thinking"];
+      delete extraArgs["enable-thinking"];
+      delete extraArgs["status"]; // Also clean up status from extra_args
+      recipeToSave.extra_args = extraArgs;
+    }
+
     setSaving(true);
     try {
-      if (modalRecipe.id) {
-        await api.updateRecipe(modalRecipe.id, modalRecipe);
+      if (recipeToSave.id) {
+        await api.updateRecipe(recipeToSave.id, recipeToSave);
       } else {
         // Generate ID from name
         const id = modalRecipe.name
@@ -161,9 +190,23 @@ function RecipesContent() {
   const handleLaunchRecipe = async (recipeId: string) => {
     setLaunching(true);
     try {
-      await api.launch(recipeId);
-      // Wait for launch to complete
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Fire and forget - don't block on model loading
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s max wait
+
+      try {
+        await fetch(`/api/proxy/launch/${recipeId}`, {
+          method: "POST",
+          signal: controller.signal,
+        });
+      } catch {
+        // Timeout or abort is fine - launch continues in background
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      // Brief wait then refresh to show "starting" status
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       await loadRecipes();
     } catch (e) {
       alert("Failed to launch: " + (e as Error).message);
@@ -198,6 +241,17 @@ function RecipesContent() {
       setCalculating(false);
     }
   };
+
+  // Build a lookup: model_path -> served_model_name (from first recipe that uses it)
+  const modelServedNames = useMemo(() => {
+    const lookup: Record<string, string> = {};
+    for (const r of recipes) {
+      if (r.model_path && r.served_model_name && !lookup[r.model_path]) {
+        lookup[r.model_path] = r.served_model_name;
+      }
+    }
+    return lookup;
+  }, [recipes]);
 
   // Filter recipes
   const filteredRecipes = recipes.filter(
@@ -366,8 +420,8 @@ function RecipesContent() {
                           </button>
                         </td>
                         <td className="px-4 py-3 font-medium text-sm">{recipe.name}</td>
-                        <td className="px-4 py-3 text-sm text-[#9a9088] font-mono truncate max-w-xs">
-                          {recipe.model_path.split("/").pop()}
+                        <td className="px-4 py-3 text-sm text-[#9a9088] font-mono truncate max-w-xs" title={recipe.model_path}>
+                          {recipe.served_model_name || recipe.model_path.split("/").pop()}
                         </td>
                         <td className="px-4 py-3 text-sm">
                           <span className="px-2 py-1 bg-[#1b1b1b] border border-[#363432] rounded text-xs">
@@ -459,14 +513,22 @@ function RecipesContent() {
             <h2 className="text-lg font-semibold mb-4">VRAM Calculator</h2>
             <div className="space-y-4 bg-[#1b1b1b] border border-[#363432] rounded-lg p-6">
               <div>
-                <label className="block text-sm text-[#9a9088] mb-2">Model Path</label>
-                <input
-                  type="text"
+                <label className="block text-sm text-[#9a9088] mb-2">Model</label>
+                <select
                   value={vramModel}
                   onChange={(e) => setVramModel(e.target.value)}
-                  placeholder="/path/to/model"
                   className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
-                />
+                >
+                  <option value="">Select a model...</option>
+                  {availableModels.map((model) => {
+                    const servedName = modelServedNames[model.path];
+                    return (
+                      <option key={model.path} value={model.path}>
+                        {servedName ? `${servedName} (${model.name})` : model.name}
+                      </option>
+                    );
+                  })}
+                </select>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>
@@ -591,47 +653,219 @@ function RecipesContent() {
           onSave={handleSaveRecipe}
           onChange={setModalRecipe}
           saving={saving}
+          availableModels={availableModels}
+          recipes={recipes}
         />
       )}
     </div>
   );
 }
 
-// Recipe Modal Component
+// Generate command from recipe
+function generateCommand(recipe: Recipe): string {
+  const backend = recipe.backend || "vllm";
+  const args: string[] = [];
+
+  // Base command
+  if (backend === "vllm") {
+    args.push("vllm serve");
+  } else {
+    args.push("python -m sglang.launch_server");
+  }
+
+  // Model path (required)
+  if (recipe.model_path) {
+    args.push(recipe.model_path);
+  }
+
+  // Server settings
+  if (recipe.host && recipe.host !== "0.0.0.0") args.push(`--host ${recipe.host}`);
+  if (recipe.port && recipe.port !== 8000) args.push(`--port ${recipe.port}`);
+  if (recipe.served_model_name) args.push(`--served-model-name ${recipe.served_model_name}`);
+
+  // Parallelism
+  const tp = recipe.tp || recipe.tensor_parallel_size;
+  const pp = recipe.pp || recipe.pipeline_parallel_size;
+  if (tp && tp > 1) args.push(`--tensor-parallel-size ${tp}`);
+  if (pp && pp > 1) args.push(`--pipeline-parallel-size ${pp}`);
+
+  // Memory
+  if (recipe.gpu_memory_utilization && recipe.gpu_memory_utilization !== 0.9) {
+    args.push(`--gpu-memory-utilization ${recipe.gpu_memory_utilization}`);
+  }
+  if (recipe.max_model_len) args.push(`--max-model-len ${recipe.max_model_len}`);
+  if (recipe.kv_cache_dtype && recipe.kv_cache_dtype !== "auto") {
+    args.push(`--kv-cache-dtype ${recipe.kv_cache_dtype}`);
+  }
+  if (recipe.block_size && recipe.block_size !== 16) args.push(`--block-size ${recipe.block_size}`);
+
+  // Quantization
+  if (recipe.quantization) args.push(`--quantization ${recipe.quantization}`);
+  if (recipe.dtype && recipe.dtype !== "auto") args.push(`--dtype ${recipe.dtype}`);
+
+  // Flags
+  if (recipe.trust_remote_code) args.push("--trust-remote-code");
+  if (recipe.enable_prefix_caching) args.push("--enable-prefix-caching");
+  if (recipe.enable_chunked_prefill) args.push("--enable-chunked-prefill");
+  if (recipe.enforce_eager) args.push("--enforce-eager");
+
+  // Tool calling
+  if (recipe.tool_call_parser) args.push(`--tool-call-parser ${recipe.tool_call_parser}`);
+  if (recipe.enable_auto_tool_choice) args.push("--enable-auto-tool-choice");
+
+  // Reasoning
+  if (recipe.reasoning_parser) args.push(`--reasoning-parser ${recipe.reasoning_parser}`);
+  // enable-reasoning is stored in extra_args, handled by extra_args processing below
+
+  // Thinking budget via chat template kwargs
+  if (recipe.thinking_budget) {
+    args.push(`--default-chat-template-kwargs '{"thinking_budget": ${recipe.thinking_budget}}'`);
+  }
+
+  // Chat
+  if (recipe.chat_template) args.push(`--chat-template ${recipe.chat_template}`);
+
+  return args.join(" \\\n  ");
+}
+
+// Recipe Drawer Component (right-side panel)
 function RecipeModal({
   recipe,
   onClose,
   onSave,
   onChange,
   saving,
+  availableModels,
+  recipes,
 }: {
   recipe: Recipe;
   onClose: () => void;
   onSave: () => void;
   onChange: (recipe: Recipe) => void;
   saving: boolean;
+  availableModels: ModelInfo[];
+  recipes: RecipeWithStatus[];
 }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [mode, setMode] = useState<"form" | "command">("form");
+  const [editedCommand, setEditedCommand] = useState<string | null>(null);
+
+  // Build a lookup: model_path -> served_model_name (from first recipe that uses it)
+  const modelServedNames = useMemo(() => {
+    const lookup: Record<string, string> = {};
+    for (const r of recipes) {
+      if (r.model_path && r.served_model_name && !lookup[r.model_path]) {
+        lookup[r.model_path] = r.served_model_name;
+      }
+    }
+    return lookup;
+  }, [recipes]);
+
+  // Generated command from recipe (always up to date)
+  const generatedCommand = useMemo(() => generateCommand(recipe), [recipe]);
+
+  // Show edited command if user has modified it, otherwise show generated
+  const commandText = editedCommand ?? generatedCommand;
+
+  const handleCommandChange = (value: string) => {
+    setEditedCommand(value);
+  };
+
+  const handleModeSwitch = (newMode: "form" | "command") => {
+    if (newMode === "form") {
+      // Reset edits when switching back to form
+      setEditedCommand(null);
+    }
+    setMode(newMode);
+  };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1b1b1b] border border-[#363432] rounded-lg max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex">
+      {/* Backdrop */}
+      <button
+        className="flex-1 bg-black/50"
+        onClick={onClose}
+        aria-label="Close"
+      />
+      {/* Drawer */}
+      <div className="w-full max-w-lg bg-[#1b1b1b] border-l border-[#363432] flex flex-col h-full animate-in slide-in-from-right duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#363432]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#363432] shrink-0">
           <h3 className="text-lg font-semibold">{recipe.id ? "Edit Recipe" : "New Recipe"}</h3>
           <button onClick={onClose} className="p-1 hover:bg-[#363432] rounded transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-6 space-y-4">
+        {/* Mode Toggle */}
+        <div className="flex gap-1 px-6 py-3 border-b border-[#363432] shrink-0 bg-[#0d0d0d]">
+          <button
+            onClick={() => handleModeSwitch("form")}
+            className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+              mode === "form"
+                ? "bg-[#d97706] text-white"
+                : "text-[#9a9088] hover:text-[#e8e6e3] hover:bg-[#1b1b1b]"
+            }`}
+          >
+            Form
+          </button>
+          <button
+            onClick={() => handleModeSwitch("command")}
+            className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+              mode === "command"
+                ? "bg-[#d97706] text-white"
+                : "text-[#9a9088] hover:text-[#e8e6e3] hover:bg-[#1b1b1b]"
+            }`}
+          >
+            Command
+          </button>
+        </div>
+
+        {/* Content - scrollable */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {mode === "command" ? (
+            /* Command Mode */
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-[#9a9088] mb-2">Name *</label>
+                <input
+                  type="text"
+                  value={recipe.name ?? ""}
+                  onChange={(e) => onChange({ ...recipe, name: e.target.value })}
+                  placeholder="My Recipe"
+                  className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-[#9a9088] mb-2">
+                  Command
+                  <span className="ml-2 text-xs text-[#6a6560]">
+                    (edit directly - will be used as-is)
+                  </span>
+                </label>
+                <textarea
+                  value={commandText}
+                  onChange={(e) => handleCommandChange(e.target.value)}
+                  rows={20}
+                  spellCheck={false}
+                  className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm font-mono focus:outline-none focus:border-[#d97706] resize-none"
+                  style={{ lineHeight: "1.6" }}
+                />
+              </div>
+              <p className="text-xs text-[#6a6560]">
+                Note: In command mode, the command above will be stored and used directly when launching.
+                Form fields won&apos;t be synced back from command edits.
+              </p>
+            </div>
+          ) : (
+            /* Form Mode */
+            <>
           {/* Basic fields */}
           <div>
             <label className="block text-sm text-[#9a9088] mb-2">Name *</label>
             <input
               type="text"
-              value={recipe.name}
+              value={recipe.name ?? ""}
               onChange={(e) => onChange({ ...recipe, name: e.target.value })}
               placeholder="My Recipe"
               className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
@@ -639,21 +873,34 @@ function RecipeModal({
           </div>
 
           <div>
-            <label className="block text-sm text-[#9a9088] mb-2">Model Path *</label>
-            <input
-              type="text"
-              value={recipe.model_path}
+            <label className="block text-sm text-[#9a9088] mb-2">Model *</label>
+            <select
+              value={recipe.model_path ?? ""}
               onChange={(e) => onChange({ ...recipe, model_path: e.target.value })}
-              placeholder="/path/to/model"
               className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
-            />
+            >
+              <option value="">Select a model...</option>
+              {availableModels.map((model) => {
+                const servedName = modelServedNames[model.path];
+                return (
+                  <option key={model.path} value={model.path}>
+                    {servedName ? `${servedName} (${model.name})` : model.name}
+                  </option>
+                );
+              })}
+            </select>
+            {recipe.model_path && !availableModels.some(m => m.path === recipe.model_path) && (
+              <p className="mt-1 text-xs text-[#9a9088]">
+                Custom path: {recipe.model_path}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-[#9a9088] mb-2">Backend</label>
               <select
-                value={recipe.backend || "vllm"}
+                value={recipe.backend ?? "vllm"}
                 onChange={(e) =>
                   onChange({ ...recipe, backend: e.target.value as "vllm" | "sglang" })
                 }
@@ -667,7 +914,7 @@ function RecipeModal({
               <label className="block text-sm text-[#9a9088] mb-2">Port</label>
               <input
                 type="number"
-                value={recipe.port}
+                value={recipe.port ?? 8000}
                 onChange={(e) => onChange({ ...recipe, port: Number(e.target.value) })}
                 className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
               />
@@ -679,8 +926,8 @@ function RecipeModal({
               <label className="block text-sm text-[#9a9088] mb-2">Tensor Parallel (TP)</label>
               <input
                 type="number"
-                value={recipe.tp}
-                onChange={(e) => onChange({ ...recipe, tp: Number(e.target.value) })}
+                value={recipe.tp ?? recipe.tensor_parallel_size ?? 1}
+                onChange={(e) => onChange({ ...recipe, tp: Number(e.target.value), tensor_parallel_size: Number(e.target.value) })}
                 min={1}
                 className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
               />
@@ -689,8 +936,8 @@ function RecipeModal({
               <label className="block text-sm text-[#9a9088] mb-2">Pipeline Parallel (PP)</label>
               <input
                 type="number"
-                value={recipe.pp}
-                onChange={(e) => onChange({ ...recipe, pp: Number(e.target.value) })}
+                value={recipe.pp ?? recipe.pipeline_parallel_size ?? 1}
+                onChange={(e) => onChange({ ...recipe, pp: Number(e.target.value), pipeline_parallel_size: Number(e.target.value) })}
                 min={1}
                 className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
               />
@@ -701,7 +948,7 @@ function RecipeModal({
             <label className="block text-sm text-[#9a9088] mb-2">GPU Memory Utilization</label>
             <input
               type="number"
-              value={recipe.gpu_memory_utilization}
+              value={recipe.gpu_memory_utilization ?? 0.9}
               onChange={(e) =>
                 onChange({ ...recipe, gpu_memory_utilization: Number(e.target.value) })
               }
@@ -724,62 +971,339 @@ function RecipeModal({
               Advanced Options
             </button>
             {advancedOpen && (
-              <div className="mt-4 space-y-4 pl-6">
-                <div>
-                  <label className="block text-sm text-[#9a9088] mb-2">Max Model Length</label>
-                  <input
-                    type="number"
-                    value={recipe.max_model_len || ""}
-                    onChange={(e) =>
-                      onChange({ ...recipe, max_model_len: Number(e.target.value) || undefined })
-                    }
-                    placeholder="32768"
-                    className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-[#9a9088] mb-2">Quantization</label>
-                  <input
-                    type="text"
-                    value={recipe.quantization || ""}
-                    onChange={(e) =>
-                      onChange({ ...recipe, quantization: e.target.value || undefined })
-                    }
-                    placeholder="awq, gptq, fp8, etc."
-                    className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
-                  />
-                </div>
-                <div>
-                  <label className="flex items-center gap-2 text-sm text-[#9a9088]">
+              <div className="mt-4 space-y-6">
+                {/* Model Loading */}
+                <div className="space-y-4">
+                  <h4 className="text-xs uppercase tracking-wider text-[#6a6560] font-medium">
+                    Model Loading
+                  </h4>
+                  <div>
+                    <label className="block text-sm text-[#9a9088] mb-2">Max Model Length</label>
                     <input
-                      type="checkbox"
-                      checked={recipe.trust_remote_code || false}
-                      onChange={(e) => onChange({ ...recipe, trust_remote_code: e.target.checked })}
-                      className="rounded border-[#363432] bg-[#0d0d0d]"
-                    />
-                    Trust Remote Code
-                  </label>
-                </div>
-                <div>
-                  <label className="flex items-center gap-2 text-sm text-[#9a9088]">
-                    <input
-                      type="checkbox"
-                      checked={recipe.enable_prefix_caching || false}
+                      type="number"
+                      value={recipe.max_model_len || ""}
                       onChange={(e) =>
-                        onChange({ ...recipe, enable_prefix_caching: e.target.checked })
+                        onChange({ ...recipe, max_model_len: Number(e.target.value) || undefined })
                       }
-                      className="rounded border-[#363432] bg-[#0d0d0d]"
+                      placeholder="32768"
+                      className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
                     />
-                    Enable Prefix Caching
-                  </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm text-[#9a9088] mb-2">Quantization</label>
+                      <input
+                        type="text"
+                        value={recipe.quantization || ""}
+                        onChange={(e) =>
+                          onChange({ ...recipe, quantization: e.target.value || undefined })
+                        }
+                        placeholder="awq, gptq, fp8"
+                        className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-[#9a9088] mb-2">Dtype</label>
+                      <select
+                        value={recipe.dtype || "auto"}
+                        onChange={(e) =>
+                          onChange({ ...recipe, dtype: e.target.value === "auto" ? undefined : e.target.value })
+                        }
+                        className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
+                      >
+                        <option value="auto">Auto</option>
+                        <option value="float16">float16</option>
+                        <option value="bfloat16">bfloat16</option>
+                        <option value="float32">float32</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center gap-2 text-sm text-[#9a9088]">
+                      <input
+                        type="checkbox"
+                        checked={recipe.trust_remote_code || false}
+                        onChange={(e) => onChange({ ...recipe, trust_remote_code: e.target.checked })}
+                        className="rounded border-[#363432] bg-[#0d0d0d]"
+                      />
+                      Trust Remote Code
+                    </label>
+                  </div>
+                </div>
+
+                {/* Memory & KV Cache */}
+                <div className="space-y-4 pt-4 border-t border-[#363432]/50">
+                  <h4 className="text-xs uppercase tracking-wider text-[#6a6560] font-medium">
+                    Memory & KV Cache
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm text-[#9a9088] mb-2">KV Cache Dtype</label>
+                      <select
+                        value={recipe.kv_cache_dtype || "auto"}
+                        onChange={(e) =>
+                          onChange({ ...recipe, kv_cache_dtype: e.target.value === "auto" ? undefined : e.target.value })
+                        }
+                        className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
+                      >
+                        <option value="auto">Auto</option>
+                        <option value="fp8">FP8</option>
+                        <option value="fp8_e5m2">FP8 E5M2</option>
+                        <option value="fp8_e4m3">FP8 E4M3</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-[#9a9088] mb-2">Block Size</label>
+                      <select
+                        value={recipe.block_size || "16"}
+                        onChange={(e) =>
+                          onChange({ ...recipe, block_size: Number(e.target.value) || undefined })
+                        }
+                        className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
+                      >
+                        <option value="8">8</option>
+                        <option value="16">16</option>
+                        <option value="32">32</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center gap-2 text-sm text-[#9a9088]">
+                      <input
+                        type="checkbox"
+                        checked={recipe.enable_prefix_caching || false}
+                        onChange={(e) =>
+                          onChange({ ...recipe, enable_prefix_caching: e.target.checked })
+                        }
+                        className="rounded border-[#363432] bg-[#0d0d0d]"
+                      />
+                      Enable Prefix Caching
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-[#9a9088]">
+                      <input
+                        type="checkbox"
+                        checked={recipe.enable_chunked_prefill || false}
+                        onChange={(e) =>
+                          onChange({ ...recipe, enable_chunked_prefill: e.target.checked })
+                        }
+                        className="rounded border-[#363432] bg-[#0d0d0d]"
+                      />
+                      Enable Chunked Prefill
+                    </label>
+                  </div>
+                </div>
+
+                {/* Performance */}
+                <div className="space-y-4 pt-4 border-t border-[#363432]/50">
+                  <h4 className="text-xs uppercase tracking-wider text-[#6a6560] font-medium">
+                    Performance
+                  </h4>
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center gap-2 text-sm text-[#9a9088]">
+                      <input
+                        type="checkbox"
+                        checked={recipe.enforce_eager || false}
+                        onChange={(e) => onChange({ ...recipe, enforce_eager: e.target.checked })}
+                        className="rounded border-[#363432] bg-[#0d0d0d]"
+                      />
+                      Enforce Eager Mode
+                      <span className="text-[10px] text-[#6a6560]">(disables CUDA graphs)</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Tool Calling & Reasoning */}
+                <div className="space-y-4 pt-4 border-t border-[#363432]/50">
+                  <h4 className="text-xs uppercase tracking-wider text-[#6a6560] font-medium">
+                    Tool Calling & Reasoning
+                  </h4>
+                  <div>
+                    <label className="block text-sm text-[#9a9088] mb-2">Tool Call Parser</label>
+                    <select
+                      value={recipe.tool_call_parser || ""}
+                      onChange={(e) =>
+                        onChange({ ...recipe, tool_call_parser: e.target.value || undefined })
+                      }
+                      className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
+                    >
+                      <option value="">None</option>
+                      <optgroup label="General">
+                        <option value="hermes">hermes</option>
+                        <option value="pythonic">pythonic</option>
+                        <option value="openai">openai</option>
+                      </optgroup>
+                      <optgroup label="Llama">
+                        <option value="llama3_json">llama3_json</option>
+                        <option value="llama4_json">llama4_json</option>
+                        <option value="llama4_pythonic">llama4_pythonic</option>
+                      </optgroup>
+                      <optgroup label="DeepSeek">
+                        <option value="deepseek_v3">deepseek_v3</option>
+                        <option value="deepseek_v31">deepseek_v31</option>
+                        <option value="deepseek_v32">deepseek_v32</option>
+                      </optgroup>
+                      <optgroup label="Qwen">
+                        <option value="qwen3_xml">qwen3_xml</option>
+                        <option value="qwen3_coder">qwen3_coder</option>
+                      </optgroup>
+                      <optgroup label="GLM">
+                        <option value="glm45">glm45</option>
+                        <option value="glm47">glm47</option>
+                      </optgroup>
+                      <optgroup label="MiniMax">
+                        <option value="minimax">minimax</option>
+                        <option value="minimax_m2">minimax_m2</option>
+                      </optgroup>
+                      <optgroup label="Granite">
+                        <option value="granite">granite</option>
+                        <option value="granite-20b-fc">granite-20b-fc</option>
+                      </optgroup>
+                      <optgroup label="Other">
+                        <option value="mistral">mistral</option>
+                        <option value="internlm">internlm</option>
+                        <option value="jamba">jamba</option>
+                        <option value="xlam">xlam</option>
+                        <option value="kimi_k2">kimi_k2</option>
+                        <option value="hunyuan_a13b">hunyuan_a13b</option>
+                        <option value="longcat">longcat</option>
+                        <option value="functiongemma">functiongemma</option>
+                        <option value="olmo3">olmo3</option>
+                        <option value="gigachat3">gigachat3</option>
+                        <option value="phi4_mini_json">phi4_mini_json</option>
+                        <option value="ernie45">ernie45</option>
+                        <option value="seed_oss">seed_oss</option>
+                        <option value="step3">step3</option>
+                      </optgroup>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-[#9a9088] mb-2">Reasoning Parser</label>
+                    <select
+                      value={recipe.reasoning_parser || ""}
+                      onChange={(e) =>
+                        onChange({ ...recipe, reasoning_parser: e.target.value || undefined })
+                      }
+                      className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
+                    >
+                      <option value="">None</option>
+                      <optgroup label="DeepSeek">
+                        <option value="deepseek_r1">deepseek_r1</option>
+                        <option value="deepseek_v3">deepseek_v3</option>
+                      </optgroup>
+                      <optgroup label="Qwen">
+                        <option value="qwen3">qwen3</option>
+                      </optgroup>
+                      <optgroup label="GLM">
+                        <option value="glm45">glm45</option>
+                      </optgroup>
+                      <optgroup label="MiniMax">
+                        <option value="minimax_m2">minimax_m2</option>
+                        <option value="minimax_m2_append_think">minimax_m2_append_think</option>
+                      </optgroup>
+                      <optgroup label="Other">
+                        <option value="granite">granite</option>
+                        <option value="mistral">mistral</option>
+                        <option value="hunyuan_a13b">hunyuan_a13b</option>
+                        <option value="kimi_k2">kimi_k2</option>
+                        <option value="olmo3">olmo3</option>
+                        <option value="holo2">holo2</option>
+                        <option value="ernie45">ernie45</option>
+                        <option value="openai_gptoss">openai_gptoss</option>
+                        <option value="seed_oss">seed_oss</option>
+                        <option value="step3">step3</option>
+                      </optgroup>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <label className="flex items-center gap-2 text-sm text-[#9a9088]">
+                      <input
+                        type="checkbox"
+                        checked={recipe.enable_auto_tool_choice || false}
+                        onChange={(e) =>
+                          onChange({ ...recipe, enable_auto_tool_choice: e.target.checked })
+                        }
+                        className="rounded border-[#363432] bg-[#0d0d0d]"
+                      />
+                      Enable Auto Tool Choice
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-[#9a9088]">
+                      <input
+                        type="checkbox"
+                        checked={!!(recipe.extra_args as Record<string, unknown>)?.["enable-reasoning"] || !!(recipe.extra_args as Record<string, unknown>)?.["enable_thinking"]}
+                        onChange={(e) => {
+                          const newExtraArgs = { ...(recipe.extra_args || {}) } as Record<string, unknown>;
+                          // Always remove old wrong keys
+                          delete newExtraArgs["enable_thinking"];
+                          delete newExtraArgs["enable-thinking"];
+                          if (e.target.checked) {
+                            newExtraArgs["enable-reasoning"] = true;
+                          } else {
+                            delete newExtraArgs["enable-reasoning"];
+                          }
+                          onChange({ ...recipe, extra_args: newExtraArgs });
+                        }}
+                        className="rounded border-[#363432] bg-[#0d0d0d]"
+                      />
+                      Enable Thinking
+                    </label>
+                  </div>
+                  {!!(recipe.extra_args as Record<string, unknown>)?.["enable-reasoning"] && (
+                    <div>
+                      <label className="block text-sm text-[#9a9088] mb-2">Thinking Budget</label>
+                      <input
+                        type="number"
+                        value={recipe.thinking_budget || ""}
+                        onChange={(e) =>
+                          onChange({ ...recipe, thinking_budget: Number(e.target.value) || undefined })
+                        }
+                        placeholder="1024"
+                        className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Chat & Server */}
+                <div className="space-y-4 pt-4 border-t border-[#363432]/50">
+                  <h4 className="text-xs uppercase tracking-wider text-[#6a6560] font-medium">
+                    Chat & Server
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm text-[#9a9088] mb-2">Served Model Name</label>
+                      <input
+                        type="text"
+                        value={recipe.served_model_name || ""}
+                        onChange={(e) =>
+                          onChange({ ...recipe, served_model_name: e.target.value || undefined })
+                        }
+                        placeholder="Optional alias"
+                        className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-[#9a9088] mb-2">Chat Template</label>
+                      <input
+                        type="text"
+                        value={recipe.chat_template || ""}
+                        onChange={(e) =>
+                          onChange({ ...recipe, chat_template: e.target.value || undefined })
+                        }
+                        placeholder="Path or template name"
+                        className="w-full px-3 py-2 bg-[#0d0d0d] border border-[#363432] rounded-lg text-sm focus:outline-none focus:border-[#d97706]"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
           </div>
+          </>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#363432]">
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#363432] shrink-0 bg-[#1b1b1b]">
           <button
             onClick={onClose}
             disabled={saving}
@@ -789,7 +1313,7 @@ function RecipeModal({
           </button>
           <button
             onClick={onSave}
-            disabled={saving || !recipe.name.trim() || !recipe.model_path.trim()}
+            disabled={saving || !(recipe.name ?? "").trim() || !(recipe.model_path ?? "").trim()}
             className="px-4 py-2 bg-[#d97706] hover:bg-[#b45309] text-white rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? "Saving..." : "Save Recipe"}

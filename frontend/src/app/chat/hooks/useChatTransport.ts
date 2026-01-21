@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useRef, useEffect } from "react";
+import { useAppStore } from "@/store";
+import type { LanguageModelUsage } from "ai";
 import { api } from "@/lib/api";
 import type { UIMessage } from "@ai-sdk/react";
 
@@ -18,6 +20,7 @@ export function useChatTransport({
   selectedModel,
 }: UseChatTransportOptions) {
   const sessionIdRef = useRef<string | null>(currentSessionId);
+  const updateSessions = useAppStore((state) => state.updateSessions);
 
   useEffect(() => {
     sessionIdRef.current = currentSessionId;
@@ -27,6 +30,18 @@ export function useChatTransport({
   const persistMessage = useCallback(
     async (sessionId: string, message: UIMessage) => {
       try {
+        const metadata = message.metadata as
+          | { usage?: LanguageModelUsage; model?: string }
+          | undefined;
+        const usage = metadata?.usage;
+        const promptTokens = usage?.inputTokens;
+        const completionTokens = usage?.outputTokens;
+        const totalTokens =
+          usage?.totalTokens ??
+          (promptTokens != null || completionTokens != null
+            ? (promptTokens ?? 0) + (completionTokens ?? 0)
+            : undefined);
+
         // Extract text content from parts
         const textContent = message.parts
           .filter((p): p is { type: "text"; text: string } => p.type === "text")
@@ -50,8 +65,13 @@ export function useChatTransport({
           id: message.id,
           role,
           content: textContent,
-          model: selectedModel,
+          model: metadata?.model ?? selectedModel,
           tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+          prompt_tokens: promptTokens,
+          completion_tokens: completionTokens,
+          total_tokens: totalTokens,
+          request_total_input_tokens: promptTokens,
+          request_completion_tokens: completionTokens,
         });
       } catch (err) {
         console.error("Failed to persist message:", err);
@@ -72,6 +92,12 @@ export function useChatTransport({
         setCurrentSessionId(session.id);
         setCurrentSessionTitle(session.title);
         sessionIdRef.current = session.id;
+        updateSessions((sessions) => {
+          if (sessions.some((existing) => existing.id === session.id)) {
+            return sessions;
+          }
+          return [session, ...sessions];
+        });
 
         // Persist the user message
         await persistMessage(session.id, userMessage);
@@ -82,7 +108,7 @@ export function useChatTransport({
         return null;
       }
     },
-    [selectedModel, setCurrentSessionId, setCurrentSessionTitle, persistMessage],
+    [selectedModel, setCurrentSessionId, setCurrentSessionTitle, persistMessage, updateSessions],
   );
 
   // Generate title from conversation
@@ -104,6 +130,11 @@ export function useChatTransport({
           if (data.title && data.title !== "New Chat") {
             await api.updateChatSession(sessionId, { title: data.title });
             setCurrentSessionTitle(data.title);
+            updateSessions((sessions) =>
+              sessions.map((session) =>
+                session.id === sessionId ? { ...session, title: data.title } : session,
+              ),
+            );
             return data.title;
           }
         }
@@ -112,7 +143,7 @@ export function useChatTransport({
       }
       return null;
     },
-    [selectedModel, setCurrentSessionTitle],
+    [selectedModel, setCurrentSessionTitle, updateSessions],
   );
 
   return {

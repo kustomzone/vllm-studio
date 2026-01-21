@@ -1,39 +1,21 @@
-import { streamText, jsonSchema, type ToolSet, type ModelMessage } from "ai";
+import { streamText, jsonSchema, convertToModelMessages } from "ai";
+import type { UIMessage, ToolSet } from "ai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { getApiSettings } from "@/lib/api-settings";
 
-// Allow streaming responses up to 5 minutes (model launches can take time)
+// Allow streaming responses up to 5 minutes
 export const maxDuration = 300;
 
+interface ToolDefinition {
+  name: string;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
+}
+
 interface PostBody {
-  messages: Array<{
-    id: string;
-    role: "system" | "user" | "assistant";
-    parts: Array<
-      | { type: "text"; text: string }
-      | { type: "file"; mediaType: string; url: string; filename?: string }
-      | {
-          type: "tool";
-          toolCallId: string;
-          toolName: string;
-          state:
-            | "input-streaming"
-            | "input-available"
-            | "output-available"
-            | "output-error";
-          input?: unknown;
-          output?: unknown;
-          errorText?: string;
-          providerExecuted?: boolean;
-        }
-    >;
-  }>;
+  messages: UIMessage[];
   model?: string;
-  tools?: Array<{
-    name: string;
-    description?: string;
-    inputSchema?: Record<string, unknown>;
-  }>;
+  tools?: ToolDefinition[];
   system?: string;
 }
 
@@ -53,10 +35,15 @@ export async function POST(req: Request) {
   try {
     const body: PostBody = await req.json();
     const { messages, model, tools, system } = body;
+    const resolvedModel = model || "default";
 
+    const toolNames = (tools || []).map((tool) => tool.name).join(", ");
     console.log(
-      `[CHAT V5] ip=${client.ip} | country=${client.country} | model=${model || "default"} | messages=${messages?.length || 0} | tools=${tools?.length || 0}`,
+      `[CHAT] ip=${client.ip} | country=${client.country} | model=${resolvedModel} | messages=${messages?.length || 0} | tools=${tools?.length || 0} | systemLength=${system?.length || 0}`,
     );
+    if (toolNames) {
+      console.log(`[CHAT] tools=[${toolNames}]`);
+    }
 
     if (!messages || !Array.isArray(messages)) {
       return new Response(JSON.stringify({ error: "Messages required" }), {
@@ -77,54 +64,53 @@ export async function POST(req: Request) {
       apiKey: API_KEY || "sk-master",
     });
 
-    const modelInstance = openaiCompatible(model || "default");
+    const modelInstance = openaiCompatible(resolvedModel);
 
     // Build tool set with model-only schemas (no server execution)
     // Tools will be emitted to client for execution via onToolCall
-    const toolSet = (tools || []).reduce<Record<string, { description?: string; inputSchema: unknown }>>(
-      (acc, tool) => {
-        acc[tool.name] = {
-          description: tool.description,
-          inputSchema: jsonSchema(tool.inputSchema || { type: "object", properties: {} }),
-        };
-        return acc;
-      },
-      {},
-    );
+    const toolSet = (tools || []).reduce<
+      Record<string, { description?: string; inputSchema: unknown }>
+    >((acc, tool) => {
+      acc[tool.name] = {
+        description: tool.description,
+        inputSchema: jsonSchema(tool.inputSchema || { type: "object", properties: {} }),
+      };
+      return acc;
+    }, {});
 
-    const coreMessages = (messages || []).map((msg): ModelMessage => {
-      const role = msg.role as ModelMessage["role"];
-      if (Array.isArray(msg.parts) && msg.parts.length > 0) {
-        const textParts = msg.parts
-          .filter((part): part is { type: "text"; text: string } =>
-            part.type === "text" && typeof part.text === "string",
-          )
-          .map((part) => part.text)
-          .join("");
-        return { role, content: textParts } as ModelMessage;
-      }
-      if (typeof msg === "object" && typeof (msg as { content?: string }).content === "string") {
-        return { role, content: (msg as { content?: string }).content as string } as ModelMessage;
-      }
-      return { role, content: "" } as ModelMessage;
-    });
+    // Convert UIMessages to model messages using the SDK helper
+    const modelMessages = await convertToModelMessages(messages);
 
     const result = streamText({
       model: modelInstance,
-      messages: coreMessages,
+      messages: modelMessages,
       system: system?.trim() || undefined,
       tools: toolSet as unknown as ToolSet,
       temperature: 0.7,
       onChunk: ({ chunk }) => {
         if (chunk.type === "reasoning-delta") {
-          console.log(`[CHAT V5] ip=${client.ip} | country=${client.country} | reasoning_delta=${chunk.text.length}`);
+          console.log(`[CHAT] ip=${client.ip} | reasoning_delta`);
         } else if (chunk.type === "text-delta") {
-          console.log(`[CHAT V5] ip=${client.ip} | country=${client.country} | text_delta=${chunk.text.length}`);
+          console.log(`[CHAT] ip=${client.ip} | text_delta=${chunk.text.length}`);
         }
       },
     });
 
+    // Return the UI message stream response
     return result.toUIMessageStreamResponse({
+      sendReasoning: true,
+      messageMetadata: ({ part }) => {
+        if (part.type === "start") {
+          return { model: resolvedModel };
+        }
+        if (part.type === "finish") {
+          return {
+            model: resolvedModel,
+            usage: part.totalUsage,
+          };
+        }
+        return undefined;
+      },
       onError: (error) => {
         if (error == null) return "Unknown error";
         if (typeof error === "string") return error;
@@ -134,7 +120,7 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error(
-      `[CHAT V5 ERROR] ip=${client.ip} | country=${client.country} | error=${String(error)}`,
+      `[CHAT ERROR] ip=${client.ip} | country=${client.country} | error=${String(error)}`,
     );
     return new Response(JSON.stringify({ error: String(error) }), {
       status: 500,

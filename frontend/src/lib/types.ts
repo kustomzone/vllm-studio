@@ -253,6 +253,11 @@ export interface ModelInfo {
   context_length?: number | null;
   recipe_ids?: string[];
   has_recipe?: boolean;
+  // KV cache calculation fields
+  num_hidden_layers?: number | null;
+  num_kv_heads?: number | null;
+  hidden_size?: number | null;
+  head_dim?: number | null;
 }
 
 export interface StudioModelsRoot {

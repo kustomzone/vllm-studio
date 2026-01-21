@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import type { UIMessage } from "@ai-sdk/react";
-import type { ActivityItem, ThinkingState } from "../types";
+import type { ActivityGroup, ActivityItem, ThinkingState } from "../types";
 import type { ToolResult } from "@/lib/types";
 import { thinkingParser } from "@/lib/services/message-parsing";
 
@@ -19,20 +19,19 @@ export function useChatDerived({
   executingTools,
   toolResultsMap,
 }: UseChatDerivedOptions) {
-  // Extract thinking/reasoning content from the last assistant message
-  // Combines both AI SDK reasoning parts AND <think>/<thinking> tags from text content
-  const thinkingState = useMemo<ThinkingState>(() => {
-    const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
-    if (!lastAssistant) return { content: "", isComplete: true };
-
+  // Extract thinking/reasoning content from a single assistant message
+  const extractThinking = useCallback((message: UIMessage) => {
     // 1. Extract AI SDK reasoning parts
-    const reasoningParts = lastAssistant.parts.filter(
+    const reasoningParts = message.parts.filter(
       (part): part is { type: "reasoning"; text: string } => part.type === "reasoning",
     );
-    const aiSdkReasoning = reasoningParts.map((p) => p.text).filter(Boolean).join("\n");
+    const aiSdkReasoning = reasoningParts
+      .map((p) => p.text)
+      .filter(Boolean)
+      .join("\n");
 
     // 2. Extract <think>/<thinking> tags from text content
-    const textContent = lastAssistant.parts
+    const textContent = message.parts
       .filter((p): p is { type: "text"; text: string } => p.type === "text")
       .map((p) => p.text)
       .join("");
@@ -44,11 +43,9 @@ export function useChatDerived({
 
     return {
       content: combined,
-      isComplete: !isLoading && parsed.isThinkingComplete,
+      isComplete: parsed.isThinkingComplete,
     };
-  }, [messages, isLoading]);
-
-  const thinkingActive = isLoading && thinkingState.content.length > 0;
+  }, []);
 
   const isToolPart = (
     part: UIMessage["parts"][number],
@@ -58,13 +55,17 @@ export function useChatDerived({
     return part.type.startsWith("tool-") && "toolCallId" in part;
   };
 
-  // Build activity items from tool calls across all messages
-  const activityItems = useMemo<ActivityItem[]>(() => {
-    const items: ActivityItem[] = [];
-    let idCounter = 0;
+  // Build activity groups from assistant messages (newest first)
+  const activityGroups = useMemo<ActivityGroup[]>(() => {
+    const assistantMessages = messages.filter((m) => m.role === "assistant");
+    if (assistantMessages.length === 0) return [];
 
-    messages.forEach((msg) => {
-      if (msg.role !== "assistant") return;
+    const lastAssistantId = assistantMessages[assistantMessages.length - 1]?.id;
+    const groups: ActivityGroup[] = [];
+
+    assistantMessages.forEach((msg, index) => {
+      const thinking = extractThinking(msg);
+      const toolItems: ActivityItem[] = [];
 
       msg.parts.forEach((part) => {
         if (!isToolPart(part)) return;
@@ -73,15 +74,18 @@ export function useChatDerived({
         const result = toolResultsMap.get(toolCallId);
         const isExecuting = executingTools.has(toolCallId);
 
-        const toolName =
+        const rawToolName =
           part.type === "dynamic-tool"
             ? "toolName" in part
               ? String(part.toolName)
               : "tool"
             : part.type.replace(/^tool-/, "");
+        const toolName = rawToolName.includes("__")
+          ? rawToolName.split("__").slice(1).join("__")
+          : rawToolName;
 
-        items.push({
-          id: `activity-${idCounter++}`,
+        toolItems.push({
+          id: `activity-${msg.id}-${toolCallId}`,
           type: "tool-call",
           timestamp: Date.now(),
           toolName,
@@ -97,14 +101,46 @@ export function useChatDerived({
           output: result?.content,
         });
       });
+
+      const isLatest = msg.id === lastAssistantId;
+      const hasThinking = Boolean(thinking.content);
+      const hasTools = toolItems.length > 0;
+
+      if (!hasThinking && !hasTools) {
+        return;
+      }
+
+      groups.push({
+        id: `activity-group-${msg.id}`,
+        messageId: msg.id,
+        title: isLatest ? `Latest (Turn ${index + 1})` : `Turn ${index + 1}`,
+        isLatest,
+        thinkingContent: hasThinking ? thinking.content : undefined,
+        thinkingActive: isLatest && isLoading && hasThinking,
+        toolItems,
+      });
     });
 
-    return items;
-  }, [messages, executingTools, toolResultsMap]);
+    return groups.reverse();
+  }, [messages, extractThinking, executingTools, toolResultsMap, isLoading]);
 
-  const hasToolActivity = activityItems.length > 0 || executingTools.size > 0;
+  const hasToolActivity =
+    activityGroups.some((group) => group.toolItems.length > 0) || executingTools.size > 0;
 
-  const hasSidePanelContent = hasToolActivity || thinkingState.content.length > 0;
+  const thinkingState = useMemo<ThinkingState>(() => {
+    const latestGroup = activityGroups[0];
+    if (!latestGroup) return { content: "", isComplete: true };
+
+    return {
+      content: latestGroup.thinkingContent || "",
+      isComplete: !isLoading,
+    };
+  }, [activityGroups, isLoading]);
+
+  const thinkingActive = Boolean(activityGroups[0]?.thinkingActive);
+
+  const hasSidePanelContent =
+    activityGroups.length > 0 || hasToolActivity || thinkingState.content.length > 0;
 
   // Last assistant message for actions
   const lastAssistantMessage = useMemo(() => {
@@ -114,7 +150,7 @@ export function useChatDerived({
   return {
     thinkingState,
     thinkingActive,
-    activityItems,
+    activityGroups,
     hasToolActivity,
     hasSidePanelContent,
     lastAssistantMessage,

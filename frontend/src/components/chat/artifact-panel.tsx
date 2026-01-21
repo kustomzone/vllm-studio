@@ -7,9 +7,9 @@ import {
   useCallback,
   useMemo,
   type ReactNode,
-  type MouseEvent,
-  type WheelEvent,
   type RefObject,
+  type MouseEvent as ReactMouseEvent,
+  type WheelEvent as ReactWheelEvent,
 } from "react";
 import {
   Code,
@@ -250,10 +250,10 @@ interface ArtifactViewerContentProps {
   scale: number;
   isDragging: boolean;
   position: { x: number; y: number };
-  onMouseDown?: (e: MouseEvent) => void;
-  onWheel?: (e: WheelEvent) => void;
-  iframeRef: RefObject<HTMLIFrameElement>;
-  containerRef: RefObject<HTMLDivElement>;
+  onMouseDown?: (e: ReactMouseEvent) => void;
+  onWheel?: (e: ReactWheelEvent) => void;
+  iframeRef: RefObject<HTMLIFrameElement | null>;
+  containerRef: RefObject<HTMLDivElement | null>;
 }
 
 function ArtifactViewerContent({
@@ -528,14 +528,14 @@ export function ArtifactViewer({ artifact, isActive = true }: ArtifactViewerProp
   };
 
   // Drag/pan handling
-  const handleMouseDown = (e: MouseEvent) => {
+  const handleMouseDown = (e: ReactMouseEvent) => {
     if (e.button !== 0) return; // Only left click
     setIsDragging(true);
     dragStartRef.current = { x: e.clientX, y: e.clientY, posX: position.x, posY: position.y };
   };
 
   const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
+    (e: globalThis.MouseEvent) => {
       if (!isDragging) return;
       const dx = e.clientX - dragStartRef.current.x;
       const dy = e.clientY - dragStartRef.current.y;
@@ -560,7 +560,7 @@ export function ArtifactViewer({ artifact, isActive = true }: ArtifactViewerProp
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
   // Wheel zoom
-  const handleWheel = (e: WheelEvent) => {
+  const handleWheel = (e: ReactWheelEvent) => {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
       const delta = e.deltaY > 0 ? -0.1 : 0.1;

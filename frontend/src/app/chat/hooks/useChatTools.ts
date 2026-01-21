@@ -29,49 +29,62 @@ export function useChatTools({ mcpEnabled }: UseChatToolsOptions) {
     }
   }, []);
 
-  const loadMCPTools = useCallback(async () => {
+  const loadMCPTools = useCallback(async (): Promise<MCPTool[]> => {
     if (!mcpEnabled) {
       setMcpTools([]);
-      return;
+      return [];
     }
     try {
       const data = await api.getMCPTools();
-      setMcpTools(data.tools || []);
+      const tools = data.tools || [];
+      setMcpTools(tools);
+      return tools;
     } catch (err) {
       console.error("Failed to load MCP tools:", err);
+      return [];
     }
   }, [mcpEnabled]);
 
-  const getToolDefinitions = useCallback((): ToolDefinition[] => {
-    if (!mcpEnabled) return [];
-    const enabledServers = new Set(
-      mcpServers.filter((server) => server.enabled).map((server) => server.name),
-    );
-    return mcpTools
-      .filter((tool) => enabledServers.has(tool.server))
-      .map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        inputSchema: tool.inputSchema,
-      }));
-  }, [mcpEnabled, mcpTools, mcpServers]);
+  const getToolDefinitions = useCallback(
+    (toolsOverride?: MCPTool[]): ToolDefinition[] => {
+      if (!mcpEnabled) return [];
+      const toolsList = toolsOverride ?? mcpTools;
+      const enabledServers =
+        mcpServers.length > 0
+          ? new Set(mcpServers.filter((server) => server.enabled).map((server) => server.name))
+          : new Set(toolsList.map((tool) => tool.server));
+      return toolsList
+        .filter((tool) => enabledServers.has(tool.server))
+        .map((tool) => ({
+          name: `${tool.server}__${tool.name}`,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+        }));
+    },
+    [mcpEnabled, mcpTools, mcpServers],
+  );
 
   const executeTool = useCallback(
     async (toolCall: { toolCallId: string; toolName: string; args?: Record<string, unknown> }) => {
-      const { toolCallId, toolName, args } = toolCall;
+      const { toolCallId, toolName: rawToolName, args } = toolCall;
 
       setExecutingTools((prev) => new Set(prev).add(toolCallId));
 
       try {
-        // Find the tool to get its server
-        const tool = mcpTools.find((t) => t.name === toolName);
-        const server = tool?.server || "default";
+        const nameParts = rawToolName.split("__");
+        const resolvedToolName = nameParts.length > 1 ? nameParts.slice(1).join("__") : rawToolName;
+        const serverFromName = nameParts.length > 1 ? nameParts[0] : "";
+        const tool = mcpTools.find(
+          (t) => t.name === resolvedToolName && (!serverFromName || t.server === serverFromName),
+        );
+        const server = serverFromName || tool?.server || "default";
 
-        const result = await api.callMCPTool(server, toolName, args || {});
+        const result = await api.callMCPTool(server, resolvedToolName, args || {});
 
         const toolResult: ToolResult = {
           tool_call_id: toolCallId,
-          content: typeof result.result === "string" ? result.result : JSON.stringify(result.result),
+          content:
+            typeof result.result === "string" ? result.result : JSON.stringify(result.result),
           isError: false,
         };
 

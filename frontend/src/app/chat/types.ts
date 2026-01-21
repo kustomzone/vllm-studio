@@ -89,6 +89,16 @@ export interface ActivityItem {
   content?: string;
 }
 
+export interface ActivityGroup {
+  id: string;
+  messageId: string;
+  title: string;
+  isLatest: boolean;
+  thinkingContent?: string;
+  thinkingActive?: boolean;
+  toolItems: ActivityItem[];
+}
+
 // Thinking state
 export interface ThinkingState {
   content: string;

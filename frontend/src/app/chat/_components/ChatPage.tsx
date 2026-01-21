@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { PanelRightOpen, Settings, BarChart3, Download, Server } from "lucide-react";
 import { api } from "@/lib/api";
 import { extractArtifacts } from "@/components/chat/artifact-renderer";
@@ -23,9 +23,12 @@ import { useChatTransport } from "../hooks/useChatTransport";
 import type { ActivePanel, DeepResearchConfig, SessionUsage } from "../types";
 import type { UIMessage } from "@ai-sdk/react";
 import type { Artifact } from "@/lib/types";
+import { useContextManagement } from "@/lib/services/context-management";
+import { useAppStore } from "@/store";
 
 export function ChatPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const sessionFromUrl = searchParams.get("session");
   const newChatFromUrl = searchParams.get("new") === "1";
 
@@ -53,7 +56,7 @@ export function ChatPage() {
   const [usageOpen, setUsageOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [availableModels, setAvailableModels] = useState<
-    Array<{ id: string; name?: string; path?: string }>
+    Array<{ id: string; name?: string; maxModelLen?: number }>
   >([]);
   const [sessionUsage, setSessionUsage] = useState<SessionUsage | null>(null);
 
@@ -75,6 +78,7 @@ export function ChatPage() {
   // Tools hook
   const {
     mcpServers,
+    mcpTools,
     loadMCPServers,
     loadMCPTools,
     getToolDefinitions,
@@ -95,18 +99,22 @@ export function ChatPage() {
     selectedModel,
   });
 
+  const { calculateStats, formatTokenCount } = useContextManagement();
+  const updateSessions = useAppStore((state) => state.updateSessions);
+
   // Track the last user input for title generation
   const lastUserInputRef = useRef<string>("");
   const autoArtifactSwitchRef = useRef(false);
 
-  const getRequestBody = useCallback(
-    () => ({
-      model: selectedModel || undefined,
-      system: systemPrompt?.trim() ? systemPrompt.trim() : undefined,
-      tools: getToolDefinitions?.() ?? [],
-    }),
-    [selectedModel, systemPrompt, getToolDefinitions],
-  );
+  const resolveToolDefinitions = useCallback(async () => {
+    if (!mcpEnabled) return [];
+    if (mcpTools.length > 0) {
+      return getToolDefinitions?.(mcpTools) ?? [];
+    }
+    const loadedTools = await loadMCPTools();
+    const tools = loadedTools.length > 0 ? loadedTools : mcpTools;
+    return getToolDefinitions?.(tools) ?? [];
+  }, [mcpEnabled, mcpTools, loadMCPTools, getToolDefinitions]);
 
   // Create transport for useChat (static; request-level body passed on send)
   const transport = useMemo(
@@ -118,14 +126,31 @@ export function ChatPage() {
   );
 
   // AI SDK useChat - the source of truth for messages
-  const { messages, sendMessage, stop, status, error, setMessages } = useChat({
+  const { messages, sendMessage, stop, status, error, setMessages, addToolOutput } = useChat({
     transport,
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     onToolCall: async ({ toolCall }) => {
-      await executeTool({
-        toolCallId: toolCall.toolCallId,
-        toolName: toolCall.toolName,
+      const toolCallId = toolCall.toolCallId;
+      const toolName = toolCall.toolName;
+      const result = await executeTool({
+        toolCallId,
+        toolName,
         args: (toolCall as { input?: unknown }).input as Record<string, unknown>,
       });
+      if (result.isError) {
+        addToolOutput({
+          tool: toolName as never,
+          toolCallId,
+          state: "output-error",
+          errorText: result.content || "Tool execution failed",
+        });
+      } else {
+        addToolOutput({
+          tool: toolName as never,
+          toolCallId,
+          output: result.content as never,
+        });
+      }
     },
     onFinish: async ({ message }) => {
       setStreamingStartTime(null);
@@ -155,14 +180,55 @@ export function ChatPage() {
   const isLoading = status === "streaming" || status === "submitted";
 
   // Derived state from messages
-  const { thinkingState, thinkingActive, activityItems } = useChatDerived({
+  const { thinkingActive, activityGroups } = useChatDerived({
     messages,
     isLoading,
     executingTools,
     toolResultsMap,
   });
 
-  const activityCount = activityItems.length + (thinkingState.content ? 1 : 0);
+  const activityCount = useMemo(() => {
+    return activityGroups.reduce(
+      (sum, group) => sum + group.toolItems.length + (group.thinkingContent ? 1 : 0),
+      0,
+    );
+  }, [activityGroups]);
+
+  const selectedModelMeta = useMemo(
+    () => availableModels.find((model) => model.id === selectedModel),
+    [availableModels, selectedModel],
+  );
+
+  const maxContext = selectedModel ? (selectedModelMeta?.maxModelLen ?? 32768) : undefined;
+
+  const contextStats = useMemo(() => {
+    if (!maxContext) return null;
+
+    const contextMessages = messages
+      .map((message) => {
+        const textContent = message.parts
+          .filter((part): part is { type: "text"; text: string } => part.type === "text")
+          .map((part) => part.text)
+          .join("");
+
+        return {
+          role: message.role,
+          content: textContent,
+        };
+      })
+      .filter((message) => message.content.trim().length > 0);
+
+    const tools = getToolDefinitions?.() ?? [];
+
+    return calculateStats(contextMessages, maxContext, systemPrompt, tools);
+  }, [messages, maxContext, systemPrompt, getToolDefinitions, calculateStats]);
+
+  const contextUsageLabel = useMemo(() => {
+    if (!contextStats) return null;
+    return `${formatTokenCount(contextStats.currentTokens)} / ${formatTokenCount(
+      contextStats.maxContext,
+    )}`;
+  }, [contextStats, formatTokenCount]);
 
   const sessionArtifacts = useMemo(() => {
     if (!artifactsEnabled || messages.length === 0) return [];
@@ -270,12 +336,13 @@ export function ChatPage() {
     }
   }, [newChatFromUrl, sessionFromUrl, startNewSession, loadSession, setMessages]);
 
-  // Load MCP tools when enabled
+  // Load MCP servers/tools when enabled
   useEffect(() => {
     if (mcpEnabled) {
+      loadMCPServers();
       loadMCPTools();
     }
-  }, [mcpEnabled, loadMCPTools]);
+  }, [mcpEnabled, loadMCPServers, loadMCPTools]);
 
   // Load available models from recipes on mount
   useEffect(() => {
@@ -288,6 +355,7 @@ export function ChatPage() {
           .map((recipe) => ({
             id: recipe.served_model_name!,
             name: recipe.served_model_name!,
+            maxModelLen: recipe.max_model_len,
           }))
           .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -382,26 +450,27 @@ export function ChatPage() {
     URL.revokeObjectURL(url);
   }, [currentSessionId, currentSessionTitle, selectedModel, messages]);
 
-  // Handle send with persistence and attachments
-  const handleSend = useCallback(
-    async (attachments?: Attachment[]) => {
+  const sendUserMessage = useCallback(
+    async (text: string, attachments?: Attachment[], options?: { clearInput?: boolean }) => {
       if (!selectedModel) return;
-      if (!input.trim() && (!attachments || attachments.length === 0)) return;
+      if (!text.trim() && (!attachments || attachments.length === 0)) return;
       if (isLoading) return;
 
       setToolPanelOpen(true);
       setActivePanel("activity");
       setStreamingStartTime(Date.now());
-      const userInput = input;
-      setInput("");
+
+      if (options?.clearInput) {
+        setInput("");
+      }
 
       // Store for title generation
-      lastUserInputRef.current = userInput;
+      lastUserInputRef.current = text;
 
       // Build message parts including attachments
       const parts: UIMessage["parts"] = [];
-      if (userInput.trim()) {
-        parts.push({ type: "text", text: userInput });
+      if (text.trim()) {
+        parts.push({ type: "text", text });
       }
 
       // Add image attachments as file parts
@@ -437,28 +506,100 @@ export function ChatPage() {
         await persistMessage(sessionId, userMessage);
       }
 
+      const toolDefinitions = await resolveToolDefinitions();
+      const trimmedSystem = systemPrompt?.trim() || undefined;
+
+      console.info("[CHAT UI] context", {
+        model: selectedModel,
+        systemLength: trimmedSystem?.length ?? 0,
+        messageCount: messages.length + 1,
+        tools: toolDefinitions.map((tool) => tool.name),
+        mcpEnabled,
+      });
+
       // Send the message via AI SDK - use simple text format
       // Note: For image attachments, the files would need to be passed as FileList
       // but our current attachment handling uses base64. For now, just send text.
       sendMessage(
         {
-          text: userInput,
+          text,
         },
         {
-          body: getRequestBody(),
+          body: {
+            model: selectedModel || undefined,
+            system: trimmedSystem,
+            tools: toolDefinitions,
+          },
         },
       );
     },
     [
-      input,
       isLoading,
       sendMessage,
       currentSessionId,
       createSessionWithMessage,
       persistMessage,
       selectedModel,
-      getRequestBody,
+      resolveToolDefinitions,
+      systemPrompt,
+      messages.length,
+      mcpEnabled,
     ],
+  );
+
+  // Handle send with persistence and attachments
+  const handleSend = useCallback(
+    async (attachments?: Attachment[]) => {
+      await sendUserMessage(input, attachments, { clearInput: true });
+    },
+    [input, sendUserMessage],
+  );
+
+  const handleReprompt = useCallback(
+    async (messageId: string) => {
+      if (isLoading) return;
+      const messageIndex = messages.findIndex((msg) => msg.id === messageId);
+      if (messageIndex <= 0) return;
+
+      const previousUser = [...messages.slice(0, messageIndex)]
+        .reverse()
+        .find((msg) => msg.role === "user");
+
+      if (!previousUser) return;
+
+      const userText = previousUser.parts
+        .filter((part): part is { type: "text"; text: string } => part.type === "text")
+        .map((part) => part.text)
+        .join("");
+
+      if (!userText.trim()) return;
+
+      await sendUserMessage(userText);
+    },
+    [messages, isLoading, sendUserMessage],
+  );
+
+  const handleForkMessage = useCallback(
+    async (messageId: string) => {
+      if (!currentSessionId) return;
+      try {
+        const { session } = await api.forkChatSession(currentSessionId, {
+          message_id: messageId,
+          model: selectedModel || undefined,
+          title: "New Chat",
+        });
+        updateSessions((sessions) => {
+          if (sessions.some((existing) => existing.id === session.id)) {
+            return sessions.map((existing) => (existing.id === session.id ? session : existing));
+          }
+          return [session, ...sessions];
+        });
+        router.push(`/chat?session=${session.id}`);
+      } catch (err) {
+        console.error("Failed to fork session:", err);
+      }
+    },
+    [currentSessionId, selectedModel, router, updateSessions],
   );
 
   // Handle stop
@@ -530,6 +671,10 @@ export function ChatPage() {
                         isLoading={isLoading}
                         error={error?.message}
                         artifactsEnabled={artifactsEnabled}
+                        selectedModel={selectedModel}
+                        contextUsageLabel={contextUsageLabel}
+                        onFork={handleForkMessage}
+                        onReprompt={handleReprompt}
                       />
                       <div ref={messagesEndRef} />
                     </div>
@@ -592,9 +737,9 @@ export function ChatPage() {
               onClose={() => setToolPanelOpen(false)}
               activePanel={activePanel}
               onSetActivePanel={setActivePanel}
-              thinkingContent={thinkingState.content}
+              activityGroups={activityGroups}
+              activityCount={activityCount}
               thinkingActive={thinkingActive}
-              activityItems={activityItems}
               executingTools={executingTools}
               artifacts={sessionArtifacts}
             />
