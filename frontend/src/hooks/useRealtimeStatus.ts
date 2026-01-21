@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useSSE } from "./useSSE";
 import type { GPU, Metrics, ProcessInfo } from "@/lib/types";
 import { getApiKey } from "@/lib/api-key";
 
@@ -107,15 +106,63 @@ export function useRealtimeStatus(
     ? `${apiBaseUrl}/events?api_key=${encodeURIComponent(apiKey)}`
     : `${apiBaseUrl}/events`;
 
-  const { isConnected, error, reconnectAttempts } = useSSE(
-    sseUrl,
-    true, // Always enabled
-    {
-      onMessage: handleMessage,
-      reconnectDelay: 2000, // 2 second initial delay
-      maxReconnectAttempts: 10,
-    },
-  );
+  // Inline SSE connection with auto-reconnect
+  const [isConnected, setIsConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
+
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const connectSSE = useCallback(() => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
+    try {
+      const es = new EventSource(sseUrl);
+      eventSourceRef.current = es;
+
+      es.onopen = () => {
+        setIsConnected(true);
+        setError(null);
+        setReconnectAttempts(0);
+      };
+
+      es.onmessage = (event) => {
+        handleMessage(event as MessageEvent);
+      };
+
+      es.onerror = () => {
+        setIsConnected(false);
+        setError("Connection lost");
+
+        // Schedule reconnect
+        const delay = Math.min(2000 * Math.pow(2, reconnectAttempts), 30000);
+        if (reconnectAttempts < 10) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            setReconnectAttempts((prev) => prev + 1);
+            connectSSE();
+          }, delay);
+        }
+      };
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Connection failed");
+    }
+  }, [sseUrl, reconnectAttempts, handleMessage]);
+
+  useEffect(() => {
+    connectSSE();
+
+    return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+    };
+  }, [connectSSE]);
 
   // Fetch status immediately (used on mount and visibility change)
   const fetchStatusNow = useCallback(async () => {

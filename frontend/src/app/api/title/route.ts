@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
     const choice = data.choices?.[0]?.message;
 
     // Handle both regular content and reasoning model format
-    let rawContent = choice?.content || "";
+    const rawContent = choice?.content || "";
 
     // For reasoning models that put content in reasoning_content,
     // skip trying to extract - just use the simple title generator

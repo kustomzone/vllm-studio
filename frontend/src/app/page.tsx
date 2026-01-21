@@ -5,14 +5,15 @@ import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { useRealtimeStatus } from "@/hooks/useRealtimeStatus";
 import type { RecipeWithStatus } from "@/lib/types";
+
 import {
   DashboardHeader,
   DashboardMetrics,
-  GpuStatusSection,
-  QuickLaunchSection,
-  RecentLogsSection,
   DashboardSidebar,
   LaunchToast,
+  RecentLogsSection,
+  QuickLaunchSection,
+  GpuStatusSection,
 } from "@/components/dashboard";
 
 export default function Dashboard() {

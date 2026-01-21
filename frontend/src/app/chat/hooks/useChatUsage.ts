@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { api } from "@/lib/api";
-import type { SessionUsage } from "../types";
+import type { SessionUsage } from "@/lib/types";
 
 interface UseChatUsageOptions {
   setSessionUsage: (usage: SessionUsage | null) => void;

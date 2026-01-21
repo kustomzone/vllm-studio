@@ -542,3 +542,21 @@ export interface ConfigData {
   services: ServiceInfo[];
   environment: EnvironmentInfo;
 }
+
+// Chat UI types
+export type ActivePanel = "activity" | "artifacts";
+
+export interface DeepResearchConfig {
+  enabled: boolean;
+  maxSources: number;
+  searchDepth: "shallow" | "medium" | "deep";
+  autoSummarize: boolean;
+  includeCitations: boolean;
+}
+
+export interface SessionUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  estimated_cost?: number | null;
+}

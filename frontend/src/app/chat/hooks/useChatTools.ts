@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { api } from "@/lib/api";
-import type { MCPTool, MCPServer, ToolDefinition } from "../types";
+import type { MCPTool, MCPServer } from "@/lib/types";
 import type { ToolResult } from "@/lib/types";
 
 interface UseChatToolsOptions {
@@ -18,10 +18,13 @@ export function useChatTools({ mcpEnabled }: UseChatToolsOptions) {
   const loadMCPServers = useCallback(async () => {
     try {
       const { servers } = await api.getMCPServers();
-      const normalizedServers: MCPServer[] = servers.map((server) => ({
+      const normalizedServers: MCPServer[] = servers.map((server: MCPServer) => ({
         name: server.name,
         enabled: server.enabled ?? true,
         icon: server.icon,
+        command: server.command,
+        args: server.args || [],
+        env: server.env || {},
       }));
       setMcpServers(normalizedServers);
     } catch (err) {
@@ -69,7 +72,7 @@ export function useChatTools({ mcpEnabled }: UseChatToolsOptions) {
   }, [mcpEnabled]);
 
   const getToolDefinitions = useCallback(
-    (toolsOverride?: MCPTool[]): ToolDefinition[] => {
+    (toolsOverride?: MCPTool[]): MCPTool[] => {
       if (!mcpEnabled) return [];
       const toolsList = toolsOverride ?? mcpTools;
       const enabledServers =
@@ -82,14 +85,16 @@ export function useChatTools({ mcpEnabled }: UseChatToolsOptions) {
         : toolsList;
       if (shouldFilter && filteredTools.length === 0 && toolsList.length > 0) {
         console.warn("[MCP] no enabled servers matched tools; using all tools");
-        return toolsList.map((tool) => ({
+        return toolsList.map((tool: MCPTool) => ({
           name: `${tool.server}__${tool.name}`,
+          server: tool.server,
           description: tool.description,
           inputSchema: tool.inputSchema,
         }));
       }
-      return filteredTools.map((tool) => ({
+      return filteredTools.map((tool: MCPTool) => ({
         name: `${tool.server}__${tool.name}`,
+        server: tool.server,
         description: tool.description,
         inputSchema: tool.inputSchema,
       }));
