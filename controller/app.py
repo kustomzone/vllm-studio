@@ -55,6 +55,12 @@ _metrics_task: Optional[asyncio.Task] = None
 _last_vllm_metrics: dict = {}
 _last_metrics_time: float = 0
 
+# Session tracking for average TPS calculations
+_session_start_tokens: dict = {}  # {'prompt': 0, 'generation': 0}
+_session_start_time: float = 0
+_session_peak_prefill: float = 0
+_session_peak_generation: float = 0
+
 
 async def _scrape_vllm_metrics(port: int) -> dict:
     """Scrape metrics from vLLM Prometheus endpoint."""
@@ -126,6 +132,7 @@ def get_mcp_store() -> MCPStore:
 async def _collect_and_broadcast_metrics():
     """Background task to collect metrics and broadcast updates."""
     global _last_vllm_metrics, _last_metrics_time
+    global _session_start_tokens, _session_start_time, _session_peak_prefill, _session_peak_generation
     import time
 
     while True:
@@ -173,27 +180,62 @@ async def _collect_and_broadcast_metrics():
                 now = time.time()
                 elapsed = now - _last_metrics_time if _last_metrics_time > 0 else 5
 
-                # Calculate throughput rates
+                # Calculate real-time throughput rates
                 prompt_throughput = 0.0
                 generation_throughput = 0.0
+                curr_prompt = int(vllm_metrics.get('vllm:prompt_tokens_total', 0))
+                curr_gen = int(vllm_metrics.get('vllm:generation_tokens_total', 0))
 
                 if vllm_metrics and _last_vllm_metrics and elapsed > 0:
                     prev_prompt = _last_vllm_metrics.get('vllm:prompt_tokens_total', 0)
-                    curr_prompt = vllm_metrics.get('vllm:prompt_tokens_total', 0)
                     prev_gen = _last_vllm_metrics.get('vllm:generation_tokens_total', 0)
-                    curr_gen = vllm_metrics.get('vllm:generation_tokens_total', 0)
 
                     if curr_prompt > prev_prompt:
                         prompt_throughput = (curr_prompt - prev_prompt) / elapsed
                     if curr_gen > prev_gen:
                         generation_throughput = (curr_gen - prev_gen) / elapsed
 
+                # Session tracking - initialize on first tokens
+                if curr_gen > 0 and not _session_start_tokens:
+                    _session_start_tokens = {'prompt': curr_prompt, 'generation': curr_gen}
+                    _session_start_time = now
+                    _session_peak_prefill = 0
+                    _session_peak_generation = 0
+
+                # Calculate session averages
+                session_avg_prefill = 0.0
+                session_avg_generation = 0.0
+                session_elapsed = now - _session_start_time if _session_start_time > 0 else 0
+
+                if _session_start_tokens and session_elapsed > 0:
+                    prompt_delta = curr_prompt - _session_start_tokens.get('prompt', 0)
+                    gen_delta = curr_gen - _session_start_tokens.get('generation', 0)
+                    if prompt_delta > 0:
+                        session_avg_prefill = prompt_delta / session_elapsed
+                    if gen_delta > 0:
+                        session_avg_generation = gen_delta / session_elapsed
+
+                # Track session peaks (best during this session)
+                if prompt_throughput > _session_peak_prefill:
+                    _session_peak_prefill = prompt_throughput
+                if generation_throughput > _session_peak_generation:
+                    _session_peak_generation = generation_throughput
+
                 _last_vllm_metrics = vllm_metrics
                 _last_metrics_time = now
 
-                # Get peak metrics
+                # Get and update peak metrics
                 peak_store = get_peak_metrics_store()
                 model_id = current.served_model_name or current.model_path.split('/')[-1]
+
+                # Auto-update peaks if current throughput exceeds stored peaks
+                if prompt_throughput > 0 or generation_throughput > 0:
+                    peak_store.update_if_better(
+                        model_id=model_id,
+                        prefill_tps=prompt_throughput if prompt_throughput > 0 else None,
+                        generation_tps=generation_throughput if generation_throughput > 0 else None
+                    )
+
                 peak_data = peak_store.get(model_id)
 
                 # Get lifetime metrics
@@ -205,14 +247,22 @@ async def _collect_and_broadcast_metrics():
                     "running_requests": int(vllm_metrics.get('vllm:num_requests_running', 0)),
                     "pending_requests": int(vllm_metrics.get('vllm:num_requests_waiting', 0)),
                     "kv_cache_usage": vllm_metrics.get('vllm:kv_cache_usage_perc', 0),
-                    "prompt_tokens_total": int(vllm_metrics.get('vllm:prompt_tokens_total', 0)),
-                    "generation_tokens_total": int(vllm_metrics.get('vllm:generation_tokens_total', 0)),
+                    "prompt_tokens_total": curr_prompt,
+                    "generation_tokens_total": curr_gen,
 
-                    # Calculated throughput
+                    # Real-time throughput (current 5s window)
                     "prompt_throughput": round(prompt_throughput, 1),
                     "generation_throughput": round(generation_throughput, 1),
 
-                    # Peak metrics (from benchmark)
+                    # Session averages (since first token)
+                    "session_avg_prefill": round(session_avg_prefill, 1),
+                    "session_avg_generation": round(session_avg_generation, 1),
+
+                    # Session peaks (best this session)
+                    "session_peak_prefill": round(_session_peak_prefill, 1),
+                    "session_peak_generation": round(_session_peak_generation, 1),
+
+                    # All-time peak metrics (persisted)
                     "peak_prefill_tps": peak_data.get('prefill_tps') if peak_data else None,
                     "peak_generation_tps": peak_data.get('generation_tps') if peak_data else None,
                     "peak_ttft_ms": peak_data.get('ttft_ms') if peak_data else None,
@@ -231,6 +281,12 @@ async def _collect_and_broadcast_metrics():
                     "kwh_per_million_input": (lifetime_data.get('energy_wh', 0) / 1000) / (lifetime_data.get('prompt_tokens_total', 1) / 1_000_000) if lifetime_data.get('prompt_tokens_total', 0) > 0 else None,
                     "kwh_per_million_output": (lifetime_data.get('energy_wh', 0) / 1000) / (lifetime_data.get('completion_tokens_total', 1) / 1_000_000) if lifetime_data.get('completion_tokens_total', 0) > 0 else None,
                 })
+            else:
+                # Reset session tracking when no model is running
+                _session_start_tokens = {}
+                _session_start_time = 0
+                _session_peak_prefill = 0
+                _session_peak_generation = 0
 
         except asyncio.CancelledError:
             break

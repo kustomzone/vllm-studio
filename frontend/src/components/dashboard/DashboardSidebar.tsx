@@ -28,21 +28,18 @@ function SessionStats({ metrics }: { metrics: Metrics | null }) {
 
   return (
     <section>
-      <h2 className="text-xs uppercase tracking-wider text-(--muted-foreground) mb-3 font-medium">
+      <h2 className="text-[10px] uppercase tracking-widest text-(--muted-foreground)/50 mb-3 font-medium">
         Session
       </h2>
-      <div className="space-y-2">
-        {metrics?.request_success !== undefined && (
-          <StatRow label="Requests" value={metrics.request_success} />
-        )}
+      <div className="space-y-1.5">
         {metrics?.prompt_tokens_total !== undefined && (
-          <StatRow label="Input Tokens" value={metrics.prompt_tokens_total.toLocaleString()} />
+          <StatRow label="Input Tokens" value={formatNumber(metrics.prompt_tokens_total)} />
         )}
         {metrics?.generation_tokens_total !== undefined && (
-          <StatRow label="Output Tokens" value={metrics.generation_tokens_total.toLocaleString()} />
+          <StatRow label="Output Tokens" value={formatNumber(metrics.generation_tokens_total)} />
         )}
-        {metrics?.running_requests !== undefined && (
-          <StatRow label="Running" value={metrics.running_requests} accent />
+        {metrics?.running_requests !== undefined && metrics.running_requests > 0 && (
+          <StatRow label="Active" value={metrics.running_requests} accent />
         )}
       </div>
     </section>
@@ -62,27 +59,15 @@ function LifetimeStats({ metrics }: { metrics: Metrics | null }) {
 
   return (
     <section>
-      <h2 className="text-xs uppercase tracking-wider text-(--muted-foreground) mb-3 font-medium">
+      <h2 className="text-[10px] uppercase tracking-widest text-(--muted-foreground)/50 mb-3 font-medium">
         Lifetime
       </h2>
-      <div className="space-y-2">
-        {metrics?.lifetime_prompt_tokens !== undefined && (
-          <StatRow label="Input Tokens" value={metrics.lifetime_prompt_tokens.toLocaleString()} />
-        )}
-        {metrics?.lifetime_completion_tokens !== undefined && (
-          <StatRow
-            label="Output Tokens"
-            value={metrics.lifetime_completion_tokens.toLocaleString()}
-          />
-        )}
-        {metrics?.lifetime_requests !== undefined && (
-          <StatRow label="Total Requests" value={metrics.lifetime_requests.toLocaleString()} />
-        )}
-        {metrics?.lifetime_energy_kwh !== undefined && (
+      <div className="space-y-1.5">
+        {metrics?.lifetime_energy_kwh !== undefined && metrics.lifetime_energy_kwh > 0 && (
           <StatRow label="Energy" value={`${metrics.lifetime_energy_kwh.toFixed(2)} kWh`} />
         )}
-        {metrics?.lifetime_uptime_hours !== undefined && (
-          <StatRow label="Uptime" value={`${metrics.lifetime_uptime_hours.toFixed(1)}h`} />
+        {metrics?.lifetime_uptime_hours !== undefined && metrics.lifetime_uptime_hours > 0 && (
+          <StatRow label="Uptime" value={formatUptime(metrics.lifetime_uptime_hours)} />
         )}
       </div>
     </section>
@@ -94,56 +79,24 @@ function CostAnalytics({ metrics }: { metrics: Metrics | null }) {
     return null;
   }
 
+  const totalCost = metrics?.lifetime_energy_kwh
+    ? (metrics.lifetime_energy_kwh * ELECTRICITY_PRICE_PLN).toFixed(2)
+    : null;
+
   return (
     <section>
-      <h2 className="text-xs uppercase tracking-wider text-(--muted-foreground) mb-3 font-medium">
-        Cost Analytics
+      <h2 className="text-[10px] uppercase tracking-widest text-(--muted-foreground)/50 mb-3 font-medium">
+        Cost
       </h2>
       <div className="space-y-3">
-        {metrics?.lifetime_energy_kwh && (
-          <div className="pb-3">
-            <div className="text-xs text-(--muted-foreground) mb-1">Total Cost</div>
-            <div className="text-sm font-medium text-(--success)">
-              {(metrics.lifetime_energy_kwh * ELECTRICITY_PRICE_PLN).toFixed(2)} PLN
-            </div>
+        {totalCost && (
+          <div>
+            <div className="text-lg font-light text-(--success)/80 tabular-nums">{totalCost} PLN</div>
           </div>
         )}
-        {metrics?.kwh_per_million_input || metrics?.kwh_per_million_output ? (
-          <div className="space-y-2">
-            {metrics?.kwh_per_million_input && (
-              <CostRow label="kWh/M Input" value={metrics.kwh_per_million_input.toFixed(3)} />
-            )}
-            {metrics?.kwh_per_million_output && (
-              <CostRow label="kWh/M Output" value={metrics.kwh_per_million_output.toFixed(3)} />
-            )}
-            {metrics?.kwh_per_million_input && (
-              <CostRow
-                label="PLN/M Input"
-                value={(metrics.kwh_per_million_input * ELECTRICITY_PRICE_PLN).toFixed(2)}
-              />
-            )}
-            {metrics?.kwh_per_million_output && (
-              <CostRow
-                label="PLN/M Output"
-                value={(metrics.kwh_per_million_output * ELECTRICITY_PRICE_PLN).toFixed(2)}
-              />
-            )}
-          </div>
-        ) : null}
         {metrics?.current_power_watts && (
-          <div
-            className={`${
-              metrics?.lifetime_energy_kwh ||
-              metrics?.kwh_per_million_input ||
-              metrics?.kwh_per_million_output
-                ? "pt-3"
-                : ""
-            }`}
-          >
-            <div className="text-xs text-(--muted-foreground) mb-1">Current Draw</div>
-            <div className="text-sm font-medium text-(--foreground)">
-              {Math.round(metrics.current_power_watts)}W
-            </div>
+          <div className="text-xs text-(--muted-foreground)/50 tabular-nums">
+            {Math.round(metrics.current_power_watts)}W draw
           </div>
         )}
       </div>
@@ -161,11 +114,11 @@ function StatRow({
   accent?: boolean;
 }) {
   return (
-    <div className="flex items-baseline justify-between py-1">
-      <span className="text-xs text-(--muted-foreground)">{label}</span>
+    <div className="flex items-baseline justify-between">
+      <span className="text-xs text-(--muted-foreground)/50">{label}</span>
       <span
-        className={`text-xs font-medium tabular-nums ${
-          accent ? "text-(--success)" : "text-(--foreground)"
+        className={`text-xs tabular-nums ${
+          accent ? "text-(--success)/80" : "text-(--foreground)/70"
         }`}
       >
         {value}
@@ -174,11 +127,13 @@ function StatRow({
   );
 }
 
-function CostRow({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="flex justify-between text-xs py-1">
-      <span className="text-(--muted-foreground)">{label}</span>
-      <span className="text-(--foreground) font-medium tabular-nums">{value}</span>
-    </div>
-  );
+function formatNumber(num: number): string {
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
+  return num.toLocaleString();
+}
+
+function formatUptime(hours: number): string {
+  if (hours >= 24) return `${(hours / 24).toFixed(1)}d`;
+  return `${hours.toFixed(1)}h`;
 }

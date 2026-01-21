@@ -321,7 +321,13 @@ export interface Metrics {
   prompt_tokens_total?: number;
   running_requests?: number;
   pending_requests?: number;
-  // Peak metrics (stored best values)
+  // Session averages (since first token this session)
+  session_avg_prefill?: number;
+  session_avg_generation?: number;
+  // Session peaks (best this session)
+  session_peak_prefill?: number;
+  session_peak_generation?: number;
+  // All-time peak metrics (stored best values)
   peak_prefill_tps?: number;
   peak_generation_tps?: number;
   peak_ttft_ms?: number;

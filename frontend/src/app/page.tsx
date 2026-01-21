@@ -138,11 +138,15 @@ export default function Dashboard() {
         {currentProcess && <DashboardMetrics metrics={metrics} gpus={gpus} />}
 
         {/* Main Content */}
-        <div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
+        <div className="grid lg:grid-cols-3 gap-8 lg:gap-12">
           {/* Left Column */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-8">
             <GpuStatusSection />
+            <RecentLogsSection logs={logs} />
+          </div>
 
+          {/* Right Column */}
+          <div className="space-y-8">
             <QuickLaunchSection
               recipes={recipes}
               launching={launching}
@@ -150,11 +154,8 @@ export default function Dashboard() {
               onNewRecipe={() => router.push("/recipes?new=1")}
               onViewAll={() => router.push("/recipes")}
             />
-
-            <RecentLogsSection logs={logs} />
+            <DashboardSidebar metrics={metrics} />
           </div>
-
-          <DashboardSidebar metrics={metrics} />
         </div>
       </div>
 
