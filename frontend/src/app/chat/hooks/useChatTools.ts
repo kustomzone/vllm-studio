@@ -75,14 +75,24 @@ export function useChatTools({ mcpEnabled }: UseChatToolsOptions) {
       const enabledServers =
         mcpServers.length > 0
           ? new Set(mcpServers.filter((server) => server.enabled).map((server) => server.name))
-          : new Set(toolsList.map((tool) => tool.server));
-      return toolsList
-        .filter((tool) => enabledServers.has(tool.server))
-        .map((tool) => ({
+          : new Set<string>();
+      const shouldFilter = enabledServers.size > 0;
+      const filteredTools = shouldFilter
+        ? toolsList.filter((tool) => enabledServers.has(tool.server))
+        : toolsList;
+      if (shouldFilter && filteredTools.length === 0 && toolsList.length > 0) {
+        console.warn("[MCP] no enabled servers matched tools; using all tools");
+        return toolsList.map((tool) => ({
           name: `${tool.server}__${tool.name}`,
           description: tool.description,
           inputSchema: tool.inputSchema,
         }));
+      }
+      return filteredTools.map((tool) => ({
+        name: `${tool.server}__${tool.name}`,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+      }));
     },
     [mcpEnabled, mcpTools, mcpServers],
   );
