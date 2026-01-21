@@ -312,7 +312,7 @@ export function AppSidebar({ children }: AppSidebarProps) {
       {/* Main content */}
       <main className="flex-1 min-w-0 h-full overflow-y-auto overflow-x-hidden bg-(--background)">
         {/* Mobile header */}
-        {isMobile && (
+        {isMobile && pathname !== "/chat" && (
           <div
             className="sticky top-0 z-30 bg-(--card) border-b border-(--border) px-3 py-2 flex items-center gap-2"
             style={{ paddingTop: "calc(0.5rem + env(safe-area-inset-top, 0))" }}

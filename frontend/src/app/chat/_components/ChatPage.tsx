@@ -487,8 +487,11 @@ export function ChatPage() {
       if (!text.trim() && (!attachments || attachments.length === 0)) return;
       if (isLoading) return;
 
-      setToolPanelOpen(true);
-      setActivePanel("activity");
+      // Only open side panel on desktop
+      if (window.innerWidth >= 768) {
+        setToolPanelOpen(true);
+        setActivePanel("activity");
+      }
       setStreamingStartTime(Date.now());
 
       if (options?.clearInput) {
@@ -715,26 +718,26 @@ export function ChatPage() {
             </div>
 
             {/* Mobile top controls */}
-            <div className="absolute left-3 top-3 z-20 md:hidden">
+            <div className="fixed left-4 top-[calc(env(safe-area-inset-top,0)+16px)] z-20 md:hidden">
               <button
                 onClick={() => {
                   window.dispatchEvent(
                     new CustomEvent("vllm:toggle-sidebar", { detail: { open: true } }),
                   );
                 }}
-                className="p-2 bg-(--card) border border-(--border) rounded-full shadow-lg"
+                className="p-2 rounded-lg hover:bg-(--accent) transition-colors"
                 title="Open navigation"
               >
-                <Menu className="h-4 w-4 text-[#9a9590]" />
+                <Menu className="h-5 w-5 text-[#9a9590]" />
               </button>
             </div>
-            <div className="absolute right-3 top-3 z-20 md:hidden">
+            <div className="fixed right-4 top-[calc(env(safe-area-inset-top,0)+16px)] z-20 md:hidden">
               <button
                 onClick={() => setSettingsOpen(true)}
-                className="p-2 bg-(--card) border border-(--border) rounded-full shadow-lg"
+                className="p-2 rounded-lg hover:bg-(--accent) transition-colors"
                 title="Chat settings"
               >
-                <Settings className="h-4 w-4 text-[#9a9590]" />
+                <Settings className="h-5 w-5 text-[#9a9590]" />
               </button>
             </div>
 
@@ -783,7 +786,7 @@ export function ChatPage() {
             </div>
 
             <div className="fixed left-0 right-0 bottom-0 z-20 md:static">
-              <div className="md:hidden pb-[calc(env(safe-area-inset-bottom,0)+8px)] bg-[hsl(30,5%,10.5%)] border-t border-(--border)">
+              <div className="md:hidden pb-[calc(env(safe-area-inset-bottom,0)+8px)] pt-2 bg-[hsl(30,5%,10.5%)]">
                 {toolBelt}
               </div>
               {!showEmptyState && (

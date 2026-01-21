@@ -8,7 +8,10 @@ function json(data: unknown, init: ResponseInit = {}): Response {
   headers.set("Content-Type", "application/json");
   headers.set("Access-Control-Allow-Origin", "*");
   headers.set("Access-Control-Allow-Headers", "*");
-  headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  headers.set(
+    "Access-Control-Allow-Methods",
+    "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+  );
   headers.set("X-VLLM-Studio-Canary", "controller-new");
   return new Response(JSON.stringify(data), { ...init, headers });
 }

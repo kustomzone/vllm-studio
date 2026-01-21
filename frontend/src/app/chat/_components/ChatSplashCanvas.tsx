@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Simplified splash canvas for chat-v2
 // Full animation code from original component
@@ -175,8 +175,12 @@ const drawCenterDisc = (
 ) => {
   ctx.save();
   const glowGradient = ctx.createRadialGradient(
-    centerX, centerY, radius * 0.8,
-    centerX, centerY, radius * 1.8,
+    centerX,
+    centerY,
+    radius * 0.8,
+    centerX,
+    centerY,
+    radius * 1.8,
   );
   glowGradient.addColorStop(0, "hsla(270, 40%, 50%, 0.15)");
   glowGradient.addColorStop(0.5, "hsla(270, 30%, 40%, 0.08)");
@@ -363,8 +367,20 @@ const drawRings = (ctx: CanvasRenderingContext2D, geometry: SplashGeometry, time
 export function ChatSplashCanvas({ active }: { active: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
+    // Check if mobile on mount and resize
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  useEffect(() => {
+    // Skip canvas animation on mobile
+    if (isMobile) return;
+
     const canvas = canvasRef.current;
     const wrapper = wrapperRef.current;
     if (!canvas || !wrapper) return;
@@ -427,7 +443,12 @@ export function ChatSplashCanvas({ active }: { active: boolean }) {
       window.removeEventListener("resize", resize);
       if (animationFrame) window.cancelAnimationFrame(animationFrame);
     };
-  }, []);
+  }, [isMobile]);
+
+  // No splash on mobile
+  if (isMobile) {
+    return null;
+  }
 
   return (
     <div

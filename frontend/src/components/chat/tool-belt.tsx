@@ -9,8 +9,8 @@ import {
   MicOff,
   X,
   FileText,
-  Send,
-  StopCircle,
+  ArrowUp,
+  Square,
   Globe,
   Code,
   Brain,
@@ -18,6 +18,8 @@ import {
   SlidersHorizontal,
   Clock,
   Loader2,
+  ChevronDown,
+  Wrench,
 } from "lucide-react";
 
 export interface Attachment {
@@ -72,6 +74,85 @@ interface ToolBeltProps {
   onQueuedContextChange?: (value: string) => void;
 }
 
+// Dropdown component for grouping icons
+function ToolDropdown({
+  icon: Icon,
+  label,
+  isActive,
+  disabled,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  isActive?: boolean;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        disabled={disabled}
+        className={`flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all disabled:opacity-50 ${
+          isActive
+            ? "bg-(--card-hover) text-[#e8e4dd] border border-(--border)/50"
+            : "hover:bg-(--accent) text-[#9a9590]"
+        }`}
+        title={label}
+      >
+        <Icon className="h-4 w-4" />
+        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute bottom-full left-0 mb-1 min-w-[160px] bg-(--card) border border-(--border) rounded-lg shadow-lg py-1 z-50">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DropdownItem({
+  icon: Icon,
+  label,
+  isActive,
+  onClick,
+  disabled,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  isActive?: boolean;
+  onClick?: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors disabled:opacity-50 ${
+        isActive ? "bg-(--accent) text-[#e8e4dd]" : "hover:bg-(--accent) text-[#9a9590]"
+      }`}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      <span className="truncate">{label}</span>
+      {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-(--success)" />}
+    </button>
+  );
+}
+
 export function ToolBelt({
   value,
   onChange,
@@ -111,8 +192,12 @@ export function ToolBelt({
   // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + "px";
+      textareaRef.current.style.height = "44px";
+      const scrollHeight = textareaRef.current.scrollHeight;
+      const newHeight = Math.min(scrollHeight, 200);
+      textareaRef.current.style.height = newHeight + "px";
+      // Only show scrollbar when content exceeds max height
+      textareaRef.current.style.overflowY = scrollHeight > 200 ? "auto" : "hidden";
     }
   }, [value]);
 
@@ -122,7 +207,6 @@ export function ToolBelt({
       reader.readAsDataURL(file);
       reader.onload = () => {
         const result = reader.result as string;
-        // Extract base64 data after the comma (data:image/png;base64,...)
         const base64 = result.split(",")[1];
         resolve(base64);
       };
@@ -147,7 +231,6 @@ export function ToolBelt({
         file,
       };
 
-      // Convert images to base64 for API
       if (type === "image") {
         try {
           attachment.base64 = await fileToBase64(file);
@@ -182,7 +265,6 @@ export function ToolBelt({
       formData.append("file", audioBlob, "recording.webm");
       formData.append("model", "whisper-1");
 
-      // Use local proxy which handles auth via server-side API_KEY env var
       const response = await fetch("/api/voice/transcribe", {
         method: "POST",
         body: formData,
@@ -204,7 +286,6 @@ export function ToolBelt({
       const errorMessage = err instanceof Error ? err.message : "Transcription failed";
       console.error("Transcription error:", err);
       setTranscriptionError(errorMessage);
-      // Auto-clear error after 5 seconds
       setTimeout(() => setTranscriptionError(null), 5000);
       return null;
     } finally {
@@ -227,11 +308,9 @@ export function ToolBelt({
         const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
         stream.getTracks().forEach((track) => track.stop());
 
-        // Transcribe the audio and insert text
         const transcript = await transcribeAudio(audioBlob);
         if (transcript) {
           onChange(value ? `${value} ${transcript}` : transcript);
-          // Focus the textarea after transcription
           textareaRef.current?.focus();
         }
       };
@@ -285,12 +364,16 @@ export function ToolBelt({
     }
   };
 
+  // Check if any tools are active
+  const hasActiveTools = mcpEnabled || artifactsEnabled || deepResearchEnabled;
+  const canSend = (value.trim() || attachments.length > 0) && !disabled;
+
   return (
-    <div className="px-0 md:px-3 pb-0 md:pb-0 bg-(--background)">
-      <div className="max-w-4xl mx-auto w-full px-2 md:px-0">
+    <div className="px-3 md:px-3 pb-0 md:pb-0 bg-(--background)">
+      <div className="w-full max-w-none md:max-w-4xl md:mx-auto px-0 md:px-0">
         {/* Attachments Preview */}
         {attachments.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-3">
+          <div className="flex flex-wrap gap-2 mb-3 px-3 md:px-0">
             {attachments.map((attachment) => (
               <div
                 key={attachment.id}
@@ -343,7 +426,7 @@ export function ToolBelt({
 
         {/* Recording Indicator */}
         {isRecording && (
-          <div className="flex items-center gap-2.5 mb-3 px-3 py-2 bg-(--error)/10 border border-(--error)/20 rounded-lg">
+          <div className="flex items-center gap-2.5 mb-3 mx-3 md:mx-0 px-3 py-2 bg-(--error)/10 border border-(--error)/20 rounded-lg">
             <div className="w-2 h-2 rounded-full bg-(--error) animate-pulse" />
             <span className="text-sm text-(--error)">Recording</span>
             <span className="text-sm font-mono text-[#9a9590]">
@@ -353,7 +436,7 @@ export function ToolBelt({
               onClick={stopRecording}
               className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-(--error) text-white hover:opacity-90"
             >
-              <StopCircle className="h-4 w-4" />
+              <Square className="h-3 w-3 fill-current" />
               Stop
             </button>
           </div>
@@ -361,7 +444,7 @@ export function ToolBelt({
 
         {/* Transcribing Indicator */}
         {isTranscribing && (
-          <div className="flex items-center gap-2.5 mb-3 px-3 py-2 bg-(--link)/10 border border-(--link)/20 rounded-lg">
+          <div className="flex items-center gap-2.5 mb-3 mx-3 md:mx-0 px-3 py-2 bg-(--link)/10 border border-(--link)/20 rounded-lg">
             <Loader2 className="h-4 w-4 text-(--link) animate-spin" />
             <span className="text-sm text-(--link)">Transcribing audio...</span>
           </div>
@@ -369,7 +452,7 @@ export function ToolBelt({
 
         {/* Transcription Error */}
         {transcriptionError && (
-          <div className="flex items-center gap-2.5 mb-3 px-3 py-2 bg-(--error)/10 border border-(--error)/20 rounded-lg">
+          <div className="flex items-center gap-2.5 mb-3 mx-3 md:mx-0 px-3 py-2 bg-(--error)/10 border border-(--error)/20 rounded-lg">
             <span className="text-sm text-(--error)">{transcriptionError}</span>
             <button
               onClick={() => setTranscriptionError(null)}
@@ -384,7 +467,7 @@ export function ToolBelt({
         <div
           className={`relative flex flex-col border rounded-2xl md:rounded-xl bg-(--card) shadow-sm ${isLoading ? "border-blue-500/30" : "border-(--border)"}`}
         >
-          {/* Textarea - switches to queued context while loading */}
+          {/* Textarea */}
           <textarea
             ref={textareaRef}
             value={isLoading && onQueuedContextChange ? queuedContext : value}
@@ -403,16 +486,34 @@ export function ToolBelt({
             }
             disabled={disabled}
             rows={1}
-            className="w-full px-3 py-2 md:px-4 md:py-3 bg-transparent text-[15px] md:text-sm resize-none focus:outline-none disabled:opacity-50 placeholder:text-[#9a9590]"
-            style={{ minHeight: "44px", maxHeight: "200px", fontSize: "16px", lineHeight: "1.4" }}
+            className="w-full px-3 py-2 md:px-4 md:py-3 bg-transparent text-[15px] md:text-sm resize-none focus:outline-none disabled:opacity-50 placeholder:text-[#9a9590] overflow-y-hidden"
+            style={{ height: "44px", maxHeight: "200px", fontSize: "16px", lineHeight: "1.5" }}
           />
 
-          {/* Tool Bar */}
-          <div className="flex items-center justify-between px-2 py-1 border-t border-(--border)">
-            <div className="flex items-center gap-0.5">
-              {/* Streaming Timer - shows in toolbar when loading */}
+          {/* Hidden file inputs */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={(e) => handleFileSelect(e, "file")}
+            className="hidden"
+            multiple
+            accept=".txt,.pdf,.doc,.docx,.md,.json,.csv"
+          />
+          <input
+            ref={imageInputRef}
+            type="file"
+            onChange={(e) => handleFileSelect(e, "image")}
+            className="hidden"
+            multiple
+            accept="image/*"
+          />
+
+          {/* Tool Bar - Compact with dropdowns */}
+          <div className="flex items-center justify-between px-2 py-1.5 border-t border-(--border)">
+            <div className="flex items-center gap-1">
+              {/* Streaming Timer */}
               {isLoading && elapsedSeconds !== undefined && (
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 mr-1">
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20">
                   <Clock className="h-3.5 w-3.5 text-blue-400 animate-pulse" />
                   <span className="text-xs font-mono text-blue-400">
                     {Math.floor(elapsedSeconds / 60)}:
@@ -420,175 +521,160 @@ export function ToolBelt({
                   </span>
                 </div>
               )}
-              {/* File Upload */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                onChange={(e) => handleFileSelect(e, "file")}
-                className="hidden"
-                multiple
-                accept=".txt,.pdf,.doc,.docx,.md,.json,.csv"
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={disabled}
-                className="p-1.5 md:p-2 rounded hover:bg-(--accent) transition-colors disabled:opacity-50"
-                title="Attach file"
-              >
-                <Paperclip className="h-4 w-4 text-[#9a9590]" />
-              </button>
 
-              {/* Image Upload */}
-              <input
-                ref={imageInputRef}
-                type="file"
-                onChange={(e) => handleFileSelect(e, "image")}
-                className="hidden"
-                multiple
-                accept="image/*"
-              />
-              <button
-                onClick={() => imageInputRef.current?.click()}
+              {/* Media Dropdown (File, Image) */}
+              <ToolDropdown
+                icon={Paperclip}
+                label="Attach media"
+                isActive={attachments.length > 0}
                 disabled={disabled}
-                className="p-1.5 md:p-2 rounded hover:bg-(--accent) transition-colors disabled:opacity-50"
-                title="Attach image"
               >
-                <ImageIcon className="h-4 w-4 text-[#9a9590]" />
-              </button>
+                <DropdownItem
+                  icon={Paperclip}
+                  label="Attach file"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={disabled}
+                />
+                <DropdownItem
+                  icon={ImageIcon}
+                  label="Attach image"
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={disabled}
+                />
+              </ToolDropdown>
 
-              {/* Audio Recording / Speech-to-Text */}
+              {/* Mic - Direct button (no dropdown needed for single action) */}
               <button
                 onClick={isRecording ? stopRecording : startRecording}
                 disabled={disabled || isTranscribing}
-                className={`p-1.5 rounded transition-colors disabled:opacity-50 hidden md:inline-flex ${
+                className={`flex items-center justify-center p-2 rounded-lg transition-all disabled:opacity-50 ${
                   isRecording
                     ? "bg-(--error)/20 text-(--error)"
                     : isTranscribing
                       ? "bg-(--link)/20 text-(--link)"
-                      : "hover:bg-(--accent)"
+                      : "hover:bg-(--accent) text-[#9a9590]"
                 }`}
                 title={
                   isTranscribing
                     ? "Transcribing..."
                     : isRecording
                       ? "Stop recording"
-                      : "Voice input (speech-to-text)"
+                      : "Voice input"
                 }
               >
                 {isTranscribing ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : isRecording ? (
-                  <MicOff className="h-3.5 w-3.5" />
+                  <MicOff className="h-4 w-4" />
                 ) : (
-                  <Mic className="h-3.5 w-3.5 text-[#9a9590]" />
+                  <Mic className="h-4 w-4" />
                 )}
               </button>
 
-              {/* Tools Toggle */}
-              <button
-                onClick={onMcpToggle}
+              {/* Tools Dropdown (MCP, Artifacts, Deep Research, MCP Settings) */}
+              <ToolDropdown
+                icon={Wrench}
+                label="Tools"
+                isActive={hasActiveTools}
                 disabled={disabled}
-                className={`p-1.5 md:p-2 rounded-lg transition-all disabled:opacity-50 ${
-                  mcpEnabled
-                    ? "bg-(--card-hover) text-[#e8e4dd] border border-(--border)/50"
-                    : "hover:bg-(--accent) text-[#9a9590]"
-                }`}
-                title={mcpEnabled ? "Disable web search & tools" : "Enable web search & tools"}
               >
-                <Globe className="h-4 w-4" />
-              </button>
-
-              {onArtifactsToggle && (
-                <button
-                  onClick={onArtifactsToggle}
+                <DropdownItem
+                  icon={Globe}
+                  label="Web search & tools"
+                  isActive={mcpEnabled}
+                  onClick={onMcpToggle}
                   disabled={disabled}
-                  className={`p-1.5 md:p-2 rounded-lg transition-all disabled:opacity-50 ${
-                    artifactsEnabled
-                      ? "bg-(--card-hover) text-[#e8e4dd] border border-(--border)/50"
-                      : "hover:bg-(--accent) text-[#9a9590]"
-                  }`}
-                  title={
-                    artifactsEnabled ? "Disable code preview" : "Enable code preview & sandbox"
-                  }
-                >
-                  <Code className="h-4 w-4" />
-                </button>
-              )}
+                />
+                {onArtifactsToggle && (
+                  <DropdownItem
+                    icon={Code}
+                    label="Code preview"
+                    isActive={artifactsEnabled}
+                    onClick={onArtifactsToggle}
+                    disabled={disabled}
+                  />
+                )}
+                {onDeepResearchToggle && (
+                  <DropdownItem
+                    icon={Brain}
+                    label="Deep Research"
+                    isActive={deepResearchEnabled}
+                    onClick={onDeepResearchToggle}
+                    disabled={disabled}
+                  />
+                )}
+                {onOpenMcpSettings && (
+                  <>
+                    <div className="h-px bg-(--border) my-1" />
+                    <DropdownItem
+                      icon={Settings}
+                      label="MCP servers"
+                      onClick={onOpenMcpSettings}
+                      disabled={disabled}
+                    />
+                  </>
+                )}
+              </ToolDropdown>
 
-              {onDeepResearchToggle && (
-                <button
-                  onClick={onDeepResearchToggle}
-                  disabled={disabled}
-                  className={`p-1.5 md:p-2 rounded-lg transition-all disabled:opacity-50 ${
-                    deepResearchEnabled
-                      ? "bg-(--card-hover) text-[#e8e4dd] border border-(--border)/50"
-                      : "hover:bg-(--accent) text-[#9a9590]"
-                  }`}
-                  title={deepResearchEnabled ? "Deep Research enabled" : "Enable Deep Research"}
-                >
-                  <Brain className="h-4 w-4" />
-                </button>
-              )}
-
-              {onOpenMcpSettings && (
-                <button
-                  onClick={onOpenMcpSettings}
-                  disabled={disabled}
-                  className="p-1.5 md:p-2 rounded-lg hover:bg-(--accent) transition-colors disabled:opacity-50 text-[#9a9590]"
-                  title="Configure MCP servers"
-                >
-                  <Settings className="h-4 w-4" />
-                </button>
-              )}
-
-              {/* System Prompt */}
-              <button
-                onClick={onOpenChatSettings}
+              {/* Config Dropdown (Model, System Prompt) */}
+              <ToolDropdown
+                icon={SlidersHorizontal}
+                label="Configuration"
+                isActive={hasSystemPrompt}
                 disabled={disabled}
-                className={`p-1.5 md:p-2 rounded-lg transition-all disabled:opacity-50 ${
-                  hasSystemPrompt
-                    ? "bg-(--card-hover) text-[#e8e4dd] border border-(--border)/50"
-                    : "hover:bg-(--accent) text-[#9a9590]"
-                }`}
-                title={hasSystemPrompt ? "System prompt active" : "Configure system prompt"}
               >
-                <SlidersHorizontal className="h-4 w-4" />
-              </button>
+                <DropdownItem
+                  icon={SlidersHorizontal}
+                  label={hasSystemPrompt ? "System prompt (active)" : "System prompt"}
+                  isActive={hasSystemPrompt}
+                  onClick={onOpenChatSettings}
+                  disabled={disabled}
+                />
+                {availableModels.length > 0 && onModelChange && (
+                  <>
+                    <div className="h-px bg-(--border) my-1" />
+                    <div className="px-3 py-2">
+                      <label className="block text-xs text-[#9a9590] mb-1">Model</label>
+                      <select
+                        value={selectedModel || ""}
+                        onChange={(e) => onModelChange(e.target.value)}
+                        disabled={disabled || isLoading}
+                        className="w-full px-2 py-1 text-xs bg-(--background) border border-(--border) rounded text-[#9a9590] focus:outline-none disabled:opacity-50"
+                      >
+                        {availableModels.map((model) => (
+                          <option key={model.id} value={model.id}>
+                            {model.id}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
+              </ToolDropdown>
             </div>
 
-            <div className="flex items-center gap-2">
-              {/* Model Selector */}
-              {availableModels.length > 0 && onModelChange && (
-                <select
-                  value={selectedModel || ""}
-                  onChange={(e) => onModelChange(e.target.value)}
-                  disabled={disabled || isLoading}
-                  className="px-2 py-1 text-xs bg-(--background) border border-(--border) rounded-lg text-[#9a9590] focus:outline-none focus:ring-1 focus:ring-(--link)/50 disabled:opacity-50 max-w-[140px] truncate"
-                  title="Select model"
-                >
-                  {availableModels.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.id}
-                    </option>
-                  ))}
-                </select>
-              )}
+            {/* Send/Stop button */}
+            <div className="flex items-center">
               {isLoading ? (
                 <button
                   onClick={onStop}
-                  className="p-2 md:p-2 rounded-lg bg-(--error) text-white hover:opacity-90 transition-all active:scale-95"
+                  className="h-8 w-8 flex items-center justify-center rounded-full bg-(--error) text-white hover:bg-(--error)/90 transition-colors"
                   title="Stop"
                 >
-                  <StopCircle className="h-4 w-4" />
+                  <Square className="h-3.5 w-3.5 fill-current" />
                 </button>
               ) : (
                 <button
                   onClick={handleSubmit}
-                  disabled={(!value.trim() && attachments.length === 0) || disabled}
-                  className="p-2 md:p-2 rounded-lg bg-(--foreground) text-(--background) hover:opacity-90 transition-all active:scale-95 disabled:opacity-30 disabled:active:scale-100"
+                  disabled={!canSend}
+                  className={`h-8 w-8 flex items-center justify-center rounded-full transition-colors ${
+                    canSend
+                      ? "bg-[#e8e4dd] text-[#1a1918] hover:bg-[#d4d0c9]"
+                      : "bg-(--accent) text-[#9a9590]/50 cursor-not-allowed"
+                  }`}
                   title="Send"
                 >
-                  <Send className="h-4 w-4" />
+                  <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
                 </button>
               )}
             </div>
