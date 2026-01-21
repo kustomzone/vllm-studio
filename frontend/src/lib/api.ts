@@ -20,25 +20,11 @@ import type {
   Metrics,
   VRAMCalculation,
 } from "./types";
+import { getApiKey } from "./api-key";
 
-const API_KEY_STORAGE = "vllmstudio_api_key";
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
 const DEFAULT_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 second base delay
-
-function getStoredApiKey(): string {
-  // Prefer env var if available (build-time or runtime)
-  const envKey = process.env.NEXT_PUBLIC_VLLM_STUDIO_API_KEY || process.env.VLLM_STUDIO_API_KEY;
-  if (envKey) return envKey;
-
-  // Fallback to localStorage
-  if (typeof window === "undefined") return "";
-  try {
-    return window.localStorage.getItem(API_KEY_STORAGE) || "";
-  } catch {
-    return "";
-  }
-}
 
 // Sleep helper
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -78,7 +64,7 @@ class APIClient {
 
     const headers: Record<string, string> = { "Content-Type": "application/json" };
 
-    const storedKey = getStoredApiKey();
+    const storedKey = getApiKey();
     if (storedKey) {
       headers["Authorization"] = `Bearer ${storedKey}`;
     }
@@ -335,14 +321,6 @@ class APIClient {
     });
   }
 
-  async executeMCPTool(
-    server: string,
-    tool: string,
-    args: Record<string, unknown>,
-  ): Promise<{ result: unknown }> {
-    return this.callMCPTool(server, tool, args);
-  }
-
   async tokenizeChatCompletions(data: {
     model: string;
     messages: unknown[];
@@ -362,12 +340,12 @@ class APIClient {
     return this.request("/logs");
   }
 
-  async getLogContent(sessionId: string, limit?: number): Promise<{ content: string }> {
+  async getLogs(sessionId: string, limit?: number): Promise<{ logs: string[] }> {
     const query = limit ? `?limit=${limit}` : "";
     return this.request(`/logs/${sessionId}${query}`);
   }
 
-  async getLogs(sessionId: string, limit?: number): Promise<{ logs: string[] }> {
+  async getLogContent(sessionId: string, limit?: number): Promise<{ content: string }> {
     const query = limit ? `?limit=${limit}` : "";
     return this.request(`/logs/${sessionId}${query}`);
   }
@@ -634,9 +612,5 @@ const clientBaseUrl = isClient
     "https://<your-api-domain>";
 
 export const api = new APIClient(clientBaseUrl, isClient);
-
-export function createServerAPI(backendUrl?: string) {
-  return new APIClient(backendUrl || process.env.BACKEND_URL || "http://localhost:8080");
-}
 
 export default api;

@@ -7,8 +7,16 @@ import { getApiSettings } from "@/lib/api-settings";
 function cleanTitle(raw: string): string {
   let title = String(raw || "");
 
-  // Remove thinking tags and their content (greedy)
-  title = title.replace(/<think[^>]*>[\s\S]*?<\/think[^>]*>/gi, "");
+  // First, try to extract content from thinking tags (model might wrap title in thinking)
+  const thinkMatch = title.match(/<think[^>]*>([\s\S]*?)<\/think[^>]*>/i);
+  if (thinkMatch) {
+    const thinkContent = thinkMatch[1].trim();
+    const afterThink = title.replace(/<think[^>]*>[\s\S]*?<\/think[^>]*>/gi, "").trim();
+    // Prefer content after thinking tags, fall back to inside if nothing after
+    title = afterThink || thinkContent;
+  }
+
+  // Remove any remaining incomplete thinking tags
   title = title.replace(/<\/?think[^>]*>/gi, "");
 
   // Remove any remaining XML-like tags

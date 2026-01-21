@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
+import { getApiKey, setApiKey, clearApiKey } from "@/lib/api-key";
 import { CommandPalette, type CommandPaletteAction } from "@/components/command-palette";
 
 const navItems = [
@@ -40,14 +41,7 @@ export default function Nav() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [apiKeyOpen, setApiKeyOpen] = useState(false);
   const [apiKeyValue, setApiKeyValue] = useState("");
-  const [apiKeySet, setApiKeySet] = useState(() => {
-    try {
-      const stored = window.localStorage.getItem("vllmstudio_api_key") || "";
-      return Boolean(stored);
-    } catch {
-      return false;
-    }
-  });
+  const [apiKeySet, setApiKeySet] = useState(() => Boolean(getApiKey()));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [status, setStatus] = useState<{
     online: boolean;
@@ -135,33 +129,20 @@ export default function Nav() {
   };
 
   const handleApiKeySave = () => {
-    try {
-      const trimmed = apiKeyValue.trim();
-      if (trimmed) {
-        window.localStorage.setItem("vllmstudio_api_key", trimmed);
-        setApiKeySet(true);
-      } else {
-        window.localStorage.removeItem("vllmstudio_api_key");
-        setApiKeySet(false);
-      }
-      setApiKeyOpen(false);
-      setApiKeyValue("");
-      window.location.reload();
-    } catch (e) {
-      alert("Failed to save key: " + (e as Error).message);
-    }
+    const trimmed = apiKeyValue.trim();
+    setApiKey(trimmed);
+    setApiKeySet(Boolean(trimmed));
+    setApiKeyOpen(false);
+    setApiKeyValue("");
+    window.location.reload();
   };
 
   const handleApiKeyClear = () => {
-    try {
-      window.localStorage.removeItem("vllmstudio_api_key");
-      setApiKeySet(false);
-      setApiKeyOpen(false);
-      setApiKeyValue("");
-      window.location.reload();
-    } catch (e) {
-      alert("Failed to clear key: " + (e as Error).message);
-    }
+    clearApiKey();
+    setApiKeySet(false);
+    setApiKeyOpen(false);
+    setApiKeyValue("");
+    window.location.reload();
   };
 
   const actions: CommandPaletteAction[] = [

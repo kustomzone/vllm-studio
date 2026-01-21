@@ -1,6 +1,16 @@
 import type { UIMessage } from "@ai-sdk/react";
 
-// Re-export for convenience
+// Re-export from lib/types for convenience
+export type { ChatSession, MCPTool, Artifact } from "@/lib/types";
+
+// Simplified MCPServer for chat UI (doesn't need command/args/env)
+export interface MCPServer {
+  name: string;
+  enabled: boolean;
+  icon?: string;
+}
+
+// Re-export UIMessage
 export type { UIMessage };
 
 // Part type - AI SDK parts from UIMessage
@@ -13,31 +23,12 @@ export interface ToolDefinition {
   inputSchema?: Record<string, unknown>;
 }
 
-// Session types
-export interface ChatSession {
-  id: string;
-  title: string;
-  model?: string;
-  created_at: string;
-  updated_at: string;
-}
-
 // Usage types
 export interface SessionUsage {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
   estimated_cost?: number;
-}
-
-// Artifact types
-export interface Artifact {
-  id: string;
-  type: "code" | "html" | "react" | "markdown";
-  title: string;
-  content: string;
-  language?: string;
-  messageId: string;
 }
 
 // Research types
@@ -60,20 +51,6 @@ export interface DeepResearchConfig {
   enabled: boolean;
   maxSources: number;
   searchDepth: "shallow" | "medium" | "deep";
-}
-
-// MCP types
-export interface MCPServer {
-  name: string;
-  enabled: boolean;
-  icon?: string;
-}
-
-export interface MCPTool {
-  server: string;
-  name: string;
-  description?: string;
-  inputSchema?: Record<string, unknown>;
 }
 
 // Activity item for side panel

@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Layers, Loader2, Check, Globe } from "lucide-react";
+import { X, Loader2, Globe } from "lucide-react";
 import { ArtifactPanel } from "@/components/chat/artifact-panel";
 import type { ActivePanel, ActivityGroup } from "../types";
 import type { Artifact } from "@/lib/types";

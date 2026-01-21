@@ -1,17 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useSSE } from "./useSSE";
 import type { GPU, Metrics, ProcessInfo } from "@/lib/types";
-
-function getApiKey(): string {
-  const envKey = process.env.NEXT_PUBLIC_VLLM_STUDIO_API_KEY || process.env.VLLM_STUDIO_API_KEY;
-  if (envKey) return envKey;
-  if (typeof window === "undefined") return "";
-  try {
-    return window.localStorage.getItem("vllmstudio_api_key") || "";
-  } catch {
-    return "";
-  }
-}
+import { getApiKey } from "@/lib/api-key";
 
 interface StatusData {
   running: boolean;
