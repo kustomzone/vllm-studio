@@ -4,17 +4,15 @@ import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
-import { PanelRightOpen, Settings, BarChart3, Download, Server, Menu } from "lucide-react";
 import { api } from "@/lib/api";
 import { extractArtifacts } from "../artifacts/artifact-renderer";
-import { ToolBelt, type Attachment } from "../input/tool-belt";
-import { ChatMessageList } from "../messages/ChatMessageList";
-import { ChatSidePanel } from "./ChatSidePanel";
-import { ChatSplashCanvas } from "./ChatSplashCanvas";
-import { ChatSettingsModal } from "../modals/ChatSettingsModal";
-import { MCPSettingsModal } from "../modals/MCPSettingsModal";
-import { UsageModal } from "../modals/UsageModal";
-import { ExportModal } from "../modals/ExportModal";
+import { ToolBelt } from "../input/tool-belt";
+import { ChatSidePanel } from "./chat-side-panel";
+import { ChatConversation } from "./chat-conversation";
+import { ChatTopControls } from "./chat-top-controls";
+import { ChatActionButtons } from "./chat-action-buttons";
+import { ChatToolbeltDock } from "./chat-toolbelt-dock";
+import { ChatModals } from "./chat-modals";
 import { useChatSessions } from "../../hooks/useChatSessions";
 import { useChatTools } from "../../hooks/useChatTools";
 import { useChatUsage } from "../../hooks/useChatUsage";
@@ -25,6 +23,7 @@ import type { UIMessage } from "@ai-sdk/react";
 import type { Artifact } from "@/lib/types";
 import { useContextManagement } from "@/lib/services/context-management";
 import { useAppStore } from "@/store";
+import type { Attachment, ModelOption } from "../../types";
 
 export function ChatPage() {
   const searchParams = useSearchParams();
@@ -57,9 +56,7 @@ export function ChatPage() {
   const [mcpSettingsOpen, setMcpSettingsOpen] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [availableModels, setAvailableModels] = useState<
-    Array<{ id: string; name?: string; maxModelLen?: number }>
-  >([]);
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
   const [sessionUsage, setSessionUsage] = useState<SessionUsage | null>(null);
 
   // Refs
@@ -687,117 +684,43 @@ export function ChatPage() {
       <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-x-hidden">
         <div className="flex-1 flex overflow-hidden relative min-w-0">
           <div className="flex-1 flex flex-col overflow-hidden relative min-w-0">
-            <div
-              ref={messagesContainerRef}
+            <ChatConversation
+              messages={messages}
+              isLoading={isLoading}
+              error={error?.message}
+              artifactsEnabled={artifactsEnabled}
+              selectedModel={selectedModel}
+              contextUsageLabel={contextUsageLabel}
+              onFork={handleForkMessage}
+              onReprompt={handleReprompt}
+              showEmptyState={showEmptyState}
+              toolBelt={toolBelt}
               onScroll={handleScroll}
-              className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden flex flex-col"
-            >
-              <div className="pb-24 md:pb-4 flex-1 flex flex-col">
-                <div className="flex-1 relative overflow-hidden flex items-center justify-center px-4 md:px-6 py-10 transition-opacity duration-500 ease-out bg-[hsl(30,5%,10.5%)]">
-                  <ChatSplashCanvas active={showEmptyState} />
-                  {showEmptyState && (
-                    <div className="relative z-10 w-full max-w-2xl">
-                      <div className="hidden md:block">{toolBelt}</div>
-                    </div>
-                  )}
-                  {!showEmptyState && (
-                    <div className="relative z-10 flex flex-col min-h-0 w-full">
-                      <ChatMessageList
-                        messages={messages}
-                        isLoading={isLoading}
-                        error={error?.message}
-                        artifactsEnabled={artifactsEnabled}
-                        selectedModel={selectedModel}
-                        contextUsageLabel={contextUsageLabel}
-                        onFork={handleForkMessage}
-                        onReprompt={handleReprompt}
-                      />
-                      <div ref={messagesEndRef} />
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+              messagesContainerRef={messagesContainerRef}
+              messagesEndRef={messagesEndRef}
+            />
 
-            {/* Mobile top controls */}
-            <div className="fixed left-4 top-[calc(env(safe-area-inset-top,0)+16px)] z-20 md:hidden">
-              <button
-                onClick={() => {
-                  window.dispatchEvent(
-                    new CustomEvent("vllm:toggle-sidebar", { detail: { open: true } }),
-                  );
-                }}
-                className="p-2 rounded-lg hover:bg-(--accent) transition-colors"
-                title="Open navigation"
-              >
-                <Menu className="h-5 w-5 text-[#9a9590]" />
-              </button>
-            </div>
-            <div className="fixed right-4 top-[calc(env(safe-area-inset-top,0)+16px)] z-20 md:hidden">
-              <button
-                onClick={() => setSettingsOpen(true)}
-                className="p-2 rounded-lg hover:bg-(--accent) transition-colors"
-                title="Chat settings"
-              >
-                <Settings className="h-5 w-5 text-[#9a9590]" />
-              </button>
-            </div>
+            <ChatTopControls
+              onOpenSidebar={() => {
+                window.dispatchEvent(
+                  new CustomEvent("vllm:toggle-sidebar", { detail: { open: true } }),
+                );
+              }}
+              onOpenSettings={() => setSettingsOpen(true)}
+            />
 
-            {/* Side panel toggle + modal buttons (hidden on mobile) */}
-            <div className="absolute right-3 top-3 z-10 hidden md:flex flex-col items-center gap-2">
-              <button
-                onClick={() => setToolPanelOpen(true)}
-                className="relative p-1.5 bg-(--card) border border-(--border) rounded hover:bg-(--accent)"
-                title="Show activity"
-              >
-                <PanelRightOpen className="h-4 w-4 text-[#9a9590]" />
-                {activityCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-(--success) rounded-full text-[9px] text-white font-medium flex items-center justify-center">
-                    {activityCount}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => setSettingsOpen(true)}
-                className="p-1.5 bg-(--card) border border-(--border) rounded hover:bg-(--accent)"
-                title="Settings"
-              >
-                <Settings className="h-4 w-4 text-[#9a9590]" />
-              </button>
-              <button
-                onClick={() => setMcpSettingsOpen(true)}
-                className="p-1.5 bg-(--card) border border-(--border) rounded hover:bg-(--accent)"
-                title="MCP Servers"
-              >
-                <Server className="h-4 w-4 text-[#9a9590]" />
-              </button>
-              <button
-                onClick={() => setUsageOpen(true)}
-                className="p-1.5 bg-(--card) border border-(--border) rounded hover:bg-(--accent)"
-                title="Usage"
-              >
-                <BarChart3 className="h-4 w-4 text-[#9a9590]" />
-              </button>
-              <button
-                onClick={() => setExportOpen(true)}
-                className="p-1.5 bg-(--card) border border-(--border) rounded hover:bg-(--accent)"
-                title="Export"
-              >
-                <Download className="h-4 w-4 text-[#9a9590]" />
-              </button>
-            </div>
+            <ChatActionButtons
+              activityCount={activityCount}
+              onOpenActivity={() => setToolPanelOpen(true)}
+              onOpenSettings={() => setSettingsOpen(true)}
+              onOpenMcpSettings={() => setMcpSettingsOpen(true)}
+              onOpenUsage={() => setUsageOpen(true)}
+              onOpenExport={() => setExportOpen(true)}
+            />
 
-            <div className="fixed left-0 right-0 bottom-0 z-20 md:static">
-              <div className="md:hidden pb-[calc(env(safe-area-inset-bottom,0)+8px)] pt-2 bg-[hsl(30,5%,10.5%)]">
-                {toolBelt}
-              </div>
-              {!showEmptyState && (
-                <div className="hidden md:block shrink-0 pb-0 md:pb-3">{toolBelt}</div>
-              )}
-            </div>
+            <ChatToolbeltDock toolBelt={toolBelt} showEmptyState={showEmptyState} />
           </div>
 
-          {/* Side panel */}
           {toolPanelOpen && (
             <ChatSidePanel
               isOpen={toolPanelOpen}
@@ -805,7 +728,6 @@ export function ChatPage() {
               activePanel={activePanel}
               onSetActivePanel={setActivePanel}
               activityGroups={activityGroups}
-              activityCount={activityCount}
               thinkingActive={thinkingActive}
               executingTools={executingTools}
               artifacts={sessionArtifacts}
@@ -814,10 +736,15 @@ export function ChatPage() {
         </div>
       </div>
 
-      {/* Modals */}
-      <ChatSettingsModal
-        isOpen={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
+      <ChatModals
+        settingsOpen={settingsOpen}
+        onCloseSettings={() => setSettingsOpen(false)}
+        mcpSettingsOpen={mcpSettingsOpen}
+        onCloseMcpSettings={() => setMcpSettingsOpen(false)}
+        usageOpen={usageOpen}
+        onCloseUsage={() => setUsageOpen(false)}
+        exportOpen={exportOpen}
+        onCloseExport={() => setExportOpen(false)}
         systemPrompt={systemPrompt}
         onSystemPromptChange={setSystemPrompt}
         selectedModel={selectedModel}
@@ -825,27 +752,11 @@ export function ChatPage() {
         availableModels={availableModels}
         deepResearch={deepResearch}
         onDeepResearchChange={setDeepResearch}
-      />
-
-      <MCPSettingsModal
-        isOpen={mcpSettingsOpen}
-        onClose={() => setMcpSettingsOpen(false)}
-        servers={mcpServers}
+        mcpServers={mcpServers}
         onServersChange={setMcpServers}
-        onRefresh={loadMCPServers}
-      />
-
-      <UsageModal
-        isOpen={usageOpen}
-        onClose={() => setUsageOpen(false)}
+        onRefreshServers={loadMCPServers}
         sessionUsage={sessionUsage}
         messages={messages}
-        selectedModel={selectedModel}
-      />
-
-      <ExportModal
-        isOpen={exportOpen}
-        onClose={() => setExportOpen(false)}
         onExportJson={handleExportJson}
         onExportMarkdown={handleExportMarkdown}
       />

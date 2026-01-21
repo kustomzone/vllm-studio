@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import type { UIMessage } from "@ai-sdk/react";
 import { Loader2 } from "lucide-react";
-import { ChatMessageItem } from "./ChatMessageItem";
+import { ChatMessageItem } from "./chat-message-item";
 
 interface ChatMessageListProps {
   messages: UIMessage[];

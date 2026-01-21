@@ -12,7 +12,7 @@ import {
 } from "@/lib/services/message-parsing";
 import type { MarkdownSegment, ThinkingResult } from "@/lib/services/message-parsing";
 
-// Re-export splitThinking for backward compatibility (used by ChatSidePanel)
+// Shared thinking parser exports
 export { thinkingParser };
 export function splitThinking(content: string): ThinkingResult {
   return thinkingParser.parse(content);
@@ -190,32 +190,3 @@ export function MessageRenderer({ content, isStreaming, artifactsEnabled }: Mess
   );
 }
 
-// Export activity types for use in other components
-export interface ActivityItem {
-  id: string;
-  type: "tool-call" | "reasoning" | "research";
-  timestamp: number;
-  toolName?: string;
-  toolCallId?: string;
-  state?: "pending" | "running" | "complete" | "error";
-  input?: unknown;
-  output?: unknown;
-  content?: string;
-}
-
-export interface ActivityGroup {
-  id: string;
-  messageId: string;
-  title: string;
-  isLatest: boolean;
-  thinkingContent?: string;
-  thinkingActive?: boolean;
-  toolItems: ActivityItem[];
-}
-
-export interface ThinkingState {
-  content: string;
-  isComplete: boolean;
-}
-
-export type ActivePanel = "activity" | "artifacts";

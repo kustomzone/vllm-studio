@@ -2,6 +2,7 @@
 
 import { X, Settings } from "lucide-react";
 import type { DeepResearchConfig } from "@/lib/types";
+import type { ModelOption } from "../../types";
 
 interface ChatSettingsModalProps {
   isOpen: boolean;
@@ -10,7 +11,7 @@ interface ChatSettingsModalProps {
   onSystemPromptChange: (prompt: string) => void;
   selectedModel: string;
   onSelectedModelChange: (model: string) => void;
-  availableModels: Array<{ id: string; name?: string }>;
+  availableModels: ModelOption[];
   deepResearch: DeepResearchConfig;
   onDeepResearchChange: (config: DeepResearchConfig) => void;
 }

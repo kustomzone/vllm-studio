@@ -1,9 +1,9 @@
 "use client";
 
 import { X, Loader2, Globe } from "lucide-react";
-import { ActivePanel, ActivityGroup } from "../messages/message-renderer";
 import { ArtifactPanel } from "../artifacts/artifact-panel";
-import type { Artifact } from "@/lib/types";
+import type { ActivePanel, Artifact } from "@/lib/types";
+import type { ActivityGroup, ActivityItem } from "../../types";
 
 interface ChatSidePanelProps {
   isOpen: boolean;
@@ -11,7 +11,6 @@ interface ChatSidePanelProps {
   activePanel: ActivePanel;
   onSetActivePanel: (panel: ActivePanel) => void;
   activityGroups: ActivityGroup[];
-  activityCount: number;
   thinkingActive: boolean;
   executingTools: Set<string>;
   artifacts: Artifact[];
@@ -221,13 +220,7 @@ function ThinkingContent({ content }: { content: string }) {
 }
 
 interface ToolItemProps {
-  item: {
-    id: string;
-    toolName?: string;
-    state?: string;
-    input?: unknown;
-    output?: unknown;
-  };
+  item: ActivityItem;
 }
 
 function ToolItem({ item }: ToolItemProps) {

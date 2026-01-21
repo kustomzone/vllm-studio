@@ -17,9 +17,6 @@ import {
 } from "lucide-react";
 import { MessageRenderer, thinkingParser } from "./message-renderer";
 
-// Export activity types for use in other components
-
-
 interface ChatMessageItemProps {
   message: UIMessage;
   isStreaming: boolean;
