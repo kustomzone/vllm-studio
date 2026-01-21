@@ -36,8 +36,31 @@ export function useChatTools({ mcpEnabled }: UseChatToolsOptions) {
     }
     try {
       const data = await api.getMCPTools();
-      const tools = data.tools || [];
+      let tools = data.tools || [];
+
+      if (data.errors && data.errors.length > 0) {
+        console.warn("[MCP] tool discovery errors", data.errors);
+      }
+
+      if (tools.length === 0) {
+        const { servers } = await api.getMCPServers();
+        const enabledServers = servers.filter((server) => server.enabled ?? true);
+        const serverTools = await Promise.all(
+          enabledServers.map(async (server) => {
+            try {
+              const result = await api.getMCPServerTools(server.name);
+              return result.tools;
+            } catch (err) {
+              console.warn(`[MCP] failed to load tools from ${server.name}`, err);
+              return [];
+            }
+          }),
+        );
+        tools = serverTools.flat();
+      }
+
       setMcpTools(tools);
+      console.info("[MCP] loaded tools", { count: tools.length });
       return tools;
     } catch (err) {
       console.error("Failed to load MCP tools:", err);

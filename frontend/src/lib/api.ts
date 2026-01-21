@@ -270,11 +270,14 @@ class APIClient {
 
   async getMCPServers(): Promise<{ servers: MCPServer[] }> {
     const data = await this.request<MCPServer[] | { servers?: MCPServer[] }>("/mcp/servers");
-    const servers = Array.isArray(data) ? data : data?.servers ?? [];
+    const servers = Array.isArray(data) ? data : (data?.servers ?? []);
     return { servers };
   }
 
-  async getMCPTools(): Promise<{ tools: MCPTool[] }> {
+  async getMCPTools(): Promise<{
+    tools: MCPTool[];
+    errors?: Array<{ server: string; error: string }>;
+  }> {
     const data = await this.request<{
       tools?: Array<{
         name: string;
@@ -283,12 +286,36 @@ class APIClient {
         inputSchema?: unknown;
         server: string;
       }>;
+      errors?: Array<{ server: string; error: string }>;
     }>("/mcp/tools");
     const tools = Array.isArray(data?.tools)
       ? data.tools.map((tool) => ({
           name: tool.name,
           description: tool.description,
           server: tool.server,
+          inputSchema: (tool.inputSchema ?? tool.input_schema) as
+            | Record<string, unknown>
+            | undefined,
+        }))
+      : [];
+    return { tools, errors: data?.errors ?? undefined };
+  }
+
+  async getMCPServerTools(serverId: string): Promise<{ tools: MCPTool[] }> {
+    const data = await this.request<{
+      tools?: Array<{
+        name: string;
+        description?: string;
+        input_schema?: unknown;
+        inputSchema?: unknown;
+        server?: string;
+      }>;
+    }>(`/mcp/servers/${serverId}/tools`);
+    const tools = Array.isArray(data?.tools)
+      ? data.tools.map((tool) => ({
+          name: tool.name,
+          description: tool.description,
+          server: tool.server || serverId,
           inputSchema: (tool.inputSchema ?? tool.input_schema) as
             | Record<string, unknown>
             | undefined,
