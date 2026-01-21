@@ -1,7 +1,7 @@
 "use client";
 
-import { ConfigsView } from "./_components/ConfigsView";
-import { useConfigs } from "./hooks/useConfigs";
+import { ConfigsView } from "./_components/configs-view";
+import { useConfigs } from "./hooks/use-configs";
 
 export default function ConfigsPage() {
   const {

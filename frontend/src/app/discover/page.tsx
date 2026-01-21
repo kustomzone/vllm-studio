@@ -1,7 +1,7 @@
 "use client";
 
-import { DiscoverView } from "./_components/DiscoverView";
-import { useDiscover } from "./hooks/useDiscover";
+import { DiscoverView } from "./_components/discover-view";
+import { useDiscover } from "./hooks/use-discover";
 
 export default function DiscoverPage() {
   const {

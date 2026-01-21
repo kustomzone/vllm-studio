@@ -17,8 +17,8 @@ interface ChatConversationProps {
   showEmptyState: boolean;
   toolBelt: ReactNode;
   onScroll: () => void;
-  messagesContainerRef: RefObject<HTMLDivElement>;
-  messagesEndRef: RefObject<HTMLDivElement>;
+  messagesContainerRef: RefObject<HTMLDivElement | null>;
+  messagesEndRef: RefObject<HTMLDivElement | null>;
 }
 
 export function ChatConversation({

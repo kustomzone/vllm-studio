@@ -1,12 +1,12 @@
 "use client";
 
 import { RefreshButton, PageState } from "@/components/shared";
-import { DailyUsageChart } from "./_components/DailyUsageChart";
-import { ModelPerformanceTable } from "./_components/ModelPerformanceTable";
-import { PerformanceDetails } from "./_components/PerformanceDetails";
-import { SecondaryMetrics } from "./_components/SecondaryMetrics";
-import { OverviewMetrics } from "./_components/OverviewMetrics";
-import { useUsage } from "./hooks/useUsage";
+import { DailyUsageChart } from "./_components/daily-usage-chart";
+import { ModelPerformanceTable } from "./_components/model-performance-table";
+import { PerformanceDetails } from "./_components/performance-details";
+import { SecondaryMetrics } from "./_components/secondary-metrics";
+import { OverviewMetrics } from "./_components/overview-metrics";
+import { useUsage } from "./hooks/use-usage";
 
 export default function UsagePage() {
   const {

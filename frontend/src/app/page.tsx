@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
-import { useRealtimeStatus } from "@/hooks/useRealtimeStatus";
+import { useRealtimeStatus } from "@/hooks/use-realtime-status";
 import type { RecipeWithStatus } from "@/lib/types";
 
 import {

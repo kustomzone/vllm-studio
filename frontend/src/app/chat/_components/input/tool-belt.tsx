@@ -91,10 +91,7 @@ export function ToolBelt({
     });
   };
 
-  const handleFileSelect = async (
-    e: ChangeEvent<HTMLInputElement>,
-    type: "file" | "image",
-  ) => {
+  const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>, type: "file" | "image") => {
     const files = Array.from(e.target.files || []);
     const newAttachments: Attachment[] = [];
 
@@ -317,7 +314,7 @@ export function ToolBelt({
             isTranscribing={isTranscribing}
             attachmentsCount={attachments.length}
             disabled={disabled}
-            canSend={canSend}
+            canSend={canSend as boolean}
             hasSystemPrompt={hasSystemPrompt}
             mcpEnabled={mcpEnabled}
             artifactsEnabled={artifactsEnabled}

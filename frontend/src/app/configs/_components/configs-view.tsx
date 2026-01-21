@@ -17,7 +17,7 @@ import {
 import type { ConfigData, ServiceInfo } from "@/lib/types";
 import { getStatusBg, getStatusColor } from "@/lib/colors";
 import { ConfigRow } from "@/components/shared";
-import type { ApiConnectionSettings, ConnectionStatus } from "../hooks/useConfigs";
+import type { ApiConnectionSettings, ConnectionStatus } from "../hooks/use-configs";
 
 interface ConfigsViewProps {
   data: ConfigData | null;

@@ -113,6 +113,7 @@ export function useRealtimeStatus(
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const connectSSERef = useRef<() => void>(() => {});
 
   const connectSSE = useCallback(() => {
     if (eventSourceRef.current) {
@@ -142,7 +143,7 @@ export function useRealtimeStatus(
         if (reconnectAttempts < 10) {
           reconnectTimeoutRef.current = setTimeout(() => {
             setReconnectAttempts((prev) => prev + 1);
-            connectSSE();
+            connectSSERef.current();
           }, delay);
         }
       };
@@ -152,9 +153,16 @@ export function useRealtimeStatus(
   }, [sseUrl, reconnectAttempts, handleMessage]);
 
   useEffect(() => {
-    connectSSE();
+    connectSSERef.current = connectSSE;
+  }, [connectSSE]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      connectSSERef.current();
+    }, 0);
 
     return () => {
+      clearTimeout(timeoutId);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }

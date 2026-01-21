@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import type { Recipe, RecipeWithStatus, VRAMCalculation, ModelInfo } from "@/lib/types";
-import { useRealtimeStatus } from "@/hooks/useRealtimeStatus";
+import { useRealtimeStatus } from "@/hooks/use-realtime-status";
 
 type Tab = "recipes" | "tools";
 

@@ -1,4 +1,4 @@
-import { useRealtimeStatus } from "@/hooks/useRealtimeStatus";
+import { useRealtimeStatus } from "@/hooks/use-realtime-status";
 import { toGB } from "@/lib/formatters";
 
 export function GpuStatusSection() {

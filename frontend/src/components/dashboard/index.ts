@@ -1,7 +1,7 @@
-export { DashboardHeader } from "./DashboardHeader";
-export { DashboardMetrics } from "./DashboardMetrics";
-export { DashboardSidebar } from "./DashboardSidebar";
-export { GpuStatusSection } from "./GpuStatusSection";
-export { LaunchToast } from "./LaunchToast";
-export { QuickLaunchSection } from "./QuickLaunchSection";
-export { RecentLogsSection } from "./RecentLogsSection";
+export { DashboardHeader } from "./dashboard-header";
+export { DashboardMetrics } from "./dashboard-metrics";
+export { DashboardSidebar } from "./dashboard-sidebar";
+export { GpuStatusSection } from "./gpu-status-section";
+export { LaunchToast } from "./launch-toast";
+export { QuickLaunchSection } from "./quick-launch-section";
+export { RecentLogsSection } from "./recent-logs-section";

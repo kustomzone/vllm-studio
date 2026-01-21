@@ -1,5 +1,5 @@
-export { PageState } from "./PageState";
-export { RefreshButton } from "./RefreshButton";
-export { SectionHeader } from "./SectionHeader";
-export { ChangeIndicator } from "./ChangeIndicator";
-export { ConfigRow } from "./ConfigRow";
+export { PageState } from "./page-state";
+export { RefreshButton } from "./refresh-button";
+export { SectionHeader } from "./section-header";
+export { ChangeIndicator } from "./change-indicator";
+export { ConfigRow } from "./config-row";

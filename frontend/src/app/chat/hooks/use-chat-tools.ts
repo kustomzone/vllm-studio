@@ -147,6 +147,30 @@ export function useChatTools({ mcpEnabled }: UseChatToolsOptions) {
     [mcpTools],
   );
 
+  const addMcpServer = useCallback(
+    async (server: MCPServer) => {
+      await api.addMCPServer(server);
+      await loadMCPServers();
+    },
+    [loadMCPServers],
+  );
+
+  const updateMcpServer = useCallback(
+    async (server: MCPServer) => {
+      await api.updateMCPServer(server.name, server);
+      await loadMCPServers();
+    },
+    [loadMCPServers],
+  );
+
+  const removeMcpServer = useCallback(
+    async (name: string) => {
+      await api.removeMCPServer(name);
+      await loadMCPServers();
+    },
+    [loadMCPServers],
+  );
+
   const clearToolResults = useCallback(() => {
     setToolResultsMap(new Map());
     setExecutingTools(new Set());
@@ -161,6 +185,9 @@ export function useChatTools({ mcpEnabled }: UseChatToolsOptions) {
     loadMCPTools,
     getToolDefinitions,
     executeTool,
+    addMcpServer,
+    updateMcpServer,
+    removeMcpServer,
     clearToolResults,
     setMcpServers,
   };

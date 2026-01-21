@@ -25,7 +25,9 @@ interface ChatModalsProps {
   deepResearch: DeepResearchConfig;
   onDeepResearchChange: (config: DeepResearchConfig) => void;
   mcpServers: MCPServer[];
-  onServersChange: (servers: MCPServer[]) => void;
+  onAddServer: (server: MCPServer) => Promise<void>;
+  onUpdateServer: (server: MCPServer) => Promise<void>;
+  onRemoveServer: (name: string) => Promise<void>;
   onRefreshServers: () => void;
   sessionUsage: SessionUsage | null;
   messages: UIMessage[];
@@ -50,7 +52,9 @@ export function ChatModals({
   deepResearch,
   onDeepResearchChange,
   mcpServers,
-  onServersChange,
+  onAddServer,
+  onUpdateServer,
+  onRemoveServer,
   onRefreshServers,
   sessionUsage,
   messages,
@@ -75,7 +79,9 @@ export function ChatModals({
         isOpen={mcpSettingsOpen}
         onClose={onCloseMcpSettings}
         servers={mcpServers}
-        onServersChange={onServersChange}
+        onAddServer={onAddServer}
+        onUpdateServer={onUpdateServer}
+        onRemoveServer={onRemoveServer}
         onRefresh={onRefreshServers}
       />
 

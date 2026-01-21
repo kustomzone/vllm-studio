@@ -23,7 +23,6 @@ data/
 
 # Logs
 *.log
-logs/
 
 # Recipes (user-specific)
 recipes/

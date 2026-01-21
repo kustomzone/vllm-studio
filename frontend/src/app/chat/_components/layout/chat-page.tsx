@@ -13,11 +13,11 @@ import { ChatTopControls } from "./chat-top-controls";
 import { ChatActionButtons } from "./chat-action-buttons";
 import { ChatToolbeltDock } from "./chat-toolbelt-dock";
 import { ChatModals } from "./chat-modals";
-import { useChatSessions } from "../../hooks/useChatSessions";
-import { useChatTools } from "../../hooks/useChatTools";
-import { useChatUsage } from "../../hooks/useChatUsage";
-import { useChatDerived } from "../../hooks/useChatDerived";
-import { useChatTransport } from "../../hooks/useChatTransport";
+import { useChatSessions } from "../../hooks/use-chat-sessions";
+import { useChatTools } from "../../hooks/use-chat-tools";
+import { useChatUsage } from "../../hooks/use-chat-usage";
+import { useChatDerived } from "../../hooks/use-chat-derived";
+import { useChatTransport } from "../../hooks/use-chat-transport";
 import type { ActivePanel, DeepResearchConfig, SessionUsage } from "@/lib/types";
 import type { UIMessage } from "@ai-sdk/react";
 import type { Artifact } from "@/lib/types";
@@ -84,7 +84,9 @@ export function ChatPage() {
     executeTool,
     executingTools,
     toolResultsMap,
-    setMcpServers,
+    addMcpServer,
+    updateMcpServer,
+    removeMcpServer,
   } = useChatTools({ mcpEnabled });
 
   // Usage hook
@@ -358,11 +360,7 @@ export function ChatPage() {
       return;
     }
     if (sessionFromUrl) {
-      loadSession(sessionFromUrl).then((loadedMessages) => {
-        if (loadedMessages) {
-          setMessages(loadedMessages);
-        }
-      });
+      void loadSession(sessionFromUrl);
     }
   }, [newChatFromUrl, sessionFromUrl, startNewSession, loadSession, setMessages]);
 
@@ -753,7 +751,9 @@ export function ChatPage() {
         deepResearch={deepResearch}
         onDeepResearchChange={setDeepResearch}
         mcpServers={mcpServers}
-        onServersChange={setMcpServers}
+        onAddServer={addMcpServer}
+        onUpdateServer={updateMcpServer}
+        onRemoveServer={removeMcpServer}
         onRefreshServers={loadMCPServers}
         sessionUsage={sessionUsage}
         messages={messages}

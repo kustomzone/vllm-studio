@@ -2,6 +2,54 @@
 
 Comprehensive module mapping, state machines, and architectural patterns for vLLM Studio.
 
+## Project Overview
+
+vLLM Studio is a local/hosted control plane for vLLM/SGLang inference servers: launch/evict models, chat with tool-calling (MCP), render artifacts, and monitor logs/usage/metrics in real time.
+
+## Repo Map (top-level)
+
+- `controller/`: FastAPI backend (routes, stores, process management).
+- `controller-new/`: experimental backend changes; only touch when explicitly requested.
+- `frontend/`: Next.js App Router UI.
+- `config/`: LiteLLM + runtime config (e.g., `litellm.yaml`).
+- `data/`: SQLite data, logs, runtime artifacts.
+- `work/`: agent workpacks and planning output.
+- `start.sh`, `docker-compose.yml`: local/dev startup.
+
+## Engineering Standards (Wonderland)
+
+### File/Module Conventions
+- **kebab-case filenames** (React components export PascalCase names).
+- **Internal Module Pattern** for new modules: `external.ts` lists public exports, `index.ts` re-exports them.
+- Avoid cross-feature imports except through module entrypoints.
+
+### React/Frontend Quality
+- **Avoid logic in render**: move logic to hooks or helpers.
+- **Avoid ternary chains**: prefer explicit conditionals.
+- **Avoid inline styles**: use CSS classes or theme tokens.
+- **Use theme tokens** for colors and spacing (no hard-coded values unless required).
+- **Use deliberate line breaks** in JSX for readability.
+
+### TypeScript & Errors
+- **No `any`**; use `unknown` + narrowing.
+- Prefer dependency injection and composition.
+- Use custom error classes; **no `Exception`/`Error` suffixes**.
+- Prefer `useUnknownInCatchVariables` + `noUncheckedIndexedAccess` in `tsconfig`.
+- Add **JSDoc** for exported functions/classes/interfaces.
+
+### Package & Security
+- **Exact dependency versions** (no caret ranges).
+- Keep PRs small and focused.
+- Treat env vars as sensitive; never commit secrets.
+
+## Frontend Architecture Overview
+
+- **Next.js App Router**: route entrypoints under `frontend/src/app` compose feature UIs.
+- **Realtime status**: `hooks/use-realtime-status.ts` connects to `/events` SSE and updates dashboard + GPU cards.
+- **Chat UI**: `app/chat/_components` composes `useChat` from **AI SDK v6** + tool belt, message parsing, and artifact rendering.
+- **Parsing services**: `lib/services/message-parsing` normalizes markdown/thinking/artifacts; `lib/services/context-management` computes token usage.
+- **Naming**: use kebab-case filenames for components/hooks; PascalCase exports.
+
 ## Module Dependency Graph
 
 ```
@@ -323,7 +371,7 @@ Comprehensive module mapping, state machines, and architectural patterns for vLL
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                      FRONTEND                                   │
-│                     useSSE.ts                                   │
+│               use-realtime-status.ts                            │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  EventSource connection to /events                             │
@@ -385,13 +433,18 @@ Comprehensive module mapping, state machines, and architectural patterns for vLL
 
 | Module | Purpose |
 |--------|---------|
-| `lib/api.ts` | APIClient with retry logic |
-| `lib/types.ts` | TypeScript interfaces |
-| `hooks/useSSE.ts` | SSE connection with reconnection |
-| `hooks/useContextManager.ts` | Token tracking & compaction |
-| `app/chat/page.tsx` | Main chat interface |
-| `app/chat/utils/index.ts` | SSE parsing, helpers |
-| `components/chat/*` | Chat UI components |
+| `app/` | Next.js App Router entrypoints (route wiring only). |
+| `app/chat/_components/*` | Chat UI grouped by `artifacts/`, `code/`, `input/`, `layout/`, `messages/`, `modals/`. |
+| `app/chat/hooks/*` | Chat-specific hooks (`use-chat-*` kebab-case). |
+| `app/chat/types.ts` | Chat feature types (attachments, activity, thinking state). |
+| `app/*/_components` | Page-specific UI (configs/usage/discover/logs). |
+| `components/shared/*` | Shared UI primitives (kebab-case files). |
+| `components/dashboard/*` | Dashboard UI sections (kebab-case files). |
+| `hooks/use-realtime-status.ts` | SSE connection + realtime metrics/state. |
+| `lib/api.ts` | API client with retry logic. |
+| `lib/services/message-parsing/*` | Message parsing, markdown/think/artifact handling. |
+| `lib/services/context-management/*` | Context/token management. |
+| `lib/types.ts` | Shared TypeScript types. |
 
 ## Configuration Reference
 
