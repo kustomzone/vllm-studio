@@ -99,22 +99,22 @@ export function ChatPage() {
   const lastUserInputRef = useRef<string>("");
   const autoArtifactSwitchRef = useRef(false);
 
-  const getRequestBody = useCallback(() => {
-    return {
+  const getRequestBody = useCallback(
+    () => ({
       model: selectedModel || undefined,
       system: systemPrompt?.trim() ? systemPrompt.trim() : undefined,
       tools: getToolDefinitions?.() ?? [],
-    };
-  }, [selectedModel, systemPrompt, getToolDefinitions]);
+    }),
+    [selectedModel, systemPrompt, getToolDefinitions],
+  );
 
-  // Create transport for useChat (body resolved at request time)
+  // Create transport for useChat (static; request-level body passed on send)
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
-        body: getRequestBody,
       }),
-    [getRequestBody],
+    [],
   );
 
   // AI SDK useChat - the source of truth for messages
@@ -440,9 +440,14 @@ export function ChatPage() {
       // Send the message via AI SDK - use simple text format
       // Note: For image attachments, the files would need to be passed as FileList
       // but our current attachment handling uses base64. For now, just send text.
-      sendMessage({
-        text: userInput,
-      });
+      sendMessage(
+        {
+          text: userInput,
+        },
+        {
+          body: getRequestBody(),
+        },
+      );
     },
     [
       input,
@@ -452,6 +457,7 @@ export function ChatPage() {
       createSessionWithMessage,
       persistMessage,
       selectedModel,
+      getRequestBody,
     ],
   );
 
