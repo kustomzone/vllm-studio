@@ -53,7 +53,6 @@ function ChatMessageItemBase({
   // For assistant messages, parse thinking content and get mainContent without <think> tags
   const parsedThinking = !isUser ? thinkingParser.parse(rawTextContent) : null;
   const textContent = isUser ? rawTextContent : parsedThinking?.mainContent || "";
-  const hasThinkingContent = !isUser && parsedThinking?.thinkingContent;
 
   // Extract tool parts (they have type starting with "tool-")
   const toolParts = message.parts.filter(
@@ -61,9 +60,7 @@ function ChatMessageItemBase({
       part.type.startsWith("tool-") && "toolCallId" in part,
   );
 
-  // Extract reasoning parts (AI SDK reasoning)
-  const reasoningParts = message.parts.filter((part) => part.type === "reasoning");
-  const hasReasoningContent = reasoningParts.length > 0 || hasThinkingContent;
+  // Reasoning content handled in activity panel
 
   const metadata = message.metadata as MessageMetadata | undefined;
   const usage = metadata?.usage;
@@ -228,12 +225,7 @@ function ChatMessageItemBase({
         )}
       </div>
 
-      {/* Reasoning preview (collapsed) */}
-      {hasReasoningContent && (
-        <div className="mt-2 text-xs text-[#6a6560]">
-          <span className="italic">Reasoning available in activity panel</span>
-        </div>
-      )}
+      {/* Reasoning preview removed (activity panel handles it) */}
     </div>
   );
 }

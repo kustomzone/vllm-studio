@@ -92,12 +92,13 @@ export function ChatPage() {
   const { refreshUsage } = useChatUsage({ setSessionUsage });
 
   // Transport hook for persistence
-  const { persistMessage, createSessionWithMessage, generateTitle } = useChatTransport({
-    currentSessionId,
-    setCurrentSessionId,
-    setCurrentSessionTitle,
-    selectedModel,
-  });
+  const { persistMessage, createSessionWithMessage, generateTitle, sessionIdRef } =
+    useChatTransport({
+      currentSessionId,
+      setCurrentSessionId,
+      setCurrentSessionTitle,
+      selectedModel,
+    });
 
   const { calculateStats, formatTokenCount } = useContextManagement();
   const updateSessions = useAppStore((state) => state.updateSessions);
@@ -156,17 +157,22 @@ export function ChatPage() {
       setStreamingStartTime(null);
       setElapsedSeconds(0);
 
+      const activeSessionId = sessionIdRef.current ?? currentSessionId;
+
       // Persist assistant message
-      if (currentSessionId && message.role === "assistant") {
-        await persistMessage(currentSessionId, message);
+      if (activeSessionId && message.role === "assistant") {
+        await persistMessage(activeSessionId, message);
 
         // Generate title if this is the first exchange
-        if (currentSessionTitle === "New Chat" && lastUserInputRef.current) {
+        if (
+          (currentSessionTitle === "New Chat" || currentSessionTitle === "Chat") &&
+          lastUserInputRef.current
+        ) {
           const textContent = message.parts
             .filter((p): p is { type: "text"; text: string } => p.type === "text")
             .map((p) => p.text)
             .join("");
-          await generateTitle(currentSessionId, lastUserInputRef.current, textContent);
+          await generateTitle(activeSessionId, lastUserInputRef.current, textContent);
         }
       }
     },
@@ -211,9 +217,34 @@ export function ChatPage() {
           .map((part) => part.text)
           .join("");
 
+        const toolContent = message.parts
+          .filter(
+            (
+              part,
+            ): part is UIMessage["parts"][number] & {
+              input?: unknown;
+              output?: unknown;
+              errorText?: string;
+            } => {
+              if (typeof part.type !== "string") return false;
+              return part.type === "dynamic-tool" || part.type.startsWith("tool-");
+            },
+          )
+          .map((part) => {
+            const input = "input" in part && part.input != null ? JSON.stringify(part.input) : "";
+            const output =
+              "output" in part && part.output != null ? JSON.stringify(part.output) : "";
+            const errorText = "errorText" in part && part.errorText ? part.errorText : "";
+            return [input, output, errorText].filter(Boolean).join("\n");
+          })
+          .filter((value) => value.length > 0)
+          .join("\n");
+
+        const combined = [textContent, toolContent].filter(Boolean).join("\n");
+
         return {
           role: message.role,
-          content: textContent,
+          content: combined,
         };
       })
       .filter((message) => message.content.trim().length > 0);
