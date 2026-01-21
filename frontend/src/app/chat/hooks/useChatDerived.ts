@@ -2,7 +2,7 @@
 
 import { useMemo, useCallback } from "react";
 import type { UIMessage } from "@ai-sdk/react";
-import type { ActivityGroup, ActivityItem, ThinkingState } from "../types";
+import type { ActivityGroup, ActivityItem, ThinkingState } from "../_components/messages/message-renderer";
 import type { ToolResult } from "@/lib/types";
 import { thinkingParser } from "@/lib/services/message-parsing";
 

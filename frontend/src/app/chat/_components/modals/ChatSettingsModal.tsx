@@ -1,7 +1,7 @@
 "use client";
 
 import { X, Settings } from "lucide-react";
-import type { DeepResearchConfig } from "../types";
+import type { DeepResearchConfig } from "@/lib/types";
 
 interface ChatSettingsModalProps {
   isOpen: boolean;

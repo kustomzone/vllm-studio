@@ -1,7 +1,7 @@
 "use client";
 
 import { X, Server, RefreshCw } from "lucide-react";
-import type { MCPServer } from "../types";
+import type { MCPServer } from "@/lib/types";
 
 interface MCPSettingsModalProps {
   isOpen: boolean;

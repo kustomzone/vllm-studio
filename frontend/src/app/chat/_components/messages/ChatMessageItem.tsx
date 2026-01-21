@@ -15,7 +15,10 @@ import {
   Brain,
   Wrench,
 } from "lucide-react";
-import { MessageRenderer, thinkingParser } from "@/components/chat/message-renderer";
+import { MessageRenderer, thinkingParser } from "./message-renderer";
+
+// Export activity types for use in other components
+
 
 interface ChatMessageItemProps {
   message: UIMessage;

@@ -1,8 +1,8 @@
 "use client";
 
 import { X, Loader2, Globe } from "lucide-react";
-import { ArtifactPanel } from "@/components/chat/artifact-panel";
-import type { ActivePanel, ActivityGroup } from "../types";
+import { ActivePanel, ActivityGroup } from "../messages/message-renderer";
+import { ArtifactPanel } from "../artifacts/artifact-panel";
 import type { Artifact } from "@/lib/types";
 
 interface ChatSidePanelProps {

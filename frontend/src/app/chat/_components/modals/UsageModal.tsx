@@ -1,7 +1,8 @@
 "use client";
 
 import { X, BarChart3 } from "lucide-react";
-import type { SessionUsage, UIMessage } from "../types";
+import type { SessionUsage } from "@/lib/types";
+import type { UIMessage } from "@ai-sdk/react";
 
 interface UsageModalProps {
   isOpen: boolean;
@@ -21,7 +22,7 @@ export function UsageModal({
   if (!isOpen) return null;
 
   const formatNumber = (n: number) => n.toLocaleString();
-  const formatCost = (cost?: number) =>
+  const formatCost = (cost?: number | null) =>
     cost != null ? `$${cost.toFixed(4)}` : "-";
 
   return (

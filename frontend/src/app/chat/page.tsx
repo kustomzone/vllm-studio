@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { Sparkles } from "lucide-react";
-import { ChatPage } from "./_components/ChatPage";
+import { ChatPage } from "./_components/layout/ChatPage";
 
 function LoadingSpinner() {
   return (

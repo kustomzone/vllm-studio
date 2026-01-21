@@ -6,21 +6,21 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { PanelRightOpen, Settings, BarChart3, Download, Server, Menu } from "lucide-react";
 import { api } from "@/lib/api";
-import { extractArtifacts } from "@/components/chat/artifact-renderer";
-import { ToolBelt, type Attachment } from "@/components/chat/tool-belt";
-import { ChatMessageList } from "./ChatMessageList";
+import { extractArtifacts } from "../artifacts/artifact-renderer";
+import { ToolBelt, type Attachment } from "../input/tool-belt";
+import { ChatMessageList } from "../messages/ChatMessageList";
 import { ChatSidePanel } from "./ChatSidePanel";
 import { ChatSplashCanvas } from "./ChatSplashCanvas";
-import { ChatSettingsModal } from "./ChatSettingsModal";
-import { MCPSettingsModal } from "./MCPSettingsModal";
-import { UsageModal } from "./UsageModal";
-import { ExportModal } from "./ExportModal";
-import { useChatSessions } from "../hooks/useChatSessions";
-import { useChatTools } from "../hooks/useChatTools";
-import { useChatUsage } from "../hooks/useChatUsage";
-import { useChatDerived } from "../hooks/useChatDerived";
-import { useChatTransport } from "../hooks/useChatTransport";
-import type { ActivePanel, DeepResearchConfig, SessionUsage } from "../types";
+import { ChatSettingsModal } from "../modals/ChatSettingsModal";
+import { MCPSettingsModal } from "../modals/MCPSettingsModal";
+import { UsageModal } from "../modals/UsageModal";
+import { ExportModal } from "../modals/ExportModal";
+import { useChatSessions } from "../../hooks/useChatSessions";
+import { useChatTools } from "../../hooks/useChatTools";
+import { useChatUsage } from "../../hooks/useChatUsage";
+import { useChatDerived } from "../../hooks/useChatDerived";
+import { useChatTransport } from "../../hooks/useChatTransport";
+import type { ActivePanel, DeepResearchConfig, SessionUsage } from "@/lib/types";
 import type { UIMessage } from "@ai-sdk/react";
 import type { Artifact } from "@/lib/types";
 import { useContextManagement } from "@/lib/services/context-management";
@@ -44,6 +44,8 @@ export function ChatPage() {
     enabled: false,
     maxSources: 10,
     searchDepth: "medium",
+    autoSummarize: true,
+    includeCitations: true,
   });
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [streamingStartTime, setStreamingStartTime] = useState<number | null>(null);
