@@ -85,17 +85,17 @@ export function ChatSidePanel({
 
       <style jsx>{`
         .scrollbar-thin::-webkit-scrollbar {
-          width: 4px;
+          width: 3px;
         }
         .scrollbar-thin::-webkit-scrollbar-track {
           background: transparent;
         }
         .scrollbar-thin::-webkit-scrollbar-thumb {
-          background: #3a3735;
-          border-radius: 2px;
+          background: rgba(255, 255, 255, 0.08);
+          border-radius: 3px;
         }
         .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-          background: #4a4745;
+          background: rgba(255, 255, 255, 0.12);
         }
       `}</style>
     </div>
@@ -154,7 +154,26 @@ function ActivityPanel({ activityGroups }: ActivityPanelProps) {
 }
 
 function ThinkingContent({ content }: { content: string }) {
-  const lines = content
+  // Strip markdown formatting
+  const stripMarkdown = (text: string) => {
+    return text
+      .replace(/\*\*([^*]+)\*\*/g, "$1") // **bold**
+      .replace(/\*([^*]+)\*/g, "$1") // *italic*
+      .replace(/__([^_]+)__/g, "$1") // __bold__
+      .replace(/_([^_]+)_/g, "$1") // _italic_
+      .replace(/`([^`]+)`/g, "$1") // `code`
+      .replace(/```[\s\S]*?```/g, "") // code blocks
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // [links](url)
+      .replace(/^#+\s*/gm, "") // # headers
+      .replace(/^[-*+]\s+/gm, "") // list items
+      .replace(/^\d+\.\s+/gm, "") // numbered lists
+      .replace(/^>\s*/gm, "") // blockquotes
+      .trim();
+  };
+
+  const cleanContent = stripMarkdown(content);
+
+  const lines = cleanContent
     .split(/\n+/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
@@ -162,11 +181,13 @@ function ThinkingContent({ content }: { content: string }) {
   const bulletPoints: { title: string; body?: string }[] = [];
 
   for (const line of lines) {
+    // Check if line looks like a section header
     const isTitle =
-      line.length < 80 && (line.endsWith(":") || /^[A-Z]/.test(line) || /^\d+\./.test(line));
+      (line.endsWith(":") && line.length < 60) ||
+      (line.length < 50 && /^[A-Z]/.test(line) && !/[.!?]$/.test(line));
 
     if (isTitle || bulletPoints.length === 0) {
-      bulletPoints.push({ title: line.replace(/:$/, "").replace(/^\d+\.\s*/, "") });
+      bulletPoints.push({ title: line.replace(/:$/, "") });
     } else {
       const last = bulletPoints[bulletPoints.length - 1];
       if (last.body) {
