@@ -240,7 +240,7 @@ export function AppSidebar({ children }: AppSidebarProps) {
                         </button>
 
                         {chatHistoryOpen && (
-                          <div className="space-y-0.5 max-h-96 overflow-y-auto ml-4">
+                          <div className="space-y-0.5 max-h-96 overflow-y-auto ml-4 pr-1 scrollbar-thin">
                             {chatSessions.map((session) => {
                               const displayTitle = session.title || "New Chat";
                               return (
