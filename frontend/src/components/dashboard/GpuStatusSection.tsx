@@ -1,15 +1,9 @@
 import { useRealtimeStatus } from "@/hooks/useRealtimeStatus";
+import { toGB } from "@/lib/formatters";
 
 export function GpuStatusSection() {
   const { gpus: realtimeGpus } = useRealtimeStatus();
-
   const gpus = realtimeGpus.length > 0 ? realtimeGpus : [];
-  const toGB = (value: number): number => {
-    if (value > 1e10) return value / (1024 * 1024 * 1024);
-    if (value > 1e8) return value / (1024 * 1024 * 1024);
-    if (value > 1000) return value / 1024;
-    return value;
-  };
 
   const totalPower = gpus.reduce((sum, g) => sum + (g.power_draw || 0), 0);
   const totalMem = gpus.reduce((sum, g) => sum + toGB(g.memory_used_mb ?? g.memory_used ?? 0), 0);

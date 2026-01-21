@@ -1,4 +1,5 @@
 import type { GPU, Metrics } from "@/lib/types";
+import { toGB } from "@/lib/formatters";
 
 interface DashboardMetricsProps {
   metrics: Metrics | null;
@@ -6,12 +7,6 @@ interface DashboardMetricsProps {
 }
 
 export function DashboardMetrics({ metrics, gpus }: DashboardMetricsProps) {
-  const toGB = (value: number): number => {
-    if (value > 1e10) return value / (1024 * 1024 * 1024);
-    if (value > 1e8) return value / (1024 * 1024 * 1024);
-    if (value > 1000) return value / 1024;
-    return value;
-  };
 
   const totalPower = gpus.reduce((sum, g) => sum + (g.power_draw || 0), 0);
   const totalMem = gpus.reduce((sum, g) => sum + toGB(g.memory_used_mb ?? g.memory_used ?? 0), 0);
