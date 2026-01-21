@@ -78,6 +78,23 @@ export function AppSidebar({ children }: AppSidebarProps) {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  // Allow mobile sidebar control from chat page
+  useEffect(() => {
+    const handleToggle = (event: Event) => {
+      const custom = event as CustomEvent<{ open?: boolean }>;
+      const requested = custom?.detail?.open;
+      if (typeof requested === "boolean") {
+        setMobileOpen(requested);
+      } else {
+        setMobileOpen((current) => !current);
+      }
+    };
+    window.addEventListener("vllm:toggle-sidebar", handleToggle as EventListener);
+    return () => {
+      window.removeEventListener("vllm:toggle-sidebar", handleToggle as EventListener);
+    };
+  }, []);
+
   // Save collapsed state
   const toggleCollapsed = () => {
     const newVal = !collapsed;

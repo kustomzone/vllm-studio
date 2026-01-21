@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
-import { PanelRightOpen, Settings, BarChart3, Download, Server } from "lucide-react";
+import { PanelRightOpen, Settings, BarChart3, Download, Server, Menu } from "lucide-react";
 import { api } from "@/lib/api";
 import { extractArtifacts } from "@/components/chat/artifact-renderer";
 import { ToolBelt, type Attachment } from "@/components/chat/tool-belt";
@@ -687,12 +687,12 @@ export function ChatPage() {
               onScroll={handleScroll}
               className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden flex flex-col"
             >
-              <div className="pb-0 md:pb-4 flex-1 flex flex-col">
+              <div className="pb-24 md:pb-4 flex-1 flex flex-col">
                 <div className="flex-1 relative overflow-hidden flex items-center justify-center px-4 md:px-6 py-10 transition-opacity duration-500 ease-out bg-[hsl(30,5%,10.5%)]">
                   <ChatSplashCanvas active={showEmptyState} />
                   {showEmptyState && (
                     <div className="relative z-10 w-full max-w-2xl">
-                      <div>{toolBelt}</div>
+                      <div className="hidden md:block">{toolBelt}</div>
                     </div>
                   )}
                   {!showEmptyState && (
@@ -712,6 +712,30 @@ export function ChatPage() {
                   )}
                 </div>
               </div>
+            </div>
+
+            {/* Mobile top controls */}
+            <div className="absolute left-3 top-3 z-20 md:hidden">
+              <button
+                onClick={() => {
+                  window.dispatchEvent(
+                    new CustomEvent("vllm:toggle-sidebar", { detail: { open: true } }),
+                  );
+                }}
+                className="p-2 bg-(--card) border border-(--border) rounded-full shadow-lg"
+                title="Open navigation"
+              >
+                <Menu className="h-4 w-4 text-[#9a9590]" />
+              </button>
+            </div>
+            <div className="absolute right-3 top-3 z-20 md:hidden">
+              <button
+                onClick={() => setSettingsOpen(true)}
+                className="p-2 bg-(--card) border border-(--border) rounded-full shadow-lg"
+                title="Chat settings"
+              >
+                <Settings className="h-4 w-4 text-[#9a9590]" />
+              </button>
             </div>
 
             {/* Side panel toggle + modal buttons (hidden on mobile) */}
@@ -758,7 +782,14 @@ export function ChatPage() {
               </button>
             </div>
 
-            {!showEmptyState && <div className="shrink-0 pb-0 md:pb-3">{toolBelt}</div>}
+            <div className="fixed left-0 right-0 bottom-0 z-20 md:static">
+              <div className="md:hidden pb-[calc(env(safe-area-inset-bottom,0)+8px)] bg-[hsl(30,5%,10.5%)] border-t border-(--border)">
+                {toolBelt}
+              </div>
+              {!showEmptyState && (
+                <div className="hidden md:block shrink-0 pb-0 md:pb-3">{toolBelt}</div>
+              )}
+            </div>
           </div>
 
           {/* Side panel */}
