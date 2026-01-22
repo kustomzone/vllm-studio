@@ -371,49 +371,130 @@ enum RecipeStatus: String, Codable {
     case error
 }
 
-// MARK: - Request Types
+// MARK: - Request/Response Types
+
+struct RecipesResponse: Decodable {
+    let recipes: [Recipe]?
+
+    // Handle both array and object response
+    init(from decoder: Decoder) throws {
+        if let container = try? decoder.singleValueContainer(),
+           let array = try? container.decode([Recipe].self) {
+            self.recipes = array
+        } else {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.recipes = try container.decodeIfPresent([Recipe].self, forKey: .recipes)
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case recipes
+    }
+}
+
+struct LaunchResponse: Decodable {
+    let success: Bool
+    let pid: Int?
+    let message: String?
+}
+
+struct WaitReadyResponse: Decodable {
+    let ready: Bool
+    let elapsed: Double?
+    let error: String?
+}
+
+struct EvictResponse: Decodable {
+    let success: Bool
+    let evictedPid: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case success
+        case evictedPid = "evicted_pid"
+    }
+}
 
 struct CreateRecipeRequest: Encodable {
     let name: String
-    let modelName: String
-    let description: String?
+    let modelPath: String
+    let backend: String?
     let tensorParallelSize: Int?
     let pipelineParallelSize: Int?
     let maxModelLen: Int?
     let gpuMemoryUtilization: Double?
     let quantization: String?
     let loadFormat: String?
-    let kvCacheType: String?
+    let kvCacheDtype: String?
     let blockSize: Int?
     let maxNumSeqs: Int?
     let maxNumBatchedTokens: Int?
     let enableChunkedPrefill: Bool?
     let enablePrefixCaching: Bool?
-    let enableToolCalling: Bool?
+    let enableAutoToolChoice: Bool?
     let toolCallParser: String?
     let speculativeModel: String?
-    let speculativeNumTokens: Int?
+    let numSpeculativeTokens: Int?
     let extraArgs: [String: String]?
+
+    enum CodingKeys: String, CodingKey {
+        case name, backend, quantization
+        case modelPath = "model_path"
+        case tensorParallelSize = "tensor_parallel_size"
+        case pipelineParallelSize = "pipeline_parallel_size"
+        case maxModelLen = "max_model_len"
+        case gpuMemoryUtilization = "gpu_memory_utilization"
+        case loadFormat = "load_format"
+        case kvCacheDtype = "kv_cache_dtype"
+        case blockSize = "block_size"
+        case maxNumSeqs = "max_num_seqs"
+        case maxNumBatchedTokens = "max_num_batched_tokens"
+        case enableChunkedPrefill = "enable_chunked_prefill"
+        case enablePrefixCaching = "enable_prefix_caching"
+        case enableAutoToolChoice = "enable_auto_tool_choice"
+        case toolCallParser = "tool_call_parser"
+        case speculativeModel = "speculative_model"
+        case numSpeculativeTokens = "num_speculative_tokens"
+        case extraArgs = "extra_args"
+    }
 }
 
 struct UpdateRecipeRequest: Encodable {
     let name: String?
-    let description: String?
     let tensorParallelSize: Int?
     let pipelineParallelSize: Int?
     let maxModelLen: Int?
     let gpuMemoryUtilization: Double?
     let quantization: String?
     let loadFormat: String?
-    let kvCacheType: String?
+    let kvCacheDtype: String?
     let blockSize: Int?
     let maxNumSeqs: Int?
     let maxNumBatchedTokens: Int?
     let enableChunkedPrefill: Bool?
     let enablePrefixCaching: Bool?
-    let enableToolCalling: Bool?
+    let enableAutoToolChoice: Bool?
     let toolCallParser: String?
     let speculativeModel: String?
-    let speculativeNumTokens: Int?
+    let numSpeculativeTokens: Int?
     let extraArgs: [String: String]?
+
+    enum CodingKeys: String, CodingKey {
+        case name, quantization
+        case tensorParallelSize = "tensor_parallel_size"
+        case pipelineParallelSize = "pipeline_parallel_size"
+        case maxModelLen = "max_model_len"
+        case gpuMemoryUtilization = "gpu_memory_utilization"
+        case loadFormat = "load_format"
+        case kvCacheDtype = "kv_cache_dtype"
+        case blockSize = "block_size"
+        case maxNumSeqs = "max_num_seqs"
+        case maxNumBatchedTokens = "max_num_batched_tokens"
+        case enableChunkedPrefill = "enable_chunked_prefill"
+        case enablePrefixCaching = "enable_prefix_caching"
+        case enableAutoToolChoice = "enable_auto_tool_choice"
+        case toolCallParser = "tool_call_parser"
+        case speculativeModel = "speculative_model"
+        case numSpeculativeTokens = "num_speculative_tokens"
+        case extraArgs = "extra_args"
+    }
 }
