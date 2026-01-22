@@ -208,57 +208,179 @@ final class ModelService {
 // MARK: - Response Types
 
 struct ModelsResponse: Decodable {
-    let data: [ModelInfo]
+    let models: [ModelInfo]?
+    let roots: [StudioModelsRoot]?
+    let configuredModelsDir: String?
+
+    enum CodingKeys: String, CodingKey {
+        case models, roots
+        case configuredModelsDir = "configured_models_dir"
+    }
 }
 
-struct WaitReadyResponse: Decodable {
-    let ready: Bool
+struct OpenAIModelsResponse: Decodable {
+    let data: [OpenAIModelInfo]
+}
+
+struct OpenAIModelInfo: Identifiable, Decodable {
+    let id: String
+    let root: String?
+    let maxModelLen: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, root
+        case maxModelLen = "max_model_len"
+    }
+}
+
+struct GPUsResponse: Decodable {
+    let gpus: [GPUMetric]
+}
+
+struct StudioModelsRoot: Identifiable, Decodable {
+    let path: String
+    let exists: Bool
+    let sources: [String]?
+    let recipeIds: [String]?
+
+    var id: String { path }
+
+    enum CodingKeys: String, CodingKey {
+        case path, exists, sources
+        case recipeIds = "recipe_ids"
+    }
 }
 
 // MARK: - Model Info
 
 struct ModelInfo: Identifiable, Codable {
-    let id: String
-    let name: String?
-    let type: String?
-    let contextLength: Int?
-    let provider: String?
-    let description: String?
-    let parameters: String?
+    let path: String
+    let name: String
+    let sizeBytes: Int?
+    let modifiedAt: Double?
+    let architecture: String?
     let quantization: String?
-    let license: String?
-    let downloadUrl: String?
+    let contextLength: Int?
+    let recipeIds: [String]?
+    let hasRecipe: Bool?
+    let numHiddenLayers: Int?
+    let numKvHeads: Int?
+    let hiddenSize: Int?
+    let headDim: Int?
+
+    var id: String { path }
+
+    enum CodingKeys: String, CodingKey {
+        case path, name, architecture, quantization
+        case sizeBytes = "size_bytes"
+        case modifiedAt = "modified_at"
+        case contextLength = "context_length"
+        case recipeIds = "recipe_ids"
+        case hasRecipe = "has_recipe"
+        case numHiddenLayers = "num_hidden_layers"
+        case numKvHeads = "num_kv_heads"
+        case hiddenSize = "hidden_size"
+        case headDim = "head_dim"
+    }
 
     // Computed properties for display
     var displayName: String {
-        name ?? id
+        name.isEmpty ? shortPath : name
     }
 
-    var shortId: String {
-        if let slashIndex = id.lastIndex(of: "/") {
-            return String(id[id.index(after: slashIndex)...])
+    var shortPath: String {
+        if let lastSlash = path.lastIndex(of: "/") {
+            return String(path[path.index(after: lastSlash)...])
         }
-        return id
+        return path
     }
 
-    var parameterCount: String? {
-        parameters
-    }
-
-    var sizeCategory: String {
-        guard let params = parameters else { return "Unknown" }
-
-        if params.contains("70B") || params.contains("72B") {
-            return "Large"
-        } else if params.contains("13B") || params.contains("14B") {
-            return "Medium"
-        } else if params.contains("7B") || params.contains("8B") {
-            return "Small"
-        } else if params.contains("1B") || params.contains("2B") || params.contains("3B") {
-            return "Tiny"
+    var formattedSize: String {
+        guard let bytes = sizeBytes else { return "Unknown" }
+        let gb = Double(bytes) / 1_000_000_000
+        if gb >= 1 {
+            return String(format: "%.1f GB", gb)
         }
+        let mb = Double(bytes) / 1_000_000
+        return String(format: "%.0f MB", mb)
+    }
+}
 
-        return "Unknown"
+// MARK: - GPU Metric
+
+struct GPUMetric: Identifiable, Codable {
+    let index: Int
+    let name: String
+    let memoryTotal: Int
+    let memoryUsed: Int
+    let memoryFree: Int
+    let utilization: Double
+    let temperature: Int?
+    let powerDraw: Double?
+    let powerLimit: Double?
+
+    var id: Int { index }
+
+    enum CodingKeys: String, CodingKey {
+        case index, name, utilization, temperature
+        case memoryTotal = "memory_total"
+        case memoryUsed = "memory_used"
+        case memoryFree = "memory_free"
+        case powerDraw = "power_draw"
+        case powerLimit = "power_limit"
+    }
+
+    // Computed properties
+    var memoryTotalGB: Double {
+        Double(memoryTotal) / 1024
+    }
+
+    var memoryUsedGB: Double {
+        Double(memoryUsed) / 1024
+    }
+
+    var memoryFreeGB: Double {
+        Double(memoryFree) / 1024
+    }
+
+    var memoryUsagePercent: Double {
+        guard memoryTotal > 0 else { return 0 }
+        return Double(memoryUsed) / Double(memoryTotal) * 100
+    }
+
+    var formattedMemory: String {
+        String(format: "%.1f / %.1f GB", memoryUsedGB, memoryTotalGB)
+    }
+
+    var formattedUtilization: String {
+        String(format: "%.0f%%", utilization)
+    }
+
+    var formattedTemperature: String? {
+        guard let temp = temperature else { return nil }
+        return "\(temp)C"
+    }
+
+    var formattedPower: String? {
+        guard let power = powerDraw else { return nil }
+        if let limit = powerLimit {
+            return String(format: "%.0f / %.0f W", power, limit)
+        }
+        return String(format: "%.0f W", power)
+    }
+}
+
+// MARK: - Active Model
+
+struct ActiveModel: Decodable {
+    let id: String
+    let name: String?
+    let maxModelLen: Int?
+    let status: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, status
+        case maxModelLen = "max_model_len"
     }
 }
 
