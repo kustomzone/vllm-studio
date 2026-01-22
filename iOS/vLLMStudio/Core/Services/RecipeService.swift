@@ -122,22 +122,26 @@ final class RecipeService {
     // MARK: - Model Lifecycle
 
     /// Launches a model from a recipe
-    /// - Parameter recipeId: The recipe ID to launch
+    /// - Parameters:
+    ///   - id: The recipe ID to launch
+    ///   - force: Whether to force evict any running model first
     @MainActor
-    func launchRecipe(id: String) async throws {
+    func launchRecipe(id: String, force: Bool = false) async throws {
         loadingRecipeId = id
 
         do {
-            let response = try await APIClient.shared.launchModel(recipeId: id)
+            let response: LaunchResponse = try await APIClient.shared.request(
+                .launch(recipeId: id, force: force)
+            )
 
             if response.success {
                 // Update the recipe status
                 if let index = recipes.firstIndex(where: { $0.id == id }) {
-                    recipes[index].isActive = true
+                    recipes[index].status = .running
                 }
-                // Mark other recipes as inactive
+                // Mark other recipes as stopped
                 for i in recipes.indices where recipes[i].id != id {
-                    recipes[i].isActive = false
+                    recipes[i].status = .stopped
                 }
             }
 
@@ -149,14 +153,26 @@ final class RecipeService {
         }
     }
 
-    /// Evicts the currently loaded model
+    /// Waits for the model to be ready after launch
+    /// - Parameter timeout: Timeout in seconds (default 300)
     @MainActor
-    func evictCurrentModel() async throws {
-        try await APIClient.shared.evictModel()
+    func waitForReady(timeout: Int = 300) async throws {
+        let _: WaitReadyResponse = try await APIClient.shared.request(
+            .waitReady(timeout: timeout)
+        )
+    }
 
-        // Mark all recipes as inactive
+    /// Evicts the currently loaded model
+    /// - Parameter force: Whether to force eviction
+    @MainActor
+    func evictCurrentModel(force: Bool = false) async throws {
+        let _: EvictResponse = try await APIClient.shared.request(
+            .evict(force: force)
+        )
+
+        // Mark all recipes as stopped
         for i in recipes.indices {
-            recipes[i].isActive = false
+            recipes[i].status = .stopped
         }
     }
 
@@ -198,132 +214,161 @@ final class RecipeService {
 
 // MARK: - Recipe Model
 
+/// Recipe (model launch configuration) matching the vLLM 0.14+ structure
 struct Recipe: Identifiable, Codable {
     let id: String
     var name: String
-    var modelName: String
-    var description: String?
-    var isActive: Bool
+    var modelPath: String
+    var backend: String?  // "vllm" or "sglang"
+    var status: RecipeStatus?
 
-    // Model loading parameters
-    var tensorParallelSize: Int?
-    var pipelineParallelSize: Int?
-    var maxModelLen: Int?
-    var gpuMemoryUtilization: Double?
+    // Server settings
+    var host: String?
+    var port: Int?
+    var servedModelName: String?
+    var apiKey: String?
+
+    // Model loading
+    var tokenizer: String?
+    var tokenizerMode: String?
+    var trustRemoteCode: Bool?
+    var dtype: String?
+    var seed: Int?
+    var revision: String?
+    var loadFormat: String?
 
     // Quantization
     var quantization: String?
-    var loadFormat: String?
+    var quantizationParamPath: String?
 
-    // KV Cache
-    var kvCacheType: String?
+    // Parallelism
+    var tensorParallelSize: Int?
+    var pipelineParallelSize: Int?
+    var dataParallelSize: Int?
+    var distributedExecutorBackend: String?
+
+    // Memory & KV Cache
+    var gpuMemoryUtilization: Double?
+    var maxModelLen: Int?
+    var kvCacheDtype: String?
     var blockSize: Int?
-
-    // Performance
-    var maxNumSeqs: Int?
-    var maxNumBatchedTokens: Int?
-    var enableChunkedPrefill: Bool?
+    var swapSpace: Int?
+    var cpuOffloadGb: Int?
     var enablePrefixCaching: Bool?
 
-    // Tool calling
-    var enableToolCalling: Bool?
-    var toolCallParser: String?
+    // Scheduler & Batching
+    var maxNumSeqs: Int?
+    var maxNumBatchedTokens: Int?
+    var schedulingPolicy: String?
+    var enableChunkedPrefill: Bool?
+
+    // Performance tuning
+    var enforceEager: Bool?
+    var disableCudaGraph: Bool?
 
     // Speculative decoding
     var speculativeModel: String?
-    var speculativeNumTokens: Int?
+    var numSpeculativeTokens: Int?
+
+    // Reasoning & Tool calling
+    var reasoningParser: String?
+    var enableThinking: Bool?
+    var thinkingBudget: Int?
+    var toolCallParser: String?
+    var enableAutoToolChoice: Bool?
+
+    // Chat & templates
+    var chatTemplate: String?
+
+    // LoRA
+    var enableLora: Bool?
+    var maxLoras: Int?
+    var maxLoraRank: Int?
 
     // Additional arguments
     var extraArgs: [String: String]?
+    var envVars: [String: String]?
 
-    // Metadata
-    let createdAt: Date?
-    var updatedAt: Date?
+    // Coding keys for snake_case conversion
+    enum CodingKeys: String, CodingKey {
+        case id, name, backend, status, host, port, tokenizer, dtype, seed, revision, quantization
+        case modelPath = "model_path"
+        case servedModelName = "served_model_name"
+        case apiKey = "api_key"
+        case tokenizerMode = "tokenizer_mode"
+        case trustRemoteCode = "trust_remote_code"
+        case loadFormat = "load_format"
+        case quantizationParamPath = "quantization_param_path"
+        case tensorParallelSize = "tensor_parallel_size"
+        case pipelineParallelSize = "pipeline_parallel_size"
+        case dataParallelSize = "data_parallel_size"
+        case distributedExecutorBackend = "distributed_executor_backend"
+        case gpuMemoryUtilization = "gpu_memory_utilization"
+        case maxModelLen = "max_model_len"
+        case kvCacheDtype = "kv_cache_dtype"
+        case blockSize = "block_size"
+        case swapSpace = "swap_space"
+        case cpuOffloadGb = "cpu_offload_gb"
+        case enablePrefixCaching = "enable_prefix_caching"
+        case maxNumSeqs = "max_num_seqs"
+        case maxNumBatchedTokens = "max_num_batched_tokens"
+        case schedulingPolicy = "scheduling_policy"
+        case enableChunkedPrefill = "enable_chunked_prefill"
+        case enforceEager = "enforce_eager"
+        case disableCudaGraph = "disable_cuda_graph"
+        case speculativeModel = "speculative_model"
+        case numSpeculativeTokens = "num_speculative_tokens"
+        case reasoningParser = "reasoning_parser"
+        case enableThinking = "enable_thinking"
+        case thinkingBudget = "thinking_budget"
+        case toolCallParser = "tool_call_parser"
+        case enableAutoToolChoice = "enable_auto_tool_choice"
+        case chatTemplate = "chat_template"
+        case enableLora = "enable_lora"
+        case maxLoras = "max_loras"
+        case maxLoraRank = "max_lora_rank"
+        case extraArgs = "extra_args"
+        case envVars = "env_vars"
+    }
 
     // MARK: - Computed Properties
 
+    var isActive: Bool {
+        status == .running
+    }
+
     var statusText: String {
-        isActive ? "Active" : "Inactive"
+        status?.rawValue.capitalized ?? "Stopped"
     }
 
     var statusColor: String {
-        isActive ? "success" : "mutedForeground"
+        switch status {
+        case .running: return "success"
+        case .starting: return "warning"
+        case .error: return "error"
+        default: return "mutedForeground"
+        }
     }
 
-    /// Generates the vLLM CLI command for this recipe
-    var cliCommand: String {
-        var args: [String] = ["vllm", "serve", modelName]
-
-        if let tp = tensorParallelSize, tp > 1 {
-            args.append("--tensor-parallel-size \(tp)")
-        }
-
-        if let pp = pipelineParallelSize, pp > 1 {
-            args.append("--pipeline-parallel-size \(pp)")
-        }
-
-        if let maxLen = maxModelLen {
-            args.append("--max-model-len \(maxLen)")
-        }
-
-        if let gpuUtil = gpuMemoryUtilization {
-            args.append("--gpu-memory-utilization \(gpuUtil)")
-        }
-
-        if let quant = quantization {
-            args.append("--quantization \(quant)")
-        }
-
-        if let format = loadFormat {
-            args.append("--load-format \(format)")
-        }
-
-        if let kvType = kvCacheType {
-            args.append("--kv-cache-dtype \(kvType)")
-        }
-
-        if let block = blockSize {
-            args.append("--block-size \(block)")
-        }
-
-        if let maxSeqs = maxNumSeqs {
-            args.append("--max-num-seqs \(maxSeqs)")
-        }
-
-        if let maxBatched = maxNumBatchedTokens {
-            args.append("--max-num-batched-tokens \(maxBatched)")
-        }
-
-        if enableChunkedPrefill == true {
-            args.append("--enable-chunked-prefill")
-        }
-
-        if enablePrefixCaching == true {
-            args.append("--enable-prefix-caching")
-        }
-
-        if enableToolCalling == true {
-            args.append("--enable-auto-tool-choice")
-            if let parser = toolCallParser {
-                args.append("--tool-call-parser \(parser)")
-            }
-        }
-
-        if let specModel = speculativeModel {
-            args.append("--speculative-model \(specModel)")
-            if let numTokens = speculativeNumTokens {
-                args.append("--num-speculative-tokens \(numTokens)")
-            }
-        }
-
-        if let extra = extraArgs {
-            for (key, value) in extra {
-                args.append("--\(key) \(value)")
-            }
-        }
-
-        return args.joined(separator: " \\\n  ")
+    var displayName: String {
+        name.isEmpty ? modelPath : name
     }
+
+    /// Short model name (last component of path)
+    var shortModelName: String {
+        if let lastSlash = modelPath.lastIndex(of: "/") {
+            return String(modelPath[modelPath.index(after: lastSlash)...])
+        }
+        return modelPath
+    }
+}
+
+/// Recipe status
+enum RecipeStatus: String, Codable {
+    case running
+    case stopped
+    case starting
+    case error
 }
 
 // MARK: - Request Types
