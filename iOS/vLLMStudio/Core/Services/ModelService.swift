@@ -54,7 +54,7 @@ final class ModelService {
     func fetchModels() async throws {
         do {
             let response: ModelsResponse = try await APIClient.shared.request(.models)
-            models = response.data
+            models = response.models ?? []
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -62,20 +62,45 @@ final class ModelService {
         }
     }
 
-    /// Gets the active model info
+    /// Gets the currently running model from OpenAI-compatible endpoint
     @MainActor
-    func fetchActiveModel() async throws {
+    func getRunningModel() async throws -> OpenAIModelInfo? {
         do {
-            activeModel = try await APIClient.shared.request(.activeModel)
-            errorMessage = nil
-        } catch let error as NetworkError {
-            // 404 means no active model
-            if case .httpError(let code, _) = error, code == 404 {
+            let response: OpenAIModelsResponse = try await APIClient.shared.request(.models)
+            let runningModel = response.data.first
+            if let model = runningModel {
+                activeModel = ActiveModel(
+                    id: model.id,
+                    name: model.root,
+                    maxModelLen: model.maxModelLen,
+                    status: "running"
+                )
+            } else {
                 activeModel = nil
-                return
+            }
+            errorMessage = nil
+            return runningModel
+        } catch let error as NetworkError {
+            // Connection errors likely mean no model is running
+            if case .httpError(let code, _) = error, code == 404 || code == 503 {
+                activeModel = nil
+                return nil
             }
             errorMessage = error.localizedDescription
             throw error
+        } catch {
+            errorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    /// Fetches GPU status and metrics
+    @MainActor
+    func getGPUStatus() async throws -> [GPUMetric] {
+        do {
+            let response: GPUsResponse = try await APIClient.shared.request(.gpus)
+            errorMessage = nil
+            return response.gpus
         } catch {
             errorMessage = error.localizedDescription
             throw error
