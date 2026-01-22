@@ -2,218 +2,352 @@
 //  NetworkError.swift
 //  vLLMStudio
 //
-//  Created by vLLM Studio Team
-//  Copyright 2026. All rights reserved.
+//  Created for vLLM Studio iOS
+//  Comprehensive network error types for the application
 //
 
 import Foundation
 
 /// Comprehensive error types for network operations
-enum NetworkError: LocalizedError {
-
-    // MARK: - Connection Errors
-
-    /// No internet connection available
-    case noConnection
-
-    /// Connection timed out
-    case timeout
-
-    /// Server is unreachable
-    case serverUnreachable
-
-    /// SSL/TLS certificate error
-    case sslError(String)
-
-    // MARK: - Authentication Errors
-
-    /// Missing API key
-    case missingAPIKey
-
-    /// Invalid or expired API key
-    case unauthorized
-
-    /// Insufficient permissions
-    case forbidden
-
+public enum NetworkError: Error, LocalizedError, Equatable, Sendable {
     // MARK: - Request Errors
 
-    /// Invalid URL
+    /// Invalid URL construction
     case invalidURL(String)
 
-    /// Invalid request parameters
-    case invalidRequest(String)
-
     /// Request encoding failed
-    case encodingError(Error)
+    case encodingFailed(String)
+
+    /// Missing required authentication token
+    case missingAuthToken
+
+    /// Invalid request configuration
+    case invalidRequest(String)
 
     // MARK: - Response Errors
 
     /// Server returned an error status code
-    case httpError(statusCode: Int, message: String?)
+    case serverError(statusCode: Int, message: String?)
 
-    /// Response decoding failed
-    case decodingError(Error)
+    /// Unauthorized access (401)
+    case unauthorized
+
+    /// Forbidden access (403)
+    case forbidden
+
+    /// Resource not found (404)
+    case notFound(resource: String)
+
+    /// Rate limited (429)
+    case rateLimited(retryAfter: TimeInterval?)
+
+    /// Server unavailable (503)
+    case serviceUnavailable
+
+    /// Decoding response failed
+    case decodingFailed(String)
 
     /// Empty response when data was expected
     case emptyResponse
 
     /// Invalid response format
-    case invalidResponse
+    case invalidResponse(String)
 
-    // MARK: - Server Errors
+    // MARK: - Connection Errors
 
-    /// Server internal error
-    case serverError(String)
+    /// No network connection available
+    case noConnection
 
-    /// Service unavailable
-    case serviceUnavailable
+    /// Request timed out
+    case timeout
 
-    /// Rate limited
-    case rateLimited(retryAfter: TimeInterval?)
+    /// Connection was cancelled
+    case cancelled
+
+    /// SSL/TLS certificate error
+    case sslError(String)
+
+    /// DNS resolution failed
+    case dnsLookupFailed
+
+    /// Connection refused by server
+    case connectionRefused
 
     // MARK: - Streaming Errors
 
     /// SSE connection failed
     case sseConnectionFailed(String)
 
-    /// SSE parsing error
-    case sseParsingError(String)
+    /// SSE stream terminated unexpectedly
+    case sseStreamTerminated
 
-    /// Stream was cancelled
-    case streamCancelled
-
-    // MARK: - WebSocket Errors
+    /// SSE event parsing failed
+    case sseParsingFailed(String)
 
     /// WebSocket connection failed
     case webSocketConnectionFailed(String)
 
-    /// WebSocket was disconnected unexpectedly
-    case webSocketDisconnected
+    /// WebSocket disconnected unexpectedly
+    case webSocketDisconnected(code: Int?, reason: String?)
 
-    // MARK: - Generic Errors
+    /// WebSocket message sending failed
+    case webSocketSendFailed(String)
 
-    /// Unknown error
-    case unknown(Error?)
+    // MARK: - Retry Errors
 
-    /// Custom error with message
-    case custom(String)
+    /// Maximum retry attempts exceeded
+    case maxRetriesExceeded(attempts: Int, lastError: String)
 
-    // MARK: - LocalizedError
+    // MARK: - Unknown Errors
 
-    var errorDescription: String? {
+    /// Unknown or unexpected error
+    case unknown(String)
+
+    // MARK: - LocalizedError Implementation
+
+    public var errorDescription: String? {
         switch self {
-        case .noConnection:
-            return "No internet connection. Please check your network settings."
-        case .timeout:
-            return "The request timed out. Please try again."
-        case .serverUnreachable:
-            return "Unable to reach the server. Please check the server URL in settings."
-        case .sslError(let message):
-            return "SSL Error: \(message)"
-        case .missingAPIKey:
-            return "API key is required. Please add your API key in settings."
-        case .unauthorized:
-            return "Invalid or expired API key. Please check your API key in settings."
-        case .forbidden:
-            return "You don't have permission to perform this action."
         case .invalidURL(let url):
             return "Invalid URL: \(url)"
-        case .invalidRequest(let message):
-            return "Invalid request: \(message)"
-        case .encodingError(let error):
-            return "Failed to encode request: \(error.localizedDescription)"
-        case .httpError(let statusCode, let message):
+
+        case .encodingFailed(let reason):
+            return "Failed to encode request: \(reason)"
+
+        case .missingAuthToken:
+            return "Authentication token is missing. Please configure your API key."
+
+        case .invalidRequest(let reason):
+            return "Invalid request: \(reason)"
+
+        case .serverError(let statusCode, let message):
             if let message = message {
-                return "HTTP Error \(statusCode): \(message)"
+                return "Server error (\(statusCode)): \(message)"
             }
-            return "HTTP Error \(statusCode)"
-        case .decodingError(let error):
-            return "Failed to decode response: \(error.localizedDescription)"
-        case .emptyResponse:
-            return "Server returned an empty response."
-        case .invalidResponse:
-            return "Invalid response from server."
-        case .serverError(let message):
-            return "Server error: \(message)"
-        case .serviceUnavailable:
-            return "Service is temporarily unavailable. Please try again later."
+            return "Server error (\(statusCode))"
+
+        case .unauthorized:
+            return "Unauthorized. Please check your API key."
+
+        case .forbidden:
+            return "Access forbidden. You don't have permission to access this resource."
+
+        case .notFound(let resource):
+            return "Resource not found: \(resource)"
+
         case .rateLimited(let retryAfter):
-            if let seconds = retryAfter {
-                return "Rate limited. Please try again in \(Int(seconds)) seconds."
+            if let retryAfter = retryAfter {
+                return "Rate limited. Please retry after \(Int(retryAfter)) seconds."
             }
             return "Rate limited. Please try again later."
-        case .sseConnectionFailed(let message):
-            return "Failed to establish streaming connection: \(message)"
-        case .sseParsingError(let message):
-            return "Error parsing stream data: \(message)"
-        case .streamCancelled:
-            return "Stream was cancelled."
-        case .webSocketConnectionFailed(let message):
-            return "WebSocket connection failed: \(message)"
-        case .webSocketDisconnected:
-            return "WebSocket connection was lost."
-        case .unknown(let error):
-            if let error = error {
-                return "An unknown error occurred: \(error.localizedDescription)"
+
+        case .serviceUnavailable:
+            return "Service temporarily unavailable. Please try again later."
+
+        case .decodingFailed(let reason):
+            return "Failed to decode response: \(reason)"
+
+        case .emptyResponse:
+            return "Received empty response from server"
+
+        case .invalidResponse(let reason):
+            return "Invalid response: \(reason)"
+
+        case .noConnection:
+            return "No network connection. Please check your internet connection."
+
+        case .timeout:
+            return "Request timed out. Please try again."
+
+        case .cancelled:
+            return "Request was cancelled."
+
+        case .sslError(let reason):
+            return "SSL/TLS error: \(reason)"
+
+        case .dnsLookupFailed:
+            return "Could not resolve server address. Please check the server URL."
+
+        case .connectionRefused:
+            return "Connection refused by server. Please ensure the server is running."
+
+        case .sseConnectionFailed(let reason):
+            return "SSE connection failed: \(reason)"
+
+        case .sseStreamTerminated:
+            return "Streaming connection terminated unexpectedly."
+
+        case .sseParsingFailed(let reason):
+            return "Failed to parse streaming event: \(reason)"
+
+        case .webSocketConnectionFailed(let reason):
+            return "WebSocket connection failed: \(reason)"
+
+        case .webSocketDisconnected(let code, let reason):
+            var message = "WebSocket disconnected"
+            if let code = code {
+                message += " (code: \(code))"
             }
-            return "An unknown error occurred."
-        case .custom(let message):
+            if let reason = reason {
+                message += ": \(reason)"
+            }
             return message
+
+        case .webSocketSendFailed(let reason):
+            return "Failed to send WebSocket message: \(reason)"
+
+        case .maxRetriesExceeded(let attempts, let lastError):
+            return "Request failed after \(attempts) attempts. Last error: \(lastError)"
+
+        case .unknown(let description):
+            return "An unexpected error occurred: \(description)"
         }
     }
 
-    var failureReason: String? {
+    public var failureReason: String? {
         errorDescription
     }
 
-    var recoverySuggestion: String? {
+    public var recoverySuggestion: String? {
         switch self {
+        case .missingAuthToken, .unauthorized:
+            return "Go to Settings and enter your API key."
+
         case .noConnection:
             return "Check your Wi-Fi or cellular connection."
-        case .timeout, .serverUnreachable:
-            return "Make sure the vLLM server is running and accessible."
-        case .missingAPIKey, .unauthorized:
-            return "Go to Settings and enter a valid API key."
+
+        case .timeout, .serviceUnavailable:
+            return "Wait a moment and try again."
+
         case .rateLimited:
-            return "Wait before making another request."
+            return "Wait for the rate limit to reset before retrying."
+
+        case .connectionRefused:
+            return "Verify the server URL in Settings and ensure the server is running."
+
+        case .sslError:
+            return "Check the server's SSL certificate configuration."
+
         default:
             return nil
         }
     }
 
-    // MARK: - Convenience Properties
+    // MARK: - Equatable
 
-    /// Whether this error is recoverable by retrying
-    var isRetryable: Bool {
-        switch self {
-        case .timeout, .serverUnreachable, .serviceUnavailable, .rateLimited:
+    public static func == (lhs: NetworkError, rhs: NetworkError) -> Bool {
+        switch (lhs, rhs) {
+        case (.invalidURL(let a), .invalidURL(let b)):
+            return a == b
+        case (.encodingFailed(let a), .encodingFailed(let b)):
+            return a == b
+        case (.missingAuthToken, .missingAuthToken):
             return true
-        case .httpError(let statusCode, _):
-            return statusCode >= 500 || statusCode == 429
+        case (.invalidRequest(let a), .invalidRequest(let b)):
+            return a == b
+        case (.serverError(let aCode, let aMsg), .serverError(let bCode, let bMsg)):
+            return aCode == bCode && aMsg == bMsg
+        case (.unauthorized, .unauthorized):
+            return true
+        case (.forbidden, .forbidden):
+            return true
+        case (.notFound(let a), .notFound(let b)):
+            return a == b
+        case (.rateLimited(let a), .rateLimited(let b)):
+            return a == b
+        case (.serviceUnavailable, .serviceUnavailable):
+            return true
+        case (.decodingFailed(let a), .decodingFailed(let b)):
+            return a == b
+        case (.emptyResponse, .emptyResponse):
+            return true
+        case (.invalidResponse(let a), .invalidResponse(let b)):
+            return a == b
+        case (.noConnection, .noConnection):
+            return true
+        case (.timeout, .timeout):
+            return true
+        case (.cancelled, .cancelled):
+            return true
+        case (.sslError(let a), .sslError(let b)):
+            return a == b
+        case (.dnsLookupFailed, .dnsLookupFailed):
+            return true
+        case (.connectionRefused, .connectionRefused):
+            return true
+        case (.sseConnectionFailed(let a), .sseConnectionFailed(let b)):
+            return a == b
+        case (.sseStreamTerminated, .sseStreamTerminated):
+            return true
+        case (.sseParsingFailed(let a), .sseParsingFailed(let b)):
+            return a == b
+        case (.webSocketConnectionFailed(let a), .webSocketConnectionFailed(let b)):
+            return a == b
+        case (.webSocketDisconnected(let aCode, let aReason), .webSocketDisconnected(let bCode, let bReason)):
+            return aCode == bCode && aReason == bReason
+        case (.webSocketSendFailed(let a), .webSocketSendFailed(let b)):
+            return a == b
+        case (.maxRetriesExceeded(let aAttempts, let aError), .maxRetriesExceeded(let bAttempts, let bError)):
+            return aAttempts == bAttempts && aError == bError
+        case (.unknown(let a), .unknown(let b)):
+            return a == b
         default:
             return false
         }
     }
 
-    /// Whether this error requires user authentication action
-    var requiresAuthentication: Bool {
+    // MARK: - Helpers
+
+    /// Whether this error is recoverable through retry
+    public var isRetryable: Bool {
         switch self {
-        case .missingAPIKey, .unauthorized, .forbidden:
+        case .timeout, .serviceUnavailable, .noConnection, .sseStreamTerminated:
+            return true
+        case .rateLimited:
+            return true
+        case .serverError(let statusCode, _):
+            return statusCode >= 500
+        default:
+            return false
+        }
+    }
+
+    /// Whether this error requires user action to resolve
+    public var requiresUserAction: Bool {
+        switch self {
+        case .missingAuthToken, .unauthorized, .forbidden:
+            return true
+        case .connectionRefused, .sslError, .dnsLookupFailed:
             return true
         default:
             return false
         }
     }
 
-    // MARK: - Factory Methods
-
-    /// Creates a NetworkError from an HTTP status code
-    static func from(statusCode: Int, data: Data? = nil) -> NetworkError {
-        var message: String?
-        if let data = data {
-            message = String(data: data, encoding: .utf8)
+    /// Create a NetworkError from a URLError
+    public static func from(urlError: URLError) -> NetworkError {
+        switch urlError.code {
+        case .notConnectedToInternet, .networkConnectionLost:
+            return .noConnection
+        case .timedOut:
+            return .timeout
+        case .cancelled:
+            return .cancelled
+        case .cannotFindHost:
+            return .dnsLookupFailed
+        case .cannotConnectToHost:
+            return .connectionRefused
+        case .secureConnectionFailed, .serverCertificateHasBadDate,
+             .serverCertificateUntrusted, .serverCertificateHasUnknownRoot,
+             .serverCertificateNotYetValid, .clientCertificateRejected:
+            return .sslError(urlError.localizedDescription)
+        default:
+            return .unknown(urlError.localizedDescription)
         }
+    }
+
+    /// Create a NetworkError from an HTTP status code
+    public static func from(statusCode: Int, data: Data? = nil) -> NetworkError {
+        let message = data.flatMap { String(data: $0, encoding: .utf8) }
 
         switch statusCode {
         case 401:
@@ -221,45 +355,42 @@ enum NetworkError: LocalizedError {
         case 403:
             return .forbidden
         case 404:
-            return .httpError(statusCode: 404, message: "Resource not found")
+            return .notFound(resource: "Unknown")
         case 429:
             return .rateLimited(retryAfter: nil)
-        case 500...599:
-            return .serverError(message ?? "Internal server error")
+        case 503:
+            return .serviceUnavailable
+        case 400..<500:
+            return .serverError(statusCode: statusCode, message: message)
+        case 500..<600:
+            return .serverError(statusCode: statusCode, message: message)
         default:
-            return .httpError(statusCode: statusCode, message: message)
+            return .serverError(statusCode: statusCode, message: message)
         }
     }
 
-    /// Creates a NetworkError from a URLError
-    static func from(urlError: URLError) -> NetworkError {
-        switch urlError.code {
-        case .notConnectedToInternet, .networkConnectionLost:
-            return .noConnection
-        case .timedOut:
-            return .timeout
-        case .cannotFindHost, .cannotConnectToHost:
-            return .serverUnreachable
-        case .serverCertificateUntrusted, .serverCertificateHasBadDate:
-            return .sslError(urlError.localizedDescription)
-        case .cancelled:
-            return .streamCancelled
-        default:
-            return .unknown(urlError)
+    /// Create a NetworkError from any Error
+    public static func from(error: Error) -> NetworkError {
+        if let networkError = error as? NetworkError {
+            return networkError
         }
+        if let urlError = error as? URLError {
+            return from(urlError: urlError)
+        }
+        return .unknown(error.localizedDescription)
     }
 }
 
-// MARK: - API Error Response
+// MARK: - Error Response Model
 
-/// Standard error response format from the API
-struct APIErrorResponse: Codable {
-    let error: String?
-    let message: String?
-    let statusCode: Int?
-    let details: [String: String]?
+/// Standard error response from the API
+public struct APIErrorResponse: Codable, Sendable {
+    public let error: String?
+    public let message: String?
+    public let code: String?
+    public let details: [String: String]?
 
-    var displayMessage: String {
-        message ?? error ?? "Unknown error"
+    public var displayMessage: String {
+        message ?? error ?? "An unknown error occurred"
     }
 }
