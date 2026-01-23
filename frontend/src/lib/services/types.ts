@@ -6,6 +6,13 @@ export interface IService {
   readonly name: string;
 }
 
+/**
+ * Generic retrieval service interface for project search.
+ */
+export interface IRetrievalService<TInput, TResult> extends IService {
+  search(input: TInput): Promise<TResult>;
+}
+
 export interface IParser<TInput, TResult> extends IService {
   parse(input: TInput): TResult;
 }

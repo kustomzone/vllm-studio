@@ -38,16 +38,10 @@ export function useChatTools({ mcpEnabled }: UseChatToolsOptions) {
       return [];
     }
     try {
-      const data = await api.getMCPTools();
-      let tools = data.tools || [];
+      const enabledServers = mcpServers.filter((server) => server.enabled ?? true);
+      let tools: MCPTool[] = [];
 
-      if (data.errors && data.errors.length > 0) {
-        console.warn("[MCP] tool discovery errors", data.errors);
-      }
-
-      if (tools.length === 0) {
-        const { servers } = await api.getMCPServers();
-        const enabledServers = servers.filter((server) => server.enabled ?? true);
+      if (enabledServers.length > 0) {
         const serverTools = await Promise.all(
           enabledServers.map(async (server) => {
             try {
@@ -62,6 +56,32 @@ export function useChatTools({ mcpEnabled }: UseChatToolsOptions) {
         tools = serverTools.flat();
       }
 
+      if (tools.length === 0) {
+        const data = await api.getMCPTools();
+        tools = data.tools || [];
+
+        if (data.errors && data.errors.length > 0) {
+          console.warn("[MCP] tool discovery errors", data.errors);
+        }
+
+        if (tools.length === 0) {
+          const { servers } = await api.getMCPServers();
+          const enabledServers = servers.filter((server) => server.enabled ?? true);
+          const serverTools = await Promise.all(
+            enabledServers.map(async (server) => {
+              try {
+                const result = await api.getMCPServerTools(server.name);
+                return result.tools;
+              } catch (err) {
+                console.warn(`[MCP] failed to load tools from ${server.name}`, err);
+                return [];
+              }
+            }),
+          );
+          tools = serverTools.flat();
+        }
+      }
+
       setMcpTools(tools);
       console.info("[MCP] loaded tools", { count: tools.length });
       return tools;
@@ -69,7 +89,7 @@ export function useChatTools({ mcpEnabled }: UseChatToolsOptions) {
       console.error("Failed to load MCP tools:", err);
       return [];
     }
-  }, [mcpEnabled]);
+  }, [mcpEnabled, mcpServers]);
 
   const getToolDefinitions = useCallback(
     (toolsOverride?: MCPTool[]): MCPTool[] => {

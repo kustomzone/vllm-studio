@@ -11,6 +11,7 @@ interface UseChatDerivedOptions {
   isLoading: boolean;
   executingTools: Set<string>;
   toolResultsMap: Map<string, ToolResult>;
+  systemPrompt?: string;
 }
 
 export function useChatDerived({
@@ -18,6 +19,7 @@ export function useChatDerived({
   isLoading,
   executingTools,
   toolResultsMap,
+  systemPrompt,
 }: UseChatDerivedOptions) {
   // Extract thinking/reasoning content from a single assistant message
   const extractThinking = useCallback((message: UIMessage) => {
@@ -54,6 +56,13 @@ export function useChatDerived({
     if (part.type === "dynamic-tool") return "toolCallId" in part;
     return part.type.startsWith("tool-") && "toolCallId" in part;
   };
+
+  const requestContext = useMemo(() => {
+    const trimmedSystem = systemPrompt?.trim() || "";
+    return {
+      systemPrompt: trimmedSystem || undefined,
+    };
+  }, [systemPrompt]);
 
   // Build activity groups from assistant messages (newest first)
   const activityGroups = useMemo<ActivityGroup[]>(() => {
@@ -154,5 +163,6 @@ export function useChatDerived({
     hasToolActivity,
     hasSidePanelContent,
     lastAssistantMessage,
+    requestContext,
   };
 }

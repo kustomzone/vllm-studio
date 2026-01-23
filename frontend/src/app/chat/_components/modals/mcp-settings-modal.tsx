@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { X, Server, RefreshCw, Trash2, Plus } from "lucide-react";
+import { useState } from "react";
+import { X, Server, RefreshCw, Trash2 } from "lucide-react";
 import type { MCPServer } from "@/lib/types";
+import { McpServerForm, type McpServerFormPayload } from "@/components/mcp";
 
 interface MCPSettingsModalProps {
   isOpen: boolean;
@@ -23,87 +24,22 @@ export function MCPSettingsModal({
   onRemoveServer,
   onRefresh,
 }: MCPSettingsModalProps) {
-  const [name, setName] = useState("");
-  const [command, setCommand] = useState("");
-  const [args, setArgs] = useState("");
-  const [env, setEnv] = useState("");
-  const [icon, setIcon] = useState("");
-  const [enabled, setEnabled] = useState(true);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingServer, setPendingServer] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   if (!isOpen) return null;
 
-  const parseArgs = (input: string) =>
-    input
-      .split(/\s+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-  const parseEnv = (input: string) => {
-    const entries = input
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    return entries.reduce<Record<string, string>>((acc, line) => {
-      const [key, ...rest] = line.split("=");
-      if (!key) return acc;
-      const value = rest.join("=").trim();
-      if (!value) return acc;
-      acc[key.trim()] = value;
-      return acc;
-    }, {});
-  };
-
-  const resetForm = () => {
-    setName("");
-    setCommand("");
-    setArgs("");
-    setEnv("");
-    setIcon("");
-    setEnabled(true);
-    setFormError(null);
-  };
-
-  const handleAddServer = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setFormError(null);
-
-    if (!name.trim() || !command.trim()) {
-      setFormError("Name and command are required.");
-      return;
-    }
-
-    const commandParts = command.trim().split(/\s+/).filter(Boolean);
-    const resolvedCommand = commandParts[0] || "";
-    const resolvedArgs = parseArgs(args);
-    const finalArgs = resolvedArgs.length === 0 ? commandParts.slice(1) : resolvedArgs;
-
-    setIsSubmitting(true);
-    try {
-      await onAddServer({
-        name: name.trim(),
-        command: resolvedCommand,
-        args: finalArgs,
-        env: parseEnv(env),
-        icon: icon.trim() || undefined,
-        enabled,
-      });
-      resetForm();
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Failed to add server.");
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleAddServer = async (payload: McpServerFormPayload) => {
+    setActionError(null);
+    await onAddServer(payload);
   };
 
   const handleToggleServer = async (server: MCPServer) => {
     setPendingServer(server.name);
+    setActionError(null);
     try {
       await onUpdateServer({ ...server, enabled: !server.enabled });
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Failed to update server.");
+      setActionError(error instanceof Error ? error.message : "Failed to update server.");
     } finally {
       setPendingServer(null);
     }
@@ -112,10 +48,11 @@ export function MCPSettingsModal({
   const handleRemoveServer = async (server: MCPServer) => {
     if (!window.confirm(`Remove MCP server "${server.name}"?`)) return;
     setPendingServer(server.name);
+    setActionError(null);
     try {
       await onRemoveServer(server.name);
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Failed to remove server.");
+      setActionError(error instanceof Error ? error.message : "Failed to remove server.");
     } finally {
       setPendingServer(null);
     }
@@ -156,89 +93,13 @@ export function MCPSettingsModal({
 
         {/* Content */}
         <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-          <form
+          <McpServerForm
             onSubmit={handleAddServer}
-            className="space-y-4 p-4 border border-(--border) rounded-lg bg-(--background)"
-          >
-            <div className="flex items-center gap-2 text-sm font-semibold text-[#c8c4bd]">
-              <Plus className="h-4 w-4 text-[#9a9590]" />
-              Add MCP server
-            </div>
-
-            <div className="grid gap-3">
-              <label className="text-xs text-[#9a9590]">
-                Name
-                <input
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="exa"
-                  className="mt-1 w-full rounded-lg border border-(--border) bg-(--card) px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-(--accent)"
-                />
-              </label>
-
-              <label className="text-xs text-[#9a9590]">
-                Command
-                <input
-                  value={command}
-                  onChange={(event) => setCommand(event.target.value)}
-                  placeholder="npx -y exa-mcp-server"
-                  className="mt-1 w-full rounded-lg border border-(--border) bg-(--card) px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-(--accent)"
-                />
-              </label>
-
-              <label className="text-xs text-[#9a9590]">
-                Args (space-separated)
-                <input
-                  value={args}
-                  onChange={(event) => setArgs(event.target.value)}
-                  placeholder="--foo bar"
-                  className="mt-1 w-full rounded-lg border border-(--border) bg-(--card) px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-(--accent)"
-                />
-              </label>
-
-              <label className="text-xs text-[#9a9590]">
-                Env (one per line: KEY=VALUE)
-                <textarea
-                  value={env}
-                  onChange={(event) => setEnv(event.target.value)}
-                  placeholder="EXA_API_KEY=..."
-                  rows={3}
-                  className="mt-1 w-full rounded-lg border border-(--border) bg-(--card) px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-(--accent)"
-                />
-              </label>
-
-              <label className="text-xs text-[#9a9590]">
-                Icon (optional)
-                <input
-                  value={icon}
-                  onChange={(event) => setIcon(event.target.value)}
-                  placeholder="🔎"
-                  className="mt-1 w-full rounded-lg border border-(--border) bg-(--card) px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-(--accent)"
-                />
-              </label>
-
-              <label className="flex items-center gap-2 text-xs text-[#9a9590]">
-                <input
-                  type="checkbox"
-                  checked={enabled}
-                  onChange={(event) => setEnabled(event.target.checked)}
-                  className="h-4 w-4 rounded border-(--border) bg-(--card)"
-                />
-                Enable on add
-              </label>
-            </div>
-
-            {formError && <p className="text-xs text-red-400">{formError}</p>}
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="inline-flex items-center gap-2 rounded-lg bg-(--accent) px-3 py-2 text-xs font-semibold text-[#eceae7] transition-colors hover:bg-(--card) disabled:opacity-60"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {isSubmitting ? "Adding..." : "Add server"}
-            </button>
-          </form>
+            title="Add MCP server"
+            submitLabel="Add server"
+            submittingLabel="Adding…"
+            testIdPrefix="mcp-settings-form"
+          />
 
           <div className="space-y-4">
             {servers.length === 0 ? (
@@ -290,6 +151,7 @@ export function MCPSettingsModal({
                 </div>
               ))
             )}
+            {actionError && <p className="text-xs text-(--error)">{actionError}</p>}
           </div>
         </div>
       </div>

@@ -108,7 +108,13 @@ export function useChatTransport({
         return null;
       }
     },
-    [selectedModel, setCurrentSessionId, setCurrentSessionTitle, persistMessage, updateSessions],
+    [
+      selectedModel,
+      setCurrentSessionId,
+      setCurrentSessionTitle,
+      persistMessage,
+      updateSessions,
+    ],
   );
 
   // Generate title from conversation
