@@ -110,6 +110,75 @@ describe("useChatSendUserMessage VLM routing", () => {
     expect(apiMock.streamOpenAIChatCompletions).not.toHaveBeenCalled();
   });
 
+  it("when flag enabled and agent mode on, sends true multimodal parts via /chats/:id/turn", async () => {
+    process.env.NEXT_PUBLIC_VLLM_STUDIO_FEATURE_VLM_ATTACHMENTS = "1";
+
+    const sendRef: { current: ((text: string, attachments?: Attachment[]) => Promise<void>) | null } = {
+      current: null,
+    };
+
+    const messagesState: { value: ChatMessage[] } = { value: [] };
+    const messagesRef = { current: messagesState.value };
+
+    const startRunStream = vi.fn(async () => undefined);
+
+    function Harness() {
+      const { sendUserMessage } = useChatSendUserMessage({
+        selectedModel: "model-1",
+        systemPrompt: "",
+        mcpEnabled: false,
+        deepResearchEnabled: false,
+        agentMode: true,
+        currentSessionId: "s1",
+        isLoading: false,
+        messagesRef: messagesRef as unknown as React.MutableRefObject<ChatMessage[]>,
+        runAbortControllerRef: { current: null },
+        setIsLoading: () => {},
+        agentFiles: [],
+        agentFileVersions: {},
+        setInput: () => {},
+        setMessages: (next) => {
+          messagesState.value =
+            typeof next === "function" ? (next as (p: ChatMessage[]) => ChatMessage[])(messagesState.value) : next;
+          messagesRef.current = messagesState.value;
+        },
+        setStreamError: () => {},
+        setStreamingStartTime: () => {},
+        lastUserInputRef: { current: "" },
+        createSession: async () => ({ id: "s1" }),
+        setLastSessionId: () => {},
+        replaceUrlToSession: () => {},
+        startRunStream,
+        loadAgentFiles: () => {},
+      });
+
+      React.useEffect(() => {
+        sendRef.current = async (text: string, attachments?: Attachment[]) =>
+          sendUserMessage(text, attachments, { clearInput: false });
+      }, [sendUserMessage]);
+
+      return null;
+    }
+
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    root.render(React.createElement(Harness));
+    await waitFor(() => sendRef.current !== null);
+    expect(sendRef.current).not.toBeNull();
+
+    await sendRef.current?.("hello", [makeImageAttachment()]);
+
+    expect(startRunStream).toHaveBeenCalledTimes(1);
+    const payload = startRunStream.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(payload["parts"]).toBeTruthy();
+    expect(payload["content"]).toBe("hello");
+    const parts = payload["parts"] as Array<Record<string, unknown>>;
+    expect(parts.some((p) => p["type"] === "image")).toBe(true);
+    expect(String(payload["content"])).not.toContain("[Image:");
+    expect(apiMock.streamOpenAIChatCompletions).not.toHaveBeenCalled();
+  });
+
   it("when flag enabled and agent mode off, uses direct OpenAI multimodal path", async () => {
     process.env.NEXT_PUBLIC_VLLM_STUDIO_FEATURE_VLM_ATTACHMENTS = "1";
 

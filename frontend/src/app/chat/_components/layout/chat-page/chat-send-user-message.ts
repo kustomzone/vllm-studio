@@ -215,7 +215,8 @@ export function useChatSendUserMessage({
         : systemPrompt.trim() || undefined;
 
       const imageAttachments = (attachments ?? []).filter((att) => att.type === "image" && Boolean(att.base64));
-      const useDirectVlm = isVlmAttachmentsEnabled() && imageAttachments.length > 0 && !agentMode;
+      const vlmEnabled = isVlmAttachmentsEnabled() && imageAttachments.length > 0;
+      const useDirectVlm = vlmEnabled && !agentMode;
 
       const buildAttachmentPlaceholders = (items: Attachment[]): string => {
         const lines: string[] = [];
@@ -229,16 +230,17 @@ export function useChatSendUserMessage({
       };
 
       if (!useDirectVlm) {
-        const placeholderBlock = attachments?.length ? buildAttachmentPlaceholders(attachments) : "";
-        const content =
-          text.trim() && placeholderBlock
+        // Only use placeholder blocks when VLM attachments are disabled; otherwise send true multimodal parts.
+        const placeholderBlock = !vlmEnabled && attachments?.length ? buildAttachmentPlaceholders(attachments) : "";
+        const content = text.trim()
+          ? placeholderBlock
             ? `${text}\n\n${placeholderBlock}`
-            : text.trim()
-              ? text
-              : placeholderBlock;
+            : text
+          : placeholderBlock;
 
         await startRunStream(sessionId, {
           ...(content.trim() ? { content } : {}),
+          ...(vlmEnabled ? { parts } : {}),
           message_id: messageId,
           model: selectedModel,
           system: runSystemPrompt,
