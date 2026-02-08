@@ -197,6 +197,36 @@ export function createApiCore(params: { baseUrl: string; useProxy: boolean }) {
     if (finalPayload) yield finalPayload;
   };
 
+  const parseOpenAIStream = async function* (
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+  ): AsyncGenerator<Record<string, unknown>> {
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (!trimmed.startsWith("data:")) continue;
+        const raw = trimmed.slice(5).trim();
+        if (!raw) continue;
+        if (raw === "[DONE]") return;
+        try {
+          yield JSON.parse(raw) as Record<string, unknown>;
+        } catch {
+          yield { raw };
+        }
+      }
+    }
+  };
+
   const postSseJson = async (
     endpoint: string,
     payload: unknown,
@@ -225,6 +255,40 @@ export function createApiCore(params: { baseUrl: string; useProxy: boolean }) {
     return { runId, stream: parseSseStream(reader) };
   };
 
+  const postOpenAIStream = async (
+    endpoint: string,
+    payload: unknown,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<{ stream: AsyncGenerator<Record<string, unknown>> }> => {
+    const url = buildUrl(endpoint);
+    const headers = buildHeaders({ Accept: "text/event-stream" });
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      signal: options.signal,
+      credentials: "include",
+    });
+
+    if (!response.ok || !response.body) {
+      const text = await response.text().catch(() => "");
+      let errorBody: { detail?: string; error?: { message?: string } } = {};
+      if (text) {
+        try {
+          errorBody = JSON.parse(text) as { detail?: string; error?: { message?: string } };
+        } catch {
+          errorBody = {};
+        }
+      }
+      const errorMessage = errorBody.detail || errorBody.error?.message || text || `HTTP ${response.status}`;
+      throw new Error(errorMessage);
+    }
+
+    const reader = response.body.getReader();
+    return { stream: parseOpenAIStream(reader) };
+  };
+
   return {
     baseUrl,
     useProxy,
@@ -232,6 +296,6 @@ export function createApiCore(params: { baseUrl: string; useProxy: boolean }) {
     buildHeaders,
     request,
     postSseJson,
+    postOpenAIStream,
   };
 }
-

@@ -11,10 +11,29 @@ import {
   normalizeToolCallsInMessage,
   normalizeToolRequest,
 } from "../services/tool-call-core";
+import { isVlmAttachmentsEnabled } from "../config/features";
 
 const switchLock = new AsyncLock();
 
 export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+  const hasImageUrlParts = (payload: Record<string, unknown>): boolean => {
+    const messages = payload["messages"];
+    if (!Array.isArray(messages)) return false;
+    for (const message of messages) {
+      if (!isRecord(message)) continue;
+      const content = message["content"];
+      if (!Array.isArray(content)) continue;
+      for (const part of content) {
+        if (!isRecord(part)) continue;
+        if (part["type"] === "image_url") return true;
+      }
+    }
+    return false;
+  };
+
   const findRecipeByModel = (modelName: string): Recipe | null => {
     const lower = modelName.toLowerCase();
     for (const recipe of context.stores.recipeStore.list()) {
@@ -124,6 +143,7 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
     let matchedRecipe: Recipe | null = null;
     let isStreaming = false;
     let bodyChanged = false;
+    let containsImageParts = false;
 
     try {
       const bodyText = new TextDecoder().decode(bodyBuffer);
@@ -145,8 +165,16 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
         bodyChanged = true;
       }
       isStreaming = Boolean(parsed["stream"]);
+      containsImageParts = hasImageUrlParts(parsed);
     } catch {
       throw new HttpStatus(400, "Invalid JSON body");
+    }
+
+    if (containsImageParts && !isVlmAttachmentsEnabled()) {
+      throw new HttpStatus(
+        400,
+        "VLM image attachments are disabled. Set VLLM_STUDIO_FEATURE_VLM_ATTACHMENTS=1 to enable multimodal image_url requests.",
+      );
     }
 
     if (matchedRecipe) {
@@ -210,6 +238,19 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
     const upstreamResponse = await fetch(upstreamUrl, { method: "POST", headers, body: finalBody });
     if (!upstreamResponse.ok) {
       const errorText = await upstreamResponse.text();
+      if (containsImageParts) {
+        return ctx.json(
+          {
+            error: {
+              message:
+                "Upstream rejected a multimodal request. Ensure you selected a VLM-capable model/recipe and that the backend supports OpenAI-style image_url parts.",
+              upstream_status: upstreamResponse.status,
+              upstream_body: errorText.slice(0, 2000),
+            },
+          },
+          { status: upstreamResponse.status },
+        );
+      }
       return new Response(errorText, {
         status: upstreamResponse.status,
         headers: {

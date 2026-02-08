@@ -135,5 +135,11 @@ export function createSystemApi(core: ApiCore) {
     getSystemConfig: (): Promise<ConfigData> => core.request("/config"),
 
     getCompatibilityReport: (): Promise<CompatibilityReport> => core.request("/compat"),
+
+    streamOpenAIChatCompletions: (
+      payload: Record<string, unknown>,
+      options: { signal?: AbortSignal } = {},
+    ): Promise<{ stream: AsyncGenerator<Record<string, unknown>> }> =>
+      core.postOpenAIStream("/v1/chat/completions", payload, options),
   };
 }

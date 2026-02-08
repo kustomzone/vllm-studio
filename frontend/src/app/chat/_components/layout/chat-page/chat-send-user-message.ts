@@ -7,12 +7,14 @@ import api from "@/lib/api";
 import { createUuid } from "@/lib/uuid";
 import type { ChatMessage, ChatMessagePart } from "@/lib/types";
 import type { Attachment } from "@/app/chat/types";
+import { isVlmAttachmentsEnabled } from "@/lib/features";
 import {
   buildAttachmentsBlock,
   readAttachmentContent,
   sanitizeAttachmentName,
   type UploadedAttachment,
 } from "@/app/chat/utils/chat-attachments";
+import { buildOpenAIChatMessages } from "@/app/chat/utils/openai-multimodal";
 import { buildRunSystemPrompt } from "./run-system-prompt";
 
 export interface UseChatSendUserMessageArgs {
@@ -23,6 +25,9 @@ export interface UseChatSendUserMessageArgs {
   agentMode: boolean;
   currentSessionId: string | null;
   isLoading: boolean;
+  messagesRef: MutableRefObject<ChatMessage[]>;
+  runAbortControllerRef: MutableRefObject<AbortController | null>;
+  setIsLoading: (value: boolean) => void;
   agentFiles: Array<{ name: string; type: "file" | "dir"; children?: unknown[] }>;
   agentFileVersions: Record<string, unknown>;
   setInput: (value: string) => void;
@@ -57,6 +62,9 @@ export function useChatSendUserMessage({
   agentMode,
   currentSessionId,
   isLoading,
+  messagesRef,
+  runAbortControllerRef,
+  setIsLoading,
   agentFiles,
   agentFileVersions,
   setInput,
@@ -200,16 +208,94 @@ export function useChatSendUserMessage({
         ? buildRunSystemPrompt(systemPrompt, attachmentsBlock)
         : systemPrompt.trim() || undefined;
 
-      await startRunStream(sessionId, {
-        content: text,
-        message_id: messageId,
-        model: selectedModel,
-        system: runSystemPrompt,
-        mcp_enabled: mcpEnabled,
-        agent_mode: agentMode,
-        agent_files: agentFilesEnabled,
-        deep_research: deepResearchEnabled,
-      });
+      const imageAttachments = (attachments ?? []).filter((att) => att.type === "image" && Boolean(att.base64));
+      const useDirectVlm = isVlmAttachmentsEnabled() && imageAttachments.length > 0;
+
+      if (!useDirectVlm) {
+        await startRunStream(sessionId, {
+          content: text,
+          message_id: messageId,
+          model: selectedModel,
+          system: runSystemPrompt,
+          mcp_enabled: mcpEnabled,
+          agent_mode: agentMode,
+          agent_files: agentFilesEnabled,
+          deep_research: deepResearchEnabled,
+        });
+        return;
+      }
+
+      // Direct OpenAI path (feature-flagged): send OpenAI-style multimodal message parts.
+      const assistantId = createUuid();
+      let assistantText = "";
+
+      setMessages((prev) => [
+        ...prev,
+        { id: assistantId, role: "assistant", parts: [{ type: "text", text: "" }] },
+      ]);
+
+      const abortController = new AbortController();
+      runAbortControllerRef.current?.abort();
+      runAbortControllerRef.current = abortController;
+      setIsLoading(true);
+
+      try {
+        const history = messagesRef.current;
+        const messages = buildOpenAIChatMessages({
+          system: runSystemPrompt,
+          history,
+          userText: text,
+          attachments: imageAttachments,
+        });
+
+        const payload: Record<string, unknown> = {
+          model: selectedModel,
+          stream: true,
+          messages,
+        };
+
+        const { stream } = await api.streamOpenAIChatCompletions(payload, { signal: abortController.signal });
+        for await (const chunk of stream) {
+          const choices = chunk["choices"];
+          if (!Array.isArray(choices)) continue;
+          const delta = (choices[0] as Record<string, unknown> | undefined)?.["delta"] as Record<string, unknown> | undefined;
+          const content = typeof delta?.["content"] === "string" ? (delta["content"] as string) : "";
+          if (!content) continue;
+          assistantText += content;
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantId
+                ? { ...msg, parts: [{ type: "text", text: assistantText }] }
+                : msg,
+            ),
+          );
+        }
+
+        // Persist messages to the session for consistency with normal chat flows.
+        void api.addChatMessage(sessionId, {
+          id: messageId,
+          role: "user",
+          content: text,
+          model: selectedModel,
+          parts,
+        });
+        void api.addChatMessage(sessionId, {
+          id: assistantId,
+          role: "assistant",
+          content: assistantText,
+          model: selectedModel,
+          parts: [{ type: "text", text: assistantText }],
+        });
+      } catch (err) {
+        if (!abortController.signal.aborted) {
+          const message = err instanceof Error ? err.message : String(err);
+          setStreamError(message);
+        }
+        setMessages((prev) => prev.filter((msg) => msg.id !== assistantId));
+      } finally {
+        runAbortControllerRef.current = null;
+        setIsLoading(false);
+      }
     },
     [
       agentFileVersions,
@@ -218,12 +304,15 @@ export function useChatSendUserMessage({
       createSession,
       currentSessionId,
       deepResearchEnabled,
+      messagesRef,
       isLoading,
       lastUserInputRef,
       mcpEnabled,
       replaceUrlToSession,
+      runAbortControllerRef,
       selectedModel,
       setInput,
+      setIsLoading,
       setLastSessionId,
       setMessages,
       setStreamError,
