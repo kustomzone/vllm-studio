@@ -81,6 +81,31 @@ export function ConfigCards({ data }: { data: ConfigData }) {
         />
       </ConfigSection>
 
+      <ConfigSection title="Voice (STT/TTS)">
+        <ConfigRow
+          label="STT Model"
+          value={data.config.stt_model || "Not configured"}
+          icon={<Settings className="h-3 w-3" />}
+          truncate
+        />
+        <ConfigRow
+          label="STT Backend"
+          value={data.config.stt_backend || "Default"}
+          icon={<Settings className="h-3 w-3" />}
+        />
+        <ConfigRow
+          label="TTS Model"
+          value={data.config.tts_model || "Not configured"}
+          icon={<Settings className="h-3 w-3" />}
+          truncate
+        />
+        <ConfigRow
+          label="TTS Backend"
+          value={data.config.tts_backend || "Default"}
+          icon={<Settings className="h-3 w-3" />}
+        />
+      </ConfigSection>
+
       <ConfigSection title="Runtime Versions">
         <ConfigRow
           label="vLLM"

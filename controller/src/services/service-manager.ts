@@ -195,7 +195,7 @@ export class ServiceManager {
     options?: { recipe_id?: string; mode?: ServiceStartMode; replace?: boolean },
   ): Promise<ServiceState> {
     const serviceDefinition = getServiceDefinition(id);
-    const requiresLease = Boolean(serviceDefinition?.requiresGpuLease);
+    const requiresLease = await this.serviceRequiresGpuLease(id, serviceDefinition);
     const mode: ServiceStartMode = options?.mode ?? "strict";
     const replace = options?.replace === true;
 
@@ -301,7 +301,7 @@ export class ServiceManager {
     }
 
     const serviceDefinition = getServiceDefinition(id);
-    if (serviceDefinition?.requiresGpuLease) {
+    if (await this.serviceRequiresGpuLease(id, serviceDefinition)) {
       await this.gpuLease.release(id);
     }
     const state = this.setState(id, { status: "stopped", pid: null, port: null, started_at: null });
@@ -350,5 +350,25 @@ export class ServiceManager {
       return { version: null, service: { ...next } };
     }
     return { version: state.version, service: { ...state } };
+  }
+
+  /**
+   * Determine whether a service should acquire a GPU lease.
+   * For some integrations (e.g. STT/TTS), this is dynamic based on the selected backend.
+   */
+  private async serviceRequiresGpuLease(
+    id: ServiceId,
+    serviceDefinition: ReturnType<typeof getServiceDefinition>,
+  ): Promise<boolean> {
+    if (serviceDefinition?.requiresGpuLease) return true;
+    if (id === "stt") {
+      const backend = (process.env["VLLM_STUDIO_STT_BACKEND"] ?? "").trim().toLowerCase();
+      return backend.length > 0 && backend !== "cpu";
+    }
+    if (id === "tts") {
+      const backend = (process.env["VLLM_STUDIO_TTS_BACKEND"] ?? "").trim().toLowerCase();
+      return backend.length > 0 && backend !== "cpu";
+    }
+    return false;
   }
 }

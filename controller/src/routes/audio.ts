@@ -7,6 +7,7 @@ import type { AppContext } from "../types/context";
 import { badRequest, serviceUnavailable } from "../core/errors";
 import { getSttAdapter } from "../services/integrations/stt";
 import { getTtsAdapter } from "../services/integrations/tts";
+import { GpuLeaseConflictError } from "../services/gpu-lease";
 
 const ensureDirectory = (directory: string): void => {
   try {
@@ -50,6 +51,8 @@ export const registerAudioRoutes = (app: Hono, context: AppContext): void => {
 
     const model = typeof form.get("model") === "string" ? String(form.get("model")) : null;
     const language = typeof form.get("language") === "string" ? String(form.get("language")) : null;
+    const mode = form.get("mode") === "best_effort" ? "best_effort" : "strict";
+    const replace = form.get("replace") === "1" || form.get("replace") === "true";
     const modelPath = resolveIntegrationModelPath(
       context.config.models_dir,
       "stt",
@@ -66,6 +69,15 @@ export const registerAudioRoutes = (app: Hono, context: AppContext): void => {
     const audioPath = join(temporaryDirectory, `${randomUUID()}-${file.name || "audio"}`);
     const bytes = Buffer.from(await file.arrayBuffer());
     writeFileSync(audioPath, bytes);
+
+    try {
+      await context.serviceManager.startService("stt", { mode, replace });
+    } catch (error) {
+      if (error instanceof GpuLeaseConflictError) {
+        return ctx.json(error.payload, { status: 409 });
+      }
+      throw error;
+    }
 
     const result = await adapter.transcribe({
       audioPath,
@@ -103,6 +115,8 @@ export const registerAudioRoutes = (app: Hono, context: AppContext): void => {
     }
 
     const model = typeof body["model"] === "string" ? body["model"] : null;
+    const mode = body["mode"] === "best_effort" ? "best_effort" : "strict";
+    const replace = body["replace"] === true;
     const modelPath = resolveIntegrationModelPath(
       context.config.models_dir,
       "tts",
@@ -117,6 +131,14 @@ export const registerAudioRoutes = (app: Hono, context: AppContext): void => {
     const temporaryDirectory = resolve(context.config.data_dir, "tmp", "tts");
     ensureDirectory(temporaryDirectory);
     const outPath = join(temporaryDirectory, `${randomUUID()}.wav`);
+    try {
+      await context.serviceManager.startService("tts", { mode, replace });
+    } catch (error) {
+      if (error instanceof GpuLeaseConflictError) {
+        return ctx.json(error.payload, { status: 409 });
+      }
+      throw error;
+    }
     await adapter.speak({ text: input, modelPath, outputPath: outPath });
 
     const audio = readFileSync(outPath);

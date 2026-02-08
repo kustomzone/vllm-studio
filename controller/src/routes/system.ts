@@ -355,6 +355,10 @@ export const registerSystemRoutes = (app: Hono, context: AppContext): void => {
         sglang_python: context.config.sglang_python ?? null,
         tabby_api_dir: context.config.tabby_api_dir ?? null,
         llama_bin: context.config.llama_bin ?? null,
+        stt_model: (process.env["VLLM_STUDIO_STT_MODEL"] ?? "").trim() || null,
+        stt_backend: (process.env["VLLM_STUDIO_STT_BACKEND"] ?? "").trim() || null,
+        tts_model: (process.env["VLLM_STUDIO_TTS_MODEL"] ?? "").trim() || null,
+        tts_backend: (process.env["VLLM_STUDIO_TTS_BACKEND"] ?? "").trim() || null,
       },
       services,
       environment: {

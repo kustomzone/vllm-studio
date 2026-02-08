@@ -33,6 +33,18 @@ describe("RuntimesPanel", () => {
             started_at: "2026-02-08T00:00:00.000Z",
             updated_at: "2026-02-08T00:00:00.000Z",
           },
+          {
+            id: "tts",
+            kind: "cli-integration",
+            runtime: "piper",
+            port: null,
+            pid: null,
+            status: "stopped",
+            version: null,
+            last_error: null,
+            started_at: null,
+            updated_at: "2026-02-08T00:00:00.000Z",
+          },
         ],
       }),
     );
@@ -42,5 +54,7 @@ describe("RuntimesPanel", () => {
     expect(html).toContain("running");
     expect(html).toContain("stt");
     expect(html).toContain("ready");
+    expect(html).toContain("tts");
+    expect(html).toContain("stopped");
   });
 });

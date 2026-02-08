@@ -19,6 +19,9 @@ vLLM Studio exposes OpenAI-compatible voice endpoints from the Bun controller an
 ```bash
 export VLLM_STUDIO_STT_CLI=whisper-cli
 export VLLM_STUDIO_STT_MODEL=ggml-large-v3.bin
+# Optional: hint the controller/UI about which acceleration backend you intend to use.
+# If set to a non-cpu backend, STT will require a GPU lease (strict by default).
+export VLLM_STUDIO_STT_BACKEND=vulkan
 ```
 
 ### Request
@@ -46,6 +49,8 @@ Response:
 ```bash
 export VLLM_STUDIO_TTS_CLI=piper
 export VLLM_STUDIO_TTS_MODEL=en_US-amy-medium.onnx
+# Optional: if set to a non-cpu backend, TTS will require a GPU lease (strict by default).
+export VLLM_STUDIO_TTS_BACKEND=cuda
 ```
 
 ### Request
@@ -61,4 +66,3 @@ curl -sS -X POST http://127.0.0.1:8080/v1/audio/speech \
 
 - These integrations are local-only: no hosted voice URLs required.
 - GPU acceleration backends vary by how the CLI is built; the controller treats this as an integration detail.
-

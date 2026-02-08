@@ -114,6 +114,14 @@ export interface SystemConfig {
   sglang_python: string | null;
   tabby_api_dir: string | null;
   llama_bin: string | null;
+  /**
+   * Optional voice (STT/TTS) integration configuration.
+   * These are env-driven and may be null/omitted when not configured.
+   */
+  stt_model?: string | null;
+  stt_backend?: string | null;
+  tts_model?: string | null;
+  tts_backend?: string | null;
 }
 
 /**
