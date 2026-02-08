@@ -68,6 +68,30 @@ curl -sS http://127.0.0.1:8000/health
 curl -sS http://127.0.0.1:8000/v1/models | head
 ```
 
+## 2.5. SGLang (Optional) Quick Smoke Test
+
+SGLang is supported as an alternative inference backend. Install it in the same Python environment you intend to use for serving.
+
+Best-effort verification:
+
+```bash
+python3 - <<'PY'
+import json, sys
+try:
+  import sglang
+  print(json.dumps({"version": getattr(sglang, "__version__", None), "python": sys.executable}))
+except Exception as e:
+  print(json.dumps({"version": None, "python": sys.executable, "error": str(e)}))
+PY
+```
+
+If you bring up an SGLang server, verify it is reachable and OpenAI-compatible:
+
+```bash
+curl -sS http://127.0.0.1:8000/health || true
+curl -sS http://127.0.0.1:8000/v1/models | head || true
+```
+
 ## 3. vLLM Studio Controller (Bun) Bring-Up
 
 Environment variables (core):
@@ -113,6 +137,19 @@ Expected:
 - `/gpus` is non-empty on ROCm hosts (via `amd-smi` or `rocm-smi`).
 - `/compat` explains common “why doesn’t it work” failures in one response.
 
+## 3.5. Optional: Docker Services (LiteLLM, Temporal)
+
+If you use the bundled docker services (optional), bring them up from the repo root:
+
+```bash
+docker compose up -d
+docker compose ps
+```
+
+Notes:
+- LiteLLM (if enabled) typically listens on `:4100`.
+- Temporal (if enabled) typically listens on `:7233` and its UI on `:8233`.
+
 ## 4. UI Bring-Up (Port Forward)
 
 Keep the controller bound locally on the VM and use SSH port forwarding:
@@ -132,4 +169,3 @@ Then in your local browser:
    - ROCm version, HIP version, torch ROCm build fields
    - Compatibility panel warnings (actionable)
 4. Runtimes (Rock-Em) panel shows services and the current GPU lease holder.
-
