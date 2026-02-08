@@ -30,7 +30,8 @@ export const SERVICE_DEFINITIONS: ServiceDefinition[] = [
     requiresGpuLease: false,
     binaryEnvVar: "VLLM_STUDIO_STT_CLI",
     defaultBinary: "whisper-cli",
-    versionArgs: ["--version"],
+    // whisper-cli doesn't consistently support --version across builds; prefer a non-error probe.
+    versionArgs: ["--help"],
   },
   {
     id: "tts",
@@ -48,7 +49,8 @@ export const SERVICE_DEFINITIONS: ServiceDefinition[] = [
     requiresGpuLease: true,
     binaryEnvVar: "VLLM_STUDIO_IMAGE_CLI",
     defaultBinary: "sd",
-    versionArgs: ["--version"],
+    // stable-diffusion.cpp's CLI is often `sd-cli` and doesn't always support --version; help output includes a version line.
+    versionArgs: ["--help"],
   },
   { id: "video", kind: "cli-integration", runtime: "unknown", requiresGpuLease: true },
 ];

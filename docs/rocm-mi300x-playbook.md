@@ -3,6 +3,22 @@
 
 This is a practical bring-up checklist for an AMD Instinct MI300X host running ROCm, using the vLLM Studio controller and UI.
 
+## Automated Bring-Up (Hot Aisle MI300X)
+
+If you're using the Hot Aisle MI300X VM and want a reproducible "real GPU, real models" bring-up without manual copy/paste, run:
+
+```bash
+bun vllm-studio/scripts/rockem/hotaisle-setup.ts
+bun vllm-studio/scripts/rockem/hotaisle-smoketest.ts
+```
+
+These scripts:
+- Install/build `whisper.cpp` (HIP), `llama.cpp` (HIP), and `stable-diffusion.cpp` (HIP)
+- Install `piper` (CPU baseline)
+- Download real models into `/models/*`
+- Start the controller and a `llama.cpp` OpenAI-compatible backend
+- Run a smoke test for STT, TTS, image generation, and lease semantics
+
 ## 0. Host Sanity (ROCm + GPU Visibility)
 
 ```bash

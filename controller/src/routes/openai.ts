@@ -189,19 +189,29 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
     const useDirectInference = isStreaming && hasTools;
     const masterKey = process.env["LITELLM_MASTER_KEY"] ?? "sk-master";
     const inferenceKey = process.env["INFERENCE_API_KEY"] ?? "";
-    const headers: Record<string, string> = {
+    const inferenceHeaders: Record<string, string> = {
       "Content-Type": "application/json",
-      ...(useDirectInference
-        ? (inferenceKey ? { Authorization: `Bearer ${inferenceKey}` } : {})
-        : { Authorization: `Bearer ${masterKey}` }),
+      ...(inferenceKey ? { Authorization: `Bearer ${inferenceKey}` } : {}),
+    };
+    const litellmHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${masterKey}`,
     };
     const litellmUrl = "http://localhost:4100/v1/chat/completions";
     const inferenceUrl = `http://localhost:${context.config.inference_port}/v1/chat/completions`;
     const upstreamUrl = useDirectInference ? inferenceUrl : litellmUrl;
+    const headers = useDirectInference ? inferenceHeaders : litellmHeaders;
     const finalBody = bodyChanged ? new TextEncoder().encode(JSON.stringify(parsed)).buffer : bodyBuffer;
 
     if (!isStreaming) {
-      const response = await fetch(litellmUrl, { method: "POST", headers, body: finalBody });
+      let response: Response;
+      try {
+        response = await fetch(litellmUrl, { method: "POST", headers: litellmHeaders, body: finalBody });
+      } catch {
+        // Local-only / bring-up mode: if LiteLLM is not running, fall back directly to the inference backend.
+        response = await fetch(inferenceUrl, { method: "POST", headers: inferenceHeaders, body: finalBody });
+      }
+
       const result = (await response.json()) as Record<string, unknown>;
 
       const usage = result["usage"] as Record<string, number> | undefined;
@@ -235,7 +245,17 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
       return ctx.json(result, { status: response.status });
     }
 
-    const upstreamResponse = await fetch(upstreamUrl, { method: "POST", headers, body: finalBody });
+    let upstreamResponse: Response;
+    try {
+      upstreamResponse = await fetch(upstreamUrl, { method: "POST", headers, body: finalBody });
+    } catch (error) {
+      // If we're trying to use LiteLLM for streaming but it isn't reachable, fall back to direct inference.
+      if (!useDirectInference) {
+        upstreamResponse = await fetch(inferenceUrl, { method: "POST", headers: inferenceHeaders, body: finalBody });
+      } else {
+        throw error;
+      }
+    }
     if (!upstreamResponse.ok) {
       const errorText = await upstreamResponse.text();
       if (containsImageParts) {

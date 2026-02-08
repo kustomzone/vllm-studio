@@ -65,10 +65,13 @@ async function handleRequest(request: NextRequest, method: string, path: string[
   try {
     // Get dynamic settings
     const settings = await getApiSettings();
-    const overrideHeaderUrl = normalizeBackendUrl(request.headers.get("x-backend-url"));
-    const overrideCookieUrl = normalizeBackendUrl(
-      request.cookies.get("vllmstudio_backend_url")?.value ?? null,
-    );
+    const hasExplicitBackendUrl = Boolean(process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL);
+    // If BACKEND_URL is explicitly configured (common in dev bring-up), ignore per-browser overrides to
+    // avoid "sticky" cookies sending traffic to an unexpected controller.
+    const overrideHeaderUrl = hasExplicitBackendUrl ? null : normalizeBackendUrl(request.headers.get("x-backend-url"));
+    const overrideCookieUrl = hasExplicitBackendUrl
+      ? null
+      : normalizeBackendUrl(request.cookies.get("vllmstudio_backend_url")?.value ?? null);
     const overrideUrl = overrideHeaderUrl ?? overrideCookieUrl;
     const BACKEND_URL = overrideUrl ?? settings.backendUrl;
     const API_KEY = settings.apiKey;

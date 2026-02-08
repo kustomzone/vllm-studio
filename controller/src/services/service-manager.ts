@@ -121,11 +121,22 @@ export class ServiceManager {
   private probeCliVersion(binaryPath: string, args: string[] | undefined): string | null {
     const versionArguments = Array.isArray(args) && args.length > 0 ? args : ["--version"];
     const result = runCommand(binaryPath, versionArguments, 2000);
-    if (result.status === 0) {
-      const line = (result.stdout || result.stderr).split("\n")[0]?.trim();
-      return line || null;
-    }
-    return null;
+    const combined = [result.stdout, result.stderr].filter(Boolean).join("\n");
+    const lines = combined
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => Boolean(line));
+
+    // Prefer a "real" version line when present, even if the command exits non-zero.
+    const stableDiffusion = lines.find((line) => /stable-diffusion\.cpp\s+version/i.test(line));
+    if (stableDiffusion) return stableDiffusion;
+
+    const genericVersion = lines.find((line) => /\bversion\b/i.test(line) && /\d/.test(line) && !/^(\[?error\]?|error:)/i.test(line));
+    if (genericVersion) return genericVersion;
+
+    // Avoid returning usage/error noise as the "version".
+    const firstUseful = lines.find((line) => !/^(\[?error\]?|error:|usage:)/i.test(line));
+    return firstUseful || null;
   }
 
   /**
