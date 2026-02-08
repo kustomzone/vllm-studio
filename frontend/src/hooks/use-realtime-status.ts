@@ -20,10 +20,13 @@ export function useRealtimeStatus() {
       metrics: snap.metrics,
       runtimeSummary: snap.runtimeSummary,
       launchProgress: snap.launchProgress,
+      services: snap.services,
+      gpuLease: snap.gpuLease,
+      jobs: snap.jobs,
       isConnected: connected,
       error: null,
       reconnectAttempts: 0,
     }),
-    [connected, snap.gpus, snap.launchProgress, snap.metrics, snap.runtimeSummary, snap.status],
+    [connected, snap.gpuLease, snap.gpus, snap.jobs, snap.launchProgress, snap.metrics, snap.runtimeSummary, snap.services, snap.status],
   );
 }

@@ -208,6 +208,10 @@ export function useControllerEvents(
           case "gpu":
           case "metrics":
           case "runtime_summary":
+          case "jobs":
+          case "job_state_changed":
+          case "services":
+          case "service_state_changed":
           case "launch_progress":
           case "download_progress":
           case "download_state":
@@ -252,6 +256,8 @@ export function useControllerEvents(
       "download_progress",
       "download_state",
       "temporal_status",
+      "jobs",
+      "job_state_changed",
       "chat_session_created",
       "chat_session_updated",
       "chat_session_deleted",

@@ -46,6 +46,7 @@ export interface ChatMessageMetadata {
 
 export type ChatMessagePart =
   | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string; name?: string }
   | { type: "reasoning"; text: string }
   | {
       type: "dynamic-tool";
@@ -123,4 +124,3 @@ export interface SessionUsage {
   total_tokens: number;
   estimated_cost?: number | null;
 }
-

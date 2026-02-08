@@ -20,6 +20,8 @@ export default function ConfigsPage() {
     <ConfigsView
       data={configs.data}
       compatibility={configs.compatibility}
+      services={configs.services}
+      gpuLease={configs.gpuLease}
       loading={configs.loading}
       error={configs.error}
       apiSettings={configs.apiSettings}

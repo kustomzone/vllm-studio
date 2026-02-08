@@ -9,10 +9,14 @@ import { ConnectionFlow } from "./connection-flow";
 import { NoBackendState } from "./no-backend-state";
 import { ServiceTopology } from "./service-topology";
 import { CompatibilityPanel } from "@/components/compatibility/compatibility-panel";
+import { RuntimesPanel } from "@/components/dashboard/control-panel/runtimes-panel";
+import type { ServiceState } from "@/lib/types";
 
 interface ConfigsViewProps {
   data: ConfigData | null;
   compatibility: CompatibilityReport | null;
+  services: ServiceState[];
+  gpuLease: { holder_service_id: string; acquired_at: string; reason?: string | null } | null;
   loading: boolean;
   error: string | null;
   apiSettings: ApiConnectionSettings;
@@ -34,6 +38,8 @@ interface ConfigsViewProps {
 export function ConfigsView({
   data,
   compatibility,
+  services,
+  gpuLease,
   loading,
   error,
   apiSettings,
@@ -83,6 +89,7 @@ export function ConfigsView({
           <div className="grid lg:grid-cols-3 gap-6 sm:gap-8">
             <div className="lg:col-span-2 space-y-6">
               <ServiceTopology services={data.services} />
+              <RuntimesPanel services={services} gpuLease={gpuLease} />
               <CompatibilityPanel report={compatibility} />
               <ConnectionFlow />
             </div>

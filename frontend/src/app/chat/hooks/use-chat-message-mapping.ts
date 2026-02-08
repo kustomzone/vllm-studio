@@ -185,7 +185,13 @@ export function useChatMessageMapping({ setMessages }: UseChatMessageMappingArgs
         const text = typeof record["text"] === "string" ? record["text"] : "";
         if (text) parts.push({ type: "text", text });
       } else if (record["type"] === "image") {
-        parts.push({ type: "text", text: "[Image]" });
+        const data = typeof record["data"] === "string" ? record["data"] : "";
+        const mimeType = typeof record["mimeType"] === "string" ? record["mimeType"] : "";
+        if (data && mimeType) {
+          parts.push({ type: "image", data, mimeType });
+        } else {
+          parts.push({ type: "text", text: "[Image]" });
+        }
       }
     }
     return parts;
@@ -346,4 +352,3 @@ export function useChatMessageMapping({ setMessages }: UseChatMessageMappingArgs
 
   return { mapStoredMessages, mapAgentMessageToChatMessage, upsertMessage, isToolPart };
 }
-

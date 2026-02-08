@@ -12,6 +12,7 @@ describe("StatusLine", () => {
         isConnected: true,
         metrics: null,
         gpus: [],
+        services: [],
         platformKind: "rocm",
         inferencePort: 8000,
         onNavigateChat: () => {},
@@ -25,4 +26,3 @@ describe("StatusLine", () => {
     expect(html).toContain("platform: rocm");
   });
 });
-

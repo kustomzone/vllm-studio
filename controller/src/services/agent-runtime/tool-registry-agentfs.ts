@@ -154,9 +154,9 @@ export const buildAgentFsTools = (context: AppContext, options: AgentToolRegistr
       const path = normalizeAgentPath(typeof raw["path"] === "string" ? raw["path"] : "");
       if (!path) throw new Error("Path is required.");
       const content = typeof raw["content"] === "string" ? raw["content"] : "";
-      const parentDir = posix.dirname(path);
-      if (parentDir && parentDir !== ".") {
-        await withAgentFs((fs) => mkdirp(fs, parentDir));
+      const parentDirectory = posix.dirname(path);
+      if (parentDirectory && parentDirectory !== ".") {
+        await withAgentFs((fs) => mkdirp(fs, parentDirectory));
       }
       await withAgentFs((fs) => fs.writeFile(toFsPath(path), content));
       context.stores.chatStore.addAgentFileVersion(sessionId, path, content, Buffer.byteLength(content, "utf8"));

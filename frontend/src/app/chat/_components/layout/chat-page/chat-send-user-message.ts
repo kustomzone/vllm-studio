@@ -41,8 +41,9 @@ export interface UseChatSendUserMessageArgs {
   startRunStream: (
     sessionId: string,
     payload: {
-      content: string;
+      content?: string;
       message_id: string;
+      parts?: ChatMessagePart[];
       model?: string;
       system?: string;
       mcp_enabled?: boolean;
@@ -157,7 +158,12 @@ export function useChatSendUserMessage({
       if (attachments) {
         for (const att of attachments) {
           if (att.type === "image" && att.base64) {
-            parts.push({ type: "text", text: `[Image: ${att.name}]` });
+            parts.push({
+              type: "image",
+              data: att.base64,
+              mimeType: att.file?.type || "image/png",
+              name: att.name,
+            });
           } else if (att.type === "file" && att.file) {
             parts.push({ type: "text", text: `[File: ${att.name}]` });
           }
@@ -209,11 +215,12 @@ export function useChatSendUserMessage({
         : systemPrompt.trim() || undefined;
 
       const imageAttachments = (attachments ?? []).filter((att) => att.type === "image" && Boolean(att.base64));
-      const useDirectVlm = isVlmAttachmentsEnabled() && imageAttachments.length > 0;
+      const useDirectVlm = isVlmAttachmentsEnabled() && imageAttachments.length > 0 && !agentMode;
 
       if (!useDirectVlm) {
         await startRunStream(sessionId, {
-          content: text,
+          ...(text.trim() ? { content: text } : {}),
+          ...(imageAttachments.length > 0 ? { parts } : {}),
           message_id: messageId,
           model: selectedModel,
           system: runSystemPrompt,

@@ -27,13 +27,13 @@ describe("ROCm SMI parsing", () => {
   });
 
   it("selects rocm-smi when forced via env", () => {
-    const dir = mkdtempSync(join(tmpdir(), "vllm-studio-rocm-smi-"));
-    const script = join(dir, "rocm-smi");
+    const directory = mkdtempSync(join(tmpdir(), "vllm-studio-rocm-smi-"));
+    const script = join(directory, "rocm-smi");
     writeFileSync(script, `#!/usr/bin/env bash\nset -euo pipefail\necho '${SAMPLE.replace(/'/g, "'\\''")}'\n`);
     chmodSync(script, 0o755);
 
     const originalPath = process.env["PATH"] ?? "";
-    process.env["PATH"] = `${dir}:${originalPath}`;
+    process.env["PATH"] = `${directory}:${originalPath}`;
     process.env["VLLM_STUDIO_GPU_SMI_TOOL"] = "rocm-smi";
 
     const gpus = getGpuInfo();
@@ -43,6 +43,6 @@ describe("ROCm SMI parsing", () => {
 
     process.env["PATH"] = originalPath;
     delete process.env["VLLM_STUDIO_GPU_SMI_TOOL"];
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(directory, { recursive: true, force: true });
   });
 });

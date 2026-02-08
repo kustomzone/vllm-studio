@@ -18,7 +18,8 @@ import { createRunPublisher, createSseStream } from "./run-manager-sse";
 export interface ChatRunOptions {
   sessionId: string;
   messageId?: string;
-  content: string;
+  content?: string;
+  parts?: Array<Record<string, unknown>>;
   model?: string;
   systemPrompt?: string;
   mcpEnabled?: boolean;
@@ -32,6 +33,57 @@ export interface ChatRunStream {
   runId: string;
   stream: AsyncIterable<string>;
 }
+
+type UserContentPart = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
+
+const toUserParts = (content: string, parts?: Array<Record<string, unknown>>): {
+  promptText: string;
+  parts: Array<Record<string, unknown>>;
+  content: string | UserContentPart[];
+  imageCount: number;
+} => {
+  const normalized: UserContentPart[] = [];
+  const storedParts: Array<Record<string, unknown>> = [];
+  let imageCount = 0;
+
+  if (Array.isArray(parts)) {
+    for (const part of parts) {
+      const type = part?.["type"];
+      if (type === "text") {
+        const text = typeof part["text"] === "string" ? part["text"] : "";
+        if (text) {
+          normalized.push({ type: "text", text });
+          storedParts.push({ type: "text", text });
+        }
+        continue;
+      }
+      if (type === "image") {
+        const data = typeof part["data"] === "string" ? part["data"] : "";
+        const mimeType = typeof part["mimeType"] === "string" ? part["mimeType"] : "";
+        if (data && mimeType) {
+          normalized.push({ type: "image", data, mimeType });
+          storedParts.push({ type: "image", data, mimeType, ...(typeof part["name"] === "string" ? { name: part["name"] } : {}) });
+          imageCount += 1;
+        }
+      }
+    }
+  }
+
+  if (normalized.length === 0 && content.trim()) {
+    normalized.push({ type: "text", text: content });
+    storedParts.push({ type: "text", text: content });
+  }
+
+  const promptText = normalized
+    .filter((p) => p.type === "text")
+    .map((p) => p.text)
+    .join("");
+
+  const hasImages = normalized.some((p) => p.type === "image");
+  const effectiveContent: string | UserContentPart[] = hasImages ? normalized : promptText;
+
+  return { promptText, parts: storedParts, content: effectiveContent, imageCount };
+};
 
 /**
  * Controller-owned run manager for Pi agent sessions.
@@ -75,13 +127,14 @@ export class ChatRunManager {
       throw new Error("Session not found");
     }
 
-    const content = options.content.trim();
-    if (!content) {
-      throw new Error("Message content is required");
+    const rawContent = typeof options.content === "string" ? options.content : "";
+    const { promptText, parts, content: userContent, imageCount } = toUserParts(rawContent, options.parts);
+    if (!promptText.trim() && imageCount === 0) {
+      throw new Error("Message content or image parts are required");
     }
 
     if (this.isMockInferenceEnabled()) {
-      return this.startMockRun(session, options, content);
+      return this.startMockRun(session, options, promptText, parts, imageCount);
     }
 
     const modelId = await this.resolveModelId(session, options.model);
@@ -100,14 +153,14 @@ export class ChatRunManager {
       sessionId,
       userMessageId,
       "user",
-      content,
+      promptText,
       modelId,
       undefined,
       undefined,
       undefined,
       undefined,
       undefined,
-      [{ type: "text", text: content }],
+      parts,
       userMetadata,
     );
 
@@ -244,7 +297,7 @@ export class ChatRunManager {
     });
 
     const runPromise = agent
-      .prompt(content)
+      .prompt({ role: "user", content: userContent, timestamp: Date.now() } satisfies AgentMessage)
       .catch((error) => {
         runStatus = abort.signal.aborted ? "aborted" : "error";
         runError = error instanceof Error ? error.message : String(error);
@@ -269,18 +322,22 @@ export class ChatRunManager {
     };
   }
 
-  /**
-   * Start a deterministic mock run (no external inference dependencies).
-   * Enabled via VLLM_STUDIO_MOCK_INFERENCE=true/1.
-   * @param session - Chat session record.
-   * @param options - Run options.
-   * @param content - Trimmed user content.
-   * @returns Run stream.
-   */
-  private async startMockRun(
-    session: Record<string, unknown>,
-    options: ChatRunOptions,
-    content: string,
+	  /**
+	   * Start a deterministic mock run (no external inference dependencies).
+	   * Enabled via VLLM_STUDIO_MOCK_INFERENCE=true/1.
+	   * @param session - Chat session record.
+	   * @param options - Run options.
+	   * @param promptText - Trimmed user content.
+	   * @param parts - Message parts (for multimodal).
+	   * @param imageCount - Number of image parts.
+	   * @returns Run stream.
+	   */
+	  private async startMockRun(
+	    session: Record<string, unknown>,
+	    options: ChatRunOptions,
+    promptText: string,
+    parts: Array<Record<string, unknown>>,
+    imageCount: number,
   ): Promise<ChatRunStream> {
     const sessionId = options.sessionId;
     const modelId = await this.resolveModelId(session, options.model);
@@ -293,14 +350,14 @@ export class ChatRunManager {
       sessionId,
       userMessageId,
       "user",
-      content,
+      promptText,
       modelId,
       undefined,
       undefined,
       undefined,
       undefined,
       undefined,
-      [{ type: "text", text: content }],
+      parts,
       { runId },
     );
 
@@ -348,7 +405,11 @@ export class ChatRunManager {
             type: "text",
             text:
               `Mock response (no inference):\\n\\n` +
-              `You said: ${content}\\n\\n` +
+              (promptText.trim()
+                ? `You said: ${promptText}\\n\\n`
+                : imageCount > 0
+                  ? `You sent: ${imageCount} image(s)\\n\\n`
+                  : "You said: [empty]\\n\\n") +
               `Model: ${modelId}` +
               (systemPrompt ? `\\nSystem prompt bytes: ${Buffer.byteLength(systemPrompt, "utf8")}` : ""),
           },

@@ -8,6 +8,10 @@ import type { OpenAIModelInfo, OpenAIModelList, Recipe } from "../types/models";
 import { buildModelInfo, discoverModelDirectories } from "../services/model-browser";
 import { notFound } from "../core/errors";
 
+/**
+ * Determine whether mock inference is enabled (for deterministic dev/test flows).
+ * @returns True when mock inference is enabled.
+ */
 function isMockInferenceEnabled(): boolean {
   const raw = process.env["VLLM_STUDIO_MOCK_INFERENCE"];
   if (!raw) return false;

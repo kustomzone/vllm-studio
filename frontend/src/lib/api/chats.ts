@@ -16,7 +16,8 @@ export function createChatsApi(core: ApiCore) {
     streamChatRun: (
       sessionId: string,
       payload: {
-        content: string;
+        content?: string;
+        parts?: unknown[];
         message_id?: string;
         model?: string;
         system?: string;

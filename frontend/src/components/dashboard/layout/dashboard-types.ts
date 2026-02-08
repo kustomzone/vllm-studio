@@ -1,4 +1,4 @@
-import type { GPU, Metrics, ProcessInfo, RecipeWithStatus, RuntimePlatformKind } from "@/lib/types";
+import type { GPU, Metrics, ProcessInfo, RecipeWithStatus, RuntimePlatformKind, ServiceState } from "@/lib/types";
 
 type LaunchStage = "preempting" | "evicting" | "launching" | "waiting" | "ready" | "cancelled" | "error";
 
@@ -14,6 +14,8 @@ export interface DashboardLayoutProps {
   metrics: Metrics | null;
   gpus: GPU[];
   platformKind?: RuntimePlatformKind | null;
+  services: ServiceState[];
+  gpuLease: { holder_service_id: string; acquired_at: string; reason?: string | null } | null;
   recipes: RecipeWithStatus[];
   logs: string[];
   launching: boolean;

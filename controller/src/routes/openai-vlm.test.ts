@@ -6,15 +6,15 @@ import type { AppContext } from "../types/context";
 import { isHttpStatus } from "../core/errors";
 
 describe("OpenAI multimodal forwarding", () => {
-  const originalEnv = { ...process.env };
+  const originalEnvironment = { ...process.env };
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
-    process.env = { ...originalEnv };
+    process.env = { ...originalEnvironment };
   });
 
   afterEach(() => {
-    process.env = { ...originalEnv };
+    process.env = { ...originalEnvironment };
     globalThis.fetch = originalFetch;
   });
 
@@ -104,7 +104,7 @@ describe("OpenAI multimodal forwarding", () => {
 
       const encoder = new TextEncoder();
       const stream = new ReadableStream<Uint8Array>({
-        start(controller) {
+        start(controller): void {
           controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"ok"}}]}\n\n'));
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();

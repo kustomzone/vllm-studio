@@ -32,8 +32,8 @@ const staticJson = JSON.stringify({
   ],
 });
 
-const tempDir = mkdtempSync(join(tmpdir(), "vllm-studio-amd-smi-"));
-const fakeAmdSmiPath = join(tempDir, "amd-smi");
+const temporaryDirectory = mkdtempSync(join(tmpdir(), "vllm-studio-amd-smi-"));
+const fakeAmdSmiPath = join(temporaryDirectory, "amd-smi");
 
 writeFileSync(
   fakeAmdSmiPath,
@@ -64,14 +64,14 @@ exit 1
 chmodSync(fakeAmdSmiPath, 0o755);
 
 afterAll(() => {
-  rmSync(tempDir, { recursive: true, force: true });
+  rmSync(temporaryDirectory, { recursive: true, force: true });
 });
 
 describe("AMD SMI GPU parsing", () => {
   it("maps amd-smi static+metric JSON into GpuInfo", async () => {
     process.env["VLLM_STUDIO_GPU_SMI_TOOL"] = "amd-smi";
     process.env["AMD_SMI_PATH"] = "amd-smi";
-    process.env["PATH"] = `${tempDir}:${process.env["PATH"] || ""}`;
+    process.env["PATH"] = `${temporaryDirectory}:${process.env["PATH"] || ""}`;
 
     const { getGpuInfo } = await import("../services/gpu");
     const gpus = getGpuInfo();

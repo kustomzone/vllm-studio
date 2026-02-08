@@ -4,10 +4,11 @@
 import { useCallback, useEffect } from "react";
 import type { MutableRefObject } from "react";
 import api, { type ChatRunStreamEvent } from "@/lib/api";
-import type { ToolResult } from "@/lib/types";
+import type { ChatMessagePart, ToolResult } from "@/lib/types";
 
 export interface ChatRunStreamPayload {
-  content: string;
+  content?: string;
+  parts?: ChatMessagePart[];
   message_id: string;
   model?: string;
   system?: string;

@@ -2,6 +2,7 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type {
   AssistantMessage,
+  ImageContent,
   Message,
   Model,
   TextContent,
@@ -229,7 +230,26 @@ export const mapStoredMessagesToAgentMessages = (
     const timestamp = parseTimestamp(message["created_at"]);
 
     if (role === "user") {
-      const content = getString(message["content"]) ?? "";
+      const rawParts = Array.isArray(message["parts"]) ? (message["parts"] as Array<Record<string, unknown>>) : [];
+      const blocks: Array<TextContent | ImageContent> = [];
+
+      for (const part of rawParts) {
+        const type = getString(part["type"]) ?? "";
+        if (type === "text") {
+          const text = getString(part["text"]) ?? "";
+          if (text) blocks.push({ type: "text", text });
+          continue;
+        }
+        if (type === "image") {
+          const data = getString(part["data"]) ?? "";
+          const mimeType = getString(part["mimeType"]) ?? "";
+          if (data && mimeType) blocks.push({ type: "image", data, mimeType });
+        }
+      }
+
+      const hasImages = blocks.some((block) => block.type === "image");
+      const fallback = getString(message["content"]) ?? "";
+      const content = hasImages ? blocks : blocks.length > 0 ? blocks.map((b) => (b.type === "text" ? b.text : "")).join("") : fallback;
       mapped.push({ role: "user", content, timestamp });
       continue;
     }

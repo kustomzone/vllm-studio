@@ -2,7 +2,16 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import type { GPU, Metrics, ProcessInfo, RuntimeBackendInfo, RuntimePlatformKind, RuntimeRocmSmiTool } from "@/lib/types";
+import type {
+  GPU,
+  JobRecord,
+  Metrics,
+  ProcessInfo,
+  RuntimeBackendInfo,
+  RuntimePlatformKind,
+  RuntimeRocmSmiTool,
+  ServiceState,
+} from "@/lib/types";
 import api from "@/lib/api";
 
 export interface StatusData {
@@ -30,6 +39,9 @@ export interface RealtimeStatusSnapshot {
   metrics: Metrics | null;
   launchProgress: LaunchProgressData | null;
   runtimeSummary: RuntimeSummaryData | null;
+  services: ServiceState[];
+  gpuLease: { holder_service_id: string; acquired_at: string; reason?: string | null } | null;
+  jobs: JobRecord[];
   lastEventAt: number;
 }
 
@@ -39,6 +51,9 @@ const initialSnapshot: RealtimeStatusSnapshot = {
   metrics: null,
   launchProgress: null,
   runtimeSummary: null,
+  services: [],
+  gpuLease: null,
+  jobs: [],
   lastEventAt: 0,
 };
 
@@ -140,13 +155,72 @@ function areRuntimeSummaryEqual(a: RuntimeSummaryData | null, b: RuntimeSummaryD
   );
 }
 
+function areServicesEqual(a: ServiceState[], b: ServiceState[]) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i];
+    const right = b[i];
+    if (!left || !right) return false;
+    if (
+      left.id !== right.id ||
+      left.status !== right.status ||
+      left.runtime !== right.runtime ||
+      (left.version ?? null) !== (right.version ?? null) ||
+      (left.last_error ?? null) !== (right.last_error ?? null) ||
+      (left.pid ?? null) !== (right.pid ?? null) ||
+      (left.port ?? null) !== (right.port ?? null)
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function areGpuLeaseEqual(
+  a: RealtimeStatusSnapshot["gpuLease"],
+  b: RealtimeStatusSnapshot["gpuLease"],
+) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.holder_service_id === b.holder_service_id &&
+    a.acquired_at === b.acquired_at &&
+    (a.reason ?? null) === (b.reason ?? null)
+  );
+}
+
+function areJobsEqual(a: JobRecord[], b: JobRecord[]) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i];
+    const right = b[i];
+    if (!left || !right) return false;
+    if (
+      left.id !== right.id ||
+      left.type !== right.type ||
+      left.status !== right.status ||
+      left.progress !== right.progress ||
+      (left.error ?? null) !== (right.error ?? null) ||
+      left.updated_at !== right.updated_at
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function emitIfChanged(next: RealtimeStatusSnapshot) {
   const changed =
     !areStatusEqual(snapshot.status, next.status) ||
     !areGpusEqual(snapshot.gpus, next.gpus) ||
     !areMetricsEqual(snapshot.metrics, next.metrics) ||
     !areLaunchProgressEqual(snapshot.launchProgress, next.launchProgress) ||
-    !areRuntimeSummaryEqual(snapshot.runtimeSummary, next.runtimeSummary);
+    !areRuntimeSummaryEqual(snapshot.runtimeSummary, next.runtimeSummary) ||
+    !areServicesEqual(snapshot.services, next.services) ||
+    !areGpuLeaseEqual(snapshot.gpuLease, next.gpuLease) ||
+    !areJobsEqual(snapshot.jobs, next.jobs);
 
   snapshot = changed ? next : { ...snapshot, lastEventAt: next.lastEventAt };
   if (!changed) return;
@@ -185,12 +259,49 @@ async function fetchStatusNow() {
       // ignore
     }
 
+    // Poll fallback for runtime/platform visibility when SSE is blocked.
+    // This intentionally uses /compat instead of /config to avoid slow port-scanning work.
+    let runtimeSummary: RuntimeSummaryData | null = snapshot.runtimeSummary;
+    if (!runtimeSummary) {
+      try {
+        const report = await api.getCompatibilityReport();
+        runtimeSummary = {
+          platform: report.platform as unknown as RuntimeSummaryData["platform"],
+          gpu_monitoring: report.gpu_monitoring as RuntimeSummaryData["gpu_monitoring"],
+          backends: report.backends as RuntimeSummaryData["backends"],
+        };
+      } catch {
+        // ignore
+      }
+    }
+
+    let services: ServiceState[] = snapshot.services;
+    let gpuLease = snapshot.gpuLease;
+    try {
+      const { services: list, gpu_lease } = await api.getServices();
+      services = Array.isArray(list) ? list : [];
+      gpuLease = gpu_lease ?? null;
+    } catch {
+      // ignore
+    }
+
+    let jobs: JobRecord[] = snapshot.jobs;
+    try {
+      const data = await api.listJobs();
+      jobs = Array.isArray(data.jobs) ? data.jobs : [];
+    } catch {
+      // ignore
+    }
+
     emitIfChanged({
       status: { running, process, inference_port },
       gpus,
       metrics: snapshot.metrics,
       launchProgress: snapshot.launchProgress,
-      runtimeSummary: snapshot.runtimeSummary,
+      runtimeSummary,
+      services,
+      gpuLease,
+      jobs,
       lastEventAt: Date.now(),
     });
   } catch {
@@ -220,6 +331,9 @@ function start() {
         metrics: snapshot.metrics,
         launchProgress: snapshot.launchProgress,
         runtimeSummary: snapshot.runtimeSummary,
+        services: snapshot.services,
+        gpuLease: snapshot.gpuLease,
+        jobs: snapshot.jobs,
         lastEventAt: now,
       });
       return;
@@ -233,6 +347,9 @@ function start() {
         metrics: snapshot.metrics,
         launchProgress: snapshot.launchProgress,
         runtimeSummary: snapshot.runtimeSummary,
+        services: snapshot.services,
+        gpuLease: snapshot.gpuLease,
+        jobs: snapshot.jobs,
         lastEventAt: now,
       });
       return;
@@ -245,6 +362,9 @@ function start() {
         metrics: data as Metrics,
         launchProgress: snapshot.launchProgress,
         runtimeSummary: snapshot.runtimeSummary,
+        services: snapshot.services,
+        gpuLease: snapshot.gpuLease,
+        jobs: snapshot.jobs,
         lastEventAt: now,
       });
       return;
@@ -262,6 +382,90 @@ function start() {
         metrics: snapshot.metrics,
         launchProgress: snapshot.launchProgress,
         runtimeSummary: summary,
+        services: snapshot.services,
+        gpuLease: snapshot.gpuLease,
+        jobs: snapshot.jobs,
+        lastEventAt: now,
+      });
+      return;
+    }
+
+    if (type === "jobs") {
+      const next = (data["jobs"] ?? []) as unknown;
+      const list = Array.isArray(next) ? (next as JobRecord[]) : [];
+      emitIfChanged({
+        status: snapshot.status,
+        gpus: snapshot.gpus,
+        metrics: snapshot.metrics,
+        launchProgress: snapshot.launchProgress,
+        runtimeSummary: snapshot.runtimeSummary,
+        services: snapshot.services,
+        gpuLease: snapshot.gpuLease,
+        jobs: list,
+        lastEventAt: now,
+      });
+      return;
+    }
+
+    if (type === "job_state_changed") {
+      const job = data["job"] as JobRecord | undefined;
+      if (!job || typeof job !== "object") return;
+      const previous = snapshot.jobs;
+      const index = previous.findIndex((entry) => entry.id === job.id);
+      const next =
+        index === -1
+          ? [job, ...previous]
+          : [job, ...previous.filter((entry) => entry.id !== job.id)];
+      emitIfChanged({
+        status: snapshot.status,
+        gpus: snapshot.gpus,
+        metrics: snapshot.metrics,
+        launchProgress: snapshot.launchProgress,
+        runtimeSummary: snapshot.runtimeSummary,
+        services: snapshot.services,
+        gpuLease: snapshot.gpuLease,
+        jobs: next,
+        lastEventAt: now,
+      });
+      return;
+    }
+
+    if (type === "services") {
+      const next = (data["services"] ?? []) as unknown;
+      const list = Array.isArray(next) ? (next as ServiceState[]) : [];
+      const lease = (data["gpu_lease"] ?? null) as RealtimeStatusSnapshot["gpuLease"];
+      emitIfChanged({
+        status: snapshot.status,
+        gpus: snapshot.gpus,
+        metrics: snapshot.metrics,
+        launchProgress: snapshot.launchProgress,
+        runtimeSummary: snapshot.runtimeSummary,
+        services: list,
+        gpuLease: lease,
+        jobs: snapshot.jobs,
+        lastEventAt: now,
+      });
+      return;
+    }
+
+    if (type === "service_state_changed") {
+      const service = data["service"] as ServiceState | undefined;
+      if (!service || typeof service !== "object") return;
+      const previous = snapshot.services;
+      const index = previous.findIndex((entry) => entry.id === service.id);
+      const next =
+        index === -1
+          ? [...previous, service].sort((a, b) => a.id.localeCompare(b.id))
+          : [...previous.slice(0, index), service, ...previous.slice(index + 1)];
+      emitIfChanged({
+        status: snapshot.status,
+        gpus: snapshot.gpus,
+        metrics: snapshot.metrics,
+        launchProgress: snapshot.launchProgress,
+        runtimeSummary: snapshot.runtimeSummary,
+        services: next,
+        gpuLease: snapshot.gpuLease,
+        jobs: snapshot.jobs,
         lastEventAt: now,
       });
       return;
@@ -276,6 +480,9 @@ function start() {
         metrics: snapshot.metrics,
         launchProgress: progress,
         runtimeSummary: snapshot.runtimeSummary,
+        services: snapshot.services,
+        gpuLease: snapshot.gpuLease,
+        jobs: snapshot.jobs,
         lastEventAt: now,
       });
       return;

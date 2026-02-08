@@ -7,6 +7,7 @@ import { badRequest, notFound } from "../core/errors";
 import { compactChatSession } from "../services/chat-compaction";
 import { Event } from "../services/event-manager";
 import { buildSseHeaders, streamAsyncStrings } from "../http/sse";
+import { isVlmAttachmentsEnabled } from "../config/features";
 
 const THINKING_LEVELS = new Set<ThinkingLevel>([
   "off",
@@ -214,8 +215,25 @@ export const registerChatsRoutes = (app: Hono, context: AppContext): void => {
     }
 
     const content = typeof body["content"] === "string" ? body["content"] : "";
-    if (!content.trim()) {
-      throw badRequest("Message content is required");
+    const rawParts = Array.isArray(body["parts"]) ? (body["parts"] as unknown[]) : [];
+    const normalizedParts = rawParts.filter((part) => part && typeof part === "object") as Array<Record<string, unknown>>;
+    const hasParts = normalizedParts.length > 0;
+
+    const effectiveParts = hasParts
+      ? normalizedParts
+      : content.trim()
+        ? [{ type: "text", text: content } satisfies Record<string, unknown>]
+        : [];
+
+    if (effectiveParts.length === 0) {
+      throw badRequest("Message content or parts are required");
+    }
+
+    const containsImageParts = effectiveParts.some((part) => part["type"] === "image");
+    if (containsImageParts && !isVlmAttachmentsEnabled()) {
+      throw badRequest(
+        "Image parts require VLLM_STUDIO_FEATURE_VLM_ATTACHMENTS=1 (controller) and NEXT_PUBLIC_VLLM_STUDIO_FEATURE_VLM_ATTACHMENTS=1 (frontend).",
+      );
     }
 
     const messageId = typeof body["message_id"] === "string" ? body["message_id"] : undefined;
@@ -230,6 +248,7 @@ export const registerChatsRoutes = (app: Hono, context: AppContext): void => {
     const runOptions = {
       sessionId,
       content,
+      ...(hasParts ? { parts: effectiveParts } : {}),
       mcpEnabled,
       agentMode,
       agentFiles,

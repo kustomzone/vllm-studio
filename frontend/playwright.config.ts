@@ -7,6 +7,12 @@ export default defineConfig({
   testDir: "./tests",
   timeout: 60_000,
   expect: { timeout: 10_000 },
+  webServer: {
+    command: "bun scripts/playwright-webserver.ts",
+    url: baseURL,
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "1",
+    timeout: 120_000,
+  },
   use: {
     baseURL,
     trace: "retain-on-failure",
@@ -15,4 +21,3 @@ export default defineConfig({
   },
   reporter: [["html", { open: "never" }], ["list"]],
 });
-

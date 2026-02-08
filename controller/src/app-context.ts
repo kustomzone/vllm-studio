@@ -16,6 +16,9 @@ import { PeakMetricsStore, LifetimeMetricsStore } from "./stores/metrics-store";
 import { McpStore } from "./stores/mcp-store";
 import { RecipeStore } from "./stores/recipe-store";
 import { ChatRunManager } from "./services/agent-runtime/run-manager";
+import { ServiceManager } from "./services/service-manager";
+import { JobStore } from "./stores/job-store";
+import { JobManager } from "./services/jobs/job-manager";
 
 /**
  * Create the application dependency container.
@@ -30,6 +33,7 @@ export const createAppContext = (): AppContext => {
   const recipeStore = new RecipeStore(dbPath);
   const chatStore = new ChatStore(resolve(config.data_dir, "chats.db"));
   const downloadStore = new DownloadStore(dbPath);
+  const jobStore = new JobStore(dbPath);
   const peakMetricsStore = new PeakMetricsStore(dbPath);
   const lifetimeMetricsStore = new LifetimeMetricsStore(dbPath);
   const mcpStore = new McpStore(dbPath);
@@ -54,20 +58,31 @@ export const createAppContext = (): AppContext => {
     metricsRegistry,
     processManager,
     downloadManager,
+    serviceManager: null as unknown as ServiceManager,
+    jobManager: null as unknown as JobManager,
     stores: {
       recipeStore,
       chatStore,
       downloadStore,
+      jobStore,
       peakMetricsStore,
       lifetimeMetricsStore,
       mcpStore,
     },
-  } as Omit<AppContext, "runManager">;
+  } as Omit<AppContext, "runManager" | "serviceManager" | "jobManager"> & { serviceManager: ServiceManager; jobManager: JobManager };
+
+  const serviceManager = new ServiceManager(baseContext as AppContext);
+  baseContext.serviceManager = serviceManager;
+
+  const jobManager = new JobManager(baseContext as AppContext);
+  baseContext.jobManager = jobManager;
 
   const runManager = new ChatRunManager(baseContext as AppContext);
 
   return {
     ...baseContext,
     runManager,
+    serviceManager,
+    jobManager,
   };
 };

@@ -1,7 +1,7 @@
 // CRITICAL
 import { test, expect } from "@playwright/test";
 
-const BACKEND_URL = process.env.PLAYWRIGHT_BACKEND_URL ?? "http://localhost:8080";
+const BACKEND_URL = process.env.PLAYWRIGHT_BACKEND_URL ?? "http://127.0.0.1:8080";
 
 test("chat: multi-step + agent files panel shows file content", async ({ page, request }, testInfo) => {
   test.setTimeout(120_000);
@@ -61,7 +61,8 @@ test("chat: multi-step + agent files panel shows file content", async ({ page, r
     await stop.waitFor({ state: "hidden", timeout: 60_000 });
   }
 
-  await expect(page.getByText("Hello from Playwright")).toBeVisible();
+  // Avoid flakiness from virtualization/measurement nodes: assert on the deterministic mock response.
+  await expect(page.getByText("Mock response (no inference):").first()).toBeVisible();
 
   await expect(composer).toBeVisible();
   await composer.fill("Second message: please confirm you can read this.");
@@ -81,8 +82,8 @@ test("chat: multi-step + agent files panel shows file content", async ({ page, r
   await page.getByTitle("Show activity").click();
   await page.getByRole("button", { name: "Files" }).click();
 
-  // Select the file and confirm content renders.
-  await page.getByRole("button", { name: /^demo\\.txt(\\s|$)/ }).first().click();
+  // Select the file from the sidebar list (the entry includes a size suffix like "30B").
+  await page.getByRole("button", { name: /demo\.txt.*\b\d+B\b/i }).first().click();
   await expect(page.getByText("hello from agent file")).toBeVisible();
 
   const shotPath = testInfo.outputPath("proof-chat-agent-files.png");

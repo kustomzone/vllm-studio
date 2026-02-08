@@ -26,7 +26,7 @@ export async function* createSseStream(
 ): AsyncIterable<string> {
   const KEEPALIVE_INTERVAL_MS = 15_000;
 
-  const sleep = (ms: number, signal: AbortSignal) =>
+  const sleep = (ms: number, signal: AbortSignal): Promise<void> =>
     new Promise<void>((resolve, reject) => {
       if (signal.aborted) {
         reject(new Error("aborted"));
@@ -36,7 +36,7 @@ export async function* createSseStream(
         signal.removeEventListener("abort", onAbort);
         resolve();
       }, ms);
-      const onAbort = () => {
+      const onAbort = (): void => {
         clearTimeout(id);
         reject(new Error("aborted"));
       };

@@ -131,9 +131,10 @@ function ChatMessageItemBase({
   const setCopiedMessageId = useAppStore((state) => state.setCopiedMessageId);
   const setActiveArtifactId = useAppStore((state) => state.setActiveArtifactId);
 
-  const { textContent, thinkingContent, toolParts } = useMemo(() => {
+  const { textContent, thinkingContent, toolParts, imageParts } = useMemo(() => {
     let rawTextContent = "";
     let reasoningFromParts = "";
+    const imageParts: Array<{ name?: string; mimeType: string; data: string }> = [];
     const toolParts: Array<{
       type: string;
       toolCallId: string;
@@ -147,6 +148,18 @@ function ChatMessageItemBase({
       if (part.type === "text") {
         const text = (part as { text?: unknown }).text;
         if (typeof text === "string" && text) rawTextContent += text;
+        continue;
+      }
+      if (part.type === "image") {
+        const data = (part as { data?: unknown }).data;
+        const mimeType = (part as { mimeType?: unknown }).mimeType;
+        if (typeof data === "string" && data && typeof mimeType === "string" && mimeType) {
+          imageParts.push({
+            data,
+            mimeType,
+            name: typeof (part as { name?: unknown }).name === "string" ? String((part as { name?: unknown }).name) : undefined,
+          });
+        }
         continue;
       }
       if (part.type === "reasoning") {
@@ -189,7 +202,7 @@ function ChatMessageItemBase({
     }
 
     if (isUser) {
-      return { textContent: rawTextContent, thinkingContent: reasoningFromParts, toolParts };
+      return { textContent: rawTextContent, thinkingContent: reasoningFromParts, toolParts, imageParts };
     }
 
     const lower = rawTextContent.toLowerCase();
@@ -203,7 +216,7 @@ function ChatMessageItemBase({
     const thinkingFromTags = hasThinkTags ? parsedThinking?.thinkingContent || "" : "";
     const thinkingContent = reasoningFromParts || thinkingFromTags;
 
-    return { textContent, thinkingContent, toolParts };
+    return { textContent, thinkingContent, toolParts, imageParts };
   }, [isUser, messageParts]);
 
   const { displayModel, totalTokens } = useMemo(() => {
@@ -274,6 +287,19 @@ function ChatMessageItemBase({
     <div id={`message-${message.id}`} className="group">
         {/* Mobile: simple right-aligned text */}
         <div className="md:hidden">
+          {imageParts.length > 0 && (
+            <div className="mb-2 flex flex-col gap-2 items-end">
+              {imageParts.map((img, index) => (
+                <img
+                  key={`${messageId}-img-${index}`}
+                  src={`data:${img.mimeType};base64,${img.data}`}
+                  alt={img.name ?? "image"}
+                  className="max-w-[70%] max-h-[240px] rounded-lg border border-white/10 object-contain bg-black/10"
+                  loading="lazy"
+                />
+              ))}
+            </div>
+          )}
           <div className="text-[15px] leading-relaxed text-[#e8e4dd] whitespace-pre-wrap break-words">
             {textContent}
           </div>
@@ -307,6 +333,19 @@ function ChatMessageItemBase({
                 </button>
               </div>
             </div>
+            {imageParts.length > 0 && (
+              <div className="mb-2 flex flex-col gap-2">
+                {imageParts.map((img, index) => (
+                  <img
+                    key={`${messageId}-img-desktop-${index}`}
+                    src={`data:${img.mimeType};base64,${img.data}`}
+                    alt={img.name ?? "image"}
+                    className="w-full max-h-[360px] rounded-lg border border-white/10 object-contain bg-black/10"
+                    loading="lazy"
+                  />
+                ))}
+              </div>
+            )}
             <div className="text-[15px] leading-relaxed text-[#e8e4dd] whitespace-pre-wrap break-words">
               {textContent}
             </div>

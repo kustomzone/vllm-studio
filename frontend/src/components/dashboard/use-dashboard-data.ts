@@ -12,6 +12,8 @@ export function useDashboardData() {
   const currentProcess = realtime.status?.process || null;
   const gpus = realtime.gpus.length > 0 ? realtime.gpus : [];
   const platformKind = realtime.runtimeSummary?.platform.kind ?? null;
+  const services = Array.isArray(realtime.services) ? realtime.services : [];
+  const gpuLease = realtime.gpuLease ?? null;
   const recipesState = useDashboardRecipes(currentProcess);
   const actions = useDashboardActions(recipesState.reload);
 
@@ -29,6 +31,8 @@ export function useDashboardData() {
     metrics: realtime.metrics,
     gpus,
     platformKind,
+    services,
+    gpuLease,
     recipes: recipesState.recipes,
     logs: recipesState.logs,
     loading: recipesState.loading,

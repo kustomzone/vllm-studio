@@ -17,6 +17,8 @@ import {
   Compass,
   Plus,
   ScrollText,
+  Image as ImageIcon,
+  Workflow,
 } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 import api from "@/lib/api";
@@ -28,6 +30,8 @@ const navItems = [
   { href: "/chat", label: "Chat", icon: MessageSquareText },
   { href: "/recipes", label: "Recipes", icon: Sparkles },
   { href: "/discover", label: "Discover", icon: Compass },
+  { href: "/images", label: "Images", icon: ImageIcon },
+  { href: "/jobs", label: "Jobs", icon: Workflow },
   { href: "/logs", label: "Logs", icon: ScrollText },
   { href: "/usage", label: "Usage", icon: BarChart3 },
   { href: "/configs", label: "Configs", icon: Settings2 },

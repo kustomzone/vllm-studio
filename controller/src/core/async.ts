@@ -121,6 +121,9 @@ export class AsyncQueue<TValue> {
     if (this.items.length > 0) {
       return this.items.shift() as TValue;
     }
+    if (this.closed) {
+      throw new Error("Queue closed");
+    }
 
     return new Promise((resolve, reject) => {
       const onAbort = (): void => {

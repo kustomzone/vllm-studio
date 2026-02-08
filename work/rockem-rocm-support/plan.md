@@ -1,6 +1,16 @@
 <!-- CRITICAL -->
 # Execution Plan: Rock-Em (ROCm) First-Class Support
 
+## Status (As Of 2026-02-08)
+- Milestones A-E implemented in the controller + frontend.
+- ROCm platform + GPU visibility (`/gpus`, `/config`, `/compat`) and UI indicators.
+- Cross-vendor `visible_devices` env handling (CUDA/HIP/ROCR).
+- Rock-Em services layer (`/services`) with strict GPU lease + replace/best-effort UX.
+- CLI-driven STT/TTS (`/v1/audio/*`) and image generation (`/v1/images/generations`) integrations.
+- Feature-flagged VLM attachments via OpenAI-compatible multimodal content.
+- Jobs + orchestration (Temporal-backed when available, in-memory fallback) with `/jobs` API and UI.
+- Validation: controller `typecheck`, `test`, `lint`; frontend `test`, `lint`, `build`, Playwright E2E all passing locally.
+
 ## Start Here (Bring-Up Checklist)
 1. VM is provisioned: `enc1-gpuvm002` (`1x MI300X`) and reachable over SSH.
 1. Controller is running on the VM (local): `http://127.0.0.1:8080`.

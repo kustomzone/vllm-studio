@@ -41,6 +41,12 @@ vllm-studio
 cd frontend && npm install && npm run dev
 ```
 
+## Docs
+
+- ROCm bring-up: `docs/rocm-mi300x-playbook.md`
+- Model/service recommendations: `docs/models-recommendations.md`
+- Recipe system: `docs/RECIPE_SYSTEM.md`
+
 ## API Reference
 
 ### Health & Status

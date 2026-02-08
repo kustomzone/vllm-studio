@@ -128,6 +128,9 @@ describe("System Routes", () => {
       expect(json.config).toHaveProperty("inference_port");
       expect(json).toHaveProperty("services");
       expect(json).toHaveProperty("environment");
+      expect(json).toHaveProperty("runtime");
+      expect(json.runtime).toHaveProperty("platform");
+      expect(["cuda", "rocm", "unknown"]).toContain(json.runtime.platform.kind);
     });
   });
 

@@ -30,6 +30,17 @@ export interface RequestOptions extends RequestInit {
   retryDelay?: number;
 }
 
+export class ApiError extends Error {
+  public readonly status: number;
+  public readonly body: unknown;
+
+  public constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.status = status;
+    this.body = body;
+  }
+}
+
 export interface ChatRunStreamEvent {
   event: string;
   data: Record<string, unknown>;
@@ -101,7 +112,7 @@ export function createApiCore(params: { baseUrl: string; useProxy: boolean }) {
           const errorBody = await response.json().catch(() => ({ detail: "Request failed" }));
           const errorMessage =
             errorBody.detail || errorBody.error?.message || `HTTP ${response.status}`;
-          lastError = new Error(errorMessage);
+          lastError = new ApiError(errorMessage, response.status, errorBody);
 
           if (isRetryableError(lastError, response.status) && attempt < retries) {
             const delay = retryDelay * Math.pow(2, attempt);
@@ -247,7 +258,7 @@ export function createApiCore(params: { baseUrl: string; useProxy: boolean }) {
       const errorBody = await response.json().catch(() => ({ detail: "Request failed" }));
       const errorMessage =
         errorBody.detail || errorBody.error?.message || `HTTP ${response.status}`;
-      throw new Error(errorMessage);
+      throw new ApiError(errorMessage, response.status, errorBody);
     }
 
     const runId = response.headers.get("x-run-id");
@@ -282,7 +293,7 @@ export function createApiCore(params: { baseUrl: string; useProxy: boolean }) {
         }
       }
       const errorMessage = errorBody.detail || errorBody.error?.message || text || `HTTP ${response.status}`;
-      throw new Error(errorMessage);
+      throw new ApiError(errorMessage, response.status, errorBody || { raw: text });
     }
 
     const reader = response.body.getReader();

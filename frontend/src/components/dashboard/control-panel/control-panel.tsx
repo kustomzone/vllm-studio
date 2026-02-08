@@ -6,9 +6,10 @@ import { GpuList } from "./gpu-list";
 import { RecipeList } from "./recipe-list";
 import { LogStream } from "./log-stream";
 import { MetricBar } from "./metric-bar";
+import { RuntimesPanel } from "./runtimes-panel";
 
 export function ControlPanel(props: DashboardLayoutProps) {
-  const { currentProcess, currentRecipe, metrics, gpus, recipes, logs } = props;
+  const { currentProcess, currentRecipe, metrics, gpus, recipes, logs, services } = props;
 
   return (
     <div className="space-y-8">
@@ -19,6 +20,7 @@ export function ControlPanel(props: DashboardLayoutProps) {
         isConnected={props.isConnected}
         metrics={metrics}
         gpus={gpus}
+        services={services}
         platformKind={props.platformKind}
         inferencePort={props.inferencePort}
         onNavigateChat={props.onNavigateChat}
@@ -32,6 +34,9 @@ export function ControlPanel(props: DashboardLayoutProps) {
       {currentProcess && (
         <MetricBar metrics={metrics} gpus={gpus} />
       )}
+
+      {/* Runtimes (Rock-Em) */}
+      <RuntimesPanel services={services} gpuLease={props.gpuLease} />
 
       {/* Two Column Layout */}
       <div className="grid lg:grid-cols-2 gap-8 min-w-0">

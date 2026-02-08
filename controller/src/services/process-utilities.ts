@@ -176,7 +176,7 @@ export const buildEnvironment = (recipe: Recipe): Record<string, string> => {
     env[key] = value;
   }
 
-  const readExtraArg = (key: string): unknown => {
+  const readExtraArgument = (key: string): unknown => {
     if (Object.prototype.hasOwnProperty.call(recipe.extra_args, key)) return recipe.extra_args[key];
     const kebab = key.replace(/_/g, "-");
     if (Object.prototype.hasOwnProperty.call(recipe.extra_args, kebab)) return recipe.extra_args[kebab];
@@ -187,12 +187,12 @@ export const buildEnvironment = (recipe: Recipe): Record<string, string> => {
 
   // Prefer `visible_devices`, but accept legacy CUDA and explicit ROCm keys.
   const visibleDevices =
-    readExtraArg("visible_devices") ??
-    readExtraArg("VISIBLE_DEVICES") ??
-    readExtraArg("cuda_visible_devices") ??
-    readExtraArg("CUDA_VISIBLE_DEVICES");
-  const hipVisibleDevices = readExtraArg("hip_visible_devices") ?? readExtraArg("HIP_VISIBLE_DEVICES");
-  const rocrVisibleDevices = readExtraArg("rocr_visible_devices") ?? readExtraArg("ROCR_VISIBLE_DEVICES");
+    readExtraArgument("visible_devices") ??
+    readExtraArgument("VISIBLE_DEVICES") ??
+    readExtraArgument("cuda_visible_devices") ??
+    readExtraArgument("CUDA_VISIBLE_DEVICES");
+  const hipVisibleDevices = readExtraArgument("hip_visible_devices") ?? readExtraArgument("HIP_VISIBLE_DEVICES");
+  const rocrVisibleDevices = readExtraArgument("rocr_visible_devices") ?? readExtraArgument("ROCR_VISIBLE_DEVICES");
 
   const forcedTool = (process.env["VLLM_STUDIO_GPU_SMI_TOOL"] || "").trim().toLowerCase();
   const platform =

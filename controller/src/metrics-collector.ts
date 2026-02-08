@@ -5,6 +5,7 @@ import { delay } from "./core/async";
 import { checkTemporalStatus } from "./services/temporal-status";
 import { getSystemRuntimeInfo } from "./services/runtime-info";
 import { probeGpuMonitoring } from "./services/compatibility-report";
+import { Event } from "./services/event-manager";
 
 /**
  * Start background metrics collection.
@@ -17,6 +18,8 @@ export const startMetricsCollector = (context: AppContext): (() => void) => {
   let lastMetricsTime = 0;
   let lastTemporalCheck = 0;
   let lastRuntimeSummary = 0;
+  let lastServicesSnapshot = 0;
+  let lastJobsSnapshot = 0;
 
   /**
    * Scrape Prometheus metrics from vLLM.
@@ -97,6 +100,29 @@ export const startMetricsCollector = (context: AppContext): (() => void) => {
           });
         } catch {
           // Keep metrics loop resilient; runtime summary is best-effort.
+        }
+      }
+
+      if (nowMs - lastServicesSnapshot > 10_000) {
+        lastServicesSnapshot = nowMs;
+        try {
+          const services = await context.serviceManager.listServices();
+          await context.eventManager.publish(new Event("services", {
+            services,
+            gpu_lease: context.serviceManager.getGpuLease(),
+          }));
+        } catch {
+          // Best-effort; services are also published on state transitions.
+        }
+      }
+
+      if (nowMs - lastJobsSnapshot > 10_000) {
+        lastJobsSnapshot = nowMs;
+        try {
+          const jobs = context.jobManager.listJobs();
+          await context.eventManager.publish(new Event("jobs", { jobs }));
+        } catch {
+          // Best-effort; job updates are also published on state transitions.
         }
       }
 

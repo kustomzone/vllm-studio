@@ -1,7 +1,7 @@
 // CRITICAL
 "use client";
 
-import type { ProcessInfo, RecipeWithStatus, Metrics, GPU, RuntimePlatformKind } from "@/lib/types";
+import type { ProcessInfo, RecipeWithStatus, Metrics, GPU, RuntimePlatformKind, ServiceState } from "@/lib/types";
 import { toGB, toGBFromMB } from "@/lib/formatters";
 
 interface StatusLineProps {
@@ -10,6 +10,7 @@ interface StatusLineProps {
   isConnected: boolean;
   metrics: Metrics | null;
   gpus: GPU[];
+  services: ServiceState[];
   platformKind?: RuntimePlatformKind | null;
   inferencePort?: number;
   onNavigateChat: () => void;
@@ -25,6 +26,7 @@ export function StatusLine({
   isConnected,
   metrics,
   gpus,
+  services,
   platformKind,
   inferencePort,
   onNavigateChat,
@@ -48,6 +50,12 @@ export function StatusLine({
   const totalCost = metrics?.lifetime_energy_kwh ? (metrics.lifetime_energy_kwh * 0.5).toFixed(2) : null;
   const sessionInput = metrics?.prompt_tokens_total || 0;
   const sessionOutput = metrics?.generation_tokens_total || 0;
+  const rockEmServices = services.filter((s) => s.id !== "llm");
+  const rockEmActive = rockEmServices.filter((s) => s.status !== "stopped").length;
+  const rockEmSummary = rockEmServices
+    .filter((s) => s.status !== "stopped")
+    .map((s) => `${s.id}:${s.status}`)
+    .join(" ");
 
   return (
     <div className="border-b border-foreground/10 pb-6">
@@ -75,6 +83,11 @@ export function StatusLine({
               </span>
             )}
             <span className="text-foreground/30">platform: {platformLabel}</span>
+            {rockEmActive > 0 && (
+              <span className="text-foreground/30" title={rockEmSummary || undefined}>
+                rock-em: {rockEmActive}
+              </span>
+            )}
           </div>
         </div>
 

@@ -348,10 +348,10 @@ const getGpuInfoFromAmdSmi = (): GpuInfo[] => {
 
         const utilization = readAmdSmiValueNumber(entry.usage?.gfx_activity) ?? 0;
 
-        const tempHotspot = readAmdSmiValueNumber(entry.temperature?.hotspot);
-        const tempMem = readAmdSmiValueNumber(entry.temperature?.mem);
-        const tempEdge = readAmdSmiValueNumber(entry.temperature?.edge);
-        const tempC = tempHotspot ?? tempMem ?? tempEdge ?? 0;
+        const temporaryHotspot = readAmdSmiValueNumber(entry.temperature?.hotspot);
+        const temporaryMem = readAmdSmiValueNumber(entry.temperature?.mem);
+        const temporaryEdge = readAmdSmiValueNumber(entry.temperature?.edge);
+        const temporaryC = temporaryHotspot ?? temporaryMem ?? temporaryEdge ?? 0;
 
         const powerDraw = readAmdSmiValueNumber(entry.power?.socket_power) ?? 0;
 
@@ -368,8 +368,8 @@ const getGpuInfoFromAmdSmi = (): GpuInfo[] => {
           memory_free_mb: Math.max(0, Math.round(freeMb)),
           utilization,
           utilization_pct: utilization,
-          temperature: tempC,
-          temp_c: tempC,
+          temperature: temporaryC,
+          temp_c: temporaryC,
           power_draw: powerDraw,
           power_limit: 0,
         } satisfies GpuInfo;
@@ -404,7 +404,7 @@ const getGpuInfoFromRocmSmi = (): GpuInfo[] => {
       const usedBytes = gpu.memory_used_bytes ?? 0;
       const freeBytes = Math.max(0, totalBytes - usedBytes);
       const utilization = Math.max(0, Math.round(gpu.utilization_pct ?? 0));
-      const tempC = Math.max(0, Math.round(gpu.temp_c ?? 0));
+      const temporaryC = Math.max(0, Math.round(gpu.temp_c ?? 0));
       const powerDraw = Math.max(0, Number(gpu.power_draw_w ?? 0));
       const powerLimit = Math.max(0, Number(gpu.power_limit_w ?? 0));
 
@@ -419,8 +419,8 @@ const getGpuInfoFromRocmSmi = (): GpuInfo[] => {
         memory_free_mb: toMb(freeBytes),
         utilization,
         utilization_pct: utilization,
-        temperature: tempC,
-        temp_c: tempC,
+        temperature: temporaryC,
+        temp_c: temporaryC,
         power_draw: powerDraw,
         power_limit: powerLimit,
       } satisfies GpuInfo;

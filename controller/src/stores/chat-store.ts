@@ -455,14 +455,19 @@ export class ChatStore {
     return RunOps.updateRun(this.db, runId, updates);
   }
 
-  /**
-   * Append a version snapshot for an agent workspace file.
-   * Versions are session-scoped and monotonically increasing per path.
-   * Dedupe: if the latest stored content matches, no new version is created.
-   */
-  public addAgentFileVersion(
-    sessionId: string,
-    path: string,
+	  /**
+	   * Append a version snapshot for an agent workspace file.
+	   * Versions are session-scoped and monotonically increasing per path.
+	   * Dedupe: if the latest stored content matches, no new version is created.
+	   * @param sessionId - Session identifier.
+	   * @param path - Workspace path.
+	   * @param content - File content.
+	   * @param bytes - Optional byte size hint.
+	   * @returns Version info.
+	   */
+	  public addAgentFileVersion(
+	    sessionId: string,
+	    path: string,
     content: string,
     bytes?: number | null,
   ): { version: number; created_at_ms: number } {
@@ -489,10 +494,13 @@ export class ChatStore {
     return { version: nextVersion, created_at_ms: createdAtMs };
   }
 
-  /**
-   * List all versions for an agent workspace file.
-   */
-  public listAgentFileVersions(sessionId: string, path: string): Array<Record<string, unknown>> {
+	  /**
+	   * List all versions for an agent workspace file.
+	   * @param sessionId - Session identifier.
+	   * @param path - Workspace path.
+	   * @returns Version entries.
+	   */
+	  public listAgentFileVersions(sessionId: string, path: string): Array<Record<string, unknown>> {
     const rows = this.db
       .query(
         "SELECT version, content, created_at_ms FROM chat_agent_file_versions WHERE session_id = ? AND path = ? ORDER BY version ASC",
@@ -505,6 +513,8 @@ export class ChatStore {
    * Delete agent file versions for a file or directory prefix.
    * If `path` is a file path, deletes exact match.
    * If `path` is a directory, deletes all descendants as well.
+   * @param sessionId
+   * @param path
    */
   public deleteAgentFileVersionsForPath(sessionId: string, path: string): void {
     const trimmed = (path ?? "").trim();
@@ -522,6 +532,9 @@ export class ChatStore {
   /**
    * Move agent file versions when a file is renamed/moved.
    * If destination already has versions, the moved versions are appended after the last destination version.
+   * @param sessionId
+   * @param from
+   * @param to
    */
   public moveAgentFileVersions(sessionId: string, from: string, to: string): void {
     if (!from || !to || from === to) return;
@@ -534,17 +547,17 @@ export class ChatStore {
 
     if (sourceRows.length === 0) return;
 
-    const destMax = this.db
+    const destinationMax = this.db
       .query(
         "SELECT MAX(version) AS max_version FROM chat_agent_file_versions WHERE session_id = ? AND path = ?",
       )
       .get(sessionId, to) as { max_version?: number | null } | null;
-    const offset = (typeof destMax?.max_version === "number" ? destMax.max_version : 0) ?? 0;
+    const offset = (typeof destinationMax?.max_version === "number" ? destinationMax.max_version : 0) ?? 0;
 
     const tx = this.db.transaction(() => {
-      for (let i = 0; i < sourceRows.length; i += 1) {
-        const row = sourceRows[i]!;
-        const nextVersion = offset + i + 1;
+      for (let index = 0; index < sourceRows.length; index += 1) {
+        const row = sourceRows[index]!;
+        const nextVersion = offset + index + 1;
         this.db
           .query(
             `INSERT INTO chat_agent_file_versions
