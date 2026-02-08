@@ -1,5 +1,8 @@
 // CRITICAL
-import { describe, expect, it, mock, afterAll } from "bun:test";
+import { describe, expect, it, afterAll } from "bun:test";
+import { mkdtempSync, chmodSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const metricJson = JSON.stringify({
   gpu_data: [
@@ -29,28 +32,46 @@ const staticJson = JSON.stringify({
   ],
 });
 
-mock.module("node:child_process", () => {
-  return {
-    execSync: (command: string) => {
-      if (command.includes("amd-smi metric") && command.includes("--json")) {
-        return metricJson;
-      }
-      if (command.includes("amd-smi static") && command.includes("--json")) {
-        return staticJson;
-      }
-      throw new Error(`Unexpected command: ${command}`);
-    },
-  };
-});
+const tempDir = mkdtempSync(join(tmpdir(), "vllm-studio-amd-smi-"));
+const fakeAmdSmiPath = join(tempDir, "amd-smi");
+
+writeFileSync(
+  fakeAmdSmiPath,
+  `#!/usr/bin/env bash
+set -euo pipefail
+cmd="$1"
+shift || true
+
+if [[ "$cmd" == "metric" ]]; then
+  cat <<'JSON'
+${metricJson}
+JSON
+  exit 0
+fi
+
+if [[ "$cmd" == "static" ]]; then
+  cat <<'JSON'
+${staticJson}
+JSON
+  exit 0
+fi
+
+echo "unsupported" 1>&2
+exit 1
+`,
+  "utf-8",
+);
+chmodSync(fakeAmdSmiPath, 0o755);
 
 afterAll(() => {
-  mock.restore();
+  rmSync(tempDir, { recursive: true, force: true });
 });
 
 describe("AMD SMI GPU parsing", () => {
   it("maps amd-smi static+metric JSON into GpuInfo", async () => {
     process.env["VLLM_STUDIO_GPU_SMI_TOOL"] = "amd-smi";
     process.env["AMD_SMI_PATH"] = "amd-smi";
+    process.env["PATH"] = `${tempDir}:${process.env["PATH"] || ""}`;
 
     const { getGpuInfo } = await import("../services/gpu");
     const gpus = getGpuInfo();
@@ -65,4 +86,3 @@ describe("AMD SMI GPU parsing", () => {
     expect(gpus[0]?.power_draw).toBe(153);
   });
 });
-

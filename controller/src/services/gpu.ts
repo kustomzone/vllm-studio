@@ -15,6 +15,17 @@ const resolveNvidiaSmiBinary = (): string | null => {
   return null;
 };
 
+const resolveAmdSmiBinary = (): string | null => {
+  const configured = process.env["AMD_SMI_PATH"] || "amd-smi";
+  const resolved = resolveBinary(configured);
+  if (resolved) return resolved;
+  if (configured.includes("/")) {
+    const abs = resolve(configured);
+    return existsSync(abs) ? abs : null;
+  }
+  return null;
+};
+
 /**
  * Query GPU info from nvidia-smi.
  * @returns List of GPU info objects.
@@ -197,22 +208,17 @@ export const parseAmdSmiStaticJson = (jsonText: string): AmdSmiStaticGpu[] => {
 
 const getGpuInfoFromAmdSmi = (): GpuInfo[] => {
   try {
-    const amdSmi = process.env["AMD_SMI_PATH"] || "/usr/bin/amd-smi";
-    const metricText = execSync(`${amdSmi} metric --json -g all`, {
-      encoding: "utf-8",
-      timeout: 5000,
-      env: { ...process.env, PATH: `/usr/bin:/usr/local/bin:${process.env["PATH"] || ""}` },
-      stdio: "pipe",
-    });
-    const staticText = execSync(`${amdSmi} static --json -g all`, {
-      encoding: "utf-8",
-      timeout: 5000,
-      env: { ...process.env, PATH: `/usr/bin:/usr/local/bin:${process.env["PATH"] || ""}` },
-      stdio: "pipe",
-    });
+    const amdSmi = resolveAmdSmiBinary();
+    if (!amdSmi) return [];
 
-    const metrics = parseAmdSmiMetricJson(metricText);
-    const statics = parseAmdSmiStaticJson(staticText);
+    const metricResult = runCommand(amdSmi, ["metric", "--json", "-g", "all"], 5_000);
+    if (metricResult.status !== 0 || !metricResult.stdout) return [];
+
+    const staticResult = runCommand(amdSmi, ["static", "--json", "-g", "all"], 5_000);
+    if (staticResult.status !== 0 || !staticResult.stdout) return [];
+
+    const metrics = parseAmdSmiMetricJson(metricResult.stdout);
+    const statics = parseAmdSmiStaticJson(staticResult.stdout);
     const staticByGpu = new Map<number, AmdSmiStaticGpu>();
     for (const entry of statics) {
       const gpuIndex = typeof entry.gpu === "number" ? entry.gpu : null;
