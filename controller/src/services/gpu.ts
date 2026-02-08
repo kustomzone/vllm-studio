@@ -7,6 +7,23 @@ import type { GpuInfo } from "../types/models";
  * @returns List of GPU info objects.
  */
 export const getGpuInfo = (): GpuInfo[] => {
+  const forcedTool = (process.env["VLLM_STUDIO_GPU_SMI_TOOL"] || "").trim().toLowerCase();
+  if (forcedTool === "amd-smi") {
+    return getGpuInfoFromAmdSmi();
+  }
+  if (forcedTool === "nvidia-smi") {
+    return getGpuInfoFromNvidiaSmi();
+  }
+
+  // Auto-detect: try NVIDIA first, then AMD (ROCm).
+  const nvidia = getGpuInfoFromNvidiaSmi();
+  if (nvidia.length > 0) {
+    return nvidia;
+  }
+  return getGpuInfoFromAmdSmi();
+};
+
+const getGpuInfoFromNvidiaSmi = (): GpuInfo[] => {
   const query = [
     "name",
     "memory.total",
@@ -68,6 +85,167 @@ export const getGpuInfo = (): GpuInfo[] => {
         power_limit: Number(powerLimit ?? 0),
       };
     });
+  } catch {
+    return [];
+  }
+};
+
+type AmdSmiValue = { value?: number; unit?: string } | "N/A" | null;
+
+type AmdSmiMetricGpu = {
+  gpu?: number;
+  mem_usage?: {
+    total_vram?: AmdSmiValue;
+    used_vram?: AmdSmiValue;
+    free_vram?: AmdSmiValue;
+  };
+  usage?: {
+    gfx_activity?: AmdSmiValue;
+  };
+  temperature?: {
+    hotspot?: AmdSmiValue;
+    mem?: AmdSmiValue;
+    edge?: AmdSmiValue;
+  };
+  power?: {
+    socket_power?: AmdSmiValue;
+  };
+};
+
+type AmdSmiStaticGpu = {
+  gpu?: number;
+  asic?: {
+    market_name?: string;
+    target_graphics_version?: string;
+  };
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const coerceNumber = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  return null;
+};
+
+const readAmdSmiValueMb = (value: AmdSmiValue | undefined): number | null => {
+  if (!value || value === "N/A") {
+    return null;
+  }
+  if (!isRecord(value)) {
+    return null;
+  }
+  const unit = typeof value["unit"] === "string" ? value["unit"] : "";
+  const raw = coerceNumber(value["value"]);
+  if (raw === null) {
+    return null;
+  }
+  if (!unit || unit.toLowerCase() === "mb") {
+    return raw;
+  }
+  if (unit.toLowerCase() === "gb") {
+    return raw * 1024;
+  }
+  return raw;
+};
+
+const readAmdSmiValueNumber = (value: AmdSmiValue | undefined): number | null => {
+  if (!value || value === "N/A") return null;
+  if (!isRecord(value)) return null;
+  return coerceNumber(value["value"]);
+};
+
+export const parseAmdSmiMetricJson = (jsonText: string): AmdSmiMetricGpu[] => {
+  try {
+    const parsed = JSON.parse(jsonText) as unknown;
+    if (!isRecord(parsed)) return [];
+    const gpuData = parsed["gpu_data"];
+    if (!Array.isArray(gpuData)) return [];
+    return gpuData.filter((entry) => isRecord(entry)) as AmdSmiMetricGpu[];
+  } catch {
+    return [];
+  }
+};
+
+export const parseAmdSmiStaticJson = (jsonText: string): AmdSmiStaticGpu[] => {
+  try {
+    const parsed = JSON.parse(jsonText) as unknown;
+    if (!isRecord(parsed)) return [];
+    const gpuData = parsed["gpu_data"];
+    if (!Array.isArray(gpuData)) return [];
+    return gpuData.filter((entry) => isRecord(entry)) as AmdSmiStaticGpu[];
+  } catch {
+    return [];
+  }
+};
+
+const getGpuInfoFromAmdSmi = (): GpuInfo[] => {
+  try {
+    const amdSmi = process.env["AMD_SMI_PATH"] || "/usr/bin/amd-smi";
+    const metricText = execSync(`${amdSmi} metric --json -g all`, {
+      encoding: "utf-8",
+      timeout: 5000,
+      env: { ...process.env, PATH: `/usr/bin:/usr/local/bin:${process.env["PATH"] || ""}` },
+      stdio: "pipe",
+    });
+    const staticText = execSync(`${amdSmi} static --json -g all`, {
+      encoding: "utf-8",
+      timeout: 5000,
+      env: { ...process.env, PATH: `/usr/bin:/usr/local/bin:${process.env["PATH"] || ""}` },
+      stdio: "pipe",
+    });
+
+    const metrics = parseAmdSmiMetricJson(metricText);
+    const statics = parseAmdSmiStaticJson(staticText);
+    const staticByGpu = new Map<number, AmdSmiStaticGpu>();
+    for (const entry of statics) {
+      const gpuIndex = typeof entry.gpu === "number" ? entry.gpu : null;
+      if (gpuIndex === null) continue;
+      staticByGpu.set(gpuIndex, entry);
+    }
+
+    return metrics
+      .map((entry) => {
+        const index = typeof entry.gpu === "number" ? entry.gpu : null;
+        if (index === null) return null;
+
+        const name = staticByGpu.get(index)?.asic?.market_name || "AMD GPU";
+
+        const totalMb = readAmdSmiValueMb(entry.mem_usage?.total_vram) ?? 0;
+        const usedMb = readAmdSmiValueMb(entry.mem_usage?.used_vram) ?? 0;
+        const freeMb = readAmdSmiValueMb(entry.mem_usage?.free_vram) ?? Math.max(0, totalMb - usedMb);
+
+        const utilization = readAmdSmiValueNumber(entry.usage?.gfx_activity) ?? 0;
+
+        const tempHotspot = readAmdSmiValueNumber(entry.temperature?.hotspot);
+        const tempMem = readAmdSmiValueNumber(entry.temperature?.mem);
+        const tempEdge = readAmdSmiValueNumber(entry.temperature?.edge);
+        const tempC = tempHotspot ?? tempMem ?? tempEdge ?? 0;
+
+        const powerDraw = readAmdSmiValueNumber(entry.power?.socket_power) ?? 0;
+
+        const toBytes = (megabytes: number): number => Math.max(0, Math.round(megabytes * 1024 * 1024));
+
+        return {
+          index,
+          name,
+          memory_total: toBytes(totalMb),
+          memory_total_mb: Math.max(0, Math.round(totalMb)),
+          memory_used: toBytes(usedMb),
+          memory_used_mb: Math.max(0, Math.round(usedMb)),
+          memory_free: toBytes(freeMb),
+          memory_free_mb: Math.max(0, Math.round(freeMb)),
+          utilization,
+          utilization_pct: utilization,
+          temperature: tempC,
+          temp_c: tempC,
+          power_draw: powerDraw,
+          power_limit: 0,
+        } satisfies GpuInfo;
+      })
+      .filter((entry): entry is GpuInfo => Boolean(entry));
   } catch {
     return [];
   }
