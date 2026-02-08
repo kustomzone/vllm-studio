@@ -21,6 +21,8 @@ export type VoiceAssistantActivities = {
     audio_base64: string;
     audio_mime_type: string;
   }>;
+  finalizeSuccess: (input: { job_id: string; result: VoiceAssistantTurnResult }) => Promise<void>;
+  finalizeFailure: (input: { job_id: string; error: string }) => Promise<void>;
   runVoiceAssistantTurn: (input: VoiceAssistantTurnInput) => Promise<VoiceAssistantTurnResult>;
 };
 
@@ -48,6 +50,19 @@ const resolveModelPath = (modelsDirectory: string, subdirectory: string, model: 
  */
 export function createVoiceAssistantActivities(context: AppContext): VoiceAssistantActivities {
   const reporter = new JobReporter(context);
+
+  const finalizeSuccess = async (input: { job_id: string; result: VoiceAssistantTurnResult }): Promise<void> => {
+    const jobId = input.job_id;
+    reporter.setResult(jobId, input.result as unknown as Record<string, unknown>);
+    reporter.setStatus(jobId, "completed", 1);
+    reporter.log(jobId, "job: completed");
+  };
+
+  const finalizeFailure = async (input: { job_id: string; error: string }): Promise<void> => {
+    const jobId = input.job_id;
+    reporter.fail(jobId, input.error);
+    reporter.log(jobId, `job: failed: ${input.error}`);
+  };
 
   const transcribe = async (input: VoiceAssistantTurnInput): Promise<{ transcript: string }> => {
     const jobId = input.job_id;
@@ -147,38 +162,42 @@ export function createVoiceAssistantActivities(context: AppContext): VoiceAssist
   // Convenience "one shot" runner usable by the in-memory orchestrator (and tests).
   const runVoiceAssistantTurn = async (input: VoiceAssistantTurnInput): Promise<VoiceAssistantTurnResult> => {
     const jobId = input.job_id;
-    reporter.setStatus(jobId, "running", 0);
-    reporter.log(jobId, "job: start voice_assistant_turn");
+    try {
+      reporter.setStatus(jobId, "running", 0);
+      reporter.log(jobId, "job: start voice_assistant_turn");
 
-    const text = typeof input.text === "string" && input.text.trim() ? input.text.trim() : null;
+      const text = typeof input.text === "string" && input.text.trim() ? input.text.trim() : null;
 
-    const transcript = text ?? (await transcribe(input)).transcript;
+      const transcript = text ?? (await transcribe(input)).transcript;
 
-    const { response_text } = await llmRespond({
-      job_id: jobId,
-      transcript,
-      llm_model: input.llm_model ?? null,
-      system: input.system ?? null,
-    });
+      const { response_text } = await llmRespond({
+        job_id: jobId,
+        transcript,
+        llm_model: input.llm_model ?? null,
+        system: input.system ?? null,
+      });
 
-    const { audio_base64, audio_mime_type } = await speak({
-      job_id: jobId,
-      text: response_text,
-      tts_model: input.tts_model ?? null,
-    });
+      const { audio_base64, audio_mime_type } = await speak({
+        job_id: jobId,
+        text: response_text,
+        tts_model: input.tts_model ?? null,
+      });
 
-    const result: VoiceAssistantTurnResult = {
-      transcript,
-      response_text: response_text,
-      audio_base64,
-      audio_mime_type,
-    };
+      const result: VoiceAssistantTurnResult = {
+        transcript,
+        response_text: response_text,
+        audio_base64,
+        audio_mime_type,
+      };
 
-    reporter.setResult(jobId, result as unknown as Record<string, unknown>);
-    reporter.setStatus(jobId, "completed", 1);
-    reporter.log(jobId, "job: completed");
-    return result;
+      await finalizeSuccess({ job_id: jobId, result });
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await finalizeFailure({ job_id: jobId, error: message });
+      throw error;
+    }
   };
 
-  return { transcribe, llmRespond, speak, runVoiceAssistantTurn };
+  return { transcribe, llmRespond, speak, finalizeSuccess, finalizeFailure, runVoiceAssistantTurn };
 }

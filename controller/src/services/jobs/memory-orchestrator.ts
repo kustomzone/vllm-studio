@@ -4,7 +4,6 @@ import type { JobRecord } from "../../types/jobs";
 import type { VoiceAssistantTurnInput } from "../../workflows/types";
 import { createVoiceAssistantActivities } from "../../activities/voice-assistant";
 import type { JobsOrchestrator } from "./orchestrator";
-import { JobReporter } from "./job-reporter";
 
 /**
  * In-memory jobs orchestrator (no Temporal dependency).
@@ -31,13 +30,12 @@ export class MemoryJobsOrchestrator implements JobsOrchestrator {
     // Fire-and-forget background execution (still tracked via the JobStore).
     void (async (): Promise<void> => {
       const activities = createVoiceAssistantActivities(this.context);
-      const reporter = new JobReporter(this.context);
       try {
         await activities.runVoiceAssistantTurn(input);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         this.context.logger.error("Job failed", { job_id: input.job_id, error: message });
-        reporter.fail(input.job_id, message);
+        // `runVoiceAssistantTurn` already marks the job failed durably.
       }
     })();
   }

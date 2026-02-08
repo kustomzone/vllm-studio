@@ -5,7 +5,6 @@ import type { AppContext } from "../../types/context";
 import type { JobRecord } from "../../types/jobs";
 import type { VoiceAssistantTurnInput } from "../../workflows/types";
 import type { JobsOrchestrator } from "./orchestrator";
-import { JobReporter } from "./job-reporter";
 import { createVoiceAssistantActivities } from "../../activities/voice-assistant";
 import { Client, Connection } from "@temporalio/client";
 import { bundleWorkflowCode, NativeConnection, Worker } from "@temporalio/worker";
@@ -23,7 +22,6 @@ export class TemporalJobsOrchestrator implements JobsOrchestrator {
   public readonly kind = "temporal" as const;
 
   private readonly context: AppContext;
-  private readonly reporter: JobReporter;
   private initPromise: Promise<TemporalInit> | null = null;
   private workerStarted = false;
   private readonly taskQueue = "vllm-studio-jobs";
@@ -34,7 +32,6 @@ export class TemporalJobsOrchestrator implements JobsOrchestrator {
    */
   public constructor(context: AppContext) {
     this.context = context;
-    this.reporter = new JobReporter(context);
   }
 
   /**
@@ -109,20 +106,7 @@ export class TemporalJobsOrchestrator implements JobsOrchestrator {
       args: [input],
     });
 
-    // Track completion and persist result/error back into the controller-visible JobStore.
-    const handle = client.workflow.getHandle(workflowId);
-    void handle
-      .result()
-      .then((result: unknown) => {
-        if (result && typeof result === "object") {
-          this.reporter.setResult(workflowId, result as Record<string, unknown>);
-        }
-        this.reporter.setStatus(workflowId, "completed", 1);
-      })
-      .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
-        this.reporter.fail(workflowId, message);
-      });
+    // Job progress + completion are persisted durably by activities (JobReporter),
+    // so the UI remains accurate even if the controller restarts mid-workflow.
   }
 }
-

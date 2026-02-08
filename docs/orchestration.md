@@ -11,6 +11,8 @@ This repo currently ships a minimal vertical slice:
   - LLM: generate response text via controller `ChatRunManager`
   - TTS: synthesize WAV via Piper CLI integration
 
+Job progress/state is persisted durably in the controller's SQLite `JobStore`, and workflow activities update that state as they run.
+
 ## Bring-Up
 
 1. Start Temporal (local):
@@ -63,4 +65,3 @@ curl -sS http://127.0.0.1:8080/jobs/<job_id>
 - Temporal is enabled automatically when reachable; otherwise jobs fall back to an in-process runner.
 - For strict Temporal-only mode, set `VLLM_STUDIO_JOBS_ORCHESTRATOR=temporal`.
 - For in-process only, set `VLLM_STUDIO_JOBS_ORCHESTRATOR=memory`.
-
