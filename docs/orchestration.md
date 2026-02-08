@@ -28,6 +28,13 @@ cd controller
 bun src/main.ts
 ```
 
+For a no-install demo (shim CLIs + placeholder models + mock inference), you can run:
+
+```bash
+source scripts/demo-env.sh
+./start.sh --direct
+```
+
 3. Confirm Temporal status is visible in SSE:
 
 - `GET /events` includes `temporal_status`
