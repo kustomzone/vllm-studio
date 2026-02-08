@@ -176,13 +176,52 @@ export const buildEnvironment = (recipe: Recipe): Record<string, string> => {
     env[key] = value;
   }
 
-  const cudaVisibleDevices =
-    recipe.extra_args["cuda_visible_devices"] ||
-    recipe.extra_args["cuda-visible-devices"] ||
-    recipe.extra_args["CUDA_VISIBLE_DEVICES"];
+  const readExtraArg = (key: string): unknown => {
+    if (Object.prototype.hasOwnProperty.call(recipe.extra_args, key)) return recipe.extra_args[key];
+    const kebab = key.replace(/_/g, "-");
+    if (Object.prototype.hasOwnProperty.call(recipe.extra_args, kebab)) return recipe.extra_args[kebab];
+    const snake = key.replace(/-/g, "_");
+    if (Object.prototype.hasOwnProperty.call(recipe.extra_args, snake)) return recipe.extra_args[snake];
+    return undefined;
+  };
 
-  if (cudaVisibleDevices !== undefined && cudaVisibleDevices !== null && cudaVisibleDevices !== false) {
-    env["CUDA_VISIBLE_DEVICES"] = String(cudaVisibleDevices);
+  // Prefer `visible_devices`, but accept legacy CUDA and explicit ROCm keys.
+  const visibleDevices =
+    readExtraArg("visible_devices") ??
+    readExtraArg("VISIBLE_DEVICES") ??
+    readExtraArg("cuda_visible_devices") ??
+    readExtraArg("CUDA_VISIBLE_DEVICES");
+  const hipVisibleDevices = readExtraArg("hip_visible_devices") ?? readExtraArg("HIP_VISIBLE_DEVICES");
+  const rocrVisibleDevices = readExtraArg("rocr_visible_devices") ?? readExtraArg("ROCR_VISIBLE_DEVICES");
+
+  const forcedTool = (process.env["VLLM_STUDIO_GPU_SMI_TOOL"] || "").trim().toLowerCase();
+  const platform =
+    forcedTool === "nvidia-smi"
+      ? "cuda"
+      : forcedTool === "amd-smi" || forcedTool === "rocm-smi"
+        ? "rocm"
+        : "unknown";
+
+  if (visibleDevices !== undefined && visibleDevices !== null && visibleDevices !== false) {
+    const value = String(visibleDevices);
+    if (platform === "cuda") {
+      env["CUDA_VISIBLE_DEVICES"] = value;
+    } else if (platform === "rocm") {
+      env["HIP_VISIBLE_DEVICES"] = value;
+      env["ROCR_VISIBLE_DEVICES"] = value;
+    } else {
+      // Platform unknown: set all for pragmatic cross-vendor behavior.
+      env["CUDA_VISIBLE_DEVICES"] = value;
+      env["HIP_VISIBLE_DEVICES"] = value;
+      env["ROCR_VISIBLE_DEVICES"] = value;
+    }
+  }
+
+  if (hipVisibleDevices !== undefined && hipVisibleDevices !== null && hipVisibleDevices !== false) {
+    env["HIP_VISIBLE_DEVICES"] = String(hipVisibleDevices);
+  }
+  if (rocrVisibleDevices !== undefined && rocrVisibleDevices !== null && rocrVisibleDevices !== false) {
+    env["ROCR_VISIBLE_DEVICES"] = String(rocrVisibleDevices);
   }
 
   return env;

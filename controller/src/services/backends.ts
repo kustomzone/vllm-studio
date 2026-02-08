@@ -157,7 +157,17 @@ export const getDefaultToolCallParser = (recipe: Recipe): string | undefined => 
  * @returns Updated command array.
  */
 export const appendExtraArguments = (command: string[], extraArguments: Record<string, unknown>): string[] => {
-  const internalKeys = new Set(["venv_path", "env_vars", "cuda_visible_devices", "description", "tags", "status"]);
+  const internalKeys = new Set([
+    "venv_path",
+    "env_vars",
+    "visible_devices",
+    "cuda_visible_devices",
+    "hip_visible_devices",
+    "rocr_visible_devices",
+    "description",
+    "tags",
+    "status",
+  ]);
   const jsonStringKeys = new Set(["speculative_config", "default_chat_template_kwargs"]);
 
   for (const [key, value] of Object.entries(extraArguments)) {
@@ -289,7 +299,17 @@ const resolveLlamaBinary = (recipe: Recipe, config: Config): string => {
 };
 
 const appendLlamacppArguments = (command: string[], extraArguments: Record<string, unknown>): string[] => {
-  const internalKeys = new Set(["venv_path", "env_vars", "cuda_visible_devices", "description", "tags", "status"]);
+  const internalKeys = new Set([
+    "venv_path",
+    "env_vars",
+    "visible_devices",
+    "cuda_visible_devices",
+    "hip_visible_devices",
+    "rocr_visible_devices",
+    "description",
+    "tags",
+    "status",
+  ]);
 
   for (const [key, value] of Object.entries(extraArguments)) {
     const normalizedKey = key.replace(/-/g, "_").toLowerCase();

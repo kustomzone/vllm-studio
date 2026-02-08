@@ -125,7 +125,10 @@ export interface Recipe {
 
   // Other
   python_path?: string;
+  visible_devices?: string;
   cuda_visible_devices?: string;
+  hip_visible_devices?: string;
+  rocr_visible_devices?: string;
   extra_args?: Record<string, unknown>;
   env_vars?: Record<string, string>;
 }
@@ -133,4 +136,3 @@ export interface Recipe {
 export interface RecipeWithStatus extends Recipe {
   status: "running" | "stopped" | "starting" | "error";
 }
-

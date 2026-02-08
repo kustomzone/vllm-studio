@@ -212,7 +212,7 @@ using `appendExtraArguments(command, recipe.extra_args)`.
 Key behaviors in `appendExtraArguments` (same file):
 
 - Internal-only keys are ignored (not turned into flags):
-  - `venv_path`, `env_vars`, `cuda_visible_devices`, `description`, `tags`, `status`
+  - `venv_path`, `env_vars`, `visible_devices`, `cuda_visible_devices`, `hip_visible_devices`, `rocr_visible_devices`, `description`, `tags`, `status`
 - Flags are rendered as:
   - `--${key}` where underscores in the key become dashes
   - If `value === true`: emit flag with no value (`--flag`)
@@ -265,7 +265,7 @@ Suggested corresponding recipe JSON shape (conceptually):
   "port": 8000,
 
   "extra_args": {
-    "cuda_visible_devices": "0,1,2,3,4,5",
+    "visible_devices": "0,1,2,3,4,5",
     "block-size": 16,
     "max-num-batched-tokens": 6144,
     "swap-space": 32,
@@ -285,7 +285,14 @@ It builds env from:
 - `process.env` (inherits controller environment)
 - `recipe.env_vars` (top-level)
 - `recipe.extra_args.env_vars` / `env-vars` / `envVars`
-- `recipe.extra_args.cuda_visible_devices` (or `CUDA_VISIBLE_DEVICES`)
+- `recipe.extra_args.visible_devices` (preferred)
+  - Applies to `CUDA_VISIBLE_DEVICES` on CUDA hosts
+  - Applies to `HIP_VISIBLE_DEVICES` and `ROCR_VISIBLE_DEVICES` on ROCm hosts
+  - If platform cannot be detected, sets all three as a pragmatic fallback
+- Legacy/explicit keys are also supported:
+  - `cuda_visible_devices` / `CUDA_VISIBLE_DEVICES`
+  - `hip_visible_devices` / `HIP_VISIBLE_DEVICES`
+  - `rocr_visible_devices` / `ROCR_VISIBLE_DEVICES`
 
 So `CUDA_VISIBLE_DEVICES=...` in your command maps to **env**, not argv.
 
