@@ -19,6 +19,7 @@ export default function ConfigsPage() {
   return (
     <ConfigsView
       data={configs.data}
+      compatibility={configs.compatibility}
       loading={configs.loading}
       error={configs.error}
       apiSettings={configs.apiSettings}

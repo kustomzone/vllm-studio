@@ -7,6 +7,7 @@
 export type * from "./types/agent";
 export type * from "./types/artifacts";
 export type * from "./types/chat";
+export type * from "./types/compatibility";
 export type * from "./types/config";
 export type * from "./types/downloads";
 export type * from "./types/logs";
@@ -18,4 +19,3 @@ export type * from "./types/recipes";
 export type * from "./types/runtime";
 export type * from "./types/studio";
 export type * from "./types/usage";
-

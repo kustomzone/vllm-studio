@@ -1,14 +1,17 @@
 // CRITICAL
 import type { OpenAPIHono } from "@hono/zod-openapi";
+import { connect } from "node:net";
 import type { AppContext } from "../types/context";
 import {
   HealthResponseSchema,
   StatusResponseSchema,
   GPUListResponseSchema,
   SystemConfigResponseSchema,
+  CompatibilityReportSchema,
 } from "../types/schemas";
 import { getGpuInfo } from "../services/gpu";
 import { getSystemRuntimeInfo } from "../services/runtime-info";
+import { buildCompatibilityReport } from "../services/compatibility-report";
 
 /**
  * Register system routes with OpenAPI.
@@ -121,6 +124,55 @@ export const registerSystemRoutes = (app: OpenAPIHono, context: AppContext): voi
         count: gpus.length,
         gpus,
       });
+    }
+  );
+
+  // GET /compat - Compatibility report
+  app.openapi(
+    {
+      method: "get",
+      path: "/compat",
+      description: "Get a compatibility and visibility report for the current platform/runtime/tooling",
+      responses: {
+        200: {
+          description: "Compatibility report",
+          content: {
+            "application/json": {
+              schema: CompatibilityReportSchema,
+            },
+          },
+        },
+      },
+    },
+    async (ctx) => {
+      const runtime = await getSystemRuntimeInfo(context.config);
+      const known = await context.processManager.findInferenceProcess(context.config.inference_port);
+
+      const portOpen = await new Promise<boolean>((resolve) => {
+        const socket = connect(context.config.inference_port, "localhost");
+        const timer = setTimeout(() => {
+          socket.destroy();
+          resolve(false);
+        }, 500);
+        socket.once("connect", () => {
+          clearTimeout(timer);
+          socket.end();
+          resolve(true);
+        });
+        socket.once("error", () => {
+          clearTimeout(timer);
+          resolve(false);
+        });
+      });
+
+      const report = buildCompatibilityReport({
+        runtime,
+        inference_port: context.config.inference_port,
+        inference_port_open: portOpen,
+        inference_process_known: Boolean(known),
+      });
+
+      return ctx.json(report);
     }
   );
 

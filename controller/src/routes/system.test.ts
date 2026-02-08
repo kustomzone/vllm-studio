@@ -130,4 +130,17 @@ describe("System Routes", () => {
       expect(json).toHaveProperty("environment");
     });
   });
+
+  describe("GET /compat", () => {
+    it("returns a compatibility report", async () => {
+      const res = await app.request("/compat");
+      expect(res.status).toBe(200);
+
+      const json = await res.json();
+      expect(json).toHaveProperty("platform");
+      expect(json.platform).toHaveProperty("kind");
+      expect(json).toHaveProperty("checks");
+      expect(Array.isArray(json.checks)).toBe(true);
+    });
+  });
 });

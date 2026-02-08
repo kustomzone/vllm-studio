@@ -1,6 +1,7 @@
 // CRITICAL
 import type {
   ConfigData,
+  CompatibilityReport,
   GPU,
   HealthResponse,
   Metrics,
@@ -132,5 +133,7 @@ export function createSystemApi(core: ApiCore) {
     getUsageStats: (): Promise<UsageStats> => core.request("/usage"),
 
     getSystemConfig: (): Promise<ConfigData> => core.request("/config"),
+
+    getCompatibilityReport: (): Promise<CompatibilityReport> => core.request("/compat"),
   };
 }

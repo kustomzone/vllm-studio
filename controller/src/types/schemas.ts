@@ -155,6 +155,56 @@ export const SystemConfigResponseSchema = z.object({
 export type SystemConfigResponse = z.infer<typeof SystemConfigResponseSchema>;
 
 /**
+ * Compatibility report check.
+ */
+export const CompatibilityCheckSchema = z.object({
+  id: z.string(),
+  severity: z.enum(["info", "warn", "error"]),
+  message: z.string(),
+  evidence: z.string().nullable(),
+  suggested_fix: z.string().nullable(),
+});
+
+/**
+ * Compatibility report response.
+ */
+export const CompatibilityReportSchema = z.object({
+  platform: z.object({
+    kind: z.enum(["cuda", "rocm", "unknown"]),
+  }),
+  gpu_monitoring: z.object({
+    available: z.boolean(),
+    tool: z.enum(["nvidia-smi", "amd-smi", "rocm-smi"]).nullable(),
+  }),
+  torch: z.object({
+    torch_version: z.string().nullable(),
+    torch_cuda: z.string().nullable(),
+    torch_hip: z.string().nullable(),
+  }),
+  backends: z.object({
+    vllm: z.object({
+      installed: z.boolean(),
+      version: z.string().nullable(),
+      python_path: z.string().nullable().optional(),
+      binary_path: z.string().nullable().optional(),
+    }),
+    sglang: z.object({
+      installed: z.boolean(),
+      version: z.string().nullable(),
+      python_path: z.string().nullable().optional(),
+      binary_path: z.string().nullable().optional(),
+    }),
+    llamacpp: z.object({
+      installed: z.boolean(),
+      version: z.string().nullable(),
+      python_path: z.string().nullable().optional(),
+      binary_path: z.string().nullable().optional(),
+    }),
+  }),
+  checks: z.array(CompatibilityCheckSchema),
+});
+
+/**
  * GPU list response.
  */
 export const GPUListResponseSchema = z.object({

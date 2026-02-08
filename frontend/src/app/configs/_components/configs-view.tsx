@@ -1,5 +1,6 @@
 // CRITICAL
 import type { ConfigData } from "@/lib/types";
+import type { CompatibilityReport } from "@/lib/types";
 import type { ApiConnectionSettings, ConnectionStatus } from "../hooks/use-configs";
 import { ApiConnectionSection } from "./api-connection-section";
 import { ConfigCards } from "./config-cards";
@@ -7,9 +8,11 @@ import { ConfigsHeader } from "./configs-header";
 import { ConnectionFlow } from "./connection-flow";
 import { NoBackendState } from "./no-backend-state";
 import { ServiceTopology } from "./service-topology";
+import { CompatibilityPanel } from "@/components/compatibility/compatibility-panel";
 
 interface ConfigsViewProps {
   data: ConfigData | null;
+  compatibility: CompatibilityReport | null;
   loading: boolean;
   error: string | null;
   apiSettings: ApiConnectionSettings;
@@ -30,6 +33,7 @@ interface ConfigsViewProps {
 
 export function ConfigsView({
   data,
+  compatibility,
   loading,
   error,
   apiSettings,
@@ -79,6 +83,7 @@ export function ConfigsView({
           <div className="grid lg:grid-cols-3 gap-6 sm:gap-8">
             <div className="lg:col-span-2 space-y-6">
               <ServiceTopology services={data.services} />
+              <CompatibilityPanel report={compatibility} />
               <ConnectionFlow />
             </div>
             <ConfigCards data={data} />
@@ -88,4 +93,3 @@ export function ConfigsView({
     </div>
   );
 }
-

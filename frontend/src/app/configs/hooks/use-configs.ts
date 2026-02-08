@@ -6,6 +6,7 @@ import api from "@/lib/api";
 import { getApiKey, setApiKey, clearApiKey } from "@/lib/api-key";
 import { getStoredBackendUrl, setStoredBackendUrl, clearStoredBackendUrl } from "@/lib/backend-url";
 import type { ConfigData } from "@/lib/types";
+import type { CompatibilityReport } from "@/lib/types";
 
 export interface ApiConnectionSettings {
   backendUrl: string;
@@ -45,6 +46,7 @@ const mergeApiSettings = (server?: Partial<ApiConnectionSettings>): ApiConnectio
 
 export function useConfigs() {
   const [data, setData] = useState<ConfigData | null>(null);
+  const [compatibility, setCompatibility] = useState<CompatibilityReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
@@ -132,11 +134,16 @@ export function useConfigs() {
     try {
       setLoading(true);
       setError(null);
-      const configData = await api.getSystemConfig();
+      const [configData, compat] = await Promise.all([
+        api.getSystemConfig(),
+        api.getCompatibilityReport().catch(() => null),
+      ]);
       setData(configData);
+      setCompatibility(compat);
       setBackendOnline(true);
     } catch (e) {
       setError((e as Error).message);
+      setCompatibility(null);
       // Config failed, but check if backend is actually online
       await checkBackendHealth();
     } finally {
@@ -195,6 +202,7 @@ export function useConfigs() {
 
   return {
     data,
+    compatibility,
     loading,
     error,
     apiSettings,
