@@ -1,6 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useRealtimeStatus } from "@/hooks/use-realtime-status";
+import type { RuntimePlatformKind } from "@/lib/types";
+import api from "@/lib/api";
 import { useDashboardActions } from "./use-dashboard-actions";
 import { useDashboardRecipes } from "./use-dashboard-recipes";
 
@@ -11,8 +13,30 @@ export function useDashboardData() {
   const realtime = useRealtimeStatus();
   const currentProcess = realtime.status?.process || null;
   const gpus = realtime.gpus.length > 0 ? realtime.gpus : [];
+  const [platformKind, setPlatformKind] = useState<RuntimePlatformKind | null>(null);
   const recipesState = useDashboardRecipes(currentProcess);
   const actions = useDashboardActions(recipesState.reload);
+
+  useEffect(() => {
+    if (!realtime.isConnected) return;
+    let cancelled = false;
+
+    api.getSystemConfig()
+      .then((config) => {
+        if (!cancelled) {
+          setPlatformKind(config.runtime.platform.kind);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPlatformKind("unknown");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [realtime.isConnected]);
 
   useEffect(() => {
     if (DONE_STAGES.has(realtime.launchProgress?.stage || "")) {
@@ -27,6 +51,7 @@ export function useDashboardData() {
     currentRecipe: recipesState.currentRecipe,
     metrics: realtime.metrics,
     gpus,
+    platformKind,
     recipes: recipesState.recipes,
     logs: recipesState.logs,
     loading: recipesState.loading,

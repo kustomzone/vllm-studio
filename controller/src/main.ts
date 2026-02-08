@@ -6,18 +6,44 @@ import { createApp } from "./http/app";
 import { startMetricsCollector } from "./metrics-collector";
 
 /**
- * Check if nvidia-smi is accessible (important for GPU monitoring).
- * Snap-installed bun has sandbox restrictions that block nvidia-smi.
+ * Check if GPU monitoring tooling is accessible (important for GPU telemetry).
+ * Snap-installed bun has sandbox restrictions that can block GPU tools.
  * @param logger - Logger for emitting warnings.
  */
-const checkNvidiaSmi = (logger: Logger): void => {
-  try {
-    execSync("nvidia-smi --query-gpu=name --format=csv,noheader,nounits", {
-      encoding: "utf-8",
-      timeout: 5000,
-      stdio: "pipe",
-    });
-  } catch {
+const checkGpuMonitoringTooling = (logger: Logger): void => {
+  const forcedTool = (process.env["VLLM_STUDIO_GPU_SMI_TOOL"] || "").trim().toLowerCase();
+
+  const canRun = (command: string): boolean => {
+    try {
+      execSync(command, {
+        encoding: "utf-8",
+        timeout: 5000,
+        stdio: "pipe",
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const platform =
+    forcedTool === "nvidia-smi"
+      ? "cuda"
+      : forcedTool === "amd-smi" || forcedTool === "rocm-smi"
+        ? "rocm"
+        : canRun("nvidia-smi --query-gpu=name --format=csv,noheader,nounits")
+          ? "cuda"
+          : canRun("amd-smi version")
+            ? "rocm"
+            : canRun("rocm-smi --showproductname")
+              ? "rocm"
+              : "unknown";
+
+  if (platform === "cuda") {
+    if (canRun("nvidia-smi --query-gpu=name --format=csv,noheader,nounits")) {
+      return;
+    }
+
     const isSnapBun = process.execPath.includes("/snap/");
     logger.warn("╔════════════════════════════════════════════════════════════════╗");
     logger.warn("║  WARNING: nvidia-smi is not accessible                         ║");
@@ -33,11 +59,31 @@ const checkNvidiaSmi = (logger: Logger): void => {
       logger.warn("║  Or use the start script: ./start.sh                           ║");
     }
     logger.warn("╚════════════════════════════════════════════════════════════════╝");
+    return;
   }
+
+  if (platform === "rocm") {
+    const ok =
+      (forcedTool === "rocm-smi"
+        ? canRun("rocm-smi --showproductname")
+        : canRun("amd-smi metric -g 0")) ||
+      canRun("amd-smi version") ||
+      canRun("rocm-smi --showproductname");
+
+    if (ok) return;
+
+    logger.warn("╔════════════════════════════════════════════════════════════════╗");
+    logger.warn("║  WARNING: ROCm SMI tooling is not accessible                    ║");
+    logger.warn("║  GPU monitoring may not work.                                  ║");
+    logger.warn("╚════════════════════════════════════════════════════════════════╝");
+    return;
+  }
+
+  logger.info("GPU monitoring tools not detected; GPU telemetry may be unavailable.");
 };
 
 const context = createAppContext();
-checkNvidiaSmi(context.logger);
+checkGpuMonitoringTooling(context.logger);
 const app = createApp(context);
 const stopMetrics = startMetricsCollector(context);
 

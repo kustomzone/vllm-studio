@@ -19,6 +19,7 @@ export function ControlPanel(props: DashboardLayoutProps) {
         isConnected={props.isConnected}
         metrics={metrics}
         gpus={gpus}
+        platformKind={props.platformKind}
         inferencePort={props.inferencePort}
         onNavigateChat={props.onNavigateChat}
         onNavigateLogs={props.onNavigateLogs}

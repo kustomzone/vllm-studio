@@ -1,7 +1,7 @@
 // CRITICAL
 "use client";
 
-import type { ProcessInfo, RecipeWithStatus, Metrics, GPU } from "@/lib/types";
+import type { ProcessInfo, RecipeWithStatus, Metrics, GPU, RuntimePlatformKind } from "@/lib/types";
 import { toGB, toGBFromMB } from "@/lib/formatters";
 
 interface StatusLineProps {
@@ -10,6 +10,7 @@ interface StatusLineProps {
   isConnected: boolean;
   metrics: Metrics | null;
   gpus: GPU[];
+  platformKind?: RuntimePlatformKind | null;
   inferencePort?: number;
   onNavigateChat: () => void;
   onNavigateLogs: () => void;
@@ -24,6 +25,7 @@ export function StatusLine({
   isConnected,
   metrics,
   gpus,
+  platformKind,
   inferencePort,
   onNavigateChat,
   onNavigateLogs,
@@ -33,6 +35,7 @@ export function StatusLine({
 }: StatusLineProps) {
   const modelName = currentRecipe?.name || currentProcess?.model_path?.split("/").pop();
   const isRunning = !!currentProcess;
+  const platformLabel = platformKind || "unknown";
 
   const totalPower = gpus.reduce((sum, g) => sum + (g.power_draw || 0), 0);
   const totalMemUsed = gpus.reduce((sum, g) => {
@@ -65,11 +68,14 @@ export function StatusLine({
             {modelName || "No Model"}
           </h1>
           
-          {isRunning && (
-            <div className="mt-2 text-sm text-foreground/50 font-mono">
-              {currentProcess.backend} {/* PID */} {currentProcess.pid}
-            </div>
-          )}
+          <div className="mt-2 text-sm text-foreground/50 font-mono flex flex-wrap items-center gap-2">
+            {isRunning && (
+              <span>
+                {currentProcess.backend} {/* PID */} {currentProcess.pid}
+              </span>
+            )}
+            <span className="text-foreground/30">platform: {platformLabel}</span>
+          </div>
         </div>
 
         {/* Right - Analytics & Actions */}
