@@ -217,10 +217,28 @@ export function useChatSendUserMessage({
       const imageAttachments = (attachments ?? []).filter((att) => att.type === "image" && Boolean(att.base64));
       const useDirectVlm = isVlmAttachmentsEnabled() && imageAttachments.length > 0 && !agentMode;
 
+      const buildAttachmentPlaceholders = (items: Attachment[]): string => {
+        const lines: string[] = [];
+        for (const att of items) {
+          const name = att.name?.trim() || "attachment";
+          if (att.type === "image") lines.push(`[Image: ${name}]`);
+          else if (att.type === "file") lines.push(`[File: ${name}]`);
+          else if (att.type === "audio") lines.push(`[Audio: ${name}]`);
+        }
+        return lines.join("\n");
+      };
+
       if (!useDirectVlm) {
+        const placeholderBlock = attachments?.length ? buildAttachmentPlaceholders(attachments) : "";
+        const content =
+          text.trim() && placeholderBlock
+            ? `${text}\n\n${placeholderBlock}`
+            : text.trim()
+              ? text
+              : placeholderBlock;
+
         await startRunStream(sessionId, {
-          ...(text.trim() ? { content: text } : {}),
-          ...(imageAttachments.length > 0 ? { parts } : {}),
+          ...(content.trim() ? { content } : {}),
           message_id: messageId,
           model: selectedModel,
           system: runSystemPrompt,
