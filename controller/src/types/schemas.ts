@@ -101,6 +101,23 @@ export const SystemConfigResponseSchema = z.object({
     frontend_url: z.string(),
   }),
   runtime: z.object({
+    platform: z.object({
+      kind: z.enum(["cuda", "rocm", "unknown"]),
+      vendor: z.enum(["nvidia", "amd"]).nullable(),
+      rocm: z
+        .object({
+          rocm_version: z.string().nullable(),
+          hip_version: z.string().nullable(),
+          smi_tool: z.enum(["amd-smi", "rocm-smi"]).nullable(),
+          gpu_arch: z.array(z.string()),
+        })
+        .nullable(),
+      torch: z.object({
+        torch_version: z.string().nullable(),
+        torch_cuda: z.string().nullable(),
+        torch_hip: z.string().nullable(),
+      }),
+    }),
     cuda: z.object({
       driver_version: z.string().nullable(),
       cuda_version: z.string().nullable(),

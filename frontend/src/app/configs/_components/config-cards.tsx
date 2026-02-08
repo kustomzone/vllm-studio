@@ -13,6 +13,10 @@ export function ConfigCards({ data }: { data: ConfigData }) {
     return info.version ? info.version : "Installed";
   };
 
+  const platform = data.runtime.platform;
+  const platformLabel =
+    platform.kind === "rocm" ? "ROCm" : platform.kind === "cuda" ? "CUDA" : "Unknown";
+
   return (
     <div className="space-y-6 sm:space-y-8">
       <ConfigSection title="Network">
@@ -108,15 +112,73 @@ export function ConfigCards({ data }: { data: ConfigData }) {
           truncate
         />
         <ConfigRow
-          label="CUDA Driver"
-          value={data.runtime.cuda.driver_version || "Unknown"}
+          label="Platform"
+          value={platformLabel}
           icon={<Cpu className="h-3 w-3" />}
         />
+        {platform.vendor && (
+          <ConfigRow
+            label="Vendor"
+            value={platform.vendor === "amd" ? "AMD" : "NVIDIA"}
+            icon={<Cpu className="h-3 w-3" />}
+          />
+        )}
         <ConfigRow
-          label="CUDA Runtime"
-          value={data.runtime.cuda.cuda_version || "Unknown"}
+          label="Torch"
+          value={platform.torch.torch_version || "Unknown"}
           icon={<Cpu className="h-3 w-3" />}
         />
+
+        {platform.kind === "cuda" && (
+          <>
+            <ConfigRow
+              label="CUDA Driver"
+              value={data.runtime.cuda.driver_version || "Unknown"}
+              icon={<Cpu className="h-3 w-3" />}
+            />
+            <ConfigRow
+              label="CUDA Runtime"
+              value={data.runtime.cuda.cuda_version || "Unknown"}
+              icon={<Cpu className="h-3 w-3" />}
+            />
+            <ConfigRow
+              label="Torch CUDA"
+              value={platform.torch.torch_cuda || "Unknown"}
+              icon={<Cpu className="h-3 w-3" />}
+            />
+          </>
+        )}
+
+        {platform.kind === "rocm" && platform.rocm && (
+          <>
+            <ConfigRow
+              label="ROCm Version"
+              value={platform.rocm.rocm_version || "Unknown"}
+              icon={<Cpu className="h-3 w-3" />}
+            />
+            <ConfigRow
+              label="HIP Version"
+              value={platform.rocm.hip_version || "Unknown"}
+              icon={<Cpu className="h-3 w-3" />}
+            />
+            <ConfigRow
+              label="SMI Tool"
+              value={platform.rocm.smi_tool || "Unknown"}
+              icon={<Cpu className="h-3 w-3" />}
+            />
+            <ConfigRow
+              label="GPU Arch"
+              value={platform.rocm.gpu_arch.length ? platform.rocm.gpu_arch.join(", ") : "Unknown"}
+              icon={<Cpu className="h-3 w-3" />}
+              truncate
+            />
+            <ConfigRow
+              label="Torch HIP"
+              value={platform.torch.torch_hip || "Unknown"}
+              icon={<Cpu className="h-3 w-3" />}
+            />
+          </>
+        )}
       </ConfigSection>
 
       <ConfigSection title="Environment">
@@ -157,4 +219,3 @@ function ConfigSection({ title, children }: { title: string; children: React.Rea
     </div>
   );
 }
-

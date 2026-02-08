@@ -137,11 +137,50 @@ export interface RuntimeBackendInfo {
 }
 
 /**
+ * Runtime platform kind (hardware acceleration stack).
+ */
+export type RuntimePlatformKind = "cuda" | "rocm" | "unknown";
+
+/**
+ * ROCm SMI tool name.
+ */
+export type RuntimeRocmSmiTool = "amd-smi" | "rocm-smi";
+
+/**
  * CUDA runtime info.
  */
 export interface RuntimeCudaInfo {
   driver_version: string | null;
   cuda_version: string | null;
+}
+
+/**
+ * ROCm runtime info.
+ */
+export interface RuntimeRocmInfo {
+  rocm_version: string | null;
+  hip_version: string | null;
+  smi_tool: RuntimeRocmSmiTool | null;
+  gpu_arch: string[];
+}
+
+/**
+ * PyTorch build info (high-signal compatibility metadata).
+ */
+export interface RuntimeTorchBuildInfo {
+  torch_version: string | null;
+  torch_cuda: string | null;
+  torch_hip: string | null;
+}
+
+/**
+ * Platform metadata for the running host.
+ */
+export interface RuntimePlatformInfo {
+  kind: RuntimePlatformKind;
+  vendor: "nvidia" | "amd" | null;
+  rocm: RuntimeRocmInfo | null;
+  torch: RuntimeTorchBuildInfo;
 }
 
 /**
@@ -156,6 +195,7 @@ export interface RuntimeGpuInfoSummary {
  * Runtime information for the system.
  */
 export interface SystemRuntimeInfo {
+  platform: RuntimePlatformInfo;
   cuda: RuntimeCudaInfo;
   gpus: RuntimeGpuInfoSummary;
   backends: {

@@ -39,9 +39,32 @@ export interface RuntimeBackendInfo {
   binary_path?: string | null;
 }
 
+export type RuntimePlatformKind = "cuda" | "rocm" | "unknown";
+export type RuntimeRocmSmiTool = "amd-smi" | "rocm-smi";
+
 export interface RuntimeCudaInfo {
   driver_version: string | null;
   cuda_version: string | null;
+}
+
+export interface RuntimeRocmInfo {
+  rocm_version: string | null;
+  hip_version: string | null;
+  smi_tool: RuntimeRocmSmiTool | null;
+  gpu_arch: string[];
+}
+
+export interface RuntimeTorchBuildInfo {
+  torch_version: string | null;
+  torch_cuda: string | null;
+  torch_hip: string | null;
+}
+
+export interface RuntimePlatformInfo {
+  kind: RuntimePlatformKind;
+  vendor: "nvidia" | "amd" | null;
+  rocm: RuntimeRocmInfo | null;
+  torch: RuntimeTorchBuildInfo;
 }
 
 export interface RuntimeGpuInfoSummary {
@@ -50,6 +73,7 @@ export interface RuntimeGpuInfoSummary {
 }
 
 export interface SystemRuntimeInfo {
+  platform: RuntimePlatformInfo;
   cuda: RuntimeCudaInfo;
   gpus: RuntimeGpuInfoSummary;
   backends: {
@@ -73,4 +97,3 @@ export interface DeepResearchConfig {
   autoSummarize: boolean;
   includeCitations: boolean;
 }
-
