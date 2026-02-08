@@ -94,7 +94,7 @@ const resolveRocmSmiTool = (): RuntimeRocmSmiTool | null => {
 
   const amdSmi = resolveBinary(process.env["AMD_SMI_PATH"] || "amd-smi");
   if (amdSmi) return "amd-smi";
-  const rocmSmi = resolveBinary("rocm-smi");
+  const rocmSmi = resolveBinary(process.env["ROCM_SMI_PATH"] || "rocm-smi");
   if (rocmSmi) return "rocm-smi";
   return null;
 };
