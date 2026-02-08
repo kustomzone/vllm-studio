@@ -41,6 +41,45 @@ describe("compatibility report checks", () => {
     expect(report.checks.some((c) => c.id === "torch.rocm-missing-hip" && c.severity === "error")).toBe(true);
   });
 
+  it("flags missing ROCm SMI tooling on ROCm platform", () => {
+    const report = buildCompatibilityReport({
+      runtime: baseRuntime({
+        platform: {
+          kind: "rocm",
+          vendor: "amd",
+          rocm: { rocm_version: "7.1.1", hip_version: "7.1.1", smi_tool: "amd-smi", gpu_arch: ["gfx942"] },
+          torch: { torch_version: "2.6.0", torch_cuda: null, torch_hip: "7.1.1" },
+        },
+        gpus: { count: 1, types: ["AMD Instinct MI300X"] },
+      }),
+      inference_port: 8000,
+      inference_port_open: false,
+      inference_process_known: false,
+      gpu_monitoring: { available: false, tool: "amd-smi" },
+    });
+
+    expect(
+      report.checks.some((c) => c.id === "gpu-monitoring.rocm-unavailable" && c.severity === "warn"),
+    ).toBe(true);
+  });
+
+  it("flags missing nvidia-smi on CUDA platform", () => {
+    const report = buildCompatibilityReport({
+      runtime: baseRuntime({
+        platform: { ...baseRuntime({}).platform, kind: "cuda", vendor: "nvidia" },
+        gpus: { count: 1, types: ["NVIDIA A100"] },
+      }),
+      inference_port: 8000,
+      inference_port_open: false,
+      inference_process_known: false,
+      gpu_monitoring: { available: false, tool: "nvidia-smi" },
+    });
+
+    expect(
+      report.checks.some((c) => c.id === "gpu-monitoring.cuda-unavailable" && c.severity === "warn"),
+    ).toBe(true);
+  });
+
   it("flags inference port in use by unknown process", () => {
     const report = buildCompatibilityReport({
       runtime: baseRuntime({ platform: { ...baseRuntime({}).platform, kind: "cuda", vendor: "nvidia" } }),
@@ -79,4 +118,3 @@ describe("compatibility report checks", () => {
     expect(report.checks.some((c) => c.id === "backends.none-installed" && c.severity === "info")).toBe(true);
   });
 });
-
