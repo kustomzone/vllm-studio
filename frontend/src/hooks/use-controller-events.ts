@@ -207,6 +207,7 @@ export function useControllerEvents(
           case "status":
           case "gpu":
           case "metrics":
+          case "runtime_summary":
           case "launch_progress":
           case "download_progress":
           case "download_state":
@@ -275,6 +276,7 @@ export function useControllerEvents(
       "mcp_server_disabled",
       "mcp_tool_called",
       "runtime_vllm_upgraded",
+      "runtime_summary",
     ];
 
     for (const type of eventTypes) {

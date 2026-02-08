@@ -5,6 +5,8 @@ import { badRequest } from "../core/errors";
 import { getLlamacppConfigHelp } from "../services/llamacpp-runtime";
 import { getVllmConfigHelp, getVllmRuntimeInfo, upgradeVllmRuntime } from "../services/vllm-runtime";
 import { Event } from "../services/event-manager";
+import { getSystemRuntimeInfo } from "../services/runtime-info";
+import { probeGpuMonitoring } from "../services/compatibility-report";
 
 export const registerRuntimeRoutes = (app: Hono, context: AppContext): void => {
   app.get("/runtime/vllm", async (ctx) => {
@@ -34,6 +36,18 @@ export const registerRuntimeRoutes = (app: Hono, context: AppContext): void => {
       version: result.version,
       used_wheel: result.used_wheel,
     }));
+
+    try {
+      const runtime = await getSystemRuntimeInfo(context.config);
+      const gpuMonitoring = probeGpuMonitoring(runtime.platform.kind, runtime.platform.rocm?.smi_tool ?? null);
+      await context.eventManager.publishRuntimeSummary({
+        platform: runtime.platform,
+        gpu_monitoring: gpuMonitoring,
+        backends: runtime.backends,
+      });
+    } catch {
+      // best-effort
+    }
     return ctx.json(result);
   });
 };

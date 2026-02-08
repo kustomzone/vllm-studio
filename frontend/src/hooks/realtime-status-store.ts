@@ -2,7 +2,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import type { GPU, Metrics, ProcessInfo } from "@/lib/types";
+import type { GPU, Metrics, ProcessInfo, RuntimeBackendInfo, RuntimePlatformKind, RuntimeRocmSmiTool } from "@/lib/types";
 import api from "@/lib/api";
 
 export interface StatusData {
@@ -18,11 +18,18 @@ export interface LaunchProgressData {
   progress?: number;
 }
 
+export interface RuntimeSummaryData {
+  platform: { kind: RuntimePlatformKind };
+  gpu_monitoring: { available: boolean; tool: "nvidia-smi" | RuntimeRocmSmiTool | null };
+  backends: { vllm: RuntimeBackendInfo; sglang: RuntimeBackendInfo; llamacpp: RuntimeBackendInfo };
+}
+
 export interface RealtimeStatusSnapshot {
   status: StatusData | null;
   gpus: GPU[];
   metrics: Metrics | null;
   launchProgress: LaunchProgressData | null;
+  runtimeSummary: RuntimeSummaryData | null;
   lastEventAt: number;
 }
 
@@ -31,6 +38,7 @@ const initialSnapshot: RealtimeStatusSnapshot = {
   gpus: [],
   metrics: null,
   launchProgress: null,
+  runtimeSummary: null,
   lastEventAt: 0,
 };
 
@@ -39,6 +47,9 @@ const listeners = new Set<() => void>();
 let started = false;
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 let clearLaunchTimer: ReturnType<typeof setTimeout> | null = null;
+let controllerEventListener: ((event: Event) => void) | null = null;
+let visibilityListener: (() => void) | null = null;
+let pageShowListener: ((e: PageTransitionEvent) => void) | null = null;
 
 function areProcessInfosEqual(a: ProcessInfo | null, b: ProcessInfo | null) {
   if (a === b) return true;
@@ -113,12 +124,29 @@ function areLaunchProgressEqual(a: LaunchProgressData | null, b: LaunchProgressD
   );
 }
 
+function areRuntimeSummaryEqual(a: RuntimeSummaryData | null, b: RuntimeSummaryData | null) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.platform.kind === b.platform.kind &&
+    a.gpu_monitoring.available === b.gpu_monitoring.available &&
+    (a.gpu_monitoring.tool ?? null) === (b.gpu_monitoring.tool ?? null) &&
+    a.backends.vllm.installed === b.backends.vllm.installed &&
+    (a.backends.vllm.version ?? null) === (b.backends.vllm.version ?? null) &&
+    a.backends.sglang.installed === b.backends.sglang.installed &&
+    (a.backends.sglang.version ?? null) === (b.backends.sglang.version ?? null) &&
+    a.backends.llamacpp.installed === b.backends.llamacpp.installed &&
+    (a.backends.llamacpp.version ?? null) === (b.backends.llamacpp.version ?? null)
+  );
+}
+
 function emitIfChanged(next: RealtimeStatusSnapshot) {
   const changed =
     !areStatusEqual(snapshot.status, next.status) ||
     !areGpusEqual(snapshot.gpus, next.gpus) ||
     !areMetricsEqual(snapshot.metrics, next.metrics) ||
-    !areLaunchProgressEqual(snapshot.launchProgress, next.launchProgress);
+    !areLaunchProgressEqual(snapshot.launchProgress, next.launchProgress) ||
+    !areRuntimeSummaryEqual(snapshot.runtimeSummary, next.runtimeSummary);
 
   snapshot = changed ? next : { ...snapshot, lastEventAt: next.lastEventAt };
   if (!changed) return;
@@ -162,6 +190,7 @@ async function fetchStatusNow() {
       gpus,
       metrics: snapshot.metrics,
       launchProgress: snapshot.launchProgress,
+      runtimeSummary: snapshot.runtimeSummary,
       lastEventAt: Date.now(),
     });
   } catch {
@@ -190,6 +219,7 @@ function start() {
         gpus: snapshot.gpus,
         metrics: snapshot.metrics,
         launchProgress: snapshot.launchProgress,
+        runtimeSummary: snapshot.runtimeSummary,
         lastEventAt: now,
       });
       return;
@@ -202,6 +232,7 @@ function start() {
         gpus: Array.isArray(list) ? list : [],
         metrics: snapshot.metrics,
         launchProgress: snapshot.launchProgress,
+        runtimeSummary: snapshot.runtimeSummary,
         lastEventAt: now,
       });
       return;
@@ -213,6 +244,24 @@ function start() {
         gpus: snapshot.gpus,
         metrics: data as Metrics,
         launchProgress: snapshot.launchProgress,
+        runtimeSummary: snapshot.runtimeSummary,
+        lastEventAt: now,
+      });
+      return;
+    }
+
+    if (type === "runtime_summary") {
+      const summary = data as unknown as RuntimeSummaryData;
+      const kind = summary?.platform?.kind;
+      if (kind !== "cuda" && kind !== "rocm" && kind !== "unknown") {
+        return;
+      }
+      emitIfChanged({
+        status: snapshot.status,
+        gpus: snapshot.gpus,
+        metrics: snapshot.metrics,
+        launchProgress: snapshot.launchProgress,
+        runtimeSummary: summary,
         lastEventAt: now,
       });
       return;
@@ -226,12 +275,14 @@ function start() {
         gpus: snapshot.gpus,
         metrics: snapshot.metrics,
         launchProgress: progress,
+        runtimeSummary: snapshot.runtimeSummary,
         lastEventAt: now,
       });
       return;
     }
   };
 
+  controllerEventListener = onControllerEvent;
   window.addEventListener("vllm:controller-event", onControllerEvent as EventListener);
 
   // Initial fetch + polling fallback in case SSE is blocked.
@@ -246,12 +297,43 @@ function start() {
       void fetchStatusNow();
     }
   };
+  visibilityListener = onVisibility;
   document.addEventListener("visibilitychange", onVisibility);
 
   const onPageShow = (e: PageTransitionEvent) => {
     if (e.persisted) void fetchStatusNow();
   };
+  pageShowListener = onPageShow;
   window.addEventListener("pageshow", onPageShow);
+}
+
+export function stopRealtimeStatusStore(): void {
+  if (!started) return;
+  started = false;
+
+  if (typeof window !== "undefined") {
+    if (controllerEventListener) {
+      window.removeEventListener("vllm:controller-event", controllerEventListener as unknown as EventListener);
+      controllerEventListener = null;
+    }
+    if (pageShowListener) {
+      window.removeEventListener("pageshow", pageShowListener as unknown as EventListener);
+      pageShowListener = null;
+    }
+    if (visibilityListener) {
+      document.removeEventListener("visibilitychange", visibilityListener);
+      visibilityListener = null;
+    }
+  }
+
+  if (pollInterval) {
+    clearInterval(pollInterval);
+    pollInterval = null;
+  }
+  if (clearLaunchTimer) {
+    clearTimeout(clearLaunchTimer);
+    clearLaunchTimer = null;
+  }
 }
 
 export function useRealtimeStatusStore(): RealtimeStatusSnapshot {

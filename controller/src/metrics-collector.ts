@@ -3,6 +3,8 @@ import type { AppContext } from "./types/context";
 import { getGpuInfo } from "./services/gpu";
 import { delay } from "./core/async";
 import { checkTemporalStatus } from "./services/temporal-status";
+import { getSystemRuntimeInfo } from "./services/runtime-info";
+import { probeGpuMonitoring } from "./services/compatibility-report";
 
 /**
  * Start background metrics collection.
@@ -14,6 +16,7 @@ export const startMetricsCollector = (context: AppContext): (() => void) => {
   let lastVllmMetrics: Record<string, number> = {};
   let lastMetricsTime = 0;
   let lastTemporalCheck = 0;
+  let lastRuntimeSummary = 0;
 
   /**
    * Scrape Prometheus metrics from vLLM.
@@ -81,6 +84,21 @@ export const startMetricsCollector = (context: AppContext): (() => void) => {
         inference_port: context.config.inference_port,
       });
       await context.eventManager.publishGpu(gpuList.map((gpu) => ({ ...gpu })));
+
+      if (nowMs - lastRuntimeSummary > 30_000) {
+        lastRuntimeSummary = nowMs;
+        try {
+          const runtime = await getSystemRuntimeInfo(context.config);
+          const gpuMonitoring = probeGpuMonitoring(runtime.platform.kind, runtime.platform.rocm?.smi_tool ?? null);
+          await context.eventManager.publishRuntimeSummary({
+            platform: runtime.platform,
+            gpu_monitoring: gpuMonitoring,
+            backends: runtime.backends,
+          });
+        } catch {
+          // Keep metrics loop resilient; runtime summary is best-effort.
+        }
+      }
 
       if (nowMs - lastTemporalCheck > 15000) {
         lastTemporalCheck = nowMs;

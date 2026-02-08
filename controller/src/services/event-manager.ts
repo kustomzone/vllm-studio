@@ -161,6 +161,15 @@ export class EventManager {
   }
 
   /**
+   * Publish low-frequency runtime/platform summary updates.
+   * @param summaryData - Summary payload.
+   * @returns Promise that resolves after publish.
+   */
+  public async publishRuntimeSummary(summaryData: Record<string, unknown>): Promise<void> {
+    await this.publish(new Event("runtime_summary", summaryData));
+  }
+
+  /**
    * Publish log line updates to a session channel.
    * @param sessionId - Log session identifier.
    * @param line - Log line contents.

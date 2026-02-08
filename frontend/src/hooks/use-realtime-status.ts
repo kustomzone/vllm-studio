@@ -18,11 +18,12 @@ export function useRealtimeStatus() {
       status: snap.status,
       gpus: snap.gpus,
       metrics: snap.metrics,
+      runtimeSummary: snap.runtimeSummary,
       launchProgress: snap.launchProgress,
       isConnected: connected,
       error: null,
       reconnectAttempts: 0,
     }),
-    [connected, snap.gpus, snap.launchProgress, snap.metrics, snap.status],
+    [connected, snap.gpus, snap.launchProgress, snap.metrics, snap.runtimeSummary, snap.status],
   );
 }
