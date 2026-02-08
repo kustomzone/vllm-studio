@@ -58,7 +58,6 @@ frontend/test-results/
 proof-*.png
 proof-*.md
 proof-snapshot-*.md
-work/
 
 # Local config
 .claude/
