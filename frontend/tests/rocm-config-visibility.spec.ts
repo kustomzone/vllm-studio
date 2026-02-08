@@ -73,6 +73,20 @@ test("configs: shows ROCm runtime fields + Rock-Em runtimes panel", async ({ pag
         },
         checks: [
           {
+            id: "torch_missing",
+            severity: "error",
+            message: "PyTorch not installed",
+            evidence: "python -c 'import torch' failed",
+            suggested_fix: "Install a ROCm-enabled PyTorch build.",
+          },
+          {
+            id: "rocm_version_mismatch",
+            severity: "warn",
+            message: "ROCm runtime and torch HIP version mismatch",
+            evidence: "rocm: 7.1.1 torch_hip: 7.0.0",
+            suggested_fix: "Align ROCm and torch builds (e.g. reinstall torch or upgrade ROCm).",
+          },
+          {
             id: "gpu_monitoring",
             severity: "info",
             message: "GPU monitoring available",
@@ -126,4 +140,11 @@ test("configs: shows ROCm runtime fields + Rock-Em runtimes panel", async ({ pag
   await expect(page.getByText("7.1.1").first()).toBeVisible();
   await expect(page.getByText("Runtimes (Rock-Em)")).toBeVisible();
   await expect(page.getByText(/gpu lease: llm/i)).toBeVisible();
+
+  // Compatibility panel must render errors/warnings deterministically from /compat.
+  await expect(page.getByText("Compatibility")).toBeVisible();
+  await expect(page.getByText("Errors")).toBeVisible();
+  await expect(page.getByText("PyTorch not installed")).toBeVisible();
+  await expect(page.getByText("Warnings")).toBeVisible();
+  await expect(page.getByText("ROCm runtime and torch HIP version mismatch")).toBeVisible();
 });
