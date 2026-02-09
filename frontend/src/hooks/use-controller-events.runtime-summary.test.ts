@@ -52,13 +52,20 @@ describe("useControllerEvents runtime_summary", () => {
       return null;
     }
 
+    const waitFor = async (predicate: () => boolean, timeoutMs = 250) => {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        if (predicate()) return;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+    };
+
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
     root.render(React.createElement(TestComponent));
 
-    // Allow effects to run and EventSource to be created.
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await waitFor(() => MockEventSource.lastInstance !== null);
 
     const es = MockEventSource.lastInstance;
     expect(es).not.toBeNull();

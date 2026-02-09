@@ -258,7 +258,6 @@ export function ToolBelt({
 
       const formData = new FormData();
       formData.append("file", audioBlob, "recording.webm");
-      formData.append("model", "whisper-1");
 
       const response = await fetch("/api/voice/transcribe", {
         method: "POST",
