@@ -8,6 +8,8 @@ import { badRequest, serviceUnavailable } from "../core/errors";
 import { getSttAdapter } from "../services/integrations/stt";
 import { getTtsAdapter } from "../services/integrations/tts";
 import { GpuLeaseConflictError } from "../services/gpu-lease";
+import { resolveBinary } from "../services/command/command-utilities";
+import { runCli } from "../services/integrations/cli/cli-runner";
 
 const ensureDirectory = (directory: string): void => {
   try {
@@ -66,9 +68,34 @@ export const registerAudioRoutes = (app: Hono, context: AppContext): void => {
 
     const temporaryDirectory = resolve(context.config.data_dir, "tmp", "stt");
     ensureDirectory(temporaryDirectory);
-    const audioPath = join(temporaryDirectory, `${randomUUID()}-${file.name || "audio"}`);
+    const rawAudioPath = join(temporaryDirectory, `${randomUUID()}-${file.name || "audio"}`);
     const bytes = Buffer.from(await file.arrayBuffer());
-    writeFileSync(audioPath, bytes);
+    writeFileSync(rawAudioPath, bytes);
+
+    // whisper.cpp is most reliable with WAV input. Browsers commonly record `audio/webm` via MediaRecorder.
+    // Convert to mono 16k WAV with ffmpeg when needed.
+    let audioPath = rawAudioPath;
+    const lowerName = (file.name || "").toLowerCase();
+    const isWav = lowerName.endsWith(".wav") || file.type === "audio/wav";
+    if (!isWav) {
+      const ffmpeg = resolveBinary("ffmpeg");
+      if (!ffmpeg) {
+        throw serviceUnavailable(
+          `STT requires ffmpeg to transcode ${file.type || "audio"} input. Install ffmpeg or upload a WAV file.`,
+        );
+      }
+      const wavPath = join(temporaryDirectory, `${randomUUID()}.wav`);
+      const convert = await runCli(
+        ffmpeg,
+        ["-y", "-i", rawAudioPath, "-ac", "1", "-ar", "16000", wavPath],
+        { timeoutMs: 120_000 },
+      );
+      if (convert.exitCode !== 0 || !existsSync(wavPath)) {
+        const details = convert.stderr || convert.stdout || "unknown error";
+        throw badRequest(`Failed to transcode audio with ffmpeg: ${details}`);
+      }
+      audioPath = wavPath;
+    }
 
     try {
       await context.serviceManager.startService("stt", { mode, replace });
@@ -80,7 +107,7 @@ export const registerAudioRoutes = (app: Hono, context: AppContext): void => {
     }
 
     const result = await adapter.transcribe({
-      audioPath,
+      audioPath: audioPath,
       modelPath,
       ...(language ? { language } : {}),
     });

@@ -308,11 +308,11 @@ Legend:
 | Artifact extraction + preview UI | ✅/🟡 | `artifact-renderer.tsx` (extract), `artifact-preview-panel.tsx`, `artifact-modal.tsx`, `artifact-viewer.tsx` | Uses `extractArtifacts` + preview panel + modal viewer; legacy sandbox removed. |
 | File attachments | 🟡 | `tool-belt.tsx` | UI supports adding files/images. **Sending to model is currently text placeholders** (not actual file parts). |
 | Image attachments | 🟡 | `tool-belt.tsx` | Base64 is computed for images, but not passed to model in current send path. |
-| Audio recording | 🟡 | `tool-belt.tsx`, `/api/voice/transcribe` (external) | Records audio, transcribes to text, appends to input. Not sent as audio part. |
+| Audio recording | 🟡 | `tool-belt.tsx`, `/api/voice/transcribe` | Records audio, transcribes to text, appends to input. Defaults to controller-backed STT when `voiceUrl` is not set. Not sent as audio part. |
 | Deep Research | 🟡 | `chat-settings-modal.tsx`, `tool-belt-toolbar.tsx`, `chat-page.tsx` | Toggle is forwarded to the controller run (influences thinking level). |
 | Agent Files / virtual filesystem | 🟡 | `agent-files-panel.tsx`, `use-agent-files.ts` | Wired to `/chats/:sessionId/files` via `use-agent-files`; panel lists the workspace tree but has no inline editor. |
 | Agent planning tools (`create_plan`, `update_plan`) | ✅ | `agent-plan-drawer.tsx`, `chat-page.tsx`, `use-controller-events.ts` | Plan updates arrive from controller tools via run stream + SSE. |
-| TTS | 🔴/🟡 | `tool-belt.tsx`, `tool-belt-toolbar.tsx`, store | Toggle exists; no speech synthesis in chat rendering here. |
+| TTS | ✅/🟡 | `tool-belt.tsx`, `use-chat-page-controller.tsx`, `/api/voice/speak` | Toggle speaks the latest completed assistant message via controller-backed TTS. Browser autoplay policies may block playback. |
 | Queue next message while streaming | 🟡 | `tool-belt.tsx`, store `queuedContext` | UI supports entering `queuedContext` during streaming; no auto-submit logic found in this directory. |
 
 ---
@@ -588,7 +588,7 @@ Implements:
 
 **Role:** Buttons row: attachments dropdown, mic, tools, agent toggle, system prompt, model dropdown, send/stop.
 
-**DeepResearch + TTS:** toggles exist but behavior is not implemented in this directory.
+**DeepResearch + TTS:** Deep Research is forwarded to the controller run payload; TTS playback is implemented in `use-chat-page-controller.tsx` (not in this directory).
 
 ---
 
@@ -801,7 +801,7 @@ Exports whole chat (JSON/Markdown).
 
 ### 7.3 Unintegrated feature toggles (UI exists, pipeline doesn’t change)
 
-- TTS toggle (`isTTSEnabled`) does not change output rendering.
+- TTS toggle (`isTTSEnabled`) triggers client-side speech playback of the latest completed assistant message (browser policies may block autoplay).
 
 - Queued context (`queuedContext`) is writable while streaming but has no auto-send path in this directory.
 

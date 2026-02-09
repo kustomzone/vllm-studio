@@ -115,6 +115,80 @@ exit 0
     expect(json.text).toBe("hello");
   });
 
+  it("STT: accepts browser audio/webm by transcoding with ffmpeg", async () => {
+    const root = mkdtempSync(join(tmpdir(), "vllm-studio-audio-"));
+    const modelsDirectory = join(root, "models");
+    const dataDirectory = join(root, "data");
+    mkdirSync(join(modelsDirectory, "stt"), { recursive: true });
+    mkdirSync(dataDirectory, { recursive: true });
+
+    const modelName = "test.bin";
+    writeFileSync(join(modelsDirectory, "stt", modelName), "x", "utf-8");
+
+    const cliPath = join(root, "whisper-cli");
+    writeFileSync(
+      cliPath,
+      `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "whisper-cli test"
+  exit 0
+fi
+prefix=""
+while [[ $# -gt 0 ]]; do
+  if [[ "$1" == "-of" ]]; then prefix="$2"; shift 2; continue; fi
+  shift
+done
+echo "hello-webm" > "\${prefix}.txt"
+exit 0
+`,
+      "utf-8",
+    );
+    chmodSync(cliPath, 0o755);
+    process.env["VLLM_STUDIO_STT_CLI"] = cliPath;
+
+    const ffmpegPath = join(root, "ffmpeg");
+    writeFileSync(
+      ffmpegPath,
+      `#!/usr/bin/env bash
+set -euo pipefail
+in=""
+out=""
+while [[ $# -gt 0 ]]; do
+  if [[ "$1" == "-i" ]]; then in="$2"; shift 2; continue; fi
+  out="$1"
+  shift
+done
+mkdir -p "$(dirname "$out")"
+# Create a placeholder "wav" file. The STT adapter doesn't validate content in tests.
+printf "RIFF" > "$out"
+exit 0
+`,
+      "utf-8",
+    );
+    chmodSync(ffmpegPath, 0o755);
+    process.env["PATH"] = `${root}:${process.env["PATH"] || ""}`;
+
+    const { app } = makeApp({
+      host: "0.0.0.0",
+      port: 8080,
+      inference_port: 8000,
+      temporal_address: "localhost:0",
+      data_dir: dataDirectory,
+      db_path: ":memory:",
+      models_dir: modelsDirectory,
+    });
+
+    const form = new FormData();
+    form.set("model", modelName);
+    form.set("file", new File([new Uint8Array([1, 2, 3])], "recording.webm", { type: "audio/webm" }));
+
+    const res = await app.request("/v1/audio/transcriptions", { method: "POST", body: form as unknown as BodyInit });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.text).toBe("hello-webm");
+  });
+
   it("STT: validates required file field", async () => {
     const root = mkdtempSync(join(tmpdir(), "vllm-studio-audio-"));
     const modelsDirectory = join(root, "models");

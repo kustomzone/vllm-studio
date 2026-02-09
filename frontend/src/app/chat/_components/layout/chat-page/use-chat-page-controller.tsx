@@ -22,6 +22,7 @@ import { useChatSidebarController } from "./chat-sidebar-controller";
 import type { ChatPageViewProps } from "./chat-page-view";
 import { useChatPageEvents } from "./use-chat-page-events";
 import { useChatPageTimers } from "./use-chat-page-timers";
+import { thinkingParser } from "@/lib/services/message-parsing";
 
 export function useChatPageController(): ChatPageViewProps {
   const searchParams = useSearchParams();
@@ -47,6 +48,7 @@ export function useChatPageController(): ChatPageViewProps {
     setElapsedSeconds,
     streamingStartTime,
     setStreamingStartTime,
+    isTTSEnabled,
 
     settingsOpen,
     setSettingsOpen,
@@ -92,6 +94,7 @@ export function useChatPageController(): ChatPageViewProps {
       setElapsedSeconds: state.setElapsedSeconds,
       streamingStartTime: state.streamingStartTime,
       setStreamingStartTime: state.setStreamingStartTime,
+      isTTSEnabled: state.isTTSEnabled,
 
       settingsOpen: state.chatSettingsOpen,
       setSettingsOpen: state.setChatSettingsOpen,
@@ -418,6 +421,109 @@ export function useChatPageController(): ChatPageViewProps {
       dedupeKey,
     });
   }, [currentSessionId, elapsedSeconds, executingTools, pushToast, selectedModel, streamError]);
+
+  const ttsRef = useRef<{
+    audio: HTMLAudioElement | null;
+    url: string | null;
+    lastSpokenAssistantId: string | null;
+  }>({ audio: null, url: null, lastSpokenAssistantId: null });
+
+  const stopTtsPlayback = useCallback(() => {
+    const current = ttsRef.current;
+    if (current.audio) {
+      try {
+        current.audio.pause();
+        current.audio.src = "";
+      } catch {
+        // ignore
+      }
+      current.audio = null;
+    }
+    if (current.url) {
+      try {
+        URL.revokeObjectURL(current.url);
+      } catch {
+        // ignore
+      }
+      current.url = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isTTSEnabled) {
+      stopTtsPlayback();
+      return;
+    }
+
+    // Avoid speaking partial, streaming content.
+    if (isLoading) return;
+
+    const lastAssistant = [...messages].reverse().find((msg) => msg.role === "assistant") ?? null;
+    if (!lastAssistant) return;
+    if (ttsRef.current.lastSpokenAssistantId === lastAssistant.id) return;
+
+    const rawText = lastAssistant.parts
+      .filter((part): part is { type: "text"; text: string } => part.type === "text")
+      .map((part) => part.text)
+      .join("");
+    const cleaned = rawText.toLowerCase().includes("<think") ? thinkingParser.parse(rawText).mainContent : rawText;
+    const text = (cleaned || "").trim();
+
+    // Mark as spoken (attempted) to avoid repeated retries/toasts on re-renders.
+    ttsRef.current.lastSpokenAssistantId = lastAssistant.id;
+
+    if (!text) return;
+
+    void (async () => {
+      stopTtsPlayback();
+      const res = await fetch("/api/voice/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: text, response_format: "wav" }),
+      });
+
+      if (!res.ok) {
+        const details = await res.text().catch(() => "");
+        pushToast({
+          kind: res.status === 409 ? "warning" : "error",
+          title: res.status === 409 ? "TTS blocked by GPU lease" : "TTS failed",
+          message: res.status === 409 ? "Another service is using the GPU." : "Speech synthesis failed.",
+          detail: details,
+          dedupeKey: `tts-error:${lastAssistant.id}:${res.status}`,
+        });
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      ttsRef.current.audio = audio;
+      ttsRef.current.url = url;
+      audio.onended = () => {
+        if (ttsRef.current.url === url) {
+          URL.revokeObjectURL(url);
+          ttsRef.current.url = null;
+        }
+        if (ttsRef.current.audio === audio) {
+          ttsRef.current.audio = null;
+        }
+      };
+      try {
+        await audio.play();
+      } catch (err) {
+        URL.revokeObjectURL(url);
+        ttsRef.current.url = null;
+        ttsRef.current.audio = null;
+        pushToast({
+          kind: "error",
+          title: "TTS playback failed",
+          message: "The browser blocked audio playback.",
+          detail: String(err),
+          dedupeKey: `tts-playback-error:${lastAssistant.id}`,
+        });
+      }
+    })();
+  }, [isLoading, isTTSEnabled, messages, pushToast, stopTtsPlayback]);
 
   Hooks.useAvailableModels({ selectedModel, setSelectedModel, setAvailableModels });
 
