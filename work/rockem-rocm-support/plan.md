@@ -7,6 +7,10 @@
 - Cross-vendor `visible_devices` env handling (CUDA/HIP/ROCR).
 - Rock-Em services layer (`/services`) with strict GPU lease + replace/best-effort UX.
 - CLI-driven STT/TTS (`/v1/audio/*`) and image generation (`/v1/images/generations`) integrations.
+- Frontend voice wiring:
+  - `/api/voice/transcribe` defaults to controller-backed STT when `voiceUrl` is not set.
+  - `/api/voice/speak` proxies controller-backed TTS.
+  - TTS toggle plays the latest completed assistant message (browser autoplay policies may block playback).
 - Feature-flagged VLM attachments via OpenAI-compatible multimodal content.
 - Jobs + orchestration (Temporal-backed when available, in-memory fallback) with `/jobs` API and UI.
 - Validation: controller `typecheck`, `test`, `lint`; frontend `test`, `lint`, `build`, Playwright E2E all passing locally.
