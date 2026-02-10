@@ -164,6 +164,7 @@ export const appendExtraArguments = (command: string[], extraArguments: Record<s
     "cuda_visible_devices",
     "hip_visible_devices",
     "rocr_visible_devices",
+    "llama_bin",
     "description",
     "tags",
     "status",
