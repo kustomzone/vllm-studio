@@ -463,65 +463,82 @@ export function useChatPageController(): ChatPageViewProps {
       stopTtsPlayback();
       setSpeakingMessageId(args.messageId);
 
-      const res = await fetch("/api/voice/speak", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: text, response_format: "wav" }),
-      });
+      try {
+        const res = await fetch("/api/voice/speak", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input: text, response_format: "wav" }),
+        });
 
-      if (!res.ok) {
-        const details = await res.text().catch(() => "");
+        if (!res.ok) {
+          const details = await res.text().catch(() => "");
+          setSpeakingMessageId(null);
+          pushToast({
+            kind: res.status === 409 ? "warning" : "error",
+            title: res.status === 409 ? "TTS blocked by GPU lease" : "TTS failed",
+            message: res.status === 409 ? "Another service is using the GPU." : "Speech synthesis failed.",
+            detail: details,
+            dedupeKey: `tts-error:${args.messageId}:${res.status}`,
+          });
+          // In call mode, keep the conversation flowing even if TTS fails.
+          args.onEnded?.();
+          return;
+        }
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        ttsRef.current.audio = audio;
+        ttsRef.current.url = url;
+
+        const cleanup = () => {
+          if (ttsRef.current.url === url) {
+            try {
+              URL.revokeObjectURL(url);
+            } catch {
+              // ignore
+            }
+            ttsRef.current.url = null;
+          }
+          if (ttsRef.current.audio === audio) {
+            ttsRef.current.audio = null;
+          }
+          setSpeakingMessageId((current) => (current === args.messageId ? null : current));
+        };
+
+        audio.onended = () => {
+          cleanup();
+          args.onEnded?.();
+        };
+        audio.onerror = () => {
+          cleanup();
+          // In call mode, continue to the next turn even if playback fails.
+          args.onEnded?.();
+        };
+
+        try {
+          await audio.play();
+        } catch (err) {
+          cleanup();
+          pushToast({
+            kind: "error",
+            title: "TTS playback failed",
+            message: "The browser blocked audio playback.",
+            detail: String(err),
+            dedupeKey: `tts-playback-error:${args.messageId}`,
+          });
+          args.onEnded?.();
+        }
+      } catch (err) {
         setSpeakingMessageId(null);
         pushToast({
-          kind: res.status === 409 ? "warning" : "error",
-          title: res.status === 409 ? "TTS blocked by GPU lease" : "TTS failed",
-          message: res.status === 409 ? "Another service is using the GPU." : "Speech synthesis failed.",
-          detail: details,
-          dedupeKey: `tts-error:${args.messageId}:${res.status}`,
-        });
-        return;
-      }
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      ttsRef.current.audio = audio;
-      ttsRef.current.url = url;
-
-      const cleanup = () => {
-        if (ttsRef.current.url === url) {
-          try {
-            URL.revokeObjectURL(url);
-          } catch {
-            // ignore
-          }
-          ttsRef.current.url = null;
-        }
-        if (ttsRef.current.audio === audio) {
-          ttsRef.current.audio = null;
-        }
-        setSpeakingMessageId((current) => (current === args.messageId ? null : current));
-      };
-
-      audio.onended = () => {
-        cleanup();
-        args.onEnded?.();
-      };
-      audio.onerror = () => {
-        cleanup();
-      };
-
-      try {
-        await audio.play();
-      } catch (err) {
-        cleanup();
-        pushToast({
           kind: "error",
-          title: "TTS playback failed",
-          message: "The browser blocked audio playback.",
+          title: "TTS failed",
+          message: "Speech synthesis failed.",
           detail: String(err),
-          dedupeKey: `tts-playback-error:${args.messageId}`,
+          dedupeKey: `tts-network-error:${args.messageId}`,
         });
+        args.onEnded?.();
       }
     },
     [pushToast, stopTtsPlayback],
@@ -561,7 +578,9 @@ export function useChatPageController(): ChatPageViewProps {
     const cleaned = rawText.toLowerCase().includes("<think")
       ? thinkingParser.parse(rawText).mainContent
       : rawText;
-    const text = (cleaned || "").trim();
+    const textFull = (cleaned || "").trim();
+    // Call mode should feel responsive; keep TTS short enough to not block the next turn forever.
+    const text = textFull.length > 900 ? `${textFull.slice(0, 900)}...` : textFull;
     if (!text) {
       lastCallSpokenAssistantIdRef.current = lastAssistant.id;
       return;

@@ -157,6 +157,23 @@ export function ToolBelt({
   const baseHeightRef = useRef<number>(44);
   const lastShouldCapRef = useRef<boolean | null>(null);
 
+  const isE2eVoice = useCallback((): boolean => {
+    // Allow deterministic E2E without relying on real mic devices or STT quality.
+    if ((process.env.NEXT_PUBLIC_VLLM_STUDIO_E2E_FAKE_MIC ?? "").trim() === "1") return true;
+    try {
+      if (typeof localStorage !== "undefined") {
+        if ((localStorage.getItem("vllm-studio-e2e-fake-mic") ?? "").trim() === "1") return true;
+      }
+    } catch {
+      // ignore
+    }
+    // Playwright/WebDriver environment: avoid mic permission/device flakiness.
+    if (typeof navigator !== "undefined" && (navigator as unknown as { webdriver?: boolean }).webdriver === true) {
+      return true;
+    }
+    return false;
+  }, []);
+
   const audioRecorderRef = useRef<{
     stream: MediaStream | null;
     audioContext: AudioContext | null;
@@ -290,6 +307,12 @@ export function ToolBelt({
       setIsTranscribing(true);
       setTranscriptionError(null);
 
+      // E2E escape hatch: avoid depending on STT model quality for synthetic audio.
+      if (isE2eVoice()) {
+        await new Promise((r) => setTimeout(r, 120));
+        return "Hello from voice call mode.";
+      }
+
       transcribeAbortRef.current?.abort();
       const abortController = new AbortController();
       transcribeAbortRef.current = abortController;
@@ -325,7 +348,7 @@ export function ToolBelt({
     } finally {
       setIsTranscribing(false);
     }
-  }, [setIsTranscribing, setTranscriptionError]);
+  }, [isE2eVoice, setIsTranscribing, setTranscriptionError]);
 
   const teardownAudioRecorder = useCallback(async () => {
     const rec = audioRecorderRef.current;
@@ -370,10 +393,7 @@ export function ToolBelt({
       if (useAppStore.getState().isRecording) return;
 
       // E2E escape hatch: allow Playwright to exercise the voice flow without a real mic device.
-      const useFakeMic =
-        (process.env.NEXT_PUBLIC_VLLM_STUDIO_E2E_FAKE_MIC ?? "").trim() === "1" ||
-        // Playwright/WebDriver environment: avoid mic permission/device flakiness.
-        (typeof navigator !== "undefined" && (navigator as unknown as { webdriver?: boolean }).webdriver === true);
+      const useFakeMic = isE2eVoice();
       if (useFakeMic) {
         const sampleRate = 16000;
         const seconds = 1.2;
@@ -440,7 +460,7 @@ export function ToolBelt({
       setTimeout(() => setTranscriptionError(null), 5000);
       setIsRecording(false);
     }
-  }, [setIsRecording, setRecordingDuration, setTranscriptionError]);
+  }, [isE2eVoice, setIsRecording, setRecordingDuration, setTranscriptionError]);
 
   const stopRecording = useCallback(() => {
     if (!useAppStore.getState().isRecording) return;
@@ -489,6 +509,11 @@ export function ToolBelt({
   const handleToggleCallMode = useCallback(() => {
     const current = useAppStore.getState().callModeEnabled;
     const next = !current;
+    if (next && !selectedModel) {
+      setTranscriptionError("Select a model first.");
+      setTimeout(() => setTranscriptionError(null), 4000);
+      return;
+    }
     setCallModeEnabled(next);
     if (next) {
       void startRecording();

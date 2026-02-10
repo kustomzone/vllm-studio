@@ -261,6 +261,9 @@ export class ServiceManager {
 
     const existing = this.states.get(id);
     if (existing && (existing.status === "ready" || existing.status === "running") && !existing.last_error) {
+      // Even if a CLI integration is already "ready", ensure lease behavior is enforced on each start attempt.
+      // Otherwise callers may bypass strict lease conflicts after the first successful start.
+      await acquireLeaseIfNeeded();
       return { ...existing };
     }
 

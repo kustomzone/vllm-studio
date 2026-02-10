@@ -162,10 +162,12 @@ export const ToolBeltToolbar = memo(function ToolBeltToolbar({
           {onToggleCallMode && (
             <button
               onClick={onToggleCallMode}
-              disabled={disabled || isTranscribing}
+              disabled={disabled || isTranscribing || !selectedModel}
               className={`flex items-center justify-center p-2 rounded-lg transition-all:ease-in:200ms disabled:opacity-50 ${
                 callModeEnabled ? "bg-white/[0.08] text-[#e8e4dd]" : "hover:bg-(--accent) text-[#9a9590]"
               }`}
+              aria-label="Call mode"
+              aria-pressed={callModeEnabled ? true : false}
               title={callModeEnabled ? "Call mode (on)" : "Call mode"}
             >
               <AudioLines className="h-3.5 w-3.5" />
@@ -231,6 +233,7 @@ export const ToolBeltToolbar = memo(function ToolBeltToolbar({
               value={selectedModel || ""}
               onChange={(e) => onModelChange(e.target.value)}
               disabled={disabled || isLoading}
+              aria-label="Select model"
               className="max-w-[180px] px-2 py-1 font-sans font-medium text-xs bg-transparent border border-(--border) rounded-lg text-[#9a9590] focus:outline-none disabled:opacity-50 truncate appearance-none cursor-pointer hover:border-[#4a4745] transition-colors:ease-in:200ms"
               title={selectedModel || "Select model"}
             >
@@ -314,7 +317,7 @@ export const ToolBeltToolbar = memo(function ToolBeltToolbar({
                   label={callModeEnabled ? "Call mode (on)" : "Call mode"}
                   isActive={Boolean(callModeEnabled)}
                   onClick={onToggleCallMode}
-                  disabled={disabled || isTranscribing}
+                  disabled={disabled || isTranscribing || !selectedModel}
                   closeOnClick
                 />
               )}

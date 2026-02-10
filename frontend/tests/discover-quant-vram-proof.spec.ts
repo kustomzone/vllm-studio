@@ -2,11 +2,13 @@
 import { test, expect } from "@playwright/test";
 
 test("discover: shows VRAM-aware recommendations and quantization hide controls", async ({ page }, testInfo) => {
+  const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+  const origin = new URL(baseUrl).origin;
   const backendUrl = process.env.PLAYWRIGHT_BACKEND_URL ?? "http://127.0.0.1:8080";
   await page.context().addCookies([{
     name: "vllmstudio_backend_url",
     value: backendUrl,
-    url: "http://localhost:3000",
+    url: origin,
   }]);
   await page.addInitScript((url) => {
     window.localStorage.setItem("vllmstudio_backend_url", String(url));

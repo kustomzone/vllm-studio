@@ -44,10 +44,28 @@ curl -sS http://127.0.0.1:8080/config | jq '.runtime.platform'
 echo "[smoketest] models"
 curl -sS http://127.0.0.1:8080/v1/models | jq '.data | map({id,active,max_model_len})'
 
+echo "[smoketest] recipes"
+curl -sS http://127.0.0.1:8080/recipes | jq 'map({id,name,status,backend})'
+
+echo "[smoketest] start llm"
+RECIPE_ID="$(curl -sS http://127.0.0.1:8080/recipes | jq -r '.[0].id // empty')"
+if [[ -z "$RECIPE_ID" ]]; then
+  echo "No recipes returned from /recipes" >&2
+  exit 2
+fi
+curl -sS -X POST 'http://127.0.0.1:8080/services/llm/start?replace=1' -H 'content-type: application/json' \
+  -d "$(jq -nc --arg r "$RECIPE_ID" '{recipe_id:$r}')" \
+  | jq '.service | {id,status,pid,port,runtime,last_error}'
+
 echo "[smoketest] chat"
+MODEL_ID="$(curl -sS http://127.0.0.1:8080/v1/models | jq -r '.data[0].id // empty')"
+if [[ -z "$MODEL_ID" ]]; then
+  echo "No models returned from /v1/models" >&2
+  exit 2
+fi
 curl -sS -X POST http://127.0.0.1:8080/v1/chat/completions -H 'content-type: application/json' \
-  -d '{"model":"llama31-8b","messages":[{"role":"user","content":"Reply with exactly: ok"}],"max_tokens":16,"temperature":0}' \
-  | jq -r '.choices[0].message.content'
+  -d "$(jq -nc --arg m "$MODEL_ID" '{"model":$m,"messages":[{"role":"system","content":"Only output the final answer."},{"role":"user","content":"Reply with exactly: ok"}],"max_tokens":32,"temperature":0}')" \
+  | jq -r '.choices[0].message.content // .choices[0].message.reasoning_content // ""'
 
 echo "[smoketest] tts -> file"
 curl -sS -X POST http://127.0.0.1:8080/v1/audio/speech -H 'content-type: application/json' \
@@ -62,7 +80,7 @@ curl -sS -X POST http://127.0.0.1:8080/v1/audio/transcriptions \
 echo "[smoketest] image (strict should conflict while llm holds lease)"
 curl -sS -X POST http://127.0.0.1:8080/v1/images/generations -H 'content-type: application/json' \
   -d '{"prompt":"a red apple on a wooden table","model":"v1-5-pruned-emaonly.safetensors","width":512,"height":512,"steps":5}' \
-  | jq '.code'
+  | jq '{code,detail}'
 
 echo "[smoketest] image (replace=true will stop llm and run)"
 curl -sS -X POST http://127.0.0.1:8080/v1/images/generations -H 'content-type: application/json' \
@@ -71,7 +89,7 @@ curl -sS -X POST http://127.0.0.1:8080/v1/images/generations -H 'content-type: a
 
 echo "[smoketest] restart llm (replace image lease holder)"
 curl -sS -X POST 'http://127.0.0.1:8080/services/llm/start?replace=1' -H 'content-type: application/json' \
-  -d '{"recipe_id":"llama31-8b-instruct-q4km"}' \
+  -d "$(jq -nc --arg r "$RECIPE_ID" '{recipe_id:$r}')" \
   | jq '.service | {id,status,pid,port,runtime,last_error}'
 
 echo "[smoketest] done"

@@ -289,7 +289,14 @@ export function useChatSendUserMessage({
           const choices = chunk["choices"];
           if (!Array.isArray(choices)) continue;
           const delta = (choices[0] as Record<string, unknown> | undefined)?.["delta"] as Record<string, unknown> | undefined;
-          const content = typeof delta?.["content"] === "string" ? (delta["content"] as string) : "";
+          // Some backends (notably llama.cpp for "thinking" models) may stream `reasoning_content`
+          // with empty `content`. For UX, treat reasoning_content as the visible content when needed.
+          const content =
+            typeof delta?.["content"] === "string" && (delta["content"] as string).length > 0
+              ? (delta["content"] as string)
+              : typeof delta?.["reasoning_content"] === "string"
+                ? (delta["reasoning_content"] as string)
+                : "";
           if (!content) continue;
           assistantText += content;
           setMessages((prev) =>

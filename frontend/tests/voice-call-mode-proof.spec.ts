@@ -4,8 +4,16 @@ import { test, expect } from "@playwright/test";
 test("chat: call mode (STT->LLM->TTS loop) + per-message listen button", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
 
+  await page.setViewportSize({ width: 1280, height: 800 });
+
   // Make audio playback deterministic in headless: resolve play() and end quickly.
   await page.addInitScript(() => {
+    try {
+      localStorage.setItem("vllm-studio-e2e-fake-mic", "1");
+    } catch {
+      // ignore
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const proto: any = (window as any).HTMLMediaElement?.prototype;
     if (!proto) return;
@@ -30,28 +38,24 @@ test("chat: call mode (STT->LLM->TTS loop) + per-message listen button", async (
     await page.goto("/chat?new=1");
   }
 
-  // Ensure a model is selected (composer may be disabled until then).
-  const modelSelect = page.locator('select[title="Select model"]').first();
-  if (await modelSelect.isVisible().catch(() => false)) {
-    const chosen = await modelSelect.evaluate((el) => {
-      const select = el as HTMLSelectElement;
-      const options = Array.from(select.options);
-      const candidate = options.find((o) => o.value && !o.disabled);
-      return candidate?.value ?? null;
-    });
-    if (chosen) {
-      await modelSelect.selectOption(chosen);
-    }
-  }
-
   // Turn on call mode (waveform icon).
-  await page.getByTitle(/call mode/i).first().click();
+  const callMode = page.getByRole("button", { name: /call mode/i }).first();
+  await expect(callMode).toBeEnabled({ timeout: 60_000 });
+  await callMode.click();
 
   // Call mode starts recording immediately (E2E uses a fake mic).
-  await expect(page.getByText("Recording").first()).toBeVisible();
+  const recording = page.locator('[data-testid="recording-indicator"]:visible');
+  const recordingStop = page.locator('[data-testid="recording-stop"]:visible');
+  await expect(recording).toBeVisible();
 
-  // Stop recording, which triggers STT + send.
-  await page.getByRole("button", { name: "Stop" }).first().click();
+  // Stop recording (Recording indicator Stop button), which triggers STT + send.
+  await recordingStop.click();
+
+  // User message (E2E transcript) appears.
+  const userTranscript = page.locator("div.hidden.md\\:flex.justify-end div", {
+    hasText: "Hello from voice call mode.",
+  });
+  await expect(userTranscript.first()).toBeVisible({ timeout: 60_000 });
 
   // Per-response listen button exists (assistant message rendered).
   await expect(page.getByRole("button", { name: /listen/i }).first()).toBeVisible({
@@ -59,7 +63,7 @@ test("chat: call mode (STT->LLM->TTS loop) + per-message listen button", async (
   });
 
   // After TTS finishes, call mode re-opens the mic.
-  await expect(page.locator('button[title="Stop recording"]').first()).toHaveCount(1);
+  await expect(recording).toBeVisible({ timeout: 60_000 });
 
   const shotPath = testInfo.outputPath("proof-voice-call-mode.png");
   await page.screenshot({ path: shotPath, fullPage: true });

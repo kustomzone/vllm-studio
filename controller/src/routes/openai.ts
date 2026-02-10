@@ -236,6 +236,17 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
         for (const choice of choices) {
           const choiceRecord = choice as Record<string, unknown>;
           const message = choiceRecord["message"] as Record<string, unknown> | undefined;
+          // Some backends return "thinking" output under `reasoning_content` with an empty `content`.
+          // For compatibility with OpenAI clients (and our UI), mirror that into `content`.
+          if (
+            message &&
+            typeof message["content"] === "string" &&
+            (message["content"] as string).length === 0 &&
+            typeof message["reasoning_content"] === "string" &&
+            (message["reasoning_content"] as string).trim().length > 0
+          ) {
+            message["content"] = message["reasoning_content"];
+          }
           if (message && normalizeToolCallsInMessage(message)) {
             choiceRecord["finish_reason"] = "tool_calls";
           }

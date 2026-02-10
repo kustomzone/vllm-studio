@@ -1,6 +1,8 @@
 // CRITICAL
 import { test, expect } from "@playwright/test";
 
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+const COOKIE_ORIGIN = new URL(BASE_URL).origin;
 const BACKEND_URL = process.env.PLAYWRIGHT_BACKEND_URL ?? "http://127.0.0.1:8080";
 
 test("chat: multi-step + agent files panel shows file content", async ({ page, request }, testInfo) => {
@@ -9,7 +11,7 @@ test("chat: multi-step + agent files panel shows file content", async ({ page, r
   await page.context().addCookies([{
     name: "vllmstudio_backend_url",
     value: backendOverride,
-    url: "http://localhost:3000",
+    url: COOKIE_ORIGIN,
   }]);
   await page.addInitScript((url) => {
     window.localStorage.setItem("vllmstudio_backend_url", String(url));
@@ -61,8 +63,8 @@ test("chat: multi-step + agent files panel shows file content", async ({ page, r
     await stop.waitFor({ state: "hidden", timeout: 60_000 });
   }
 
-  // Avoid flakiness from virtualization/measurement nodes: assert on the deterministic mock response.
-  await expect(page.getByText("Mock response (no inference):").first()).toBeVisible();
+  // Wait for an assistant response to finish rendering (Listen button appears when content is present).
+  await expect(page.getByRole("button", { name: /listen/i }).first()).toBeVisible({ timeout: 60_000 });
 
   await expect(composer).toBeVisible();
   await composer.fill("Second message: please confirm you can read this.");
@@ -80,7 +82,7 @@ test("chat: multi-step + agent files panel shows file content", async ({ page, r
 
   // Open the right sidebar and switch to Files.
   await page.getByTitle("Show activity").click();
-  await page.getByRole("button", { name: "Files" }).click();
+  await page.getByRole("button", { name: "Files", exact: true }).click();
 
   // Select the file from the sidebar list (the entry includes a size suffix like "30B").
   await page.getByRole("button", { name: /demo\.txt.*\b\d+B\b/i }).first().click();
