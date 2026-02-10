@@ -12,6 +12,7 @@ export async function GET() {
       hasApiKey: Boolean(settings.apiKey),
       voiceUrl: settings.voiceUrl,
       voiceModel: settings.voiceModel,
+      mediaUrl: settings.mediaUrl,
     });
   } catch (error) {
     return NextResponse.json(
@@ -24,7 +25,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { backendUrl, apiKey, voiceUrl, voiceModel } = body as Partial<ApiSettings>;
+    const { backendUrl, apiKey, voiceUrl, voiceModel, mediaUrl } = body as Partial<ApiSettings>;
 
     // Validate URL
     if (backendUrl && !isValidUrl(backendUrl)) {
@@ -33,6 +34,10 @@ export async function POST(request: NextRequest) {
 
     if (voiceUrl && !isValidUrl(voiceUrl)) {
       return NextResponse.json({ error: "Invalid voice URL format" }, { status: 400 });
+    }
+
+    if (mediaUrl && !isValidUrl(mediaUrl)) {
+      return NextResponse.json({ error: "Invalid media URL format" }, { status: 400 });
     }
 
     // Get current settings to preserve unchanged values
@@ -44,6 +49,7 @@ export async function POST(request: NextRequest) {
       apiKey: apiKey && !apiKey.includes("••••") ? apiKey : current.apiKey,
       voiceUrl: voiceUrl || current.voiceUrl,
       voiceModel: voiceModel || current.voiceModel,
+      mediaUrl: mediaUrl || current.mediaUrl,
     };
 
     await saveApiSettings(newSettings);
@@ -55,6 +61,7 @@ export async function POST(request: NextRequest) {
       hasApiKey: Boolean(newSettings.apiKey),
       voiceUrl: newSettings.voiceUrl,
       voiceModel: newSettings.voiceModel,
+      mediaUrl: newSettings.mediaUrl,
     });
   } catch (error) {
     return NextResponse.json(

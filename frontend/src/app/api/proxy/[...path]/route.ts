@@ -58,6 +58,31 @@ function normalizeBackendUrl(value: string | null): string | null {
   }
 }
 
+function resolveTargetBackendUrl(args: {
+  path: string[];
+  settingsBackendUrl: string;
+  settingsMediaUrl: string;
+}): string {
+  const { path, settingsBackendUrl, settingsMediaUrl } = args;
+  const normalizedBackend = normalizeBackendUrl(settingsBackendUrl) ?? "";
+  const normalizedMedia = normalizeBackendUrl(settingsMediaUrl) ?? "";
+
+  // Default: controller backend url.
+  let target = normalizedBackend || settingsBackendUrl;
+
+  // Optional split routing: send media generation to the media backend.
+  // This is the "pipeline parallelism" primitive: keep LLM traffic on one controller and
+  // run image/video generation on another controller to avoid GPU lease contention.
+  if (normalizedMedia && path[0] === "v1") {
+    const kind = path[1] || "";
+    if (kind === "images" || kind === "videos" || kind === "video") {
+      target = normalizedMedia;
+    }
+  }
+
+  return target;
+}
+
 async function handleRequest(request: NextRequest, method: string, path: string[]) {
   const startTime = Date.now();
   const client = getClientInfo(request);
@@ -75,6 +100,11 @@ async function handleRequest(request: NextRequest, method: string, path: string[
     const overrideUrl = overrideHeaderUrl ?? overrideCookieUrl;
     const BACKEND_URL = overrideUrl ?? settings.backendUrl;
     const API_KEY = settings.apiKey;
+    const TARGET_BACKEND_URL = resolveTargetBackendUrl({
+      path,
+      settingsBackendUrl: BACKEND_URL,
+      settingsMediaUrl: settings.mediaUrl,
+    });
 
     const url = new URL(request.url);
     const forwardedParams = new URLSearchParams(url.searchParams);
@@ -82,11 +112,11 @@ async function handleRequest(request: NextRequest, method: string, path: string[
     // Never forward credentials to the controller as query params.
     if (apiKeyQuery) forwardedParams.delete("api_key");
     const searchParams = forwardedParams.toString();
-    const targetUrl = `${BACKEND_URL}/${path.join("/")}${searchParams ? `?${searchParams}` : ""}`;
+    const targetUrl = `${TARGET_BACKEND_URL}/${path.join("/")}${searchParams ? `?${searchParams}` : ""}`;
     const hasAuth = Boolean(request.headers.get("authorization"));
 
     console.log(
-      `[PROXY] ip=${client.ip} | country=${client.country} | method=${method} | path=/${path.join("/")} | backend=${BACKEND_URL} | override=${overrideUrl ? "yes" : "no"} | auth=${hasAuth ? "present" : "none"}`,
+      `[PROXY] ip=${client.ip} | country=${client.country} | method=${method} | path=/${path.join("/")} | backend=${TARGET_BACKEND_URL} | override=${overrideUrl ? "yes" : "no"} | auth=${hasAuth ? "present" : "none"}`,
     );
 
     const headers: HeadersInit = {

@@ -66,6 +66,13 @@ export function ApiConnectionSection({
               onChange={(voiceModel) => onApiSettingsChange({ ...apiSettings, voiceModel })}
             />
 
+            <ApiField
+              label="Media URL (Images/Video)"
+              value={apiSettings.mediaUrl}
+              placeholder="https://media.example.com"
+              onChange={(mediaUrl) => onApiSettingsChange({ ...apiSettings, mediaUrl })}
+            />
+
             <div className="flex items-center justify-between pt-2">
               <div className="flex items-center gap-2">
                 <button
@@ -186,4 +193,3 @@ function ApiStatus({
     </div>
   );
 }
-

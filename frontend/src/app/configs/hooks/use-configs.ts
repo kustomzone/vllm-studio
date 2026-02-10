@@ -15,6 +15,7 @@ export interface ApiConnectionSettings {
   hasApiKey: boolean;
   voiceUrl: string;
   voiceModel: string;
+  mediaUrl: string;
 }
 
 export type ConnectionStatus = "unknown" | "connected" | "error";
@@ -30,6 +31,7 @@ const DEFAULT_API_SETTINGS: ApiConnectionSettings = {
   hasApiKey: false,
   voiceUrl: "",
   voiceModel: "whisper-large-v3-turbo",
+  mediaUrl: "",
 };
 
 const mergeApiSettings = (server?: Partial<ApiConnectionSettings>): ApiConnectionSettings => {
@@ -42,6 +44,7 @@ const mergeApiSettings = (server?: Partial<ApiConnectionSettings>): ApiConnectio
     hasApiKey: Boolean(localApiKey) || Boolean(server?.hasApiKey),
     voiceUrl: server?.voiceUrl || DEFAULT_API_SETTINGS.voiceUrl,
     voiceModel: server?.voiceModel || DEFAULT_API_SETTINGS.voiceModel,
+    mediaUrl: server?.mediaUrl || DEFAULT_API_SETTINGS.mediaUrl,
   };
 };
 
@@ -175,6 +178,7 @@ export function useConfigs() {
           apiKey: apiSettings.apiKey,
           voiceUrl: apiSettings.voiceUrl,
           voiceModel: apiSettings.voiceModel,
+          mediaUrl: apiSettings.mediaUrl,
         }),
       });
       if (res.ok) {

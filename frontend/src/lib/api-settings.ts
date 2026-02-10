@@ -9,6 +9,7 @@ export interface ApiSettings {
   apiKey: string;
   voiceUrl: string;
   voiceModel: string;
+  mediaUrl: string;
 }
 
 const DEFAULT_BACKEND_URL =
@@ -22,6 +23,7 @@ const DEFAULT_SETTINGS: ApiSettings = {
   apiKey: process.env.API_KEY || "",
   voiceUrl: process.env.VOICE_URL || process.env.NEXT_PUBLIC_VOICE_URL || "",
   voiceModel: process.env.VOICE_MODEL || process.env.NEXT_PUBLIC_VOICE_MODEL || "whisper-large-v3-turbo",
+  mediaUrl: process.env.MEDIA_URL || process.env.NEXT_PUBLIC_MEDIA_URL || "",
 };
 
 const SETTINGS_FILENAME = "api-settings.json";
@@ -81,6 +83,7 @@ export async function getApiSettings(): Promise<ApiSettings> {
         apiKey: saved.apiKey || DEFAULT_SETTINGS.apiKey,
         voiceUrl: saved.voiceUrl || DEFAULT_SETTINGS.voiceUrl,
         voiceModel: saved.voiceModel || DEFAULT_SETTINGS.voiceModel,
+        mediaUrl: saved.mediaUrl || DEFAULT_SETTINGS.mediaUrl,
       };
     }
   } catch (error) {

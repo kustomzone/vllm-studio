@@ -7,6 +7,7 @@ const baseSettings: ApiSettings = {
   apiKey: "",
   voiceUrl: "",
   voiceModel: "whisper-large-v3-turbo",
+  mediaUrl: "",
 };
 
 describe("voice-target", () => {
@@ -54,4 +55,3 @@ describe("voice-target", () => {
     ).toBe(false);
   });
 });
-
