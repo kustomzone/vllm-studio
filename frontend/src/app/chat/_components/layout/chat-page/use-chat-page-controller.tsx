@@ -561,7 +561,8 @@ export function useChatPageController(): ChatPageViewProps {
   // Call mode: speak the newest assistant response, then re-open the mic for the next turn.
   useEffect(() => {
     if (!callModeEnabled) {
-      stopTtsPlayback();
+      // Avoid synchronous setState inside an effect (eslint react-hooks/set-state-in-effect).
+      queueMicrotask(() => stopTtsPlayback());
       lastCallSpokenAssistantIdRef.current = null;
       return;
     }

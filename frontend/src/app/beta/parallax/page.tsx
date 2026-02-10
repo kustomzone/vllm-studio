@@ -12,6 +12,7 @@ type ParallaxPayloadV1 = {
   model_id: string;
   served_model_name?: string;
   pipeline_parallel?: "auto" | number;
+  rpc_workers?: string;
 };
 
 const encodePayload = (payload: ParallaxPayloadV1): string => {
@@ -33,6 +34,7 @@ export default function ParallaxBetaPage() {
   const [localModel, setLocalModel] = useState<string>("");
   const [hfModel, setHfModel] = useState<string>("meta-llama/Meta-Llama-3.1-8B-Instruct");
   const [servedName, setServedName] = useState<string>("");
+  const [rpcWorkers, setRpcWorkers] = useState<string>("");
   const [shareUrl, setShareUrl] = useState<string>("");
   const [status, setStatus] = useState<string>("");
 
@@ -61,14 +63,16 @@ export default function ParallaxBetaPage() {
   const payload = useMemo<ParallaxPayloadV1>(() => {
     const model_id = source === "local" ? localModel : hfModel.trim();
     const served_model_name = servedName.trim() || undefined;
+    const rpc_workers = rpcWorkers.trim() || undefined;
     return {
       v: 1,
       source,
       model_id,
       served_model_name,
       pipeline_parallel: "auto",
+      rpc_workers,
     };
-  }, [hfModel, localModel, servedName, source]);
+  }, [hfModel, localModel, rpcWorkers, servedName, source]);
 
   const canCreate = Boolean(enabled && payload.model_id.trim());
 
@@ -188,10 +192,26 @@ export default function ParallaxBetaPage() {
             />
           </div>
 
+          <div>
+            <label className="block text-xs uppercase tracking-wider text-[#9a9590] mb-2">
+              RPC Workers (Optional)
+            </label>
+            <input
+              value={rpcWorkers}
+              onChange={(e) => setRpcWorkers(e.target.value)}
+              placeholder="host:port[,host:port]"
+              className="w-full h-10 px-3 bg-black/20 border border-white/10 rounded-lg text-sm focus:outline-none"
+            />
+            <p className="text-xs text-[#9a9590] mt-2">
+              For llama.cpp RPC-style cross-host pipeline splits (Parallax-like).
+            </p>
+          </div>
+
           <div className="rounded-lg border border-white/10 bg-black/20 px-4 py-3">
             <div className="text-xs uppercase tracking-wider text-[#9a9590] mb-2">Defaults</div>
             <div className="text-sm text-[#cfcac2]">
               <div>Pipeline parallelism: auto</div>
+              <div>RPC workers: {payload.rpc_workers ?? "(none)"}</div>
               <div>Scheduling: managed by controller services</div>
             </div>
           </div>
@@ -233,4 +253,3 @@ export default function ParallaxBetaPage() {
     </div>
   );
 }
-

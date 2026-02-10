@@ -13,6 +13,7 @@ type ParallaxPayloadV1 = {
   model_id: string;
   served_model_name?: string;
   pipeline_parallel?: "auto" | number;
+  rpc_workers?: string;
 };
 
 const decodePayload = (token: string): ParallaxPayloadV1 | null => {
@@ -99,6 +100,7 @@ export default function ParallaxSharePage() {
             <div>Model: {payload.model_id}</div>
             <div>Served name: {payload.served_model_name ?? "(default)"}</div>
             <div>Pipeline parallelism: {payload.pipeline_parallel ?? "auto"}</div>
+            <div>RPC workers: {payload.rpc_workers ?? "(none)"}</div>
           </div>
 
           <div className="mt-5 flex items-center gap-3">
@@ -116,4 +118,3 @@ export default function ParallaxSharePage() {
     </div>
   );
 }
-

@@ -35,10 +35,10 @@ export function ChatSettingsModal({
   deepResearch,
   onDeepResearchChange,
 }: ChatSettingsModalProps) {
-  if (!isOpen) return null;
-
   const [vlmEnabled, setVlmEnabled] = useState<boolean>(() => isVlmAttachmentsEnabled());
   const [parallaxEnabled, setParallaxEnabledState] = useState<boolean>(() => isParallaxEnabled());
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">

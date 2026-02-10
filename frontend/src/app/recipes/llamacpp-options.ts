@@ -214,6 +214,16 @@ export const LLAMACPP_OPTIONS: LlamacppOption[] = [
     placeholder: "1,1,1,1",
   },
   {
+    // llama.cpp RPC: connect llama-server to one or more rpc-server workers.
+    // Common format: --rpc host:port[,host:port]
+    key: "rpc",
+    label: "RPC Workers",
+    type: "text",
+    tab: "resources",
+    placeholder: "host:port[,host:port]",
+    description: "Connect to remote llama.cpp rpc-server workers for cross-host pipeline splitting.",
+  },
+  {
     key: "main-gpu",
     label: "Main GPU",
     type: "number",
