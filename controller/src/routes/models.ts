@@ -51,8 +51,13 @@ export const registerModelsRoutes = (app: Hono, context: AppContext): void => {
       let isActive = false;
       let maxModelLength = recipe.max_model_len;
       if (current) {
-        if (current.served_model_name && recipe.served_model_name === current.served_model_name) {
-          isActive = true;
+        if (current.served_model_name) {
+          // Some backends (e.g. llama.cpp) don't always populate `served_model_name` in recipes.
+          // In those cases the recipe `id` is the served model name we started the process with.
+          const recipeServedName = recipe.served_model_name ?? recipe.id;
+          if (recipeServedName === current.served_model_name) {
+            isActive = true;
+          }
         } else if (current.model_path) {
           if (recipe.model_path.includes(current.model_path) || current.model_path.includes(recipe.model_path)) {
             isActive = true;
@@ -114,8 +119,15 @@ export const registerModelsRoutes = (app: Hono, context: AppContext): void => {
     const current = await context.processManager.findInferenceProcess(context.config.inference_port);
     let isActive = false;
     let maxModelLength = recipe.max_model_len;
-    if (current && current.model_path && recipe.model_path && current.model_path.includes(recipe.model_path)) {
-      isActive = true;
+    if (current) {
+      const recipeServedName = recipe.served_model_name ?? recipe.id;
+      if (current.served_model_name && recipeServedName === current.served_model_name) {
+        isActive = true;
+      } else if (current.model_path && recipe.model_path && current.model_path.includes(recipe.model_path)) {
+        isActive = true;
+      }
+    }
+    if (current && isActive) {
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 5000);
