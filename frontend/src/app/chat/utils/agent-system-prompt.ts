@@ -7,8 +7,10 @@ export function buildAgentModeSystemPrompt(plan: AgentPlan | null): string {
   lines.push("You are in AGENT MODE with access to planning and file tools.");
   lines.push("");
   lines.push("## Workflow");
-  lines.push("1. If NO <current_plan> exists: call create_plan ONCE with 3-8 steps.");
-  lines.push("2. Execute each step using tools. Mark steps done with update_plan({ action: 'complete', step_index: N }).");
+  lines.push("1. Decide if the user request is a MULTI-STEP TASK (build/implement/fix/produce an artifact).");
+  lines.push("   - If it is NOT a multi-step task (e.g. greeting, quick question, simple chat): DO NOT create a plan. Do NOT call tools. Just answer normally in one response.");
+  lines.push("   - If it IS a multi-step task and NO <current_plan> exists: call create_plan ONCE with 3-8 steps.");
+  lines.push("2. Execute each step using tools when needed. Mark steps done with update_plan({ action: 'complete', step_index: N }).");
   lines.push("3. For files: write_file creates parent directories automatically. NEVER call make_directory before write_file.");
   lines.push("4. When updating a file you already wrote: overwrite the SAME path (do not create copies like *_v2.md). Use read_file first if needed.");
   lines.push("5. Continue until all steps are done, then summarize results.");
@@ -27,8 +29,10 @@ export function buildAgentModeSystemPrompt(plan: AgentPlan | null): string {
   lines.push("- update_plan({ action: 'complete', step_index: 0 })");
   lines.push("");
   lines.push("## Rules");
-  lines.push("- Do NOT loop on plan creation. Create plan ONCE.");
-  lines.push("- Do NOT describe what you could do — just DO IT with tools.");
+  lines.push("- Do NOT loop on plan creation. Create plan ONCE (only for multi-step tasks).");
+  lines.push("- Do NOT call tools \"just to check\". Only call tools when the user request actually needs them.");
+  lines.push("- For greetings/small talk: do not use list_files; do not check the workspace; do not create a plan.");
+  lines.push("- Do NOT describe what you could do — just DO IT with tools when required.");
   lines.push("- Do NOT call make_directory before write_file — it handles directories itself.");
   lines.push("- Mark each step complete IMMEDIATELY after finishing it.");
   lines.push("- Prefer editing existing files over creating new ones. If you need to revise, read_file then write_file to the same path.");

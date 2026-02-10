@@ -1,6 +1,7 @@
 // CRITICAL
 import { existsSync, readdirSync, readFileSync, mkdirSync } from "node:fs";
 import { basename, join } from "node:path";
+import os from "node:os";
 import { resolveBinary, runCommand } from "../../command/command-utilities";
 import { runCli } from "../cli/cli-runner";
 import type { SttAdapter, SttBackend } from "./types";
@@ -111,11 +112,32 @@ export class WhisperCppAdapter implements SttAdapter {
     ensureDirectory(outputDirectory);
     const prefix = join(outputDirectory, `transcript-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
+    const threadsEnv = Number.parseInt((process.env["VLLM_STUDIO_STT_THREADS"] || "").trim(), 10);
+    const threadsDefault = Math.min(16, Math.max(1, os.cpus()?.length ?? 4));
+    const threads = Number.isFinite(threadsEnv) && threadsEnv > 0 ? threadsEnv : threadsDefault;
+
+    const fast =
+      (process.env["VLLM_STUDIO_STT_FAST"] ?? "1").trim() !== "0" &&
+      (process.env["VLLM_STUDIO_STT_FAST"] ?? "1").trim().toLowerCase() !== "false";
+
+    const vad =
+      (process.env["VLLM_STUDIO_STT_VAD"] ?? "1").trim() !== "0" &&
+      (process.env["VLLM_STUDIO_STT_VAD"] ?? "1").trim().toLowerCase() !== "false";
+
+    const vadMaxSpeechEnv = Number.parseFloat((process.env["VLLM_STUDIO_STT_VAD_MAX_SPEECH_S"] || "").trim());
+    const vadMaxSpeechS =
+      Number.isFinite(vadMaxSpeechEnv) && vadMaxSpeechEnv > 0 ? vadMaxSpeechEnv : 15;
+
     const cliArguments: string[] = [
       "-m",
       args.modelPath,
       "-f",
       args.audioPath,
+      "-t",
+      String(threads),
+      // For interactive STT, timestamps and extra prints slow things down and aren't needed.
+      "-nt",
+      "-np",
       "-otxt",
       "-of",
       prefix,
@@ -124,8 +146,33 @@ export class WhisperCppAdapter implements SttAdapter {
       // whisper.cpp uses -l for language code on some builds.
       cliArguments.push("-l", args.language);
     }
+    if (fast) {
+      // Prioritize latency. (Greedy decoding behaves like beam_size=1 and best_of=1.)
+      cliArguments.push("-bs", "1", "-bo", "1");
+    }
+    if (vad) {
+      cliArguments.push("--vad", "--vad-max-speech-duration-s", String(vadMaxSpeechS));
+    }
 
-    const result = await runCli(cli, cliArguments, { timeoutMs: 300_000 });
+    const tryRun = async (argv: string[]): Promise<Awaited<ReturnType<typeof runCli>>> => {
+      // Tighten timeout so we fail fast instead of "hanging forever" on misconfigured models.
+      const timeoutMsEnv = Number.parseInt((process.env["VLLM_STUDIO_STT_TIMEOUT_MS"] || "").trim(), 10);
+      const timeoutMs = Number.isFinite(timeoutMsEnv) && timeoutMsEnv > 0 ? timeoutMsEnv : 90_000;
+      return await runCli(cli, argv, { timeoutMs });
+    };
+
+    // Some whisper.cpp builds vary; if a flag is unknown, fall back to a minimal invocation.
+    let result = await tryRun(cliArguments);
+    if (result.exitCode !== 0) {
+      const details = (result.stderr || result.stdout || "").toLowerCase();
+      const looksLikeUnknownArg =
+        details.includes("unknown argument") || details.includes("unknown option") || details.includes("unrecognized option");
+      if (looksLikeUnknownArg) {
+        const minimal = ["-m", args.modelPath, "-f", args.audioPath, "-otxt", "-of", prefix];
+        if (args.language) minimal.push("-l", args.language);
+        result = await tryRun(minimal);
+      }
+    }
     if (result.exitCode !== 0) {
       const details = result.stderr || result.stdout || "unknown error";
       throw new Error(`STT failed: ${details}`);

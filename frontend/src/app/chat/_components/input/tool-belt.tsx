@@ -485,8 +485,18 @@ export function ToolBelt({
         setInput("");
         return;
       }
+      // Non-call-mode voice input:
+      // - If the user already typed something, append the transcript.
+      // - If the composer is empty, treat voice as push-to-talk and send immediately (no extra click).
       const currentInput = useAppStore.getState().input;
-      setInput(currentInput ? `${currentInput} ${transcript}` : transcript);
+      const trimmed = currentInput.trim();
+      const currentAttachments = useAppStore.getState().attachments;
+      if (!trimmed && currentAttachments.length === 0) {
+        onSubmit(transcript);
+        setInput("");
+        return;
+      }
+      setInput(trimmed ? `${currentInput} ${transcript}` : transcript);
       textareaRef.current?.focus();
     };
 
