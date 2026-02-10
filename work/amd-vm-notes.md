@@ -22,4 +22,8 @@ All 7 integration tests pass with proof screenshots + videos:
 - `frontend/test-results/**/video.webm`
 
 ## Cost control
-When you’re finished, deprovision the HotAisle VM (`enc1-gpuvm019`) to avoid ongoing GPU charges.
+When you’re finished, deprovision any HotAisle VMs to avoid ongoing GPU charges.
+
+Deprovision action taken (Feb 10, 2026):
+- Deleted `enc1-gpuvm010`
+- Deleted `enc1-gpuvm019`
