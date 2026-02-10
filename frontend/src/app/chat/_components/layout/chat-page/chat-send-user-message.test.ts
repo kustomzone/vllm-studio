@@ -7,7 +7,9 @@ import { useChatSendUserMessage } from "./chat-send-user-message";
 
 const apiMock = vi.hoisted(() => ({
   writeAgentFile: vi.fn(async () => ({ success: true })),
-  streamOpenAIChatCompletions: vi.fn(async () => ({ stream: (async function* () {})() })),
+  streamOpenAIChatCompletions: vi.fn(async (_payload: Record<string, unknown>) => ({
+    stream: (async function* () {})(),
+  })),
   addChatMessage: vi.fn(async () => ({})),
 }));
 
@@ -54,7 +56,7 @@ describe("useChatSendUserMessage VLM routing", () => {
     const messagesState: { value: ChatMessage[] } = { value: [] };
     const messagesRef = { current: messagesState.value };
 
-    const startRunStream = vi.fn(async () => undefined);
+    const startRunStream = vi.fn(async (_sessionId: string, _payload: Record<string, unknown>) => undefined);
 
     function Harness() {
       const { sendUserMessage } = useChatSendUserMessage({
@@ -120,7 +122,7 @@ describe("useChatSendUserMessage VLM routing", () => {
     const messagesState: { value: ChatMessage[] } = { value: [] };
     const messagesRef = { current: messagesState.value };
 
-    const startRunStream = vi.fn(async () => undefined);
+    const startRunStream = vi.fn(async (_sessionId: string, _payload: Record<string, unknown>) => undefined);
 
     function Harness() {
       const { sendUserMessage } = useChatSendUserMessage({
@@ -189,7 +191,7 @@ describe("useChatSendUserMessage VLM routing", () => {
         yield { choices: [{ delta: { content: "ok" } }] };
         yield { choices: [{ delta: {} }] };
       }
-      return { stream: gen() };
+      return { stream: gen() as unknown as AsyncGenerator<never, void, unknown> };
     });
 
     const sendRef: { current: ((text: string, attachments?: Attachment[]) => Promise<void>) | null } = {
@@ -199,7 +201,7 @@ describe("useChatSendUserMessage VLM routing", () => {
     const messagesState: { value: ChatMessage[] } = { value: [] };
     const messagesRef = { current: messagesState.value };
 
-    const startRunStream = vi.fn(async () => undefined);
+    const startRunStream = vi.fn(async (_sessionId: string, _payload: Record<string, unknown>) => undefined);
 
     function Harness() {
       const { sendUserMessage } = useChatSendUserMessage({

@@ -11,6 +11,7 @@ import type { Attachment, ModelOption } from "../../types";
 import { useAppStore } from "@/store";
 import { useShallow } from "zustand/react/shallow";
 import { encodeChunksToWav } from "@/lib/audio/wav";
+import { decodeAudioBlobToMonoSamples } from "@/lib/audio/decode";
 
 function maybeRevokeObjectUrl(url: string | undefined) {
   if (!url) return;
@@ -193,6 +194,8 @@ export function ToolBelt({
     fakeSampleRate: 48000,
   });
 
+  const lastVoiceSubmitRef = useRef<{ text: string; at: number } | null>(null);
+
   // Keep the transcript from disappearing under the fixed mobile composer by exposing its height as a CSS var.
   useEffect(() => {
     const node = rootRef.current;
@@ -304,6 +307,7 @@ export function ToolBelt({
   );
 
   const transcribeAudio = useCallback(async (audioBlob: Blob, fileName: string): Promise<string | null> => {
+    let timeout: ReturnType<typeof setTimeout> | null = null;
     try {
       setIsTranscribing(true);
       setTranscriptionError(null);
@@ -317,9 +321,23 @@ export function ToolBelt({
       transcribeAbortRef.current?.abort();
       const abortController = new AbortController();
       transcribeAbortRef.current = abortController;
+      const timeoutMs = 45_000;
+      timeout = setTimeout(() => {
+        try {
+          abortController.abort();
+        } catch {
+          // ignore
+        }
+      }, timeoutMs);
 
       const formData = new FormData();
       formData.append("file", audioBlob, fileName);
+      // Call mode should feel like a phone call: prefer getting STT done on GPU
+      // even if another service is currently holding the lease.
+      if (useAppStore.getState().callModeEnabled) {
+        formData.append("mode", "best_effort");
+        formData.append("replace", "1");
+      }
 
       const response = await fetch("/api/voice/transcribe", {
         method: "POST",
@@ -347,6 +365,7 @@ export function ToolBelt({
       setTimeout(() => setTranscriptionError(null), 5000);
       return null;
     } finally {
+      if (timeout) clearTimeout(timeout);
       setIsTranscribing(false);
     }
   }, [isE2eVoice, setIsTranscribing, setTranscriptionError]);
@@ -477,6 +496,13 @@ export function ToolBelt({
     const consumeTranscript = (transcriptRaw: string) => {
       const transcript = transcriptRaw.trim();
       if (!transcript) return;
+      const now = Date.now();
+      const last = lastVoiceSubmitRef.current;
+      if (last && last.text === transcript && now - last.at < 2500) {
+        // Guard against accidental double-submits.
+        return;
+      }
+      lastVoiceSubmitRef.current = { text: transcript, at: now };
       if (useAppStore.getState().callModeEnabled) {
         const currentAttachments = useAppStore.getState().attachments;
         onSubmit(transcript, currentAttachments.length > 0 ? [...currentAttachments] : undefined);
@@ -512,7 +538,9 @@ export function ToolBelt({
           inputSampleRate: sampleRate,
           targetSampleRate: 16000,
         });
-        const audioBlob = new Blob([wavBytes], { type: "audio/wav" });
+        // Ensure this is backed by an ArrayBuffer (not a SharedArrayBuffer-like) for TS + Blob typing.
+        const wavCopy = new Uint8Array(wavBytes);
+        const audioBlob = new Blob([wavCopy], { type: "audio/wav" });
         const transcript = await transcribeAudio(audioBlob, "recording.wav");
         if (!transcript) return;
         consumeTranscript(transcript);
@@ -531,8 +559,28 @@ export function ToolBelt({
         void (async () => {
           await teardownAudioRecorder();
           if (!parts.length) return;
-          const audioBlob = new Blob(parts, { type: mime });
-          const transcript = await transcribeAudio(audioBlob, fileName);
+          // Try to decode MediaRecorder output and re-encode to WAV client-side.
+          // This avoids server-side ffmpeg transcoding and improves latency.
+          const recordedBlob = new Blob(parts, { type: mime });
+          let audioBlob: Blob = recordedBlob;
+          let sendName = fileName;
+          try {
+            const decoded = await decodeAudioBlobToMonoSamples(recordedBlob);
+            if (decoded) {
+              const { wavBytes } = encodeChunksToWav({
+                chunks: [decoded.samples],
+                inputSampleRate: decoded.sampleRate,
+                targetSampleRate: 16000,
+              });
+              const wavCopy = new Uint8Array(wavBytes);
+              audioBlob = new Blob([wavCopy], { type: "audio/wav" });
+              sendName = "recording.wav";
+            }
+          } catch {
+            // ignore; fall back to original blob
+          }
+
+          const transcript = await transcribeAudio(audioBlob, sendName);
           if (!transcript) return;
           consumeTranscript(transcript);
         })();

@@ -106,7 +106,7 @@ if [ ! -x /usr/local/bin/piper ]; then
   sudo -n tee /usr/local/bin/piper >/dev/null <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-export LD_LIBRARY_PATH="/opt/piper:${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="/opt/piper:\${LD_LIBRARY_PATH:-}"
 exec /opt/piper/piper "$@"
 EOF
   sudo -n chmod +x /usr/local/bin/piper
@@ -207,7 +207,7 @@ JSON
 curl -sS -X POST http://127.0.0.1:8080/recipes -H 'content-type: application/json' --data-binary @/tmp/glm-recipe.json >/dev/null || true
 
 echo "[amd-setup] start LLM service (GLM)"
-curl -sS -X POST http://127.0.0.1:8080/services/llm/start -H 'content-type: application/json' -d '{"recipe_id":"glm-4.7-flash-q8_0-llamacpp-rocm"}' | jq '.service | {id,status,runtime,port,pid,last_error}'
+curl -sS -X POST 'http://127.0.0.1:8080/services/llm/start?replace=1' -H 'content-type: application/json' -d '{"recipe_id":"glm-4.7-flash-q8_0-llamacpp-rocm"}' | jq '.service | {id,status,runtime,port,pid,last_error}'
 
 echo "[amd-setup] quick smoke (direct llama.cpp OpenAI endpoint)"
 curl -sS -X POST http://127.0.0.1:8000/v1/chat/completions -H 'content-type: application/json' \

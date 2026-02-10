@@ -253,10 +253,21 @@ def ltx_video():
     record(name, False, error=traceback.format_exc()[-2000:])
 
 def ace_step():
-  name = "ACE-Step/ACE-Step-v1-3.5B"
-  model_dir = MODELS_DIR / "music" / "ACE-Step-v1-3.5B"
-  if not model_dir.exists():
-    record(name, False, error=f"missing model dir: {model_dir}")
+  name = "ACE-Step/Ace-Step1"
+  candidates = [
+    ("Ace-Step1", MODELS_DIR / "music" / "Ace-Step1"),
+    ("Ace-Step1.5", MODELS_DIR / "music" / "Ace-Step1.5"),
+    ("ACE-Step-v1-3.5B", MODELS_DIR / "music" / "ACE-Step-v1-3.5B"),
+  ]
+  model_dir = None
+  used = None
+  for label, d in candidates:
+    if (d / "model_index.json").exists():
+      model_dir = d
+      used = label
+      break
+  if model_dir is None:
+    record(name, False, error="No ACE-Step diffusers repo found (missing model_index.json). Tried: " + ", ".join([c[0] for c in candidates]))
     return
   try:
     import torch
@@ -295,7 +306,7 @@ def ace_step():
     arr = np.array(audio[0]).astype(np.float32)
     out_path = ART_DIR / "ace-step-output.wav"
     write_wav(out_path, arr, int(sr))
-    record(name, True, output=str(out_path))
+    record(name, True, output=str(out_path), note=f"used_dir={used}")
   except Exception:
     record(name, False, error=traceback.format_exc()[-2000:])
 

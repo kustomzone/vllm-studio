@@ -38,7 +38,8 @@ export async function POST(request: NextRequest) {
   try {
     if ((process.env.VLLM_STUDIO_MOCK_VOICE ?? "").trim() === "1") {
       const bytes = buildSilentWav({ durationMs: 650 });
-      return new NextResponse(bytes, {
+      const body = new Blob([new Uint8Array(bytes)], { type: "audio/wav" });
+      return new NextResponse(body, {
         status: 200,
         headers: {
           "Content-Type": "audio/wav",
