@@ -307,6 +307,7 @@ const appendLlamacppArguments = (command: string[], extraArguments: Record<strin
     "cuda_visible_devices",
     "hip_visible_devices",
     "rocr_visible_devices",
+    "llama_bin",
     "description",
     "tags",
     "status",
