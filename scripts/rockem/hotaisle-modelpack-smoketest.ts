@@ -104,14 +104,34 @@ snapshot_download(repo_id="nvidia/parakeet-tdt-0.6b-v3", local_dir=dst, local_di
 print("downloaded:", dst)
 PY
 
-echo "[modelpack] download: Stable Video Diffusion img2vid (popular + reasonably sized)"
+echo "[modelpack] download: video model (popular; best effort, avoid gated repos)"
 python - <<'PY'
 from huggingface_hub import snapshot_download
 import os
-dst = os.path.join(os.environ.get("MODELS_DIR","/models"), "video", "stable-video-diffusion-img2vid")
-os.makedirs(dst, exist_ok=True)
-snapshot_download(repo_id="stabilityai/stable-video-diffusion-img2vid-xt-1-1", local_dir=dst, local_dir_use_symlinks=False)
-print("downloaded:", dst)
+
+root = os.environ.get("MODELS_DIR", "/models")
+os.makedirs(os.path.join(root, "video"), exist_ok=True)
+
+# Many video repos are gated; we try a few common public options.
+candidates = [
+  "Lightricks/LTX-Video",
+  "THUDM/CogVideoX-2b",
+  "damo-vilab/text-to-video-ms-1.7b",
+  "cerspense/zeroscope_v2_576w",
+]
+
+last_err = None
+for repo_id in candidates:
+  try:
+    dst = os.path.join(root, "video", repo_id.split("/")[-1])
+    os.makedirs(dst, exist_ok=True)
+    snapshot_download(repo_id=repo_id, local_dir=dst, local_dir_use_symlinks=False)
+    print("downloaded:", repo_id, "->", dst)
+    break
+  except Exception as e:
+    last_err = e
+else:
+  raise RuntimeError(f"Failed to download any video repo. Last error: {last_err}")
 PY
 
 echo "[modelpack] NOTE: inference for these models requires a ROCm-capable torch stack."
@@ -121,9 +141,9 @@ import os, pathlib
 root = pathlib.Path(os.environ.get("MODELS_DIR","/models"))
 paths = [
   root / "image-edit" / "Qwen-Image-Edit-2509",
-  root / "music" / "Ace-Step1",
+  root / "music",
   root / "stt" / "parakeet-tdt-0.6b-v3",
-  root / "video" / "stable-video-diffusion-img2vid",
+  root / "video",
 ]
 for p in paths:
   print("exists", str(p), p.exists())
