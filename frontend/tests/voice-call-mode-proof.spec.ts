@@ -76,11 +76,11 @@ test("chat: call mode (STT->LLM->TTS loop) + per-message listen button", async (
 
   // Call mode starts recording immediately (E2E uses a fake mic).
   const recording = page.locator('[data-testid="recording-indicator"]:visible');
-  const recordingStop = page.locator('[data-testid="recording-stop"]:visible');
   await expect(recording).toBeVisible();
 
-  // Stop recording (Recording indicator Stop button), which triggers STT + send.
-  await recordingStop.click();
+  // Hands-free behavior: stop automatically (silence detector / E2E auto-stop),
+  // which triggers STT + send without the user clicking "Stop".
+  await expect(recording).toBeHidden({ timeout: 15_000 });
 
   // User message (E2E transcript) appears.
   const userTranscript = page.locator("div.hidden.md\\:flex.justify-end div", {

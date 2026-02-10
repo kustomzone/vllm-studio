@@ -128,7 +128,10 @@ const writeSettings = (args: { backendUrl: string; voiceUrl: string; mediaUrl: s
         backendUrl: args.backendUrl,
         apiKey: "",
         voiceUrl: args.voiceUrl,
-        voiceModel: "whisper-large-v3-turbo",
+        // When VOICE_URL points at a vLLM Studio controller (as it does in this split runner),
+        // the STT "model" must be a local filename inside /models/stt on that controller.
+        // (e.g. the HIP-built whisper.cpp model from the HotAisle AMD setup script).
+        voiceModel: "ggml-large-v3.bin",
         mediaUrl: args.mediaUrl,
       },
       null,

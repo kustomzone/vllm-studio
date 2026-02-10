@@ -181,6 +181,15 @@ export function ToolBelt({
     mediaRecorder: MediaRecorder | null;
     mediaChunks: BlobPart[];
     mimeType: string | null;
+    // Call-mode "hands free" recording: monitor mic volume to auto-stop on silence.
+    audioCtx: AudioContext | null;
+    analyser: AnalyserNode | null;
+    monitorRaf: number | null;
+    monitorBuffer: Uint8Array<ArrayBuffer> | null;
+    monitorStartedAt: number | null;
+    monitorLastLoudAt: number | null;
+    monitorSawSpeech: boolean;
+    fakeAutoStopTimer: number | null;
     // Fake recording state
     fakeChunks: Float32Array[];
     fakeSampleRate: number;
@@ -190,11 +199,22 @@ export function ToolBelt({
     mediaRecorder: null,
     mediaChunks: [],
     mimeType: null,
+    audioCtx: null,
+    analyser: null,
+    monitorRaf: null,
+    monitorBuffer: null,
+    monitorStartedAt: null,
+    monitorLastLoudAt: null,
+    monitorSawSpeech: false,
+    fakeAutoStopTimer: null,
     fakeChunks: [],
     fakeSampleRate: 48000,
   });
 
   const lastVoiceSubmitRef = useRef<{ text: string; at: number } | null>(null);
+  const recordingIdCounterRef = useRef<number>(0);
+  const activeRecordingIdRef = useRef<number | null>(null);
+  const stoppingRecordingIdRef = useRef<number | null>(null);
 
   // Keep the transcript from disappearing under the fixed mobile composer by exposing its height as a CSS var.
   useEffect(() => {
@@ -377,6 +397,36 @@ export function ToolBelt({
     } catch {
       // ignore
     }
+    if (rec.monitorRaf != null) {
+      try {
+        cancelAnimationFrame(rec.monitorRaf);
+      } catch {
+        // ignore
+      }
+      rec.monitorRaf = null;
+    }
+    if (rec.fakeAutoStopTimer != null) {
+      try {
+        window.clearTimeout(rec.fakeAutoStopTimer);
+      } catch {
+        // ignore
+      }
+      rec.fakeAutoStopTimer = null;
+    }
+    if (rec.analyser) {
+      try {
+        rec.analyser.disconnect();
+      } catch {
+        // ignore
+      }
+    }
+    if (rec.audioCtx) {
+      try {
+        await rec.audioCtx.close();
+      } catch {
+        // ignore
+      }
+    }
     if (rec.stream) {
       try {
         rec.stream.getTracks().forEach((track) => track.stop());
@@ -388,103 +438,24 @@ export function ToolBelt({
     rec.stream = null;
     rec.mediaChunks = [];
     rec.mimeType = null;
+    rec.audioCtx = null;
+    rec.analyser = null;
+    rec.monitorBuffer = null;
+    rec.monitorStartedAt = null;
+    rec.monitorLastLoudAt = null;
+    rec.monitorSawSpeech = false;
     rec.fakeChunks = [];
     rec.mode = "idle";
   }, []);
 
-  const startRecording = useCallback(async (): Promise<void> => {
-    try {
-      if (useAppStore.getState().isRecording) return;
-
-      // E2E escape hatch: allow Playwright to exercise the voice flow without a real mic device.
-      const useFakeMic = isE2eVoice();
-      if (useFakeMic) {
-        const sampleRate = 16000;
-        const seconds = 1.2;
-        const total = Math.floor(sampleRate * seconds);
-        const samples = new Float32Array(total);
-        for (let i = 0; i < total; i++) {
-          // Quiet sine tone; STT is mocked in E2E anyway, but this keeps the pipeline realistic.
-          samples[i] = Math.sin((2 * Math.PI * 440 * i) / sampleRate) * 0.08;
-        }
-        const rec = audioRecorderRef.current;
-        rec.mode = "fake";
-        rec.fakeChunks = [samples];
-        rec.fakeSampleRate = sampleRate;
-        rec.mediaChunks = [];
-        rec.mimeType = "audio/wav";
-
-        setIsRecording(true);
-        setRecordingDuration(0);
-        recordingStartAtRef.current = Date.now();
-        if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
-        recordingIntervalRef.current = setInterval(() => {
-          const startAt = recordingStartAtRef.current;
-          if (!startAt) return;
-          setRecordingDuration(Math.max(0, Math.floor((Date.now() - startAt) / 1000)));
-        }, 250);
-        return;
-      }
-
-      const rec = audioRecorderRef.current;
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      // Prefer MediaRecorder for cross-browser compatibility and low memory usage.
-      const pickMime = (): string | null => {
-        if (typeof MediaRecorder === "undefined") return null;
-        const candidates = [
-          "audio/webm;codecs=opus",
-          "audio/webm",
-          "audio/ogg;codecs=opus",
-          "audio/ogg",
-        ];
-        for (const c of candidates) {
-          try {
-            if (MediaRecorder.isTypeSupported(c)) return c;
-          } catch {
-            // ignore
-          }
-        }
-        return null;
-      };
-
-      const mimeType = pickMime();
-      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      rec.mode = "media";
-      rec.stream = stream;
-      rec.mediaRecorder = mr;
-      rec.mediaChunks = [];
-      rec.mimeType = mr.mimeType || mimeType;
-
-      mr.ondataavailable = (evt) => {
-        if (!evt.data) return;
-        if (evt.data.size <= 0) return;
-        rec.mediaChunks.push(evt.data);
-      };
-
-      // Start recording; request chunks periodically so stop() flushes reliably.
-      mr.start(250);
-
-      setIsRecording(true);
-      setRecordingDuration(0);
-      recordingStartAtRef.current = Date.now();
-
-      if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
-      recordingIntervalRef.current = setInterval(() => {
-        const startAt = recordingStartAtRef.current;
-        if (!startAt) return;
-        setRecordingDuration(Math.max(0, Math.floor((Date.now() - startAt) / 1000)));
-      }, 250);
-    } catch (err) {
-      console.error("Failed to start recording:", err);
-      setTranscriptionError("Microphone permission denied or unavailable.");
-      setTimeout(() => setTranscriptionError(null), 5000);
-      setIsRecording(false);
-    }
-  }, [isE2eVoice, setIsRecording, setRecordingDuration, setTranscriptionError]);
-
   const stopRecording = useCallback(() => {
     if (!useAppStore.getState().isRecording) return;
+    const recordingId = activeRecordingIdRef.current;
+    if (recordingId == null) return;
+    if (stoppingRecordingIdRef.current === recordingId) return;
+    stoppingRecordingIdRef.current = recordingId;
+    activeRecordingIdRef.current = null;
+
     setIsRecording(false);
     recordingStartAtRef.current = null;
     if (recordingIntervalRef.current) {
@@ -493,6 +464,22 @@ export function ToolBelt({
     }
 
     const rec = audioRecorderRef.current;
+    if (rec.monitorRaf != null) {
+      try {
+        cancelAnimationFrame(rec.monitorRaf);
+      } catch {
+        // ignore
+      }
+      rec.monitorRaf = null;
+    }
+    if (rec.fakeAutoStopTimer != null) {
+      try {
+        window.clearTimeout(rec.fakeAutoStopTimer);
+      } catch {
+        // ignore
+      }
+      rec.fakeAutoStopTimer = null;
+    }
     const consumeTranscript = (transcriptRaw: string) => {
       const transcript = transcriptRaw.trim();
       if (!transcript) return;
@@ -596,6 +583,182 @@ export function ToolBelt({
 
     void teardownAudioRecorder();
   }, [onSubmit, setAttachments, setInput, setIsRecording, teardownAudioRecorder, transcribeAudio]);
+
+  const startRecording = useCallback(async (): Promise<void> => {
+    try {
+      if (useAppStore.getState().isRecording) return;
+      const recordingId = (recordingIdCounterRef.current += 1);
+      activeRecordingIdRef.current = recordingId;
+      stoppingRecordingIdRef.current = null;
+
+      // E2E escape hatch: allow Playwright to exercise the voice flow without a real mic device.
+      const useFakeMic = isE2eVoice();
+      if (useFakeMic) {
+        const sampleRate = 16000;
+        const seconds = 1.2;
+        const total = Math.floor(sampleRate * seconds);
+        const samples = new Float32Array(total);
+        for (let i = 0; i < total; i++) {
+          // Quiet sine tone; STT is mocked in E2E anyway, but this keeps the pipeline realistic.
+          samples[i] = Math.sin((2 * Math.PI * 440 * i) / sampleRate) * 0.08;
+        }
+        const rec = audioRecorderRef.current;
+        rec.mode = "fake";
+        rec.fakeChunks = [samples];
+        rec.fakeSampleRate = sampleRate;
+        rec.mediaChunks = [];
+        rec.mimeType = "audio/wav";
+
+        setIsRecording(true);
+        setRecordingDuration(0);
+        recordingStartAtRef.current = Date.now();
+        if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+        recordingIntervalRef.current = setInterval(() => {
+          const startAt = recordingStartAtRef.current;
+          if (!startAt) return;
+          setRecordingDuration(Math.max(0, Math.floor((Date.now() - startAt) / 1000)));
+        }, 250);
+
+        // In call mode, behave hands-free even in E2E: auto-stop after a short delay.
+        if (useAppStore.getState().callModeEnabled) {
+          const rec = audioRecorderRef.current;
+          rec.fakeAutoStopTimer = window.setTimeout(() => {
+            if (!useAppStore.getState().callModeEnabled) return;
+            stopRecording();
+          }, 950);
+        }
+        return;
+      }
+
+      const rec = audioRecorderRef.current;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Prefer MediaRecorder for cross-browser compatibility and low memory usage.
+      const pickMime = (): string | null => {
+        if (typeof MediaRecorder === "undefined") return null;
+        const candidates = [
+          "audio/webm;codecs=opus",
+          "audio/webm",
+          "audio/ogg;codecs=opus",
+          "audio/ogg",
+        ];
+        for (const c of candidates) {
+          try {
+            if (MediaRecorder.isTypeSupported(c)) return c;
+          } catch {
+            // ignore
+          }
+        }
+        return null;
+      };
+
+      const mimeType = pickMime();
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      rec.mode = "media";
+      rec.stream = stream;
+      rec.mediaRecorder = mr;
+      rec.mediaChunks = [];
+      rec.mimeType = mr.mimeType || mimeType;
+
+      mr.ondataavailable = (evt) => {
+        if (!evt.data) return;
+        if (evt.data.size <= 0) return;
+        rec.mediaChunks.push(evt.data);
+      };
+
+      // Start recording; request chunks periodically so stop() flushes reliably.
+      mr.start(250);
+
+      // Call mode: auto-stop on silence so the user doesn't have to click "Stop".
+      // This keeps recordings short, which makes STT dramatically faster and avoids "transcribing forever".
+      if (useAppStore.getState().callModeEnabled) {
+        try {
+          const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext!)();
+          const source = audioCtx.createMediaStreamSource(stream);
+          const analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 2048;
+          source.connect(analyser);
+          // Some DOM lib typings require a non-SharedArrayBuffer-backed Uint8Array for analyser reads.
+          const buf = new Uint8Array(new ArrayBuffer(analyser.fftSize));
+
+          rec.audioCtx = audioCtx;
+          rec.analyser = analyser;
+          rec.monitorBuffer = buf;
+          rec.monitorStartedAt = performance.now();
+          rec.monitorLastLoudAt = null;
+          rec.monitorSawSpeech = false;
+
+          const LOUD_RMS = 0.018; // tune for typical laptop mics
+          const SILENCE_MS = 900;
+          const MIN_RECORD_MS = 650;
+          const MAX_RECORD_MS = 22_000;
+
+          const tick = () => {
+            // Stop monitoring once the recording ends.
+            if (!useAppStore.getState().isRecording) return;
+            if (!useAppStore.getState().callModeEnabled) return;
+            if (activeRecordingIdRef.current !== recordingId) return;
+            const a = rec.analyser;
+            const b = rec.monitorBuffer;
+            const startedAt = rec.monitorStartedAt;
+            if (!a || !b || startedAt == null) return;
+
+            a.getByteTimeDomainData(b);
+            let sumSq = 0;
+            for (let i = 0; i < b.length; i++) {
+              const v = (b[i]! - 128) / 128;
+              sumSq += v * v;
+            }
+            const rms = Math.sqrt(sumSq / b.length);
+            const now = performance.now();
+            const elapsed = now - startedAt;
+
+            if (rms > LOUD_RMS) {
+              rec.monitorSawSpeech = true;
+              rec.monitorLastLoudAt = now;
+            }
+
+            if (elapsed >= MAX_RECORD_MS) {
+              stopRecording();
+              return;
+            }
+
+            if (elapsed >= MIN_RECORD_MS && rec.monitorSawSpeech) {
+              const lastLoud = rec.monitorLastLoudAt ?? startedAt;
+              if (now - lastLoud >= SILENCE_MS) {
+                stopRecording();
+                return;
+              }
+            }
+
+            rec.monitorRaf = requestAnimationFrame(tick);
+          };
+
+          rec.monitorRaf = requestAnimationFrame(tick);
+        } catch {
+          // If the browser blocks AudioContext until user gesture, call mode still works with manual stop.
+        }
+      }
+
+      setIsRecording(true);
+      setRecordingDuration(0);
+      recordingStartAtRef.current = Date.now();
+
+      if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+      recordingIntervalRef.current = setInterval(() => {
+        const startAt = recordingStartAtRef.current;
+        if (!startAt) return;
+        setRecordingDuration(Math.max(0, Math.floor((Date.now() - startAt) / 1000)));
+      }, 250);
+    } catch (err) {
+      console.error("Failed to start recording:", err);
+      setTranscriptionError("Microphone permission denied or unavailable.");
+      setTimeout(() => setTranscriptionError(null), 5000);
+      setIsRecording(false);
+      activeRecordingIdRef.current = null;
+      stoppingRecordingIdRef.current = null;
+    }
+  }, [isE2eVoice, setIsRecording, setRecordingDuration, setTranscriptionError, stopRecording]);
 
   const handleToggleCallMode = useCallback(() => {
     const current = useAppStore.getState().callModeEnabled;
