@@ -48,7 +48,7 @@ export function useChatPageController(): ChatPageViewProps {
     setElapsedSeconds,
     streamingStartTime,
     setStreamingStartTime,
-    isTTSEnabled,
+    callModeEnabled,
 
     settingsOpen,
     setSettingsOpen,
@@ -94,7 +94,7 @@ export function useChatPageController(): ChatPageViewProps {
       setElapsedSeconds: state.setElapsedSeconds,
       streamingStartTime: state.streamingStartTime,
       setStreamingStartTime: state.setStreamingStartTime,
-      isTTSEnabled: state.isTTSEnabled,
+      callModeEnabled: state.callModeEnabled,
 
       settingsOpen: state.chatSettingsOpen,
       setSettingsOpen: state.setChatSettingsOpen,
@@ -425,8 +425,13 @@ export function useChatPageController(): ChatPageViewProps {
   const ttsRef = useRef<{
     audio: HTMLAudioElement | null;
     url: string | null;
-    lastSpokenAssistantId: string | null;
-  }>({ audio: null, url: null, lastSpokenAssistantId: null });
+  }>({ audio: null, url: null });
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const voiceCallControlsRef = useRef<{
+    startRecording: () => Promise<void>;
+    stopRecording: () => void;
+  } | null>(null);
+  const lastCallSpokenAssistantIdRef = useRef<string | null>(null);
 
   const stopTtsPlayback = useCallback(() => {
     const current = ttsRef.current;
@@ -447,35 +452,17 @@ export function useChatPageController(): ChatPageViewProps {
       }
       current.url = null;
     }
+    setSpeakingMessageId(null);
   }, []);
 
-  useEffect(() => {
-    if (!isTTSEnabled) {
+  const speakText = useCallback(
+    async (args: { messageId: string; text: string; onEnded?: () => void }) => {
+      const text = (args.text || "").trim();
+      if (!text) return;
+
       stopTtsPlayback();
-      return;
-    }
+      setSpeakingMessageId(args.messageId);
 
-    // Avoid speaking partial, streaming content.
-    if (isLoading) return;
-
-    const lastAssistant = [...messages].reverse().find((msg) => msg.role === "assistant") ?? null;
-    if (!lastAssistant) return;
-    if (ttsRef.current.lastSpokenAssistantId === lastAssistant.id) return;
-
-    const rawText = lastAssistant.parts
-      .filter((part): part is { type: "text"; text: string } => part.type === "text")
-      .map((part) => part.text)
-      .join("");
-    const cleaned = rawText.toLowerCase().includes("<think") ? thinkingParser.parse(rawText).mainContent : rawText;
-    const text = (cleaned || "").trim();
-
-    // Mark as spoken (attempted) to avoid repeated retries/toasts on re-renders.
-    ttsRef.current.lastSpokenAssistantId = lastAssistant.id;
-
-    if (!text) return;
-
-    void (async () => {
-      stopTtsPlayback();
       const res = await fetch("/api/voice/speak", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -484,12 +471,13 @@ export function useChatPageController(): ChatPageViewProps {
 
       if (!res.ok) {
         const details = await res.text().catch(() => "");
+        setSpeakingMessageId(null);
         pushToast({
           kind: res.status === 409 ? "warning" : "error",
           title: res.status === 409 ? "TTS blocked by GPU lease" : "TTS failed",
           message: res.status === 409 ? "Another service is using the GPU." : "Speech synthesis failed.",
           detail: details,
-          dedupeKey: `tts-error:${lastAssistant.id}:${res.status}`,
+          dedupeKey: `tts-error:${args.messageId}:${res.status}`,
         });
         return;
       }
@@ -499,31 +487,98 @@ export function useChatPageController(): ChatPageViewProps {
       const audio = new Audio(url);
       ttsRef.current.audio = audio;
       ttsRef.current.url = url;
-      audio.onended = () => {
+
+      const cleanup = () => {
         if (ttsRef.current.url === url) {
-          URL.revokeObjectURL(url);
+          try {
+            URL.revokeObjectURL(url);
+          } catch {
+            // ignore
+          }
           ttsRef.current.url = null;
         }
         if (ttsRef.current.audio === audio) {
           ttsRef.current.audio = null;
         }
+        setSpeakingMessageId((current) => (current === args.messageId ? null : current));
       };
+
+      audio.onended = () => {
+        cleanup();
+        args.onEnded?.();
+      };
+      audio.onerror = () => {
+        cleanup();
+      };
+
       try {
         await audio.play();
       } catch (err) {
-        URL.revokeObjectURL(url);
-        ttsRef.current.url = null;
-        ttsRef.current.audio = null;
+        cleanup();
         pushToast({
           kind: "error",
           title: "TTS playback failed",
           message: "The browser blocked audio playback.",
           detail: String(err),
-          dedupeKey: `tts-playback-error:${lastAssistant.id}`,
+          dedupeKey: `tts-playback-error:${args.messageId}`,
         });
       }
-    })();
-  }, [isLoading, isTTSEnabled, messages, pushToast, stopTtsPlayback]);
+    },
+    [pushToast, stopTtsPlayback],
+  );
+
+  const onSpeakAssistantMessage = useCallback(
+    async (payload: { messageId: string; text: string }) => {
+      await speakText({ messageId: payload.messageId, text: payload.text });
+    },
+    [speakText],
+  );
+
+  // When enabling call mode, don't immediately speak old content.
+  useEffect(() => {
+    if (!callModeEnabled) return;
+    const lastAssistant = [...messages].reverse().find((msg) => msg.role === "assistant") ?? null;
+    lastCallSpokenAssistantIdRef.current = lastAssistant?.id ?? null;
+  }, [callModeEnabled]);
+
+  // Call mode: speak the newest assistant response, then re-open the mic for the next turn.
+  useEffect(() => {
+    if (!callModeEnabled) {
+      stopTtsPlayback();
+      lastCallSpokenAssistantIdRef.current = null;
+      return;
+    }
+    if (isLoading) return;
+
+    const lastAssistant = [...messages].reverse().find((msg) => msg.role === "assistant") ?? null;
+    if (!lastAssistant) return;
+    if (lastCallSpokenAssistantIdRef.current === lastAssistant.id) return;
+
+    const rawText = lastAssistant.parts
+      .filter((part): part is { type: "text"; text: string } => part.type === "text")
+      .map((part) => part.text)
+      .join("");
+    const cleaned = rawText.toLowerCase().includes("<think")
+      ? thinkingParser.parse(rawText).mainContent
+      : rawText;
+    const text = (cleaned || "").trim();
+    if (!text) {
+      lastCallSpokenAssistantIdRef.current = lastAssistant.id;
+      return;
+    }
+
+    lastCallSpokenAssistantIdRef.current = lastAssistant.id;
+    void speakText({
+      messageId: lastAssistant.id,
+      text,
+      onEnded: () => {
+        if (!useAppStore.getState().callModeEnabled) return;
+        window.setTimeout(() => {
+          void voiceCallControlsRef.current?.startRecording().catch(() => {});
+        }, 350);
+      },
+    });
+  }, [callModeEnabled, isLoading, messages, speakText, stopTtsPlayback]);
 
   Hooks.useAvailableModels({ selectedModel, setSelectedModel, setAvailableModels });
 
@@ -869,6 +924,7 @@ export function useChatPageController(): ChatPageViewProps {
         onOpenChatSettings={handleOpenChatSettings}
         hasSystemPrompt={systemPrompt.trim().length > 0}
         planDrawer={agentPlan ? <AgentPlanDrawer plan={agentPlan} onClear={clearPlan} /> : null}
+        voiceCallControlsRef={voiceCallControlsRef}
       />
     );
   }, [
@@ -960,6 +1016,8 @@ export function useChatPageController(): ChatPageViewProps {
     showEmptyState,
     onForkMessage: handleForkMessage,
     onReprompt: handleReprompt,
+    onSpeakAssistantMessage,
+    speakingMessageId,
     openActivityPanel,
     openContextPanel,
     handleScroll,

@@ -55,7 +55,7 @@ export interface ChatState {
   isTranscribing: boolean;
   transcriptionError: string | null;
   recordingDuration: number;
-  isTTSEnabled: boolean;
+  callModeEnabled: boolean;
 
   mcpPendingServer: string | null;
   mcpActionError: string | null;
@@ -159,7 +159,7 @@ export interface ChatActions {
   setIsTranscribing: (isTranscribing: boolean) => void;
   setTranscriptionError: (transcriptionError: string | null) => void;
   setRecordingDuration: (recordingDuration: number) => void;
-  setIsTTSEnabled: (isTTSEnabled: boolean) => void;
+  setCallModeEnabled: (enabled: boolean) => void;
 
   setMcpPendingServer: (mcpPendingServer: string | null) => void;
   setMcpActionError: (mcpActionError: string | null) => void;

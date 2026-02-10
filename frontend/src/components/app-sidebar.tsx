@@ -19,13 +19,15 @@ import {
   ScrollText,
   Image as ImageIcon,
   Workflow,
+  FlaskConical,
 } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 import api from "@/lib/api";
 import { useAppStore } from "@/store";
 import { useSidebarStatus } from "@/hooks/use-sidebar-status";
+import { isParallaxEnabled } from "@/lib/features";
 
-const navItems = [
+const BASE_NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/chat", label: "Chat", icon: MessageSquareText },
   { href: "/recipes", label: "Recipes", icon: Sparkles },
@@ -91,6 +93,9 @@ const MobileHeaderStatus = memo(function MobileHeaderStatus() {
 
 export function AppSidebar({ children }: AppSidebarProps) {
   const pathname = usePathname();
+  const navItems = isParallaxEnabled()
+    ? [...BASE_NAV_ITEMS, { href: "/beta", label: "Beta", icon: FlaskConical }]
+    : BASE_NAV_ITEMS;
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);

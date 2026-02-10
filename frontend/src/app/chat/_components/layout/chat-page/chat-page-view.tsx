@@ -89,6 +89,8 @@ export interface ChatPageViewProps {
   showEmptyState: boolean;
   onForkMessage: (messageId: string) => void;
   onReprompt: (messageId: string) => void;
+  onSpeakAssistantMessage?: (payload: { messageId: string; text: string }) => void;
+  speakingMessageId?: string | null;
   openActivityPanel: () => void;
   openContextPanel: () => void;
   handleScroll: () => void;
@@ -282,6 +284,8 @@ export const ChatPageView = memo(function ChatPageView(props: ChatPageViewProps)
               onFork={props.onForkMessage}
               onReprompt={props.onReprompt}
               onOpenContext={props.openContextPanel}
+              onSpeakAssistantMessage={props.onSpeakAssistantMessage}
+              speakingMessageId={props.speakingMessageId}
               showEmptyState={props.showEmptyState}
               toolBelt={props.toolBelt}
               onScroll={props.handleScroll}

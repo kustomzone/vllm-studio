@@ -68,6 +68,8 @@ interface ChatMessageListProps {
   onFork?: (messageId: string) => void;
   onReprompt?: (messageId: string) => void;
   onOpenContext?: () => void;
+  onSpeakAssistantMessage?: (payload: { messageId: string; text: string }) => void;
+  speakingMessageId?: string | null;
 }
 
 const VirtuosoList = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
@@ -93,6 +95,8 @@ export function ChatMessageList({
   onFork,
   onReprompt,
   onOpenContext,
+  onSpeakAssistantMessage,
+  speakingMessageId,
 }: ChatMessageListProps) {
   const lastRawMessageId = messages[messages.length - 1]?.id;
 
@@ -196,6 +200,8 @@ export function ChatMessageList({
           onOpenContext={onOpenContext}
           onFork={message.role === "assistant" ? onFork : undefined}
           onReprompt={message.role === "assistant" ? onReprompt : undefined}
+          onSpeak={message.role === "assistant" ? onSpeakAssistantMessage : undefined}
+          speakingMessageId={speakingMessageId}
           onExport={handleExport}
         />
       );
@@ -208,8 +214,10 @@ export function ChatMessageList({
       isLoading,
       onFork,
       onOpenContext,
+      onSpeakAssistantMessage,
       onReprompt,
       selectedModel,
+      speakingMessageId,
       visibleMessages.length,
     ],
   );

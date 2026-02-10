@@ -114,7 +114,7 @@ const requestSummary = async (
   systemPrompt: string,
   messages: Array<{ role: string; content: string }>,
 ): Promise<string> => {
-  const response = await fetch(`http://localhost:${context.config.inference_port}/v1/chat/completions`, {
+  const response = await fetch(`http://127.0.0.1:${context.config.inference_port}/v1/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

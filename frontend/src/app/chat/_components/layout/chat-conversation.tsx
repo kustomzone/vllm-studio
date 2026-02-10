@@ -20,6 +20,8 @@ interface ChatConversationProps {
   onFork?: (messageId: string) => void;
   onReprompt?: (messageId: string) => void;
   onOpenContext?: () => void;
+  onSpeakAssistantMessage?: (payload: { messageId: string; text: string }) => void;
+  speakingMessageId?: string | null;
   showEmptyState: boolean;
   toolBelt: ReactNode;
   onScroll: () => void;
@@ -41,6 +43,8 @@ function ChatConversationBase({
   onFork,
   onReprompt,
   onOpenContext,
+  onSpeakAssistantMessage,
+  speakingMessageId,
   showEmptyState,
   toolBelt,
   onScroll,
@@ -88,6 +92,8 @@ function ChatConversationBase({
                   onFork={onFork}
                   onReprompt={onReprompt}
                   onOpenContext={onOpenContext}
+                  onSpeakAssistantMessage={onSpeakAssistantMessage}
+                  speakingMessageId={speakingMessageId}
                 />
               </div>
             )}
@@ -117,6 +123,8 @@ function areChatConversationPropsEqual(
       prev.onFork === next.onFork &&
       prev.onReprompt === next.onReprompt &&
       prev.onOpenContext === next.onOpenContext &&
+      prev.onSpeakAssistantMessage === next.onSpeakAssistantMessage &&
+      prev.speakingMessageId === next.speakingMessageId &&
       prev.showEmptyState === next.showEmptyState &&
       prev.toolBelt === next.toolBelt &&
       prev.onScroll === next.onScroll &&
@@ -139,6 +147,8 @@ function areChatConversationPropsEqual(
     prev.onFork === next.onFork &&
     prev.onReprompt === next.onReprompt &&
     prev.onOpenContext === next.onOpenContext &&
+    prev.onSpeakAssistantMessage === next.onSpeakAssistantMessage &&
+    prev.speakingMessageId === next.speakingMessageId &&
     prev.showEmptyState === next.showEmptyState &&
     prev.onScroll === next.onScroll &&
     prev.messagesContainerRef === next.messagesContainerRef &&

@@ -30,7 +30,7 @@ export const startMetricsCollector = (context: AppContext): (() => void) => {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 5000);
-      const response = await fetch(`http://localhost:${port}/metrics`, { signal: controller.signal });
+      const response = await fetch(`http://127.0.0.1:${port}/metrics`, { signal: controller.signal });
       clearTimeout(timeout);
       if (response.status !== 200) {
         return {};

@@ -10,6 +10,7 @@ import { ToolBeltToolbar } from "./tool-belt-toolbar";
 import type { Attachment, ModelOption } from "../../types";
 import { useAppStore } from "@/store";
 import { useShallow } from "zustand/react/shallow";
+import { encodeChunksToWav } from "@/lib/audio/wav";
 
 function maybeRevokeObjectUrl(url: string | undefined) {
   if (!url) return;
@@ -63,6 +64,10 @@ interface ToolBeltProps {
   deepResearchEnabled?: boolean;
   onDeepResearchToggle?: () => void;
   planDrawer?: ReactNode;
+  voiceCallControlsRef?: React.MutableRefObject<{
+    startRecording: () => Promise<void>;
+    stopRecording: () => void;
+  } | null>;
 }
 
 const ToolBeltToolbarContainer = memo(function ToolBeltToolbarContainer(
@@ -99,6 +104,7 @@ export function ToolBelt({
   deepResearchEnabled = false,
   onDeepResearchToggle,
   planDrawer,
+  voiceCallControlsRef,
 }: ToolBeltProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const isDisabled = false;
@@ -118,8 +124,8 @@ export function ToolBelt({
     setTranscriptionError,
     recordingDuration,
     setRecordingDuration,
-    isTTSEnabled,
-    setIsTTSEnabled,
+    callModeEnabled,
+    setCallModeEnabled,
   } = useAppStore(
     useShallow((state) => ({
       value: state.input,
@@ -137,18 +143,37 @@ export function ToolBelt({
       setTranscriptionError: state.setTranscriptionError,
       recordingDuration: state.recordingDuration,
       setRecordingDuration: state.setRecordingDuration,
-      isTTSEnabled: state.isTTSEnabled,
-      setIsTTSEnabled: state.setIsTTSEnabled,
+      callModeEnabled: state.callModeEnabled,
+      setCallModeEnabled: state.setCallModeEnabled,
     })),
   );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingStartAtRef = useRef<number | null>(null);
+  const transcribeAbortRef = useRef<AbortController | null>(null);
   const baseHeightRef = useRef<number>(44);
   const lastShouldCapRef = useRef<boolean | null>(null);
+
+  const audioRecorderRef = useRef<{
+    stream: MediaStream | null;
+    audioContext: AudioContext | null;
+    source: MediaStreamAudioSourceNode | null;
+    processor: ScriptProcessorNode | null;
+    zeroGain: GainNode | null;
+    chunks: Float32Array[];
+    sampleRate: number;
+  }>({
+    stream: null,
+    audioContext: null,
+    source: null,
+    processor: null,
+    zeroGain: null,
+    chunks: [],
+    sampleRate: 48000,
+  });
 
   // Keep the transcript from disappearing under the fixed mobile composer by exposing its height as a CSS var.
   useEffect(() => {
@@ -195,21 +220,23 @@ export function ToolBelt({
   }, [value, isLoading, queuedContext]);
 
   const addAttachmentsFromInput = useCallback(
-    async (e: ChangeEvent<HTMLInputElement>, type: "file" | "image") => {
+    async (e: ChangeEvent<HTMLInputElement>, type: "file" | "image" | "video") => {
       const files = Array.from(e.target.files || []);
       const newAttachments: Attachment[] = [];
 
       for (const file of files) {
+        const isImage = type === "image";
+        const isVideo = type === "video";
         const attachment: Attachment = {
           id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          type: type === "image" ? "image" : "file",
+          type: isImage ? "image" : isVideo ? "video" : "file",
           name: file.name,
           size: file.size,
-          url: type === "image" ? URL.createObjectURL(file) : undefined,
+          url: isImage || isVideo ? URL.createObjectURL(file) : undefined,
           file,
         };
 
-        if (type === "image") {
+        if (isImage) {
           try {
             attachment.base64 = await fileToBase64(file);
           } catch (err) {
@@ -240,6 +267,13 @@ export function ToolBelt({
     [addAttachmentsFromInput],
   );
 
+  const handleVideoInputChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      void addAttachmentsFromInput(e, "video");
+    },
+    [addAttachmentsFromInput],
+  );
+
   const removeAttachment = useCallback(
     (id: string) => {
       updateAttachments((prev) => {
@@ -251,17 +285,22 @@ export function ToolBelt({
     [updateAttachments],
   );
 
-  const transcribeAudio = useCallback(async (audioBlob: Blob): Promise<string | null> => {
+  const transcribeAudio = useCallback(async (audioBlob: Blob, fileName: string): Promise<string | null> => {
     try {
       setIsTranscribing(true);
       setTranscriptionError(null);
 
+      transcribeAbortRef.current?.abort();
+      const abortController = new AbortController();
+      transcribeAbortRef.current = abortController;
+
       const formData = new FormData();
-      formData.append("file", audioBlob, "recording.webm");
+      formData.append("file", audioBlob, fileName);
 
       const response = await fetch("/api/voice/transcribe", {
         method: "POST",
         body: formData,
+        signal: abortController.signal,
       });
 
       if (!response.ok) {
@@ -277,6 +316,7 @@ export function ToolBelt({
       }
       return data.text;
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return null;
       const errorMessage = err instanceof Error ? err.message : "Transcription failed";
       console.error("Transcription error:", err);
       setTranscriptionError(errorMessage);
@@ -287,56 +327,176 @@ export function ToolBelt({
     }
   }, [setIsTranscribing, setTranscriptionError]);
 
-  const startRecording = useCallback(async () => {
+  const teardownAudioRecorder = useCallback(async () => {
+    const rec = audioRecorderRef.current;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (e) => {
-        audioChunksRef.current.push(e.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        stream.getTracks().forEach((track) => track.stop());
-
-        const transcript = await transcribeAudio(audioBlob);
-        if (transcript) {
-          const currentInput = useAppStore.getState().input;
-          setInput(currentInput ? `${currentInput} ${transcript}` : transcript);
-          textareaRef.current?.focus();
-        }
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-      setRecordingDuration(0);
-
-      recordingIntervalRef.current = setInterval(() => {
-        setRecordingDuration(useAppStore.getState().recordingDuration + 1);
-      }, 1000);
-    } catch (err) {
-      console.error("Failed to start recording:", err);
+      rec.processor?.disconnect();
+    } catch {
+      // ignore
     }
-  }, [setInput, setIsRecording, setRecordingDuration, transcribeAudio]);
-
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      if (recordingIntervalRef.current) {
-        clearInterval(recordingIntervalRef.current);
-        recordingIntervalRef.current = null;
+    try {
+      rec.source?.disconnect();
+    } catch {
+      // ignore
+    }
+    try {
+      rec.zeroGain?.disconnect();
+    } catch {
+      // ignore
+    }
+    if (rec.stream) {
+      try {
+        rec.stream.getTracks().forEach((track) => track.stop());
+      } catch {
+        // ignore
       }
     }
-  }, [isRecording, setIsRecording]);
+    if (rec.audioContext) {
+      try {
+        await rec.audioContext.close();
+      } catch {
+        // ignore
+      }
+    }
+    rec.stream = null;
+    rec.audioContext = null;
+    rec.source = null;
+    rec.processor = null;
+    rec.zeroGain = null;
+  }, []);
 
-  const handleTTSToggle = useCallback(() => {
-    const current = useAppStore.getState().isTTSEnabled;
-    setIsTTSEnabled(!current);
-  }, [setIsTTSEnabled]);
+  const startRecording = useCallback(async (): Promise<void> => {
+    try {
+      if (useAppStore.getState().isRecording) return;
+
+      // E2E escape hatch: allow Playwright to exercise the voice flow without a real mic device.
+      const useFakeMic =
+        (process.env.NEXT_PUBLIC_VLLM_STUDIO_E2E_FAKE_MIC ?? "").trim() === "1" ||
+        // Playwright/WebDriver environment: avoid mic permission/device flakiness.
+        (typeof navigator !== "undefined" && (navigator as unknown as { webdriver?: boolean }).webdriver === true);
+      if (useFakeMic) {
+        const sampleRate = 16000;
+        const seconds = 1.2;
+        const total = Math.floor(sampleRate * seconds);
+        const samples = new Float32Array(total);
+        for (let i = 0; i < total; i++) {
+          // Quiet sine tone; STT is mocked in E2E anyway, but this keeps the pipeline realistic.
+          samples[i] = Math.sin((2 * Math.PI * 440 * i) / sampleRate) * 0.08;
+        }
+        const rec = audioRecorderRef.current;
+        rec.chunks = [samples];
+        rec.sampleRate = sampleRate;
+
+        setIsRecording(true);
+        setRecordingDuration(0);
+        recordingStartAtRef.current = Date.now();
+        if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+        recordingIntervalRef.current = setInterval(() => {
+          const startAt = recordingStartAtRef.current;
+          if (!startAt) return;
+          setRecordingDuration(Math.max(0, Math.floor((Date.now() - startAt) / 1000)));
+        }, 250);
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const zeroGain = audioContext.createGain();
+      zeroGain.gain.value = 0;
+
+      const rec = audioRecorderRef.current;
+      rec.stream = stream;
+      rec.audioContext = audioContext;
+      rec.source = source;
+      rec.processor = processor;
+      rec.zeroGain = zeroGain;
+      rec.chunks = [];
+      rec.sampleRate = audioContext.sampleRate;
+
+      processor.onaudioprocess = (e) => {
+        const input = e.inputBuffer.getChannelData(0);
+        rec.chunks.push(new Float32Array(input));
+      };
+
+      source.connect(processor);
+      processor.connect(zeroGain);
+      zeroGain.connect(audioContext.destination);
+
+      setIsRecording(true);
+      setRecordingDuration(0);
+      recordingStartAtRef.current = Date.now();
+
+      if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+      recordingIntervalRef.current = setInterval(() => {
+        const startAt = recordingStartAtRef.current;
+        if (!startAt) return;
+        setRecordingDuration(Math.max(0, Math.floor((Date.now() - startAt) / 1000)));
+      }, 250);
+    } catch (err) {
+      console.error("Failed to start recording:", err);
+      setTranscriptionError("Microphone permission denied or unavailable.");
+      setTimeout(() => setTranscriptionError(null), 5000);
+      setIsRecording(false);
+    }
+  }, [setIsRecording, setRecordingDuration, setTranscriptionError]);
+
+  const stopRecording = useCallback(() => {
+    if (!useAppStore.getState().isRecording) return;
+    setIsRecording(false);
+    recordingStartAtRef.current = null;
+    if (recordingIntervalRef.current) {
+      clearInterval(recordingIntervalRef.current);
+      recordingIntervalRef.current = null;
+    }
+
+    const rec = audioRecorderRef.current;
+    const chunks = rec.chunks;
+    const sampleRate = rec.sampleRate;
+    rec.chunks = [];
+
+    void (async () => {
+      await teardownAudioRecorder();
+      if (!chunks.length) return;
+
+      const { wavBytes } = encodeChunksToWav({
+        chunks,
+        inputSampleRate: sampleRate,
+        targetSampleRate: 16000,
+      });
+      const audioBlob = new Blob([wavBytes], { type: "audio/wav" });
+      const transcript = await transcribeAudio(audioBlob, "recording.wav");
+      if (!transcript) return;
+
+      if (useAppStore.getState().callModeEnabled) {
+        const text = transcript.trim();
+        if (!text) return;
+        const currentAttachments = useAppStore.getState().attachments;
+        onSubmit(text, currentAttachments.length > 0 ? [...currentAttachments] : undefined);
+        for (const attachment of currentAttachments) maybeRevokeObjectUrl(attachment.url);
+        setAttachments([]);
+        setInput("");
+        return;
+      }
+
+      const currentInput = useAppStore.getState().input;
+      setInput(currentInput ? `${currentInput} ${transcript}` : transcript);
+      textareaRef.current?.focus();
+    })();
+  }, [onSubmit, setAttachments, setInput, setIsRecording, teardownAudioRecorder, transcribeAudio]);
+
+  const handleToggleCallMode = useCallback(() => {
+    const current = useAppStore.getState().callModeEnabled;
+    const next = !current;
+    setCallModeEnabled(next);
+    if (next) {
+      void startRecording();
+      return;
+    }
+    transcribeAbortRef.current?.abort();
+    stopRecording();
+  }, [setCallModeEnabled, startRecording, stopRecording]);
 
   const handleAttachFile = useCallback(() => {
     fileInputRef.current?.click();
@@ -344,6 +504,10 @@ export function ToolBelt({
 
   const handleAttachImage = useCallback(() => {
     imageInputRef.current?.click();
+  }, []);
+
+  const handleAttachVideo = useCallback(() => {
+    videoInputRef.current?.click();
   }, []);
 
   const handleDismissTranscriptionError = useCallback(() => {
@@ -381,6 +545,16 @@ export function ToolBelt({
   }, [handleSubmit]);
 
   const canSend = value.trim() || attachments.length > 0;
+
+  useEffect(() => {
+    if (!voiceCallControlsRef) return;
+    voiceCallControlsRef.current = { startRecording, stopRecording };
+    return () => {
+      if (voiceCallControlsRef.current?.startRecording === startRecording) {
+        voiceCallControlsRef.current = null;
+      }
+    };
+  }, [startRecording, stopRecording, voiceCallControlsRef]);
 
   return (
     <div ref={rootRef} className="px-2 md:px-3 pb-0">
@@ -448,32 +622,41 @@ export function ToolBelt({
             multiple
             accept="image/*"
           />
+          <input
+            ref={videoInputRef}
+            type="file"
+            onChange={handleVideoInputChange}
+            className="hidden"
+            multiple
+            accept="video/*"
+          />
 
-        <ToolBeltToolbarContainer
-          isLoading={isLoading}
-          thinkingSnippet={thinkingSnippet}
-          isRecording={isRecording}
-          isTranscribing={isTranscribing}
-          attachmentsCount={attachments.length}
-          disabled={isDisabled}
-          canSend={canSend as boolean}
-          hasSystemPrompt={hasSystemPrompt}
-          mcpEnabled={mcpEnabled}
-          artifactsEnabled={artifactsEnabled}
-          deepResearchEnabled={deepResearchEnabled}
-          isTTSEnabled={isTTSEnabled}
-          onOpenResults={onOpenResults}
-          availableModels={availableModels}
-          selectedModel={selectedModel}
-          onModelChange={onModelChange}
-          onOpenChatSettings={onOpenChatSettings}
-          onOpenMcpSettings={onOpenMcpSettings}
+          <ToolBeltToolbarContainer
+            isLoading={isLoading}
+            thinkingSnippet={thinkingSnippet}
+            isRecording={isRecording}
+            isTranscribing={isTranscribing}
+            attachmentsCount={attachments.length}
+            disabled={isDisabled}
+            canSend={canSend as boolean}
+            hasSystemPrompt={hasSystemPrompt}
+            mcpEnabled={mcpEnabled}
+            artifactsEnabled={artifactsEnabled}
+            deepResearchEnabled={deepResearchEnabled}
+            callModeEnabled={callModeEnabled}
+            onOpenResults={onOpenResults}
+            availableModels={availableModels}
+            selectedModel={selectedModel}
+            onModelChange={onModelChange}
+            onOpenChatSettings={onOpenChatSettings}
+            onOpenMcpSettings={onOpenMcpSettings}
             onMcpToggle={onMcpToggle}
             onArtifactsToggle={onArtifactsToggle}
             onDeepResearchToggle={onDeepResearchToggle}
-            onTTSToggle={handleTTSToggle}
             onAttachFile={handleAttachFile}
             onAttachImage={handleAttachImage}
+            onAttachVideo={handleAttachVideo}
+            onToggleCallMode={handleToggleCallMode}
             onStartRecording={startRecording}
             onStopRecording={stopRecording}
             onStop={onStop}

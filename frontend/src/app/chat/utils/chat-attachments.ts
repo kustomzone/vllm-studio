@@ -54,7 +54,7 @@ const readFileAsBase64 = (file: File): Promise<string> => {
 export const readAttachmentContent = async (
   attachment: Attachment,
 ): Promise<{ content: string; encoding: "utf8" | "base64" }> => {
-  if (attachment.type === "image" || attachment.type === "audio") {
+  if (attachment.type === "image" || attachment.type === "audio" || attachment.type === "video") {
     if (attachment.base64) {
       return { content: attachment.base64, encoding: "base64" };
     }

@@ -127,7 +127,7 @@ export const fetchTabbyModel = async (
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2000);
-    const response = await fetch(`http://localhost:${port}/v1/models`, {
+    const response = await fetch(`http://127.0.0.1:${port}/v1/models`, {
       headers,
       signal: controller.signal,
     });

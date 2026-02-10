@@ -112,7 +112,7 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
         try {
           const controller = new AbortController();
           const timeoutHandle = setTimeout(() => controller.abort(), 5000);
-          const response = await fetch(`http://localhost:${context.config.inference_port}/health`, {
+          const response = await fetch(`http://127.0.0.1:${context.config.inference_port}/health`, {
             signal: controller.signal,
           });
           clearTimeout(timeoutHandle);
@@ -197,8 +197,8 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
       "Content-Type": "application/json",
       Authorization: `Bearer ${masterKey}`,
     };
-    const litellmUrl = "http://localhost:4100/v1/chat/completions";
-    const inferenceUrl = `http://localhost:${context.config.inference_port}/v1/chat/completions`;
+    const litellmUrl = "http://127.0.0.1:4100/v1/chat/completions";
+    const inferenceUrl = `http://127.0.0.1:${context.config.inference_port}/v1/chat/completions`;
     const upstreamUrl = useDirectInference ? inferenceUrl : litellmUrl;
     const headers = useDirectInference ? inferenceHeaders : litellmHeaders;
     const finalBody = bodyChanged ? new TextEncoder().encode(JSON.stringify(parsed)).buffer : bodyBuffer;

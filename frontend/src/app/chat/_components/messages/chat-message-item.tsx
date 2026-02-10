@@ -26,6 +26,8 @@ interface ChatMessageItemProps {
   onOpenContext?: () => void;
   onFork?: (messageId: string) => void;
   onReprompt?: (messageId: string) => void;
+  onSpeak?: (payload: { messageId: string; text: string }) => void;
+  speakingMessageId?: string | null;
   onExport: (payload: {
     messageId: string;
     role: "user" | "assistant";
@@ -117,6 +119,8 @@ function ChatMessageItemBase({
   contextUsageLabel,
   onFork,
   onReprompt,
+  onSpeak,
+  speakingMessageId,
   onExport,
   onOpenContext,
 }: ChatMessageItemProps) {
@@ -250,6 +254,8 @@ function ChatMessageItemBase({
   }, [runDurationSeconds]);
 
   const canActOnContent = textContent.trim().length > 0;
+  const canSpeak = Boolean(onSpeak && !isStreaming && canActOnContent && messageRole === "assistant");
+  const isSpeaking = Boolean(speakingMessageId && speakingMessageId === messageId);
 
   const handleCopy = useCallback(async () => {
     if (!canActOnContent) return;
@@ -280,6 +286,13 @@ function ChatMessageItemBase({
 
   const actionButtonClassName =
     "p-1 rounded hover:bg-(--accent) transition-colors disabled:opacity-40";
+
+  const handleSpeak = useCallback(() => {
+    if (!onSpeak) return;
+    const text = textContent.trim();
+    if (!text) return;
+    onSpeak({ messageId, text });
+  }, [messageId, onSpeak, textContent]);
 
   // User message rendering - simple on mobile, card on desktop
   if (isUser) {
@@ -396,10 +409,24 @@ function ChatMessageItemBase({
           )}
           {/* Desktop actions */}
           <div className="hidden md:flex ml-auto items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {onReprompt && (
-                    <button
-                      onClick={() => onReprompt(messageId)}
-                      disabled={isStreaming}
+            {canSpeak && (
+              <button
+                onClick={handleSpeak}
+                disabled={isSpeaking}
+                className={actionButtonClassName}
+                title={isSpeaking ? "Speaking..." : "Listen"}
+              >
+                {isSpeaking ? (
+                  <Icons.Loader2 className="h-3.5 w-3.5 text-blue-400 animate-spin" />
+                ) : (
+                  <Icons.Volume2 className="h-3.5 w-3.5 text-[#9a9590]" />
+                )}
+              </button>
+            )}
+            {onReprompt && (
+              <button
+                onClick={() => onReprompt(messageId)}
+                disabled={isStreaming}
                       className={actionButtonClassName}
                       title="Reprompt"
                     >
@@ -459,6 +486,24 @@ function ChatMessageItemBase({
             <span className="text-sm">Thinking...</span>
           </div>
         ) : null}
+
+        {canSpeak && (
+          <div className="mt-2">
+            <button
+              onClick={handleSpeak}
+              disabled={isSpeaking}
+              className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-full border border-white/10 bg-white/5 text-[#cfcac2] hover:bg-white/8 transition-colors disabled:opacity-60"
+              title={isSpeaking ? "Speaking..." : "Listen"}
+            >
+              {isSpeaking ? (
+                <Icons.Loader2 className="h-3.5 w-3.5 text-blue-400 animate-spin" />
+              ) : (
+                <Icons.Volume2 className="h-3.5 w-3.5 text-[#cfcac2]" />
+              )}
+              <span className="text-xs font-medium">{isSpeaking ? "Speaking..." : "Listen"}</span>
+            </button>
+          </div>
+        )}
 
         {artifactsEnabled && artifacts && artifacts.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">

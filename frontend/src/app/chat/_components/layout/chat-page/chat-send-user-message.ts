@@ -164,6 +164,8 @@ export function useChatSendUserMessage({
               mimeType: att.file?.type || "image/png",
               name: att.name,
             });
+          } else if (att.type === "video" && att.file) {
+            parts.push({ type: "text", text: `[Video: ${att.name}]` });
           } else if (att.type === "file" && att.file) {
             parts.push({ type: "text", text: `[File: ${att.name}]` });
           }
@@ -223,6 +225,7 @@ export function useChatSendUserMessage({
         for (const att of items) {
           const name = att.name?.trim() || "attachment";
           if (att.type === "image") lines.push(`[Image: ${name}]`);
+          else if (att.type === "video") lines.push(`[Video: ${name}]`);
           else if (att.type === "file") lines.push(`[File: ${name}]`);
           else if (att.type === "audio") lines.push(`[Audio: ${name}]`);
         }

@@ -185,3 +185,46 @@ Then in your local browser:
    - ROCm version, HIP version, torch ROCm build fields
    - Compatibility panel warnings (actionable)
 4. Runtimes (Rock-Em) panel shows services and the current GPU lease holder.
+
+## 6. Teardown / Cost Control (Hot Aisle or Any Rented GPU VM)
+
+If you're renting a large GPU VM, do a clean shutdown so you don't keep burning money.
+
+### 6.1 Stop Services Cleanly (Preferred)
+
+On the VM:
+
+```bash
+# Stop GPU-holding services first.
+curl -sS -X POST http://127.0.0.1:8080/services/llm/stop | jq '.service | {id,status,last_error}'
+curl -sS -X POST http://127.0.0.1:8080/services/image/stop | jq '.service | {id,status,last_error}'
+curl -sS -X POST http://127.0.0.1:8080/services/video/stop | jq '.service | {id,status,last_error}'
+
+# Voice services are usually CPU, but stop them too.
+curl -sS -X POST http://127.0.0.1:8080/services/stt/stop | jq '.service | {id,status,last_error}'
+curl -sS -X POST http://127.0.0.1:8080/services/tts/stop | jq '.service | {id,status,last_error}'
+```
+
+### 6.2 Stop The Controller Process
+
+If you launched the controller via `nohup bun src/main.ts ...`, stop it by PID:
+
+```bash
+pid="$(ss -lptn 2>/dev/null | sed -n '/:8080/ s/.*pid=\\([0-9][0-9]*\\).*/\\1/p' | head -1 || true)"
+if [ -n "$pid" ]; then
+  kill "$pid"
+fi
+```
+
+### 6.3 Deprovision The VM/GPU (Critical)
+
+Stopping processes is not the same as deprovisioning the VM. For cost control:
+
+1. Terminate/deprovision the VM from your cloud/provider control plane (Hot Aisle portal or your provisioning CLI).
+2. Confirm the instance is gone (not just powered off), so GPU billing stops.
+
+If you need an emergency stop and don't care about preserving state:
+
+```bash
+sudo shutdown -h now
+```

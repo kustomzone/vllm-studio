@@ -3,7 +3,7 @@
 
 import { memo } from "react";
 import Image from "next/image";
-import { Mic, FileText, X } from "lucide-react";
+import { Mic, FileText, Film, X } from "lucide-react";
 import type { Attachment } from "../../types";
 
 interface AttachmentsPreviewProps {
@@ -37,6 +37,24 @@ export const AttachmentsPreview = memo(function AttachmentsPreview({
                   className="w-8 h-8 rounded object-cover"
                   unoptimized
                 />
+              )}
+              <div className="text-xs font-medium">
+                <p className="font-medium truncate max-w-[100px]">{attachment.name}</p>
+                <p className="text-[#9a9590]">{formatFileSize(attachment.size)}</p>
+              </div>
+            </div>
+          ) : attachment.type === "video" ? (
+            <div className="flex items-center gap-2">
+              {attachment.url ? (
+                <video
+                  src={attachment.url}
+                  className="w-8 h-8 rounded object-cover border border-white/10 bg-black/20"
+                  muted
+                  playsInline
+                  preload="metadata"
+                />
+              ) : (
+                <Film className="h-3.5 w-3.5 text-[#9a9590]" />
               )}
               <div className="text-xs font-medium">
                 <p className="font-medium truncate max-w-[100px]">{attachment.name}</p>

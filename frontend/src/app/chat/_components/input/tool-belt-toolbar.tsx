@@ -5,6 +5,8 @@ import { memo } from "react";
 import {
   Paperclip,
   Image as ImageIcon,
+  Film,
+  AudioLines,
   Mic,
   MicOff,
   Square,
@@ -17,8 +19,6 @@ import {
   Loader2,
   Wrench,
   ArrowUp,
-  Volume2,
-  VolumeX,
   Plus,
   PanelRightOpen,
 } from "lucide-react";
@@ -43,7 +43,7 @@ interface ToolBeltToolbarProps {
   mcpEnabled?: boolean;
   artifactsEnabled?: boolean;
   deepResearchEnabled?: boolean;
-  isTTSEnabled?: boolean;
+  callModeEnabled?: boolean;
   onOpenResults?: () => void;
   availableModels?: ModelOption[];
   selectedModel?: string;
@@ -53,9 +53,10 @@ interface ToolBeltToolbarProps {
   onMcpToggle?: () => void;
   onArtifactsToggle?: () => void;
   onDeepResearchToggle?: () => void;
-  onTTSToggle?: () => void;
   onAttachFile?: () => void;
   onAttachImage?: () => void;
+  onAttachVideo?: () => void;
+  onToggleCallMode?: () => void;
   onStartRecording?: () => void;
   onStopRecording?: () => void;
   onStop?: () => void;
@@ -76,7 +77,7 @@ export const ToolBeltToolbar = memo(function ToolBeltToolbar({
   mcpEnabled,
   artifactsEnabled,
   deepResearchEnabled,
-  isTTSEnabled,
+  callModeEnabled,
   onOpenResults,
   availableModels = [],
   selectedModel,
@@ -86,9 +87,10 @@ export const ToolBeltToolbar = memo(function ToolBeltToolbar({
   onMcpToggle,
   onArtifactsToggle,
   onDeepResearchToggle,
-  onTTSToggle,
   onAttachFile,
   onAttachImage,
+  onAttachVideo,
+  onToggleCallMode,
   onStartRecording,
   onStopRecording,
   onStop,
@@ -101,11 +103,11 @@ export const ToolBeltToolbar = memo(function ToolBeltToolbar({
       hasSystemPrompt ||
       isRecording ||
       isTranscribing ||
-      isTTSEnabled
+      callModeEnabled
   );
 
-  const showAttachmentSection = Boolean(onAttachFile || onAttachImage);
-  const showVoiceSection = Boolean(onStartRecording || onStopRecording || onTTSToggle);
+  const showAttachmentSection = Boolean(onAttachFile || onAttachImage || onAttachVideo);
+  const showVoiceSection = Boolean(onStartRecording || onStopRecording || onToggleCallMode);
   const showToolsSection = Boolean(
     onMcpToggle || onArtifactsToggle || onDeepResearchToggle || onOpenMcpSettings
   );
@@ -154,7 +156,21 @@ export const ToolBeltToolbar = memo(function ToolBeltToolbar({
           >
             <DropdownItem icon={Paperclip} label="Attach file" onClick={onAttachFile} disabled={disabled} />
             <DropdownItem icon={ImageIcon} label="Attach image" onClick={onAttachImage} disabled={disabled} />
+            <DropdownItem icon={Film} label="Attach video" onClick={onAttachVideo} disabled={disabled} />
           </ToolDropdown>
+
+          {onToggleCallMode && (
+            <button
+              onClick={onToggleCallMode}
+              disabled={disabled || isTranscribing}
+              className={`flex items-center justify-center p-2 rounded-lg transition-all:ease-in:200ms disabled:opacity-50 ${
+                callModeEnabled ? "bg-white/[0.08] text-[#e8e4dd]" : "hover:bg-(--accent) text-[#9a9590]"
+              }`}
+              title={callModeEnabled ? "Call mode (on)" : "Call mode"}
+            >
+              <AudioLines className="h-3.5 w-3.5" />
+            </button>
+          )}
 
           <button
             onClick={isRecording ? onStopRecording : onStartRecording}
@@ -176,19 +192,6 @@ export const ToolBeltToolbar = memo(function ToolBeltToolbar({
               <Mic className="h-3.5 w-3.5" />
             )}
           </button>
-
-          {onTTSToggle && (
-            <button
-              onClick={onTTSToggle}
-              disabled={disabled}
-              className={`flex items-center justify-center p-2 rounded-lg transition-all:ease-in:200ms disabled:opacity-50 ${
-                isTTSEnabled ? "bg-(--success) text-(--success)" : "hover:bg-(--accent) text-[#9a9590]"
-              }`}
-              title={isTTSEnabled ? "Disable TTS" : "Enable TTS"}
-            >
-              {isTTSEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
-            </button>
-          )}
 
           <ToolDropdown icon={Wrench} label="Tools" isActive={hasActiveTools} disabled={disabled}>
             <DropdownItem icon={Globe} label="Web search & tools" isActive={mcpEnabled} onClick={onMcpToggle} disabled={disabled} />
@@ -294,6 +297,9 @@ export const ToolBeltToolbar = memo(function ToolBeltToolbar({
               {onAttachImage && (
                 <DropdownItem icon={ImageIcon} label="Attach image" onClick={onAttachImage} disabled={disabled} closeOnClick />
               )}
+              {onAttachVideo && (
+                <DropdownItem icon={Film} label="Attach video" onClick={onAttachVideo} disabled={disabled} closeOnClick />
+              )}
               {(showVoiceSection || showToolsSection || showSettingsSection) && (
                 <div className="h-px bg-(--border) my-1" />
               )}
@@ -302,6 +308,16 @@ export const ToolBeltToolbar = memo(function ToolBeltToolbar({
 
           {showVoiceSection && (
             <>
+              {onToggleCallMode && (
+                <DropdownItem
+                  icon={AudioLines}
+                  label={callModeEnabled ? "Call mode (on)" : "Call mode"}
+                  isActive={Boolean(callModeEnabled)}
+                  onClick={onToggleCallMode}
+                  disabled={disabled || isTranscribing}
+                  closeOnClick
+                />
+              )}
               {(onStartRecording || onStopRecording) && (
                 <DropdownItem
                   icon={VoiceIconComponent}
@@ -309,16 +325,6 @@ export const ToolBeltToolbar = memo(function ToolBeltToolbar({
                   isActive={isRecording || isTranscribing}
                   onClick={onVoiceClick}
                   disabled={disabled || isTranscribing}
-                  closeOnClick
-                />
-              )}
-              {onTTSToggle && (
-                <DropdownItem
-                  icon={isTTSEnabled ? Volume2 : VolumeX}
-                  label={isTTSEnabled ? "Disable TTS" : "Enable TTS"}
-                  isActive={isTTSEnabled}
-                  onClick={onTTSToggle}
-                  disabled={disabled}
                   closeOnClick
                 />
               )}

@@ -29,6 +29,25 @@ const frontendDir = process.cwd();
 const repoRoot = resolve(frontendDir, "..");
 const controllerDir = resolve(repoRoot, "controller");
 
+const resolveUiPort = (): string => {
+  const explicit = process.env.PLAYWRIGHT_UI_PORT ?? process.env.PORT;
+  if (explicit) return explicit;
+
+  const baseUrl = process.env.PLAYWRIGHT_BASE_URL;
+  if (baseUrl) {
+    try {
+      const url = new URL(baseUrl);
+      if (url.port) return url.port;
+    } catch {
+      // ignore
+    }
+  }
+
+  return "3000";
+};
+
+const uiPort = resolveUiPort();
+
 const tempRoot = mkdtempSync(join(tmpdir(), "vllm-studio-playwright-"));
 const dataDir = join(tempRoot, "data");
 const modelsDir = join(tempRoot, "models");
@@ -52,8 +71,14 @@ const controllerEnv: NodeJS.ProcessEnv = {
 
 const nextEnv: NodeJS.ProcessEnv = {
   ...process.env,
-  PORT: "3000",
+  PORT: uiPort,
   NEXT_TELEMETRY_DISABLED: "1",
+  // Force the UI to use the ephemeral E2E controller, not any developer-local BACKEND_URL or settings file.
+  BACKEND_URL: "http://127.0.0.1:8080",
+  VLLM_STUDIO_DATA_DIR: dataDir,
+  // E2E: avoid requiring real mic + voice binaries.
+  NEXT_PUBLIC_VLLM_STUDIO_E2E_FAKE_MIC: process.env.NEXT_PUBLIC_VLLM_STUDIO_E2E_FAKE_MIC ?? "1",
+  VLLM_STUDIO_MOCK_VOICE: process.env.VLLM_STUDIO_MOCK_VOICE ?? "1",
 };
 
 const controller = spawn("bun", ["src/main.ts"], {
@@ -62,7 +87,7 @@ const controller = spawn("bun", ["src/main.ts"], {
   stdio: "inherit",
 });
 
-const next = spawn("npm", ["run", "dev", "--", "-p", "3000"], {
+const next = spawn("npm", ["run", "dev", "--", "-p", uiPort], {
   cwd: frontendDir,
   env: nextEnv,
   stdio: "inherit",
@@ -84,7 +109,7 @@ next.on("exit", (code) => {
 });
 
 await waitForUrl("http://127.0.0.1:8080/health", { timeoutMs: 120_000, intervalMs: 250 });
-await waitForUrl("http://127.0.0.1:3000", { timeoutMs: 120_000, intervalMs: 250 });
+await waitForUrl(`http://127.0.0.1:${uiPort}`, { timeoutMs: 120_000, intervalMs: 250 });
 
 // Keep process alive until Playwright stops the webServer command.
 while (true) {

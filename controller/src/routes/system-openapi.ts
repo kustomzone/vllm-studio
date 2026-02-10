@@ -43,7 +43,7 @@ export const registerSystemRoutes = (app: OpenAPIHono, context: AppContext): voi
         try {
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 5000);
-          const response = await fetch(`http://localhost:${context.config.inference_port}/health`, {
+          const response = await fetch(`http://127.0.0.1:${context.config.inference_port}/health`, {
             signal: controller.signal,
           });
           clearTimeout(timeout);
@@ -149,7 +149,7 @@ export const registerSystemRoutes = (app: OpenAPIHono, context: AppContext): voi
       const known = await context.processManager.findInferenceProcess(context.config.inference_port);
 
       const portOpen = await new Promise<boolean>((resolve) => {
-        const socket = connect(context.config.inference_port, "localhost");
+        const socket = connect(context.config.inference_port, "127.0.0.1");
         const timer = setTimeout(() => {
           socket.destroy();
           resolve(false);
@@ -217,7 +217,7 @@ export const registerSystemRoutes = (app: OpenAPIHono, context: AppContext): voi
         if (current) {
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 2000);
-          const response = await fetch(`http://localhost:${context.config.inference_port}/health`, {
+          const response = await fetch(`http://127.0.0.1:${context.config.inference_port}/health`, {
             signal: controller.signal,
           });
           clearTimeout(timeout);

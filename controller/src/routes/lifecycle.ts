@@ -225,7 +225,7 @@ export const registerLifecycleRoutes = (app: Hono, context: AppContext): void =>
         try {
           const controller = new AbortController();
           const timeoutHandle = setTimeout(() => controller.abort(), 5000);
-          const response = await fetch(`http://localhost:${context.config.inference_port}/health`, {
+          const response = await fetch(`http://127.0.0.1:${context.config.inference_port}/health`, {
             signal: controller.signal,
           });
           clearTimeout(timeoutHandle);
@@ -328,7 +328,7 @@ export const registerLifecycleRoutes = (app: Hono, context: AppContext): void =>
       try {
         const controller = new AbortController();
         const timeoutHandle = setTimeout(() => controller.abort(), 5000);
-        const response = await fetch(`http://localhost:${context.config.inference_port}/health`, {
+        const response = await fetch(`http://127.0.0.1:${context.config.inference_port}/health`, {
           signal: controller.signal,
         });
         clearTimeout(timeoutHandle);

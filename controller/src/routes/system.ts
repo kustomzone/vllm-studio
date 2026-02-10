@@ -51,7 +51,7 @@ export const registerSystemRoutes = (app: Hono, context: AppContext): void => {
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 5000);
-        const response = await fetch(`http://localhost:${context.config.inference_port}/health`, {
+        const response = await fetch(`http://127.0.0.1:${context.config.inference_port}/health`, {
           signal: controller.signal,
         });
         clearTimeout(timeout);
@@ -92,7 +92,7 @@ export const registerSystemRoutes = (app: Hono, context: AppContext): void => {
   app.get("/compat", async (ctx) => {
     const runtime = await getSystemRuntimeInfo(context.config);
     const known = await context.processManager.findInferenceProcess(context.config.inference_port);
-    const portOpen = await checkService("localhost", context.config.inference_port, 500);
+    const portOpen = await checkService("127.0.0.1", context.config.inference_port, 500);
 
     const report = buildCompatibilityReport({
       runtime,
@@ -242,7 +242,7 @@ export const registerSystemRoutes = (app: Hono, context: AppContext): void => {
       if (current) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 2000);
-        const response = await fetch(`http://localhost:${context.config.inference_port}/health`, {
+        const response = await fetch(`http://127.0.0.1:${context.config.inference_port}/health`, {
           signal: controller.signal,
         });
         clearTimeout(timeout);
@@ -268,7 +268,7 @@ export const registerSystemRoutes = (app: Hono, context: AppContext): void => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10_000);
       const masterKey = process.env["LITELLM_MASTER_KEY"] ?? "sk-master";
-      const response = await fetch("http://localhost:4100/health", {
+      const response = await fetch("http://127.0.0.1:4100/health", {
         headers: { Authorization: `Bearer ${masterKey}` },
         signal: controller.signal,
       });
@@ -292,7 +292,7 @@ export const registerSystemRoutes = (app: Hono, context: AppContext): void => {
       description: "API gateway and load balancer",
     });
 
-    const postgresReachable = await checkService("localhost", 5432);
+    const postgresReachable = await checkService("127.0.0.1", 5432);
     services.push({
       name: "PostgreSQL",
       port: 5432,
@@ -302,7 +302,7 @@ export const registerSystemRoutes = (app: Hono, context: AppContext): void => {
       description: "Database for LiteLLM",
     });
 
-    const redisReachable = await checkService("localhost", 6379);
+    const redisReachable = await checkService("127.0.0.1", 6379);
     services.push({
       name: "Redis",
       port: 6379,
@@ -316,7 +316,7 @@ export const registerSystemRoutes = (app: Hono, context: AppContext): void => {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 2000);
-      const response = await fetch("http://localhost:9090/-/healthy", { signal: controller.signal });
+      const response = await fetch("http://127.0.0.1:9090/-/healthy", { signal: controller.signal });
       clearTimeout(timeout);
       prometheusStatus = response.status === 200 ? "running" : "error";
     } catch {
@@ -331,7 +331,7 @@ export const registerSystemRoutes = (app: Hono, context: AppContext): void => {
       description: "Metrics collection",
     });
 
-    const frontendReachable = await checkService("localhost", 3000);
+    const frontendReachable = await checkService("127.0.0.1", 3000);
     services.push({
       name: "Frontend",
       port: 3000,

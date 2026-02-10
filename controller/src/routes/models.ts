@@ -33,7 +33,7 @@ export const registerModelsRoutes = (app: Hono, context: AppContext): void => {
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 5000);
-        const response = await fetch(`http://localhost:${context.config.inference_port}/v1/models`, {
+        const response = await fetch(`http://127.0.0.1:${context.config.inference_port}/v1/models`, {
           signal: controller.signal,
         });
         clearTimeout(timeout);
@@ -119,7 +119,7 @@ export const registerModelsRoutes = (app: Hono, context: AppContext): void => {
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 5000);
-        const response = await fetch(`http://localhost:${context.config.inference_port}/v1/models`, {
+        const response = await fetch(`http://127.0.0.1:${context.config.inference_port}/v1/models`, {
           signal: controller.signal,
         });
         clearTimeout(timeout);

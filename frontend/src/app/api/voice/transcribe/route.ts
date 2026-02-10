@@ -4,6 +4,10 @@ import { resolveVoiceTarget, shouldInjectSttModelForTarget } from "../voice-targ
 
 export async function POST(request: NextRequest) {
   try {
+    if ((process.env.VLLM_STUDIO_MOCK_VOICE ?? "").trim() === "1") {
+      return NextResponse.json({ text: "hello from mock stt" });
+    }
+
     // Get the form data from the request
     const formData = await request.formData();
     const settings = await getApiSettings();

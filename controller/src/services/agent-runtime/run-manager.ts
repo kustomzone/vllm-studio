@@ -140,7 +140,7 @@ export class ChatRunManager {
     const modelId = await this.resolveModelId(session, options.model);
     const systemPrompt = buildSystemPrompt(session, options.systemPrompt, options.agentMode ?? false);
     const thinkingLevel = options.thinkingLevel ?? (options.deepResearch ? "high" : "off");
-    const baseUrl = `http://localhost:${this.context.config.port}/v1`;
+    const baseUrl = `http://127.0.0.1:${this.context.config.port}/v1`;
     const model = createOpenAiCompatibleModel(modelId, baseUrl);
 
     const history = Array.isArray(session["messages"]) ? (session["messages"] as Array<Record<string, unknown>>) : [];

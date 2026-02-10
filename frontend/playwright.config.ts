@@ -2,6 +2,7 @@
 import { defineConfig } from "@playwright/test";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+const proof = process.env.PLAYWRIGHT_PROOF === "1";
 
 export default defineConfig({
   testDir: "./tests",
@@ -15,9 +16,9 @@ export default defineConfig({
   },
   use: {
     baseURL,
-    trace: "retain-on-failure",
-    screenshot: "only-on-failure",
-    video: "retain-on-failure",
+    trace: proof ? "on" : "retain-on-failure",
+    screenshot: proof ? "on" : "only-on-failure",
+    video: proof ? "on" : "retain-on-failure",
   },
   reporter: [["html", { open: "never" }], ["list"]],
 });

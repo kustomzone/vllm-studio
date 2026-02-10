@@ -65,6 +65,7 @@ proof-snapshot-*.md
 .osgrep/
 opencode.json
 controller/.vllm-studio/
+controller/.txt
 
 # MCP servers config (contains API keys)
 data/mcp_servers.json

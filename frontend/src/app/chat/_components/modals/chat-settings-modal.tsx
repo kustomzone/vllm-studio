@@ -1,9 +1,16 @@
 // CRITICAL
 "use client";
 
+import { useState } from "react";
 import { X, Settings } from "lucide-react";
 import type { DeepResearchConfig } from "@/lib/types";
 import type { ModelOption } from "../../types";
+import {
+  isParallaxEnabled,
+  isVlmAttachmentsEnabled,
+  setParallaxEnabled,
+  setVlmAttachmentsEnabled,
+} from "@/lib/features";
 
 interface ChatSettingsModalProps {
   isOpen: boolean;
@@ -29,6 +36,9 @@ export function ChatSettingsModal({
   onDeepResearchChange,
 }: ChatSettingsModalProps) {
   if (!isOpen) return null;
+
+  const [vlmEnabled, setVlmEnabled] = useState<boolean>(() => isVlmAttachmentsEnabled());
+  const [parallaxEnabled, setParallaxEnabledState] = useState<boolean>(() => isParallaxEnabled());
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -95,6 +105,47 @@ export function ChatSettingsModal({
             </label>
             <p className="text-xs text-[#6a6560] mt-1 ml-6">
               Uses web search to gather context before responding
+            </p>
+          </div>
+
+          {/* Beta / feature flags */}
+          <div>
+            <div className="text-sm font-medium text-[#c8c4bd] mb-2">Beta Features</div>
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={vlmEnabled}
+                onChange={(e) => {
+                  const enabled = e.target.checked;
+                  setVlmEnabled(enabled);
+                  setVlmAttachmentsEnabled(enabled);
+                }}
+                className="w-4 h-4 rounded border-(--border) bg-background"
+              />
+              <span className="text-sm font-medium text-[#c8c4bd]">Vision attachments (images)</span>
+            </label>
+            <p className="text-xs text-[#6a6560] mt-1 ml-6">
+              Sends attached images as true multimodal parts when supported by the backend.
+            </p>
+
+            <div className="h-3" />
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={parallaxEnabled}
+                onChange={(e) => {
+                  const enabled = e.target.checked;
+                  setParallaxEnabledState(enabled);
+                  setParallaxEnabled(enabled);
+                }}
+                className="w-4 h-4 rounded border-(--border) bg-background"
+              />
+              <span className="text-sm font-medium text-[#c8c4bd]">Parallax (model sharing)</span>
+            </label>
+            <p className="text-xs text-[#6a6560] mt-1 ml-6">
+              Enables the beta Parallax-like share and install flow.
             </p>
           </div>
         </div>

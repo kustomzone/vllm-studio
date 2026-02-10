@@ -334,7 +334,7 @@ export class ServiceManager {
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 2000);
-        const res = await fetch(`http://localhost:${state.port}/health`, { signal: controller.signal });
+        const res = await fetch(`http://127.0.0.1:${state.port}/health`, { signal: controller.signal });
         clearTimeout(timeout);
         return { ok: res.status === 200, service: { ...state } };
       } catch {
