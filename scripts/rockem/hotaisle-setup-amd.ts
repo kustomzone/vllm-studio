@@ -97,7 +97,7 @@ sudo -n apt-get install -y --no-install-recommends libespeak-ng1
 if [ ! -d /opt/piper ]; then
   tmpdir="$(mktemp -d)"
   curl -fsSL -o "$tmpdir/piper.tar.gz" \
-    https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_linux_x86_64.tar.gz
+    https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_amd64.tar.gz
   sudo -n mkdir -p /opt/piper
   sudo -n tar -xzf "$tmpdir/piper.tar.gz" -C /opt/piper --strip-components=1
   rm -rf "$tmpdir"
@@ -224,4 +224,3 @@ main().catch((err) => {
   console.error(String(err));
   process.exit(1);
 });
-
