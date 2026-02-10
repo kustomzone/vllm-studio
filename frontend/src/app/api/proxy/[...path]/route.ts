@@ -62,13 +62,22 @@ function resolveTargetBackendUrl(args: {
   path: string[];
   settingsBackendUrl: string;
   settingsMediaUrl: string;
+  settingsVoiceUrl: string;
 }): string {
-  const { path, settingsBackendUrl, settingsMediaUrl } = args;
+  const { path, settingsBackendUrl, settingsMediaUrl, settingsVoiceUrl } = args;
   const normalizedBackend = normalizeBackendUrl(settingsBackendUrl) ?? "";
   const normalizedMedia = normalizeBackendUrl(settingsMediaUrl) ?? "";
+  const normalizedVoice = normalizeBackendUrl(settingsVoiceUrl) ?? "";
 
   // Default: controller backend url.
   let target = normalizedBackend || settingsBackendUrl;
+
+  // Optional split routing: send "services" and "jobs" to the voice backend.
+  // This keeps the dashboard usable when the LLM backend is a minimal controller that does not
+  // implement the full vLLM Studio service surface.
+  if (normalizedVoice && (path[0] === "services" || path[0] === "jobs")) {
+    target = normalizedVoice;
+  }
 
   // Optional split routing: send media generation to the media backend.
   // This is the "pipeline parallelism" primitive: keep LLM traffic on one controller and
@@ -104,6 +113,7 @@ async function handleRequest(request: NextRequest, method: string, path: string[
       path,
       settingsBackendUrl: BACKEND_URL,
       settingsMediaUrl: settings.mediaUrl,
+      settingsVoiceUrl: settings.voiceUrl,
     });
 
     const url = new URL(request.url);
