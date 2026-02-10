@@ -107,7 +107,7 @@ if [ ! -x /usr/local/bin/piper ]; then
   sudo -n tee /usr/local/bin/piper >/dev/null <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-export LD_LIBRARY_PATH="/opt/piper:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="/opt/piper:${LD_LIBRARY_PATH:-}"
 exec /opt/piper/piper "$@"
 EOF
   sudo -n chmod +x /usr/local/bin/piper
