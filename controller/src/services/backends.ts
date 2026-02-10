@@ -360,6 +360,13 @@ export const buildLlamacppCommand = (recipe: Recipe, config: Config): string[] =
   const command: string[] = [resolveLlamaBinary(recipe, config)];
   command.push("--model", recipe.model_path, "--host", recipe.host, "--port", String(recipe.port));
 
+  // The OpenAI-compatible API surface (tools/functions) requires `--jinja` on llama-server.
+  // Default it on unless explicitly disabled in extra_args to avoid runtime stream failures.
+  const jinja = getExtraArgument(recipe.extra_args, "jinja");
+  if (jinja !== false && !command.includes("--jinja")) {
+    command.push("--jinja");
+  }
+
   // Note: newer llama.cpp `llama-server` builds no longer accept `--alias` (and will exit with help output).
   // We keep `served_model_name` for UI display, but avoid passing an unsupported flag here.
   const ctxOverride = getExtraArgument(recipe.extra_args, "ctx-size");
