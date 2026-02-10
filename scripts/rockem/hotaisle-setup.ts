@@ -132,7 +132,7 @@ fi
 cd ~/src/llama.cpp
 git fetch origin
 git pull --ff-only || true
-cmake -S . -B build -DGGML_HIP=ON -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -DGGML_HIP=ON -DGGML_RPC=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j "$(nproc)"
 test -x build/bin/llama-server
 
