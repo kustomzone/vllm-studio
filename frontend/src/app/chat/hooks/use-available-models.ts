@@ -124,6 +124,7 @@ export function useAvailableModels({ selectedModel, setSelectedModel, setAvailab
         const activeModel = mappedModels.find((model) => model.active)?.id;
         const fallbackModel = activeModel ?? mappedModels[0]?.id ?? "";
         const currentModel = selectedModel;
+        const currentIsLastModel = Boolean(currentModel && lastModel && currentModel === lastModel);
 
         if (mappedModels.length === 0) {
           if (lastModel && !currentModel) {
@@ -133,7 +134,11 @@ export function useAvailableModels({ selectedModel, setSelectedModel, setAvailab
         }
 
         let next = currentModel;
-        if (next && mappedModels.some((model) => model.id === next)) {
+        // UX: when a model is already running, prefer selecting it by default. This avoids
+        // accidentally switching to a huge/slow recipe just because it was "last selected".
+        if (activeModel && (!next || currentIsLastModel)) {
+          next = activeModel;
+        } else if (next && mappedModels.some((model) => model.id === next)) {
           // keep selected model
         } else if (lastModel && mappedModels.some((model) => model.id === lastModel)) {
           next = lastModel;
@@ -152,4 +157,3 @@ export function useAvailableModels({ selectedModel, setSelectedModel, setAvailab
     void loadModels();
   }, [selectedModel, setAvailableModels, setSelectedModel]);
 }
-
