@@ -58,15 +58,28 @@ test("chat: call mode (STT->LLM->TTS loop) + per-message listen button", async (
   await expect.poll(async () => {
     return await modelSelect.evaluate((el) => (el as HTMLSelectElement).options.length);
   }).toBeGreaterThan(0);
-  const chosen = await modelSelect.evaluate((el) => {
+  // Prefer whatever model is currently active on the backend (avoids long recipe switches).
+  let activeModelId = "";
+  try {
+    const res = await fetch(`${BACKEND_URL.replace(/\/+$/, "")}/v1/models`);
+    const json = (await res.json()) as { data?: Array<{ id?: string; active?: boolean }> };
+    activeModelId = String(json?.data?.find((m) => m && m.active)?.id ?? "");
+  } catch {
+    activeModelId = "";
+  }
+
+  const chosen = await modelSelect.evaluate((el, active) => {
     const select = el as HTMLSelectElement;
     const options = Array.from(select.options);
+    const values = new Set(options.map((o) => o.value).filter(Boolean));
+    const current = select.value || "";
+    if (active && values.has(active)) return active;
+    if (current && values.has(current)) return current;
     const candidate = options.find((o) => o.value && !o.disabled);
     return candidate?.value ?? "";
-  });
-  if (chosen) {
-    await modelSelect.selectOption(chosen);
-  }
+  }, activeModelId);
+
+  if (chosen) await modelSelect.selectOption(chosen);
   await expect.poll(async () => await modelSelect.inputValue()).not.toBe("");
 
   // Turn on call mode (waveform icon).

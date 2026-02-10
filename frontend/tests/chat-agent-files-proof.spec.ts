@@ -27,6 +27,16 @@ test("chat: multi-step + agent files panel shows file content", async ({ page, r
 
   await page.goto(`/chat?session=${encodeURIComponent(sessionId!)}`);
 
+  // Prefer whatever model is currently active on the backend (avoids long recipe switches).
+  let activeModelId = "";
+  try {
+    const res = await fetch(`${BACKEND_URL.replace(/\/+$/, "")}/v1/models`);
+    const json = (await res.json()) as { data?: Array<{ id?: string; active?: boolean }> };
+    activeModelId = String(json?.data?.find((m) => m && m.active)?.id ?? "");
+  } catch {
+    activeModelId = "";
+  }
+
   // If setup wizard is shown, skip it.
   const skip = page.getByRole("button", { name: /skip for now/i });
   if (await skip.isVisible().catch(() => false)) {
@@ -37,12 +47,16 @@ test("chat: multi-step + agent files panel shows file content", async ({ page, r
   // Ensure a model is selected (composer is disabled until then).
   const modelSelect = page.locator('select[title="Select model"]').first();
   if (await modelSelect.isVisible().catch(() => false)) {
-    const chosen = await modelSelect.evaluate((el) => {
+    const chosen = await modelSelect.evaluate((el, active) => {
       const select = el as HTMLSelectElement;
       const options = Array.from(select.options);
+      const values = new Set(options.map((o) => o.value).filter(Boolean));
+      const current = select.value || "";
+      if (active && values.has(active)) return active;
+      if (current && values.has(current)) return current;
       const candidate = options.find((o) => o.value && !o.disabled);
       return candidate?.value ?? null;
-    });
+    }, activeModelId);
     if (chosen) {
       await modelSelect.selectOption(chosen);
     }
