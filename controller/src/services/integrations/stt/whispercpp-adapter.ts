@@ -120,9 +120,11 @@ export class WhisperCppAdapter implements SttAdapter {
       (process.env["VLLM_STUDIO_STT_FAST"] ?? "1").trim() !== "0" &&
       (process.env["VLLM_STUDIO_STT_FAST"] ?? "1").trim().toLowerCase() !== "false";
 
+    // VAD support varies between whisper.cpp builds and can fail hard when misconfigured.
+    // Default to off; operators can opt in explicitly via env.
     const vad =
-      (process.env["VLLM_STUDIO_STT_VAD"] ?? "1").trim() !== "0" &&
-      (process.env["VLLM_STUDIO_STT_VAD"] ?? "1").trim().toLowerCase() !== "false";
+      (process.env["VLLM_STUDIO_STT_VAD"] ?? "0").trim() !== "0" &&
+      (process.env["VLLM_STUDIO_STT_VAD"] ?? "0").trim().toLowerCase() !== "false";
 
     const vadMaxSpeechEnv = Number.parseFloat((process.env["VLLM_STUDIO_STT_VAD_MAX_SPEECH_S"] || "").trim());
     const vadMaxSpeechS =
