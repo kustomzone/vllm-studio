@@ -43,23 +43,18 @@ const sshBash = async (script: string): Promise<void> => {
 };
 
 const main = async (): Promise<void> => {
-  await sshBash(String.raw`set -euo pipefail
+ await sshBash(String.raw`set -euo pipefail
 
 echo "[modelpack] python venv"
 python3 -m venv "$HOME/modelpack-venv"
 source "$HOME/modelpack-venv/bin/activate"
 python -m pip install --upgrade pip wheel setuptools
 
-echo "[modelpack] install deps (diffusers/transformers/torchvision/hf hub)"
-# NOTE: torch ROCm install is environment-specific; we try to avoid reinstalling it here.
-python -m pip install --upgrade \
-  huggingface_hub==0.35.0 safetensors==0.6.2 \
-  transformers==4.56.2 accelerate==1.10.1 \
-  diffusers==0.35.1 \
-  pillow==11.3.0 numpy==2.2.6 \
-  soundfile==0.13.1 librosa==0.11.0
+echo "[modelpack] install deps (downloads only; no torch install)"
+python -m pip install --upgrade huggingface_hub==0.35.0 hf-xet==1.2.0
 
 mkdir -p ${MODELS_DIR}/image-edit ${MODELS_DIR}/video ${MODELS_DIR}/music ${MODELS_DIR}/stt
+export MODELS_DIR=${MODELS_DIR}
 
 echo "[modelpack] download: Qwen/Qwen-Image-Edit-2509 (metadata-only if too large)"
 python - <<'PY'
@@ -101,8 +96,8 @@ snapshot_download(repo_id="stabilityai/stable-video-diffusion-img2vid-xt-1-1", l
 print("downloaded:", dst)
 PY
 
-echo "[modelpack] NOTE: actual inference smoke runs are highly runtime-dependent on ROCm builds of torch and model code."
-echo "[modelpack] We verify imports and local presence here."
+echo "[modelpack] NOTE: inference for these models requires a ROCm-capable torch stack."
+echo "[modelpack] This step verifies local presence only."
 python - <<'PY'
 import os, pathlib
 root = pathlib.Path(os.environ.get("MODELS_DIR","/models"))
@@ -124,4 +119,3 @@ main().catch((err) => {
   console.error(String(err));
   process.exit(1);
 });
-
