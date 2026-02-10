@@ -175,21 +175,22 @@ export function ToolBelt({
   }, []);
 
   const audioRecorderRef = useRef<{
+    mode: "idle" | "fake" | "media";
     stream: MediaStream | null;
-    audioContext: AudioContext | null;
-    source: MediaStreamAudioSourceNode | null;
-    processor: ScriptProcessorNode | null;
-    zeroGain: GainNode | null;
-    chunks: Float32Array[];
-    sampleRate: number;
+    mediaRecorder: MediaRecorder | null;
+    mediaChunks: BlobPart[];
+    mimeType: string | null;
+    // Fake recording state
+    fakeChunks: Float32Array[];
+    fakeSampleRate: number;
   }>({
+    mode: "idle",
     stream: null,
-    audioContext: null,
-    source: null,
-    processor: null,
-    zeroGain: null,
-    chunks: [],
-    sampleRate: 48000,
+    mediaRecorder: null,
+    mediaChunks: [],
+    mimeType: null,
+    fakeChunks: [],
+    fakeSampleRate: 48000,
   });
 
   // Keep the transcript from disappearing under the fixed mobile composer by exposing its height as a CSS var.
@@ -353,17 +354,7 @@ export function ToolBelt({
   const teardownAudioRecorder = useCallback(async () => {
     const rec = audioRecorderRef.current;
     try {
-      rec.processor?.disconnect();
-    } catch {
-      // ignore
-    }
-    try {
-      rec.source?.disconnect();
-    } catch {
-      // ignore
-    }
-    try {
-      rec.zeroGain?.disconnect();
+      rec.mediaRecorder?.stop();
     } catch {
       // ignore
     }
@@ -374,18 +365,12 @@ export function ToolBelt({
         // ignore
       }
     }
-    if (rec.audioContext) {
-      try {
-        await rec.audioContext.close();
-      } catch {
-        // ignore
-      }
-    }
+    rec.mediaRecorder = null;
     rec.stream = null;
-    rec.audioContext = null;
-    rec.source = null;
-    rec.processor = null;
-    rec.zeroGain = null;
+    rec.mediaChunks = [];
+    rec.mimeType = null;
+    rec.fakeChunks = [];
+    rec.mode = "idle";
   }, []);
 
   const startRecording = useCallback(async (): Promise<void> => {
@@ -404,8 +389,11 @@ export function ToolBelt({
           samples[i] = Math.sin((2 * Math.PI * 440 * i) / sampleRate) * 0.08;
         }
         const rec = audioRecorderRef.current;
-        rec.chunks = [samples];
-        rec.sampleRate = sampleRate;
+        rec.mode = "fake";
+        rec.fakeChunks = [samples];
+        rec.fakeSampleRate = sampleRate;
+        rec.mediaChunks = [];
+        rec.mimeType = "audio/wav";
 
         setIsRecording(true);
         setRecordingDuration(0);
@@ -419,30 +407,44 @@ export function ToolBelt({
         return;
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const audioContext = new AudioContext();
-      const source = audioContext.createMediaStreamSource(stream);
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
-      const zeroGain = audioContext.createGain();
-      zeroGain.gain.value = 0;
-
       const rec = audioRecorderRef.current;
-      rec.stream = stream;
-      rec.audioContext = audioContext;
-      rec.source = source;
-      rec.processor = processor;
-      rec.zeroGain = zeroGain;
-      rec.chunks = [];
-      rec.sampleRate = audioContext.sampleRate;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      processor.onaudioprocess = (e) => {
-        const input = e.inputBuffer.getChannelData(0);
-        rec.chunks.push(new Float32Array(input));
+      // Prefer MediaRecorder for cross-browser compatibility and low memory usage.
+      const pickMime = (): string | null => {
+        if (typeof MediaRecorder === "undefined") return null;
+        const candidates = [
+          "audio/webm;codecs=opus",
+          "audio/webm",
+          "audio/ogg;codecs=opus",
+          "audio/ogg",
+        ];
+        for (const c of candidates) {
+          try {
+            if (MediaRecorder.isTypeSupported(c)) return c;
+          } catch {
+            // ignore
+          }
+        }
+        return null;
       };
 
-      source.connect(processor);
-      processor.connect(zeroGain);
-      zeroGain.connect(audioContext.destination);
+      const mimeType = pickMime();
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      rec.mode = "media";
+      rec.stream = stream;
+      rec.mediaRecorder = mr;
+      rec.mediaChunks = [];
+      rec.mimeType = mr.mimeType || mimeType;
+
+      mr.ondataavailable = (evt) => {
+        if (!evt.data) return;
+        if (evt.data.size <= 0) return;
+        rec.mediaChunks.push(evt.data);
+      };
+
+      // Start recording; request chunks periodically so stop() flushes reliably.
+      mr.start(250);
 
       setIsRecording(true);
       setRecordingDuration(0);
@@ -472,38 +474,69 @@ export function ToolBelt({
     }
 
     const rec = audioRecorderRef.current;
-    const chunks = rec.chunks;
-    const sampleRate = rec.sampleRate;
-    rec.chunks = [];
-
-    void (async () => {
-      await teardownAudioRecorder();
-      if (!chunks.length) return;
-
-      const { wavBytes } = encodeChunksToWav({
-        chunks,
-        inputSampleRate: sampleRate,
-        targetSampleRate: 16000,
-      });
-      const audioBlob = new Blob([wavBytes], { type: "audio/wav" });
-      const transcript = await transcribeAudio(audioBlob, "recording.wav");
+    const consumeTranscript = (transcriptRaw: string) => {
+      const transcript = transcriptRaw.trim();
       if (!transcript) return;
-
       if (useAppStore.getState().callModeEnabled) {
-        const text = transcript.trim();
-        if (!text) return;
         const currentAttachments = useAppStore.getState().attachments;
-        onSubmit(text, currentAttachments.length > 0 ? [...currentAttachments] : undefined);
+        onSubmit(transcript, currentAttachments.length > 0 ? [...currentAttachments] : undefined);
         for (const attachment of currentAttachments) maybeRevokeObjectUrl(attachment.url);
         setAttachments([]);
         setInput("");
         return;
       }
-
       const currentInput = useAppStore.getState().input;
       setInput(currentInput ? `${currentInput} ${transcript}` : transcript);
       textareaRef.current?.focus();
-    })();
+    };
+
+    if (rec.mode === "fake") {
+      const chunks = rec.fakeChunks;
+      const sampleRate = rec.fakeSampleRate;
+      rec.fakeChunks = [];
+      void (async () => {
+        await teardownAudioRecorder();
+        if (!chunks.length) return;
+        const { wavBytes } = encodeChunksToWav({
+          chunks,
+          inputSampleRate: sampleRate,
+          targetSampleRate: 16000,
+        });
+        const audioBlob = new Blob([wavBytes], { type: "audio/wav" });
+        const transcript = await transcribeAudio(audioBlob, "recording.wav");
+        if (!transcript) return;
+        consumeTranscript(transcript);
+      })();
+      return;
+    }
+
+    if (rec.mode === "media" && rec.mediaRecorder) {
+      const mr = rec.mediaRecorder;
+      const fileName = (rec.mimeType || "").includes("ogg") ? "recording.ogg" : "recording.webm";
+      mr.onstop = () => {
+        const parts = [...rec.mediaChunks];
+        const mime = rec.mimeType || "audio/webm";
+        // Reset before we begin async transcription so another recording can start cleanly.
+        rec.mediaChunks = [];
+        void (async () => {
+          await teardownAudioRecorder();
+          if (!parts.length) return;
+          const audioBlob = new Blob(parts, { type: mime });
+          const transcript = await transcribeAudio(audioBlob, fileName);
+          if (!transcript) return;
+          consumeTranscript(transcript);
+        })();
+      };
+      try {
+        mr.stop();
+      } catch (err) {
+        console.error("Failed to stop MediaRecorder:", err);
+        void teardownAudioRecorder();
+      }
+      return;
+    }
+
+    void teardownAudioRecorder();
   }, [onSubmit, setAttachments, setInput, setIsRecording, teardownAudioRecorder, transcribeAudio]);
 
   const handleToggleCallMode = useCallback(() => {

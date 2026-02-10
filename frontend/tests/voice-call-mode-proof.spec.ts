@@ -1,6 +1,10 @@
 // CRITICAL
 import { test, expect } from "@playwright/test";
 
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+const COOKIE_ORIGIN = new URL(BASE_URL).origin;
+const BACKEND_URL = process.env.PLAYWRIGHT_BACKEND_URL ?? "http://127.0.0.1:8080";
+
 test("chat: call mode (STT->LLM->TTS loop) + per-message listen button", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
 
@@ -29,6 +33,16 @@ test("chat: call mode (STT->LLM->TTS loop) + per-message listen button", async (
     };
   });
 
+  // Point the UI at the live backend under test.
+  await page.context().addCookies([{
+    name: "vllmstudio_backend_url",
+    value: BACKEND_URL,
+    url: COOKIE_ORIGIN,
+  }]);
+  await page.addInitScript((url) => {
+    window.localStorage.setItem("vllmstudio_backend_url", String(url));
+  }, BACKEND_URL);
+
   await page.goto("/chat?new=1");
 
   // If setup wizard is shown, skip it.
@@ -37,6 +51,23 @@ test("chat: call mode (STT->LLM->TTS loop) + per-message listen button", async (
     await skip.click();
     await page.goto("/chat?new=1");
   }
+
+  // Ensure a model is selected (call mode is disabled until then).
+  const modelSelect = page.getByRole("combobox", { name: /select model/i }).first();
+  await expect(modelSelect).toBeVisible({ timeout: 60_000 });
+  await expect.poll(async () => {
+    return await modelSelect.evaluate((el) => (el as HTMLSelectElement).options.length);
+  }).toBeGreaterThan(0);
+  const chosen = await modelSelect.evaluate((el) => {
+    const select = el as HTMLSelectElement;
+    const options = Array.from(select.options);
+    const candidate = options.find((o) => o.value && !o.disabled);
+    return candidate?.value ?? "";
+  });
+  if (chosen) {
+    await modelSelect.selectOption(chosen);
+  }
+  await expect.poll(async () => await modelSelect.inputValue()).not.toBe("");
 
   // Turn on call mode (waveform icon).
   const callMode = page.getByRole("button", { name: /call mode/i }).first();
