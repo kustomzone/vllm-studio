@@ -66,14 +66,32 @@ snapshot_download(repo_id="Qwen/Qwen-Image-Edit-2509", local_dir=dst, local_dir_
 print("downloaded:", dst)
 PY
 
-echo "[modelpack] download: ACE-Step/Ace-Step1 (best effort)"
+echo "[modelpack] download: ACE-Step (best effort; repo name may vary)"
 python - <<'PY'
 from huggingface_hub import snapshot_download
 import os
-dst = os.path.join(os.environ.get("MODELS_DIR","/models"), "music", "Ace-Step1")
-os.makedirs(dst, exist_ok=True)
-snapshot_download(repo_id="ACE-Step/Ace-Step1", local_dir=dst, local_dir_use_symlinks=False)
-print("downloaded:", dst)
+
+root = os.environ.get("MODELS_DIR", "/models")
+os.makedirs(os.path.join(root, "music"), exist_ok=True)
+
+candidates = [
+  "ACE-Step/Ace-Step1",          # user-provided (may be private / non-existent)
+  "ACE-Step/ACE-Step-v1-3.5B",   # public
+  "ACE-Step/Ace-Step1.5",        # public
+]
+
+last_err = None
+for repo_id in candidates:
+  try:
+    dst = os.path.join(root, "music", repo_id.split("/")[-1])
+    os.makedirs(dst, exist_ok=True)
+    snapshot_download(repo_id=repo_id, local_dir=dst, local_dir_use_symlinks=False)
+    print("downloaded:", repo_id, "->", dst)
+    break
+  except Exception as e:
+    last_err = e
+else:
+  raise RuntimeError(f"Failed to download any ACE-Step repo. Last error: {last_err}")
 PY
 
 echo "[modelpack] download: nvidia/parakeet-tdt-0.6b-v3 (best effort)"
