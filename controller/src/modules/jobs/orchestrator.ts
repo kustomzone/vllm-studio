@@ -1,3 +1,5 @@
+import type { JobType } from "./types";
+
 /**
  * Orchestrator interface for job execution.
  */
@@ -6,15 +8,11 @@ export interface Orchestrator {
   readonly name: string;
 
   /**
-   * Execute a workflow.
-   * @param jobId - Job identifier.
-   * @param type - Workflow type.
-   * @param input - Workflow input.
-   * @param reporter - Progress/log reporter.
+   * Workflow type discriminator.
    */
   execute(
     jobId: string,
-    type: string,
+    type: JobType,
     input: Record<string, unknown>,
     reporter: JobReporter,
   ): Promise<Record<string, unknown>>;

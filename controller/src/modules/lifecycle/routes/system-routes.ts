@@ -1,4 +1,3 @@
-// CRITICAL
 import type { Hono } from "hono";
 import { connect } from "node:net";
 import { hostname } from "node:os";

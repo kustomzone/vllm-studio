@@ -1,24 +1,12 @@
 // CRITICAL
 import { statSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-
-/**
- * Model metadata information.
- */
-export interface ModelInfo {
-  name: string;
-  path: string;
-  size_bytes: number | null;
-  modified_at: number | null;
-  architecture: string | null;
-  quantization: string | null;
-  context_length: number | null;
-  recipe_ids: string[];
-  has_recipe: boolean;
-}
-
-const WEIGHT_EXTS = [".safetensors", ".bin", ".gguf"] as const;
-const CONFIG_FILENAMES = ["config.json"] as const;
+import type { ModelInfo } from "./types";
+import {
+  MODEL_BROWSER_CONFIG_FILENAMES,
+  MODEL_BROWSER_WEIGHT_EXTENSIONS,
+  MODEL_QUANTIZATION_SIGNATURES,
+} from "./configs";
 
 /**
  * Check if a directory looks like a model directory.
@@ -31,13 +19,15 @@ export const looksLikeModelDirectory = (path: string): boolean => {
   }
   try {
     const entries = readdirSync(path, { withFileTypes: true });
-    for (const configName of CONFIG_FILENAMES) {
+    for (const configName of MODEL_BROWSER_CONFIG_FILENAMES) {
       if (entries.some((entry) => entry.isFile() && entry.name === configName)) {
         return true;
       }
     }
     return entries.some(
-      (entry) => entry.isFile() && WEIGHT_EXTS.some((extension) => entry.name.toLowerCase().endsWith(extension)),
+      (entry) =>
+        entry.isFile() &&
+        MODEL_BROWSER_WEIGHT_EXTENSIONS.some((extension) => entry.name.toLowerCase().endsWith(extension)),
     );
   } catch {
     return false;
@@ -51,7 +41,7 @@ export const looksLikeModelDirectory = (path: string): boolean => {
  */
 export const inferQuantization = (name: string): string | undefined => {
   const lower = name.toLowerCase();
-  const candidates = ["awq", "gptq", "gguf", "fp16", "bf16", "int8", "int4", "w4a16", "w8a16"];
+  const candidates = MODEL_QUANTIZATION_SIGNATURES;
   return candidates.find((value) => lower.includes(value));
 };
 
@@ -107,7 +97,11 @@ export const estimateWeightsSizeBytes = (modelDirectory: string, recursive: bool
       if (!entry.isFile()) {
         continue;
       }
-      if (!WEIGHT_EXTS.some((extension) => entry.name.toLowerCase().endsWith(extension))) {
+      if (
+        !MODEL_BROWSER_WEIGHT_EXTENSIONS.some((extension) =>
+          entry.name.toLowerCase().endsWith(extension)
+        )
+      ) {
         continue;
       }
       try {

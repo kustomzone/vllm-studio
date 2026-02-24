@@ -7,15 +7,10 @@ import { badRequest, notFound } from "../../core/errors";
 import { compactChatSession } from "./compaction";
 import { Event } from "../monitoring/event-manager";
 import { buildSseHeaders, streamAsyncStrings } from "../../http/sse";
+import { CHAT_THINKING_LEVELS } from "./configs";
+import { AGENT_RUN_EVENT_TYPES } from "./agent/contracts";
 
-const THINKING_LEVELS = new Set<ThinkingLevel>([
-  "off",
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-]);
+const THINKING_LEVELS = new Set<ThinkingLevel>(CHAT_THINKING_LEVELS);
 
 const toThinkingLevel = (value: unknown): ThinkingLevel | undefined => {
   if (typeof value !== "string") return undefined;
@@ -99,7 +94,7 @@ export const registerChatsRoutes = (app: Hono, context: AppContext): void => {
       ? (context.stores.chatStore.getSessionSummary(newSessionId) ?? result.session)
       : result.session;
     await context.eventManager.publish(
-      new Event("chat_session_compacted", {
+      new Event(AGENT_RUN_EVENT_TYPES.CHAT_SESSION_COMPACTED, {
         source_id: sessionId,
         session: compactedSession,
         summary: result.summary,
@@ -121,7 +116,9 @@ export const registerChatsRoutes = (app: Hono, context: AppContext): void => {
       undefined,
       agentState
     );
-    await context.eventManager.publish(new Event("chat_session_created", { session }));
+    await context.eventManager.publish(
+      new Event(AGENT_RUN_EVENT_TYPES.CHAT_SESSION_CREATED, { session })
+    );
     return ctx.json({ session });
   });
 
@@ -138,7 +135,7 @@ export const registerChatsRoutes = (app: Hono, context: AppContext): void => {
     }
     const session = context.stores.chatStore.getSessionSummary(sessionId);
     await context.eventManager.publish(
-      new Event("chat_session_updated", {
+      new Event(AGENT_RUN_EVENT_TYPES.CHAT_SESSION_UPDATED, {
         session_id: sessionId,
         session,
         changes: {
@@ -158,7 +155,7 @@ export const registerChatsRoutes = (app: Hono, context: AppContext): void => {
       throw notFound("Session not found");
     }
     await context.eventManager.publish(
-      new Event("chat_session_deleted", { session_id: sessionId })
+      new Event(AGENT_RUN_EVENT_TYPES.CHAT_SESSION_DELETED, { session_id: sessionId })
     );
     return ctx.json({ success: true });
   });
@@ -208,7 +205,7 @@ export const registerChatsRoutes = (app: Hono, context: AppContext): void => {
     );
     const session = context.stores.chatStore.getSessionSummary(sessionId);
     await context.eventManager.publish(
-      new Event("chat_message_upserted", {
+      new Event(AGENT_RUN_EVENT_TYPES.CHAT_MESSAGE_UPSERTED, {
         session_id: sessionId,
         message,
         session,
@@ -216,7 +213,7 @@ export const registerChatsRoutes = (app: Hono, context: AppContext): void => {
     );
     const usage = context.stores.chatStore.getUsage(sessionId);
     await context.eventManager.publish(
-      new Event("chat_usage_updated", { session_id: sessionId, usage })
+      new Event(AGENT_RUN_EVENT_TYPES.CHAT_USAGE_UPDATED, { session_id: sessionId, usage })
     );
     return ctx.json(message);
   });
@@ -241,7 +238,17 @@ export const registerChatsRoutes = (app: Hono, context: AppContext): void => {
     }
 
     const content = typeof body["content"] === "string" ? body["content"] : "";
-    if (!content.trim() && !Array.isArray(body["images"])) {
+    const rawImages = Array.isArray(body["images"]) ? body["images"] : [];
+    const parsedImages = rawImages.filter((img) => {
+      return (
+        img &&
+        typeof img === "object" &&
+        typeof img["data"] === "string" &&
+        typeof img["mimeType"] === "string"
+      );
+    });
+
+    if (!content.trim() && parsedImages.length === 0) {
       throw badRequest("Message content is required");
     }
 
@@ -255,11 +262,14 @@ export const registerChatsRoutes = (app: Hono, context: AppContext): void => {
     const deepResearch = body["deep_research"] === true;
     const thinkingLevel = toThinkingLevel(body["thinking_level"]);
 
-    // Parse images from payload
-    const rawImages = Array.isArray(body["images"]) ? body["images"] : [];
     const images: Array<{ data: string; mimeType: string; name?: string }> = [];
-    for (const img of rawImages) {
-      if (img && typeof img === "object" && typeof img["data"] === "string" && typeof img["mimeType"] === "string") {
+    for (const img of parsedImages) {
+      if (
+        img &&
+        typeof img === "object" &&
+        typeof img["data"] === "string" &&
+        typeof img["mimeType"] === "string"
+      ) {
         images.push({
           data: img["data"] as string,
           mimeType: img["mimeType"] as string,
@@ -327,7 +337,7 @@ export const registerChatsRoutes = (app: Hono, context: AppContext): void => {
       context.stores.chatStore.updateSession(sessionId, newTitle);
       const summary = context.stores.chatStore.getSessionSummary(sessionId);
       await context.eventManager.publish(
-        new Event("chat_session_updated", {
+        new Event(AGENT_RUN_EVENT_TYPES.CHAT_SESSION_UPDATED, {
           session_id: sessionId,
           session: summary,
           changes: { title: newTitle },
@@ -352,7 +362,10 @@ export const registerChatsRoutes = (app: Hono, context: AppContext): void => {
     }
     const summary = context.stores.chatStore.getSessionSummary(newId) ?? session;
     await context.eventManager.publish(
-      new Event("chat_session_forked", { source_id: sessionId, session: summary })
+      new Event(AGENT_RUN_EVENT_TYPES.CHAT_SESSION_FORKED, {
+        source_id: sessionId,
+        session: summary,
+      })
     );
     return ctx.json({ session });
   });

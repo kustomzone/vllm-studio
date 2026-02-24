@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import api from "@/lib/api";
 import { useAppStore } from "@/store";
 import { ChatSessionsSection } from "./app-sidebar/chat-sessions-section";
@@ -28,6 +28,10 @@ export function AppSidebar({ children }: AppSidebarProps) {
   const router = useRouter();
   const chatSessions = useAppStore((state) => state.sessions);
   const setSessions = useAppStore((state) => state.setSessions);
+  const updateSessions = useAppStore((state) => state.updateSessions);
+  const currentSessionId = useAppStore((state) => state.currentSessionId);
+  const setCurrentSessionId = useAppStore((state) => state.setCurrentSessionId);
+  const setCurrentSessionTitle = useAppStore((state) => state.setCurrentSessionTitle);
 
   useEffect(() => {
     if (hydrated) return;
@@ -104,6 +108,36 @@ export function AppSidebar({ children }: AppSidebarProps) {
     router.push("/chat?new=1");
   };
 
+  const handleDeleteSession = useCallback(
+    async (sessionId: string, displayTitle: string) => {
+      const label = displayTitle?.trim() || "this chat";
+      if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) return;
+
+      try {
+        await api.deleteChatSession(sessionId);
+        updateSessions((prev) => prev.filter((session) => session.id !== sessionId));
+
+        if (sessionId === currentSessionId) {
+          setCurrentSessionId(null);
+          setCurrentSessionTitle("New Chat");
+          if (pathname === "/chat") {
+            router.push("/chat?new=1");
+          }
+        }
+      } catch (err) {
+        console.error("Failed to delete chat session:", err);
+      }
+    },
+    [
+      currentSessionId,
+      pathname,
+      router,
+      setCurrentSessionId,
+      setCurrentSessionTitle,
+      updateSessions,
+    ],
+  );
+
   if (pathname.startsWith("/setup")) {
     return <div className="h-full w-full">{children}</div>;
   }
@@ -133,7 +167,13 @@ export function AppSidebar({ children }: AppSidebarProps) {
         <div
           className={`flex items-center h-14 px-3 border-b border-(--border) ${collapsed && !isMobile ? "justify-center" : "gap-3"}`}
         >
-          <Image src="/mocks/logo-1.svg" alt="vLLM" width={28} height={28} className="rounded shrink-0" />
+          <Image
+            src="/mocks/logo-1.svg"
+            alt="vLLM"
+            width={28}
+            height={28}
+            className="rounded shrink-0"
+          />
           {(!collapsed || isMobile) && (
             <span className="font-semibold text-sm truncate">vLLM Studio</span>
           )}
@@ -182,6 +222,7 @@ export function AppSidebar({ children }: AppSidebarProps) {
                 isMobile={isMobile}
                 onCloseMobile={() => setMobileOpen(false)}
                 onNewChat={createNewChat}
+                onDeleteSession={handleDeleteSession}
               />
             </div>
           )}
@@ -221,7 +262,13 @@ export function AppSidebar({ children }: AppSidebarProps) {
               onClick={() => setMobileOpen(true)}
               className="p-1 -ml-1 rounded hover:bg-(--accent)"
             >
-              <Image src="/mocks/logo-1.svg" alt="vLLM" width={20} height={20} className="rounded" />
+              <Image
+                src="/mocks/logo-1.svg"
+                alt="vLLM"
+                width={20}
+                height={20}
+                className="rounded"
+              />
             </button>
             <span className="font-medium text-xs">
               {navItems.find((item) => item.href === pathname)?.label || "vLLM Studio"}

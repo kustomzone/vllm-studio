@@ -1,6 +1,8 @@
 // CRITICAL
 import type { AgentEvent, AgentMessage } from "@mariozechner/pi-agent-core";
 import type { AssistantMessage, ToolResultMessage } from "@mariozechner/pi-ai";
+import { AGENT_RUN_EVENT_TYPES } from "./contracts";
+import type { AgentRunEventType } from "./contracts";
 
 export type ToolExecutionInfo = {
   toolName: string;
@@ -11,7 +13,7 @@ export type ToolExecutionInfo = {
 export type AgentEventHandlerHelpers = {
   runId: string;
   sessionId: string;
-  publish: (type: string, data: Record<string, unknown>) => void;
+  publish: (type: AgentRunEventType, data: Record<string, unknown>) => void;
   toolExecutionStarts: Map<string, ToolExecutionInfo>;
   toolCallToMessageId: Map<string, string>;
   userMessageId: string;
@@ -70,36 +72,43 @@ export function handleAgentEvent(
   options: AgentEventHandlerOptions,
 ): void {
   switch (event.type) {
-    case "turn_start": {
+    case AGENT_RUN_EVENT_TYPES.TURN_START: {
       const nextIndex = helpers.getTurnIndex() + 1;
       helpers.setTurnIndex(nextIndex);
-      helpers.publish("turn_start", { ...(event as Record<string, unknown>), turn_index: nextIndex });
+      helpers.publish(AGENT_RUN_EVENT_TYPES.TURN_START, {
+        ...(event as Record<string, unknown>),
+        turn_index: nextIndex,
+      });
       return;
     }
-    case "message_start": {
+    case AGENT_RUN_EVENT_TYPES.MESSAGE_START: {
       const message = event.message as AgentMessage;
       const turnIndex = helpers.getTurnIndex();
       const turnPayload = turnIndex >= 0 ? { turn_index: turnIndex } : {};
       if (message.role === "assistant") {
         const id = options.createMessageId();
         helpers.setAssistantId(id);
-        helpers.publish("message_start", { message_id: id, message, ...turnPayload });
+        helpers.publish(AGENT_RUN_EVENT_TYPES.MESSAGE_START, { message_id: id, message, ...turnPayload });
         return;
       }
       if (message.role === "user") {
-        helpers.publish("message_start", { message_id: helpers.userMessageId, message, ...turnPayload });
+        helpers.publish(AGENT_RUN_EVENT_TYPES.MESSAGE_START, {
+          message_id: helpers.userMessageId,
+          message,
+          ...turnPayload,
+        });
         return;
       }
-      helpers.publish("message_start", { message, ...turnPayload });
+      helpers.publish(AGENT_RUN_EVENT_TYPES.MESSAGE_START, { message, ...turnPayload });
       return;
     }
-    case "message_update": {
+    case AGENT_RUN_EVENT_TYPES.MESSAGE_UPDATE: {
       const message = event.message as AgentMessage;
       helpers.cleanMessage(message);
       const messageId = message.role === "assistant" ? helpers.getAssistantId() : undefined;
       const turnIndex = helpers.getTurnIndex();
       const turnPayload = turnIndex >= 0 ? { turn_index: turnIndex } : {};
-      helpers.publish("message_update", {
+      helpers.publish(AGENT_RUN_EVENT_TYPES.MESSAGE_UPDATE, {
         ...(messageId ? { message_id: messageId } : {}),
         message,
         assistantMessageEvent: event.assistantMessageEvent,
@@ -107,7 +116,7 @@ export function handleAgentEvent(
       });
       return;
     }
-    case "message_end": {
+    case AGENT_RUN_EVENT_TYPES.MESSAGE_END: {
       const message = event.message as AgentMessage;
       helpers.cleanMessage(message);
       const turnIndex = helpers.getTurnIndex();
@@ -116,17 +125,25 @@ export function handleAgentEvent(
         const messageId = helpers.getAssistantId();
         helpers.setLastAssistantId(messageId);
         options.mapToolCallsToMessage(message as AssistantMessage, messageId, helpers.toolCallToMessageId);
-        helpers.publish("message_end", { ...(messageId ? { message_id: messageId } : {}), message, ...turnPayload });
+        helpers.publish(AGENT_RUN_EVENT_TYPES.MESSAGE_END, {
+          ...(messageId ? { message_id: messageId } : {}),
+          message,
+          ...turnPayload,
+        });
         return;
       }
       if (message.role === "user") {
-        helpers.publish("message_end", { message_id: helpers.userMessageId, message, ...turnPayload });
+        helpers.publish(AGENT_RUN_EVENT_TYPES.MESSAGE_END, {
+          message_id: helpers.userMessageId,
+          message,
+          ...turnPayload,
+        });
         return;
       }
-      helpers.publish("message_end", { message, ...turnPayload });
+      helpers.publish(AGENT_RUN_EVENT_TYPES.MESSAGE_END, { message, ...turnPayload });
       return;
     }
-    case "tool_execution_start": {
+    case AGENT_RUN_EVENT_TYPES.TOOL_EXECUTION_START: {
       const turnIndex = helpers.getTurnIndex();
       const turnPayload = turnIndex >= 0 ? { turn_index: turnIndex } : {};
       helpers.toolExecutionStarts.set(event.toolCallId, {
@@ -134,7 +151,7 @@ export function handleAgentEvent(
         args: event.args ?? {},
         startedAt: new Date().toISOString(),
       });
-      helpers.publish("tool_execution_start", {
+      helpers.publish(AGENT_RUN_EVENT_TYPES.TOOL_EXECUTION_START, {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
         args: event.args,
@@ -143,10 +160,10 @@ export function handleAgentEvent(
       });
       return;
     }
-    case "tool_execution_update": {
+    case AGENT_RUN_EVENT_TYPES.TOOL_EXECUTION_UPDATE: {
       const turnIndex = helpers.getTurnIndex();
       const turnPayload = turnIndex >= 0 ? { turn_index: turnIndex } : {};
-      helpers.publish("tool_execution_update", {
+      helpers.publish(AGENT_RUN_EVENT_TYPES.TOOL_EXECUTION_UPDATE, {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
         args: event.args,
@@ -156,7 +173,7 @@ export function handleAgentEvent(
       });
       return;
     }
-    case "tool_execution_end": {
+    case AGENT_RUN_EVENT_TYPES.TOOL_EXECUTION_END: {
       const turnIndex = helpers.getTurnIndex();
       const turnPayload = turnIndex >= 0 ? { turn_index: turnIndex } : {};
       const started = helpers.toolExecutionStarts.get(event.toolCallId);
@@ -172,7 +189,7 @@ export function handleAgentEvent(
       };
 
       options.addToolExecution(helpers.runId, event.toolCallId, event.toolName, toolExecutionOptions);
-      helpers.publish("tool_execution_end", {
+      helpers.publish(AGENT_RUN_EVENT_TYPES.TOOL_EXECUTION_END, {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
         result: event.result,
@@ -182,7 +199,7 @@ export function handleAgentEvent(
       });
       return;
     }
-    case "turn_end": {
+    case AGENT_RUN_EVENT_TYPES.TURN_END: {
       const assistant = event.message as AssistantMessage;
       helpers.cleanMessage(assistant as unknown as AgentMessage);
       const messageId = helpers.getLastAssistantId();
@@ -204,7 +221,7 @@ export function handleAgentEvent(
           turnIndex >= 0 ? turnIndex : undefined,
         );
       }
-      helpers.publish("turn_end", {
+      helpers.publish(AGENT_RUN_EVENT_TYPES.TURN_END, {
         message: assistant,
         toolResults: event.toolResults ?? [],
         message_id: messageId,
@@ -212,9 +229,9 @@ export function handleAgentEvent(
       });
       return;
     }
-    case "agent_end":
-    case "agent_start":
+    case AGENT_RUN_EVENT_TYPES.AGENT_END:
+    case AGENT_RUN_EVENT_TYPES.AGENT_START:
     default:
-      helpers.publish(event.type, { ...(event as Record<string, unknown>) });
+      helpers.publish(event.type as AgentRunEventType, { ...(event as Record<string, unknown>) });
   }
 }

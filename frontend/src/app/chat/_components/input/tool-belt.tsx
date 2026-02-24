@@ -132,14 +132,21 @@ export function ToolBelt({
     [isLoading, setInput, setQueuedContext],
   );
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     if (isLoading) return;
     const state = useAppStore.getState();
     const inputValue = state.input;
     const currentAttachments = state.attachments;
     if (!inputValue.trim() && currentAttachments.length === 0) return;
 
-    onSubmit(inputValue, currentAttachments.length > 0 ? [...currentAttachments] : undefined);
+    try {
+      await Promise.resolve(
+        onSubmit(inputValue, currentAttachments.length > 0 ? [...currentAttachments] : undefined),
+      );
+    } catch (err) {
+      console.error("Failed to send message:", err);
+      return;
+    }
 
     clearAttachmentUrls(currentAttachments);
     setAttachments([]);
@@ -229,7 +236,7 @@ export function ToolBelt({
             onChange={handleFileInputChange}
             className="hidden"
             multiple
-            accept=".txt,.pdf,.doc,.docx,.md,.json,.csv"
+            accept="*/*"
           />
           <input
             ref={imageInputRef}

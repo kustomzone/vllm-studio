@@ -4,6 +4,12 @@ import { getGpuInfo } from "../platform/gpu";
 import { getSystemRuntimeInfo } from "../runtime/runtime-info";
 import { delay } from "../../../core/async";
 import { fetchLocal } from "../../../http/local-fetch";
+import {
+  METRICS_COLLECT_INTERVAL_MS,
+  METRICS_HTTP_TIMEOUT_MS,
+  METRICS_RUNTIME_SUMMARY_INTERVAL_MS,
+  METRICS_LIFETIME_UPTIME_INCREMENT_SECONDS,
+} from "./configs";
 
 /**
  * Start background metrics collection.
@@ -23,7 +29,9 @@ export const startMetricsCollector = (context: AppContext): (() => void) => {
    */
   const scrapeVllmMetrics = async (port: number): Promise<Record<string, number>> => {
     try {
-      const response = await fetchLocal(port, "/metrics", { timeoutMs: 5000 });
+      const response = await fetchLocal(port, "/metrics", {
+        timeoutMs: METRICS_HTTP_TIMEOUT_MS,
+      });
       if (response.status !== 200) {
         return {};
       }
@@ -76,7 +84,7 @@ export const startMetricsCollector = (context: AppContext): (() => void) => {
       const totalPowerWatts = gpuList.reduce((sum, gpu) => sum + gpu.power_draw, 0);
       const energyWh = totalPowerWatts * (5 / 3600);
       lifetimeStore.increment("energy_wh", energyWh);
-      lifetimeStore.increment("uptime_seconds", 5);
+      lifetimeStore.increment("uptime_seconds", METRICS_LIFETIME_UPTIME_INCREMENT_SECONDS);
 
       await context.eventManager.publishStatus({
         running: Boolean(current),
@@ -85,7 +93,7 @@ export const startMetricsCollector = (context: AppContext): (() => void) => {
       });
       await context.eventManager.publishGpu(gpuList.map((gpu) => ({ ...gpu })));
 
-      if (Date.now() - lastRuntimeSummaryAt > 30_000) {
+      if (Date.now() - lastRuntimeSummaryAt > METRICS_RUNTIME_SUMMARY_INTERVAL_MS) {
         try {
           const runtime = await getSystemRuntimeInfo(context.config);
           const leaseHolder = current
@@ -127,7 +135,8 @@ export const startMetricsCollector = (context: AppContext): (() => void) => {
       if (current) {
         const vllmMetrics = await scrapeVllmMetrics(context.config.inference_port);
         const now = Date.now() / 1000;
-        const elapsed = lastMetricsTime > 0 ? now - lastMetricsTime : 5;
+        const elapsed =
+          lastMetricsTime > 0 ? now - lastMetricsTime : METRICS_LIFETIME_UPTIME_INCREMENT_SECONDS;
         let promptThroughput = 0;
         let generationThroughput = 0;
         if (
@@ -190,7 +199,7 @@ export const startMetricsCollector = (context: AppContext): (() => void) => {
   const loop = async (): Promise<void> => {
     while (running) {
       await collect();
-      await delay(5000);
+      await delay(METRICS_COLLECT_INTERVAL_MS);
     }
   };
 

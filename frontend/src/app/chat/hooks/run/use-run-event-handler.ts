@@ -42,12 +42,22 @@ export function useRunEventHandler(args: UseRunEventHandlerArgs) {
       const turnIndex = typeof data["turn_index"] === "number" ? data["turn_index"] : undefined;
       const eventSessionId =
         typeof data["session_id"] === "string" ? data["session_id"] : undefined;
-      const runMeta = runId || typeof turnIndex === "number" ? { runId, turnIndex } : undefined;
+      const runMeta =
+        typeof runId === "string" || typeof turnIndex === "number"
+          ? { runId, turnIndex }
+          : undefined;
 
-      if (!activeRunIdRef.current && runId) return;
-      if (runId && activeRunIdRef.current && runId !== activeRunIdRef.current) return;
-      if (!activeRunIdRef.current && !currentSessionId) return;
       if (eventSessionId && currentSessionId && eventSessionId !== currentSessionId) return;
+
+      if (!activeRunIdRef.current) {
+        if (eventType === "run_start" && runId) {
+          activeRunIdRef.current = runId;
+        } else if (!currentSessionId) {
+          return;
+        }
+      } else if (runId && runId !== activeRunIdRef.current) {
+        return;
+      }
 
       switch (eventType) {
         case "run_start": {
@@ -180,7 +190,8 @@ export function useRunEventHandler(args: UseRunEventHandlerArgs) {
           return;
         }
         case "run_end": {
-          const runId = typeof data["run_id"] === "string" ? data["run_id"] : activeRunIdRef.current;
+          const runId =
+            typeof data["run_id"] === "string" ? data["run_id"] : activeRunIdRef.current;
           activeRunIdRef.current = null;
           runCompletedRef.current = true;
           setIsLoading(false);

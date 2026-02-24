@@ -1,7 +1,14 @@
 // CRITICAL
 "use client";
 
-import { useCallback, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent } from "react";
+import {
+  useCallback,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ClipboardEvent,
+  type DragEvent,
+} from "react";
 import type { Attachment } from "../../../types";
 import { fileToBase64, maybeRevokeObjectUrl } from "./utils";
 
@@ -12,6 +19,8 @@ type Args = {
 };
 
 const IMAGE_MIME_RE = /^image\//;
+const IMAGE_FILE_NAME_EXT_RE =
+  /\.(?:png|jpe?g|gif|webp|bmp|avif|heic|heif|tiff?|svg|gif|jfif|pjpeg|pjp)$/i;
 type AttachmentKind = "file" | "image";
 
 function generateId(): string {
@@ -42,6 +51,10 @@ export function useAttachmentInputs({ updateAttachments }: Args) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const isImageItem = (mimeType: string | null | undefined): boolean =>
+    typeof mimeType === "string" && IMAGE_MIME_RE.test(mimeType);
+  const isImageFile = (file: File): boolean =>
+    IMAGE_MIME_RE.test(file.type) || IMAGE_FILE_NAME_EXT_RE.test(file.name || "");
 
   const addFiles = useCallback(
     async (files: File[], forcedType?: AttachmentKind) => {
@@ -99,21 +112,53 @@ export function useAttachmentInputs({ updateAttachments }: Args) {
   // --- Paste handler ---
   const handlePaste = useCallback(
     (e: ClipboardEvent) => {
-      const items = Array.from(e.clipboardData?.items ?? []);
-      const imageFiles: File[] = [];
-      for (const item of items) {
-        if (IMAGE_MIME_RE.test(item.type)) {
-          const file = item.getAsFile();
-          if (file) imageFiles.push(file);
+      const clipboardItems = Array.from(e.clipboardData?.items ?? []);
+      const dataTransferFiles = Array.from(e.clipboardData?.files ?? []);
+      const fileMap = new Map<string, { file: File; forcedType?: AttachmentKind }>();
+
+      const addCandidate = (file: File, forcedType?: AttachmentKind) => {
+        const key = `${file.name}-${file.size}-${file.type || "application/octet-stream"}`;
+        const existing = fileMap.get(key);
+        if (!existing) {
+          fileMap.set(key, { file, forcedType });
+          return;
         }
+        if (forcedType === "image" && existing.forcedType !== "image") {
+          existing.forcedType = "image";
+        }
+      };
+
+      for (const item of clipboardItems) {
+        const file = item.getAsFile();
+        if (!file) continue;
+        addCandidate(file, isImageItem(item.type) || isImageFile(file) ? "image" : undefined);
       }
-      if (imageFiles.length > 0) {
+
+      for (const file of dataTransferFiles) {
+        addCandidate(file, isImageFile(file) || isImageItem(file.type) ? "image" : undefined);
+      }
+
+      const pastedFiles = Array.from(fileMap.values());
+      const imageFiles = pastedFiles
+        .filter((entry) => entry.forcedType === "image")
+        .map((entry) => entry.file);
+      const nonImageFiles = pastedFiles
+        .filter((entry) => entry.forcedType !== "image")
+        .map((entry) => entry.file);
+
+      if (pastedFiles.length > 0) {
         e.preventDefault();
-        void addFiles(imageFiles);
+        void (async () => {
+          if (imageFiles.length > 0) {
+            await addFiles(imageFiles, "image");
+          }
+          if (nonImageFiles.length > 0) {
+            await addFiles(nonImageFiles);
+          }
+        })();
       }
-      // Non-image pastes fall through to default textarea behavior
     },
-    [addFiles],
+    [addFiles, isImageItem, isImageFile],
   );
 
   // --- Drag & drop handlers ---

@@ -1,7 +1,6 @@
 // CRITICAL
 import { existsSync } from "node:fs";
-
-const DEFAULT_CANONICAL_PYTHON_PATH = "/opt/venvs/active/vllm-latest/bin/python";
+import { DEFAULT_CANONICAL_PYTHON_PATH } from "./configs";
 
 const getExplicitPythonOverride = (): string | null => {
   const explicit = process.env["VLLM_STUDIO_RUNTIME_PYTHON"]?.trim();

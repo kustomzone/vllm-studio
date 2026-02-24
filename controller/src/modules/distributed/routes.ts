@@ -134,4 +134,13 @@ export const registerDistributedRoutes = (app: Hono, manager: DistributedCluster
   app.get("/distributed/status", (_ctx) => {
     return _ctx.json({ status: manager.getStatus() });
   });
+
+  app.post("/distributed/broadcast", async (ctx) => {
+    try {
+      await manager.broadcastState();
+      return ctx.json({ success: true });
+    } catch (error) {
+      throw badRequest(error instanceof Error ? error.message : String(error));
+    }
+  });
 };

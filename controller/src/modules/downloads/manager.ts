@@ -10,6 +10,10 @@ import type { DownloadStore } from "./store";
 import { resolveDownloadRoot, sanitizePathSegments } from "./download-paths";
 import { buildHuggingFaceFileList, fetchHuggingFaceModelInfo } from "./huggingface-api";
 import { sumDownloadedBytes, sumTotalBytes } from "./download-math";
+import {
+  DOWNLOAD_DEFAULT_IGNORE_FILENAMES,
+  DOWNLOAD_PROGRESS_THROTTLE_MS,
+} from "./configs";
 
 type DownloadRequest = {
   model_id: string;
@@ -24,9 +28,6 @@ type ActiveDownload = {
   controller: AbortController;
   running: boolean;
 };
-
-const DEFAULT_IGNORE = [".gitattributes", ".gitignore"];
-const PROGRESS_THROTTLE_MS = 750;
 
 const toTimestamp = (): string => new Date().toISOString();
 
@@ -98,7 +99,10 @@ export class DownloadManager {
       throw new Error("Model id is required");
     }
     const allowPatterns = (request.allow_patterns ?? []).filter(Boolean);
-    const ignorePatterns = [...DEFAULT_IGNORE, ...(request.ignore_patterns ?? []).filter(Boolean)];
+    const ignorePatterns = [
+      ...DOWNLOAD_DEFAULT_IGNORE_FILENAMES,
+      ...(request.ignore_patterns ?? []).filter(Boolean),
+    ];
     const targetDirectory = resolveDownloadRoot(this.config, modelId, request.destination_dir);
     const hfToken = request.hf_token ?? null;
 
@@ -369,7 +373,7 @@ export class DownloadManager {
           }
           downloaded += value.length;
           file.downloaded_bytes = downloaded;
-          if (Date.now() - lastUpdate > PROGRESS_THROTTLE_MS) {
+          if (Date.now() - lastUpdate > DOWNLOAD_PROGRESS_THROTTLE_MS) {
             currentDownload = this.persistFileUpdate(currentDownload, file);
             this.publishProgress(currentDownload, file);
             lastUpdate = Date.now();

@@ -90,6 +90,8 @@ export function ToolBeltToolbarDesktop({
   onCallModeToggle,
 }: Props) {
   const hasActiveTools = Boolean(mcpEnabled || artifactsEnabled || deepResearchEnabled);
+  const activeSendButtonClass =
+    "bg-white text-black border border-white hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--bg)";
 
   return (
     <div className="hidden md:flex items-center justify-between">
@@ -116,8 +118,18 @@ export function ToolBeltToolbarDesktop({
           isActive={attachmentsCount > 0}
           disabled={disabled}
         >
-          <DropdownItem icon={Paperclip} label="Attach file" onClick={onAttachFile} disabled={disabled} />
-          <DropdownItem icon={ImageIcon} label="Attach image" onClick={onAttachImage} disabled={disabled} />
+          <DropdownItem
+            icon={Paperclip}
+            label="Attach file"
+            onClick={onAttachFile}
+            disabled={disabled}
+          />
+          <DropdownItem
+            icon={ImageIcon}
+            label="Attach image"
+            onClick={onAttachImage}
+            disabled={disabled}
+          />
         </ToolDropdown>
 
         <button
@@ -130,7 +142,9 @@ export function ToolBeltToolbarDesktop({
                 ? "bg-(--hl1) text-(--hl1)"
                 : "hover:bg-(--accent) text-(--dim)"
           }`}
-          title={isTranscribing ? "Transcribing..." : isRecording ? "Stop recording" : "Voice input"}
+          title={
+            isTranscribing ? "Transcribing..." : isRecording ? "Stop recording" : "Voice input"
+          }
         >
           {isTranscribing ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -178,17 +192,40 @@ export function ToolBeltToolbarDesktop({
         )}
 
         <ToolDropdown icon={Wrench} label="Tools" isActive={hasActiveTools} disabled={disabled}>
-          <DropdownItem icon={Globe} label="Web search & tools" isActive={mcpEnabled} onClick={onMcpToggle} disabled={disabled} />
+          <DropdownItem
+            icon={Globe}
+            label="Web search & tools"
+            isActive={mcpEnabled}
+            onClick={onMcpToggle}
+            disabled={disabled}
+          />
           {onArtifactsToggle && (
-            <DropdownItem icon={Code} label="Code preview" isActive={artifactsEnabled} onClick={onArtifactsToggle} disabled={disabled} />
+            <DropdownItem
+              icon={Code}
+              label="Code preview"
+              isActive={artifactsEnabled}
+              onClick={onArtifactsToggle}
+              disabled={disabled}
+            />
           )}
           {onDeepResearchToggle && (
-            <DropdownItem icon={Brain} label="Deep Research" isActive={deepResearchEnabled} onClick={onDeepResearchToggle} disabled={disabled} />
+            <DropdownItem
+              icon={Brain}
+              label="Deep Research"
+              isActive={deepResearchEnabled}
+              onClick={onDeepResearchToggle}
+              disabled={disabled}
+            />
           )}
           {onOpenMcpSettings && (
             <>
               <div className="h-px bg-(--border) my-1" />
-              <DropdownItem icon={Settings} label="MCP servers" onClick={onOpenMcpSettings} disabled={disabled} />
+              <DropdownItem
+                icon={Settings}
+                label="MCP servers"
+                onClick={onOpenMcpSettings}
+                disabled={disabled}
+              />
             </>
           )}
         </ToolDropdown>
@@ -211,19 +248,19 @@ export function ToolBeltToolbarDesktop({
 
       <div className="flex items-center gap-2">
         {availableModels.length > 0 && onModelChange && (
-            <select
+          <select
             value={selectedModel || ""}
             onChange={(e) => onModelChange(e.target.value)}
             disabled={disabled || isLoading}
             className="max-w-[180px] px-2 py-1 font-sans font-medium text-xs bg-transparent border border-(--border) rounded-lg text-(--dim) focus:outline-none disabled:opacity-50 truncate appearance-none cursor-pointer hover:border-(--border) transition-colors:ease-in:200ms"
             title={selectedModel || "Select model"}
-            >
+          >
             {availableModels.map((model, idx) => (
               <option key={`${model.id}-${idx}`} value={model.id}>
                 {buildDisplayModelLabel(model.id, model.provider)}
               </option>
             ))}
-            </select>
+          </select>
         )}
 
         {isLoading ? (
@@ -239,7 +276,9 @@ export function ToolBeltToolbarDesktop({
             onClick={onSubmit}
             disabled={!canSend}
             className={`h-8 w-8 flex items-center justify-center rounded-full transition-colors:ease-in:200ms shrink-0 ${
-              canSend ? "bg-(--fg) text-(--bg)" : "bg-(--accent) text-(--dim)/50 cursor-not-allowed"
+              canSend
+                ? activeSendButtonClass
+                : "bg-(--border) border border-(--border) text-(--dim)/40 cursor-not-allowed"
             }`}
             title="Send"
           >

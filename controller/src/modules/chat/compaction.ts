@@ -3,17 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { AppContext } from "../../types/context";
 import { badRequest, notFound, serviceUnavailable } from "../../core/errors";
 import { fetchInference } from "../../services/inference/inference-client";
-
-const COMPACTION_SYSTEM_PROMPT = [
-  "You are a context-compaction assistant.",
-  "Summarize the conversation so it can replace the full history.",
-  "The original first user message and the latest message will be preserved separately.",
-  "Do not repeat those messages verbatim; focus on key facts, decisions, preferences, and open tasks.",
-  "Include important tool outputs, artifacts, and code references when relevant.",
-  "Keep the summary under 10k tokens and use concise bullets and short sections.",
-].join("\n\n");
-
-const COMPACTION_USER_PROMPT = "Summarize the conversation above for context compaction.";
+import { COMPACTION_SYSTEM_PROMPT, COMPACTION_USER_PROMPT } from "./configs";
 
 type MessageRecord = Record<string, unknown>;
 

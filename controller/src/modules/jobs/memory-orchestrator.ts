@@ -1,9 +1,11 @@
 // CRITICAL
 import type { Orchestrator, JobReporter } from "./orchestrator";
 import type { AppContext } from "../../types/context";
+import type { JobType } from "./types";
 import { voiceAssistantTurn } from "./workflows/voice-assistant-turn";
+import { SUPPORTED_JOB_TYPES } from "./configs";
 
-const SUPPORTED_TYPES = new Set(["voice_assistant_turn"]);
+const SUPPORTED_TYPES = SUPPORTED_JOB_TYPES;
 
 /**
  * In-memory orchestrator that runs workflows directly in the controller process.
@@ -32,7 +34,7 @@ export class MemoryOrchestrator implements Orchestrator {
   */
   public async execute(
     jobId: string,
-    type: string,
+    type: JobType,
     input: Record<string, unknown>,
     reporter: JobReporter,
   ): Promise<Record<string, unknown>> {

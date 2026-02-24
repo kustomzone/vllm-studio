@@ -6,6 +6,7 @@ import type { AppContext } from "../../../types/context";
 import { Event } from "../../monitoring/event-manager";
 import { createTextResult } from "./tool-registry-common";
 import type { AgentToolRegistryOptions } from "./tool-registry";
+import { AGENT_RUN_EVENT_TYPES } from "./contracts";
 
 const loadAgentPlan = (context: AppContext, sessionId: string): Record<string, unknown> | null => {
   const session = context.stores.chatStore.getSessionSummary(sessionId);
@@ -133,9 +134,9 @@ export const buildPlanTools = (
       const now = Date.now();
       const plan = { steps, createdAt: now, updatedAt: now };
       persistAgentPlan(context, options.sessionId, plan);
-      emit?.("plan_updated", { session_id: options.sessionId, plan });
+      emit?.(AGENT_RUN_EVENT_TYPES.PLAN_UPDATED, { session_id: options.sessionId, plan });
       await context.eventManager.publish(
-        new Event("agent_plan_updated", { session_id: options.sessionId, plan })
+        new Event(AGENT_RUN_EVENT_TYPES.AGENT_PLAN_UPDATED, { session_id: options.sessionId, plan })
       );
       return createTextResult("Plan created.", { plan });
     },
@@ -212,9 +213,9 @@ export const buildPlanTools = (
         updatedAt: now,
       };
       persistAgentPlan(context, options.sessionId, plan);
-      emit?.("plan_updated", { session_id: options.sessionId, plan });
+      emit?.(AGENT_RUN_EVENT_TYPES.PLAN_UPDATED, { session_id: options.sessionId, plan });
       await context.eventManager.publish(
-        new Event("agent_plan_updated", { session_id: options.sessionId, plan })
+        new Event(AGENT_RUN_EVENT_TYPES.AGENT_PLAN_UPDATED, { session_id: options.sessionId, plan })
       );
       return createTextResult("Plan updated.", { plan });
     },

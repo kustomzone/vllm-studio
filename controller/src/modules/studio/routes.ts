@@ -17,55 +17,13 @@ import type { AppContext } from "../../types/context";
 import { getGpuInfo } from "../lifecycle/platform/gpu";
 import type { GpuInfo } from "../lifecycle/types";
 import { discoverModelDirectories, estimateWeightsSizeBytes } from "../models/model-browser";
+import { STUDIO_MODEL_RECOMMENDATIONS } from "./configs";
 import {
   getPersistedConfigPath,
   loadPersistedConfig,
   savePersistedConfig,
 } from "../../config/persisted-config";
 import { getVllmRuntimeInfo } from "../lifecycle/runtime/vllm-runtime";
-
-const MODEL_RECOMMENDATIONS = [
-  {
-    id: "meta-llama/Llama-3.1-8B-Instruct",
-    name: "Llama 3.1 8B Instruct",
-    size_gb: 16,
-    min_vram_gb: 12,
-    description: "Great balance of quality and speed for general chat.",
-    tags: ["chat", "general", "recommended"],
-  },
-  {
-    id: "Qwen/Qwen2.5-7B-Instruct",
-    name: "Qwen2.5 7B Instruct",
-    size_gb: 14,
-    min_vram_gb: 10,
-    description: "Strong multilingual model with fast responses.",
-    tags: ["chat", "multilingual"],
-  },
-  {
-    id: "mistralai/Mistral-7B-Instruct-v0.2",
-    name: "Mistral 7B Instruct",
-    size_gb: 13,
-    min_vram_gb: 10,
-    description: "Lightweight, responsive, and easy to run.",
-    tags: ["chat", "fast"],
-  },
-  {
-    id: "microsoft/Phi-3-mini-4k-instruct",
-    name: "Phi-3 Mini 4K",
-    size_gb: 5,
-    min_vram_gb: 4,
-    description: "Compact model ideal for laptops and CPU fallback.",
-    tags: ["small", "fast"],
-  },
-  {
-    id: "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    name: "TinyLlama 1.1B",
-    size_gb: 2,
-    min_vram_gb: 2,
-    description: "Ultra-lightweight for quick testing.",
-    tags: ["tiny", "starter"],
-  },
-];
 
 const getDiskInfo = (
   path: string
@@ -217,7 +175,7 @@ export const registerStudioRoutes = (app: Hono, context: AppContext): void => {
   app.get("/studio/recommendations", async (ctx) => {
     const gpus = getGpuInfo();
     const maxVramGb = deriveRecommendationVramGb(gpus);
-    const recommendations = MODEL_RECOMMENDATIONS.filter((model) => {
+    const recommendations = STUDIO_MODEL_RECOMMENDATIONS.filter((model) => {
       if (!model.min_vram_gb) return true;
       if (maxVramGb === 0) {
         return model.min_vram_gb <= 8;

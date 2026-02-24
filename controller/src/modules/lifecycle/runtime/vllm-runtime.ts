@@ -5,15 +5,16 @@ import { dirname, join, resolve } from "node:path";
 import { resolveBinary } from "../../../core/command";
 import { resolveVllmPythonPath } from "./vllm-python-path";
 import { getUpgradeCommandFromEnvironment, getVllmUpgradeVersion, VLLM_UPGRADE_ENV } from "./runtime-upgrade-config";
+import {
+  VLLM_RUNTIME_COMMAND_TIMEOUT_MS,
+  VLLM_UPGRADE_TIMEOUT_MS,
+} from "./configs";
 
 type CommandResult = {
   code: number | null;
   stdout: string;
   stderr: string;
 };
-
-const DEFAULT_TIMEOUT_MS = 10_000;
-const UPGRADE_TIMEOUT_MS = 600_000;
 
 const parseCommandInput = (args: unknown): string[] | null => {
   if (!Array.isArray(args)) {
@@ -67,7 +68,7 @@ const resolveVllmUpgradeCommand = (
 const runCommand = (
   command: string,
   args: string[],
-  timeoutMs = DEFAULT_TIMEOUT_MS
+  timeoutMs = VLLM_RUNTIME_COMMAND_TIMEOUT_MS
 ): Promise<CommandResult> => {
   return new Promise((resolveResult) => {
     const child = spawn(command, args, { env: process.env });
@@ -280,7 +281,11 @@ export const upgradeVllmRuntime = async (
       preferBundled,
       bundledWheel,
     );
-    const result = await runCommand(resolvedCommand.command, resolvedCommand.args, UPGRADE_TIMEOUT_MS);
+    const result = await runCommand(
+      resolvedCommand.command,
+      resolvedCommand.args,
+      VLLM_UPGRADE_TIMEOUT_MS
+    );
     if (result.code !== 0) {
       const usedWheel = preferBundled ? bundledWheel?.path ?? null : null;
       return {
@@ -304,7 +309,11 @@ export const upgradeVllmRuntime = async (
   }
 
   const customArguments = parsedArguments ?? [];
-  const result = await runCommand(command, customArguments, UPGRADE_TIMEOUT_MS);
+    const result = await runCommand(
+      command,
+      customArguments,
+      VLLM_UPGRADE_TIMEOUT_MS
+    );
 
   if (result.code !== 0) {
     return {

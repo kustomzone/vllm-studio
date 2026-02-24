@@ -372,5 +372,17 @@ export const createOpenApiSpec = (context: AppContext): Record<string, unknown> 
         },
       },
     },
+    "/distributed/broadcast": {
+      post: {
+        summary: "Broadcast distributed cluster state",
+        description:
+          "Re-emit current distributed node and topology snapshots to SSE subscribers",
+        responses: {
+          "200": {
+            description: "Broadcast accepted",
+          },
+        },
+      },
+    },
   },
 });

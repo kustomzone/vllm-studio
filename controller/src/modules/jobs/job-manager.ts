@@ -1,10 +1,8 @@
-// CRITICAL
 import type { AppContext } from "../../types/context";
 import type { JobRecord, JobStore } from "../../stores/job-store";
 import type { JobReporter } from "./orchestrator";
+import type { JobType } from "./types";
 import { AutoOrchestrator } from "./auto-orchestrator";
-
-const SUPPORTED_TYPES = new Set(["voice_assistant_turn"]);
 
 /**
  * Creates a JobReporter that persists updates to the store and emits events.
@@ -13,11 +11,7 @@ const SUPPORTED_TYPES = new Set(["voice_assistant_turn"]);
  * @param store
  * @param context
  */
-function createReporter(
-  jobId: string,
-  store: JobStore,
-  context: AppContext,
-): JobReporter {
+function createReporter(jobId: string, store: JobStore, context: AppContext): JobReporter {
   return {
     progress(pct: number): void {
       store.update(jobId, { progress: Math.min(100, Math.max(0, pct)) });
@@ -41,11 +35,7 @@ function createReporter(
  * @param context
  * @returns Promise that resolves when update event is published.
  */
-async function emitJobUpdate(
-  jobId: string,
-  store: JobStore,
-  context: AppContext,
-): Promise<void> {
+async function emitJobUpdate(jobId: string, store: JobStore, context: AppContext): Promise<void> {
   const job = store.get(jobId);
   if (job) {
     await context.eventManager.publishJobUpdated(serializeJob(job));
@@ -120,13 +110,9 @@ export class JobManager {
    * @returns Created job record (serialized).
    */
   public async createJob(
-    type: string,
-    input: Record<string, unknown>,
+    type: JobType,
+    input: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
-    if (!SUPPORTED_TYPES.has(type)) {
-      throw new Error(`Unsupported job type: ${type}. Supported: ${[...SUPPORTED_TYPES].join(", ")}`);
-    }
-
     const id = `job_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const job = this.store.create(id, type, input);
     const reporter = createReporter(id, this.store, this.context);
@@ -148,9 +134,9 @@ export class JobManager {
    */
   private async runJob(
     id: string,
-    type: string,
+    type: JobType,
     input: Record<string, unknown>,
-    reporter: JobReporter,
+    reporter: JobReporter
   ): Promise<void> {
     try {
       const result = await this.orchestrator.execute(id, type, input, reporter);

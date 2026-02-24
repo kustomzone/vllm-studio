@@ -3,7 +3,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { Activity, AlertTriangle, CheckCircle2, RefreshCw, Server, Share2 } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  CircleDot,
+  RefreshCw,
+  Server,
+  Share2,
+  ShieldCheck,
+} from "lucide-react";
 import { PageState } from "@/components/shared";
 import api from "@/lib/api";
 import { useDistributedCluster } from "./hooks/use-distributed-cluster";
@@ -26,6 +35,7 @@ export default function DistributedPage() {
   const [scopeTotalLayersInput, setScopeTotalLayersInput] = useState("");
   const [registering, setRegistering] = useState(false);
   const [savingAllocation, setSavingAllocation] = useState(false);
+  const [broadcasting, setBroadcasting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
@@ -141,6 +151,21 @@ export default function DistributedPage() {
     }
   };
 
+  const handleBroadcast = async () => {
+    setBroadcasting(true);
+    setActionError(null);
+    setActionMessage(null);
+    try {
+      await api.broadcastDistributedState();
+      setActionMessage("Distributed state broadcasted to controller event stream.");
+      await cluster.refresh();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBroadcasting(false);
+    }
+  };
+
   const pageState = PageState({
     loading: cluster.loading,
     data: cluster.status,
@@ -165,14 +190,45 @@ export default function DistributedPage() {
               Register nodes, assign layer slices, and validate topology for cross-device hosting.
             </p>
           </div>
-          <button
-            onClick={cluster.refresh}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-(--border) hover:bg-(--surface)"
-          >
-            <RefreshCw className={`h-4 w-4 ${cluster.loading ? "animate-spin" : ""}`} />
-            <span className="text-sm">Refresh</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={cluster.refresh}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-(--border) hover:bg-(--surface)"
+            >
+              <RefreshCw className={`h-4 w-4 ${cluster.loading ? "animate-spin" : ""}`} />
+              <span className="text-sm">Refresh</span>
+            </button>
+            <button
+              onClick={handleBroadcast}
+              disabled={broadcasting}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-(--border) hover:bg-(--surface) disabled:opacity-60"
+            >
+              {broadcasting ? (
+                <Activity className="h-4 w-4 animate-spin" />
+              ) : (
+                <CircleDot className="h-4 w-4" />
+              )}
+              <span className="text-sm">Broadcast</span>
+            </button>
+          </div>
         </div>
+        <section className="rounded-lg border border-(--border) bg-(--bg) p-4 space-y-2">
+          <div className="flex items-center gap-2 text-sm">
+            <ShieldCheck className="h-4 w-4 text-(--dim)" />
+            <span>Distributed infrastructure scope</span>
+          </div>
+          <p className="text-xs text-(--dim)">
+            This page is the manual distributed control-plane for model hosting topology. It stores
+            node registration + heartbeat state, records explicit layer allocations, and computes coverage
+            (gaps/overlaps) per model.
+          </p>
+          <ul className="text-xs text-(--dim) list-disc pl-5 space-y-1">
+            <li>Controller owns state in <code>distributed_nodes</code> and <code>distributed_allocations</code> (SQLite-backed).</li>
+            <li>API paths used here are <code>POST /distributed/nodes/register</code>, <code>/distributed/nodes/:nodeId/heartbeat</code>, <code>/distributed/allocations/:nodeId</code>, <code>/distributed/topology/:modelId</code>, and <code>/distributed/status</code>.</li>
+            <li>Events are pushed through SSE as <code>distributed_node_updated</code> and <code>distributed_topology_updated</code>, and then rehydrated on the page.</li>
+            <li>Out of scope: automatic scheduler, cross-node inference dispatch, and transfer of active request traffic.</li>
+          </ul>
+        </section>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="rounded-lg border border-(--border) bg-(--bg) p-3">

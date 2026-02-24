@@ -111,6 +111,15 @@ export function useChatRunStream({
         if (!abortController.signal.aborted && !runCompletedRef.current) {
           const message = err instanceof Error ? err.message : String(err);
           setStreamError(message);
+          const streamError = err instanceof Error ? err : new Error(message);
+          if (!runIdForLifecycle) {
+            (
+              streamError as Error & {
+                rollbackOptimisticUserMessage?: boolean;
+              }
+            ).rollbackOptimisticUserMessage = true;
+          }
+          throw streamError;
         }
       } finally {
         if (idleTimer) clearTimeout(idleTimer);

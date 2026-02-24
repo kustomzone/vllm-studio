@@ -35,7 +35,11 @@ export interface UseChatSendUserMessageArgs {
   createSession: (title: string, model: string) => Promise<{ id: string } | null>;
   setLastSessionId: (id: string) => void;
   replaceUrlToSession: (sessionId: string) => void;
-  generateTitle: (sessionId: string, userContent: string, assistantContent: string) => Promise<string | null>;
+  generateTitle: (
+    sessionId: string,
+    userContent: string,
+    assistantContent: string,
+  ) => Promise<string | null>;
   startRunStream: (
     sessionId: string,
     payload: {
@@ -138,8 +142,14 @@ export function useChatSendUserMessage({
 
   const sendUserMessage = useCallback(
     async (text: string, attachments?: Attachment[], options?: { clearInput?: boolean }) => {
-      if (!selectedModel) return;
-      if (!text.trim() && (!attachments || attachments.length === 0)) return;
+      const safeText = text.trim();
+      const safeAttachments = attachments ?? [];
+      const imageAttachments = safeAttachments.filter((a) => a.type === "image");
+      const fileAttachments = safeAttachments.filter((a) => a.type !== "image");
+      const attachmentFallbackPrompt =
+        safeText.length > 0 ? null : safeAttachments.length > 0 ? "Sent attachment(s)." : null;
+
+      if (!safeText && safeAttachments.length === 0) return;
       if (isLoading || isSendingRef.current) return;
       isSendingRef.current = true;
       setStreamingStartTime(Date.now());
@@ -150,41 +160,39 @@ export function useChatSendUserMessage({
       }
 
       try {
-        lastUserInputRef.current = text;
+        const messageText = safeText || attachmentFallbackPrompt || "";
+        lastUserInputRef.current = messageText;
 
-        // Separate images from non-image attachments
-        const imageAttachments = attachments?.filter((a) => a.type === "image") ?? [];
-        const fileAttachments = attachments?.filter((a) => a.type !== "image") ?? [];
+        const payloadImages: Array<{ data: string; mimeType: string; name?: string }> = [];
 
         // Build parts for local display
         const parts: ChatMessagePart[] = [];
-        if (text.trim()) {
-          parts.push({ type: "text", text });
+        if (messageText) {
+          parts.push({ type: "text", text: messageText });
         }
         for (const img of imageAttachments) {
-          if (img.base64) {
-            parts.push({
-              type: "image",
-              url: img.url ?? `data:${img.file?.type ?? "image/png"};base64,${img.base64}`,
-              name: img.name,
-              mimeType: img.file?.type ?? "image/png",
-            } as ChatMessagePart);
+          let imageBase64 = img.base64;
+          if (!imageBase64 && img.file) {
+            const attachmentContent = await readAttachmentContent(img);
+            imageBase64 = attachmentContent.content;
           }
+          if (!imageBase64) continue;
+
+          parts.push({
+            type: "image",
+            url: img.url ?? `data:${img.file?.type ?? "image/png"};base64,${imageBase64}`,
+            name: img.name,
+            mimeType: img.file?.type ?? "image/png",
+          } as ChatMessagePart);
+
+          payloadImages.push({
+            data: imageBase64,
+            mimeType: img.file?.type ?? "image/png",
+            name: img.name,
+          });
         }
         for (const att of fileAttachments) {
           parts.push({ type: "text", text: `[File: ${att.name}]` });
-        }
-
-        // Collect base64 images for the turn payload
-        const payloadImages: Array<{ data: string; mimeType: string; name?: string }> = [];
-        for (const img of imageAttachments) {
-          if (img.base64) {
-            payloadImages.push({
-              data: img.base64,
-              mimeType: img.file?.type ?? "image/png",
-              name: img.name,
-            });
-          }
         }
 
         const messageId = createUuid();
@@ -202,15 +210,23 @@ export function useChatSendUserMessage({
         let sessionId = currentSessionId;
         if (!sessionId) {
           const session = await createSession("New Chat", selectedModel);
-          if (!session) return;
+          if (!session) {
+            removeLocalMessage();
+            setStreamError("Failed to start a new chat session");
+            return;
+          }
           sessionId = session.id;
           setLastSessionId(sessionId);
           replaceUrlToSession(sessionId);
         }
 
         // Title as soon as the first user message lands (prefer LLM, fallback heuristic).
-        if (sessionId && (currentSessionTitle === "New Chat" || currentSessionTitle === "Chat") && text.trim()) {
-          void generateTitle(sessionId, text, "");
+        if (
+          sessionId &&
+          (currentSessionTitle === "New Chat" || currentSessionTitle === "Chat") &&
+          safeText
+        ) {
+          void generateTitle(sessionId, messageText, "");
         }
 
         // Upload non-image files to agent filesystem
@@ -236,20 +252,36 @@ export function useChatSendUserMessage({
         const runSystemPrompt = attachmentsBlock
           ? buildRunSystemPrompt(systemPrompt, attachmentsBlock)
           : systemPrompt.trim() || undefined;
-        const parsedModel = parseChatModelId(selectedModel);
+        const modelHint = (selectedModel || "").trim();
+        const parsedModel = parseChatModelId(modelHint);
+        const runModel = parsedModel.id.length > 0 ? parsedModel.id : undefined;
+        const runProvider = runModel ? parsedModel.provider : undefined;
 
-        await startRunStream(sessionId, {
-          content: text,
-          message_id: messageId,
-          model: parsedModel.id || selectedModel,
-          provider: parsedModel.provider,
-          system: runSystemPrompt,
-          mcp_enabled: mcpEnabled,
-          agent_mode: agentMode,
-          agent_files: agentFilesEnabled,
-          deep_research: deepResearchEnabled,
-          ...(payloadImages.length > 0 ? { images: payloadImages } : {}),
-        });
+        try {
+          await startRunStream(sessionId, {
+            content: messageText,
+            message_id: messageId,
+            ...(runModel ? { model: runModel } : {}),
+            ...(runProvider ? { provider: runProvider } : {}),
+            system: runSystemPrompt,
+            mcp_enabled: mcpEnabled,
+            agent_mode: agentMode,
+            agent_files: agentFilesEnabled,
+            deep_research: deepResearchEnabled,
+            ...(payloadImages.length > 0 ? { images: payloadImages } : {}),
+          });
+        } catch (error) {
+          const shouldRollback =
+            (
+              error as {
+                rollbackOptimisticUserMessage?: boolean;
+              }
+            )?.rollbackOptimisticUserMessage === true;
+          if (shouldRollback) {
+            removeLocalMessage();
+          }
+          throw error;
+        }
       } finally {
         isSendingRef.current = false;
       }

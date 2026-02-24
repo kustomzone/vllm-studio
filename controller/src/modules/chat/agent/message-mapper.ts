@@ -12,6 +12,7 @@ import type {
   Usage,
   UserMessage,
 } from "@mariozechner/pi-ai";
+import { AGENT_TOOL_NAMES, type AgentToolName } from "./contracts";
 
 type StoredMessageRecord = Record<string, unknown>;
 
@@ -178,12 +179,12 @@ const buildToolResults = (message: StoredMessageRecord): ToolResultMessage[] => 
   const toolCallsArray: unknown[] = Array.isArray(calls) ? calls : [];
   const results: ToolResultMessage[] = [];
   const agentFsTools = new Set([
-    "list_files",
-    "read_file",
-    "write_file",
-    "delete_file",
-    "make_directory",
-    "move_file",
+    AGENT_TOOL_NAMES.LIST_FILES,
+    AGENT_TOOL_NAMES.READ_FILE,
+    AGENT_TOOL_NAMES.WRITE_FILE,
+    AGENT_TOOL_NAMES.DELETE_FILE,
+    AGENT_TOOL_NAMES.MAKE_DIRECTORY,
+    AGENT_TOOL_NAMES.MOVE_FILE,
   ]);
 
   for (const call of toolCallsArray) {
@@ -192,7 +193,7 @@ const buildToolResults = (message: StoredMessageRecord): ToolResultMessage[] => 
     const id = getString(record["id"]) ?? "";
     const functionPayload = record["function"] as Record<string, unknown> | undefined;
     const name = getString(functionPayload?.["name"]) ?? "tool";
-    if (agentFsTools.has(name)) {
+    if (agentFsTools.has(name as AgentToolName)) {
       results.push({
         role: "toolResult",
         toolCallId: id,

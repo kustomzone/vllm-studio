@@ -1,4 +1,5 @@
 // CRITICAL
+import type { Utf8State } from "./types";
 /**
  * Helpers for cleaning streamed text that may be split at arbitrary boundaries.
  *
@@ -6,11 +7,6 @@
  * producing invalid strings. We buffer a trailing high-surrogate and prepend it
  * to the next chunk.
  */
-
-export type Utf8State = {
-  pendingContent: string;
-  pendingReasoning: string;
-};
 
 const isHighSurrogate = (code: number): boolean => code >= 0xd800 && code <= 0xdbff;
 const isLowSurrogate = (code: number): boolean => code >= 0xdc00 && code <= 0xdfff;

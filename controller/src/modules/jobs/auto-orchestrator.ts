@@ -1,6 +1,7 @@
 // CRITICAL
 import type { Orchestrator, JobReporter } from "./orchestrator";
 import type { AppContext } from "../../types/context";
+import type { JobType } from "./types";
 import { MemoryOrchestrator } from "./memory-orchestrator";
 
 /**
@@ -65,7 +66,7 @@ export class AutoOrchestrator implements Orchestrator {
   */
   public async execute(
     jobId: string,
-    type: string,
+    type: JobType,
     input: Record<string, unknown>,
     reporter: JobReporter,
   ): Promise<Record<string, unknown>> {

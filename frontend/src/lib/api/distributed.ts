@@ -71,6 +71,9 @@ export function createDistributedApi(core: ApiCore) {
           : `/distributed/topology/${encodeURIComponent(modelId)}?total_layers=${totalLayers}`,
       ),
 
+    broadcastDistributedState: (): Promise<{ success: boolean }> =>
+      core.request("/distributed/broadcast", { method: "POST" }),
+
     getDistributedStatus: (): Promise<{ status: DistributedClusterStatus }> =>
       core.request("/distributed/status"),
   };

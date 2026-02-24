@@ -72,6 +72,9 @@ export function ToolBeltToolbarMobile({
   callModeEnabled,
   onCallModeToggle,
 }: Props) {
+  const activeSendButtonClass =
+    "bg-white text-black border border-white hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--bg)";
+
   return (
     <div className="md:hidden flex items-center gap-2">
       <ToolBeltToolbarMobileMenu
@@ -121,7 +124,7 @@ export function ToolBeltToolbarMobile({
             disabled={disabled || isLoading}
             className="h-10 w-full px-3 font-mono text-[12px] bg-(--border) border border-(--border) rounded-full text-(--dim) focus:outline-none disabled:opacity-50 truncate appearance-none cursor-pointer hover:bg-(--border) transition-colors"
             title={selectedModel || "Select model"}
-            >
+          >
             {availableModels.map((model, idx) => (
               <option key={`${model.id}-${idx}`} value={model.id}>
                 {buildDisplayModelLabel(model.id, model.provider)}
@@ -145,7 +148,7 @@ export function ToolBeltToolbarMobile({
           disabled={!canSend}
           className={`h-10 w-10 flex items-center justify-center rounded-full transition-colors:ease-in:200ms shrink-0 ${
             canSend
-              ? "bg-(--fg) text-(--bg)"
+              ? activeSendButtonClass
               : "bg-(--border) border border-(--border) text-(--dim)/40 cursor-not-allowed"
           }`}
           title="Send"

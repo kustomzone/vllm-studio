@@ -1,4 +1,3 @@
-// CRITICAL
 import type { Database } from "bun:sqlite";
 import { openSqliteDatabase } from "./sqlite";
 
@@ -110,7 +109,7 @@ export class DistributedStore {
           status = excluded.status,
           last_heartbeat_at = excluded.last_heartbeat_at,
           updated_at = datetime('now')
-      `,
+      `
       )
       .run(
         node.node_id,
@@ -122,7 +121,7 @@ export class DistributedStore {
         node.capabilities,
         node.metrics,
         node.status,
-        node.last_heartbeat_at,
+        node.last_heartbeat_at
       );
   }
 
@@ -138,7 +137,7 @@ export class DistributedStore {
     nodeId: string,
     metrics: string,
     status: string,
-    lastHeartbeatAt: string,
+    lastHeartbeatAt: string
   ): boolean {
     const result = this.db
       .query(
@@ -146,7 +145,7 @@ export class DistributedStore {
         UPDATE distributed_nodes
         SET metrics = ?, status = ?, last_heartbeat_at = ?, updated_at = datetime('now')
         WHERE node_id = ?
-      `,
+      `
       )
       .run(metrics, status, lastHeartbeatAt, nodeId);
     return result.changes > 0;
@@ -186,7 +185,7 @@ export class DistributedStore {
     modelId: string,
     nodeId: string,
     startLayer: number,
-    endLayer: number,
+    endLayer: number
   ): void {
     this.db
       .query(
@@ -197,7 +196,7 @@ export class DistributedStore {
           start_layer = excluded.start_layer,
           end_layer = excluded.end_layer,
           updated_at = datetime('now')
-      `,
+      `
       )
       .run(modelId, nodeId, startLayer, endLayer);
   }
@@ -224,7 +223,7 @@ export class DistributedStore {
     if (modelId) {
       return this.db
         .query(
-          "SELECT * FROM distributed_allocations WHERE model_id = ? ORDER BY start_layer, node_id",
+          "SELECT * FROM distributed_allocations WHERE model_id = ? ORDER BY start_layer, node_id"
         )
         .all(modelId) as DistributedAllocationRecord[];
     }

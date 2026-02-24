@@ -1,17 +1,18 @@
 // CRITICAL
 import { getModel } from "@mariozechner/pi-ai";
 import type { Model } from "@mariozechner/pi-ai";
-
-const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
-const DEFAULT_OPENAI_PROVIDER = "openai";
+import { AGENT_DEFAULT_OPENAI_MODEL, AGENT_DEFAULT_OPENAI_PROVIDER } from "./configs";
 
 export const createOpenAiCompatibleModel = (
   modelId: string,
   baseUrl: string,
-  provider = DEFAULT_OPENAI_PROVIDER,
+  provider = AGENT_DEFAULT_OPENAI_PROVIDER,
 ): Model<"openai-completions"> => {
-  const base = getModel("openai", DEFAULT_OPENAI_MODEL);
-  const normalizedProvider = typeof provider === "string" && provider.trim().length > 0 ? provider.trim() : DEFAULT_OPENAI_PROVIDER;
+  const base = getModel("openai", AGENT_DEFAULT_OPENAI_MODEL);
+  const normalizedProvider =
+    typeof provider === "string" && provider.trim().length > 0
+      ? provider.trim()
+      : AGENT_DEFAULT_OPENAI_PROVIDER;
   return {
     ...base,
     id: modelId,

@@ -2,7 +2,9 @@
 import type { Hono } from "hono";
 import type { AppContext } from "../../types/context";
 import type { JobManager } from "./job-manager";
+import type { JobType } from "./types";
 import { badRequest, notFound } from "../../core/errors";
+import { SUPPORTED_JOB_TYPES } from "./configs";
 
 /**
  * Register jobs API routes.
@@ -25,6 +27,12 @@ export const registerJobsRoutes = (
     if (!type) {
       throw badRequest("type is required");
     }
+    if (!SUPPORTED_JOB_TYPES.has(type as JobType)) {
+      throw badRequest(
+        `Unsupported job type: ${type}. Supported: ${[...SUPPORTED_JOB_TYPES].join(", ")}`
+      );
+    }
+    const jobType = type as JobType;
 
     const input =
       body["input"] && typeof body["input"] === "object"
@@ -32,7 +40,7 @@ export const registerJobsRoutes = (
         : {};
 
     try {
-      const job = await jobManager.createJob(type, input);
+      const job = await jobManager.createJob(jobType, input);
       return ctx.json({ job }, { status: 201 });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

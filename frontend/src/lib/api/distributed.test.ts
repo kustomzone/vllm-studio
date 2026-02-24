@@ -31,4 +31,13 @@ describe("createDistributedApi", () => {
       expect.any(Object),
     );
   });
+
+  it("broadcasts cluster state", async () => {
+    const request = vi.fn().mockResolvedValue({ success: true });
+    const api = createDistributedApi({ request } as unknown as ApiCore);
+
+    await api.broadcastDistributedState();
+
+    expect(request).toHaveBeenCalledWith("/distributed/broadcast", { method: "POST" });
+  });
 });

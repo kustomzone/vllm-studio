@@ -13,6 +13,7 @@ import type { LaunchState } from "./launch-state";
 import type { ControllerMetrics } from "../../monitoring/metrics";
 import type { ProcessManager } from "../process/process-manager";
 import type { RecipeStore } from "../recipes/recipe-store";
+import { LIFECYCLE_READY_TIMEOUT_MS } from "../configs";
 
 export interface EnsureActiveResult {
   switched: boolean;
@@ -30,8 +31,6 @@ export interface LifecycleCoordinator {
   cancelLaunch: (recipeId: string) => Promise<{ success: boolean; message: string }>;
   evict: (force: boolean) => Promise<{ success: boolean; evicted_pid: number | null }>;
 }
-
-const DEFAULT_READY_TIMEOUT_MS = 300_000;
 
 const readLogTail = (path: string, limit: number): string => {
   return readFileTailBytes(path, limit);
@@ -76,7 +75,7 @@ export const createLifecycleCoordinator = (args: {
     fatalPatterns?: string[];
     onProgress?: (elapsedSeconds: number) => Promise<void>;
   }): Promise<{ ready: true } | { ready: false; message: string }> => {
-    const timeout = opts.timeoutMs ?? DEFAULT_READY_TIMEOUT_MS;
+    const timeout = opts.timeoutMs ?? LIFECYCLE_READY_TIMEOUT_MS;
     const start = Date.now();
 
     while (Date.now() - start < timeout) {
@@ -194,7 +193,7 @@ export const createLifecycleCoordinator = (args: {
         recipe,
         pid: launch.pid,
         logFilePath,
-        timeoutMs: DEFAULT_READY_TIMEOUT_MS,
+        timeoutMs: LIFECYCLE_READY_TIMEOUT_MS,
       });
       if (ready.ready) {
         if (publishEvents) {
@@ -352,14 +351,14 @@ export const createLifecycleCoordinator = (args: {
         pid: launch.pid,
         logFilePath,
         cancel: cancelController.signal,
-        timeoutMs: DEFAULT_READY_TIMEOUT_MS,
+        timeoutMs: LIFECYCLE_READY_TIMEOUT_MS,
         fatalPatterns,
         onProgress: async (elapsedSeconds) => {
           await deps.eventManager.publishLaunchProgress(
             recipe.id,
             "waiting",
             `Loading model... (${elapsedSeconds}s)`,
-            0.5 + (elapsedSeconds / (DEFAULT_READY_TIMEOUT_MS / 1000)) * 0.5
+            0.5 + (elapsedSeconds / (LIFECYCLE_READY_TIMEOUT_MS / 1000)) * 0.5
           );
         },
       });

@@ -1,9 +1,9 @@
 // CRITICAL
 "use client";
 
-import { useMemo, useState } from "react";
+import { type MouseEvent, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import type { ChatSession } from "@/lib/types";
 
 export function ChatSessionsSection({
@@ -13,6 +13,7 @@ export function ChatSessionsSection({
   isMobile,
   onCloseMobile,
   onNewChat,
+  onDeleteSession,
 }: {
   sessions: ChatSession[];
   open: boolean;
@@ -20,6 +21,7 @@ export function ChatSessionsSection({
   isMobile: boolean;
   onCloseMobile: () => void;
   onNewChat: () => void;
+  onDeleteSession: (sessionId: string, displayTitle: string) => void;
 }) {
   const [query, setQuery] = useState("");
 
@@ -40,6 +42,16 @@ export function ChatSessionsSection({
       })
       .filter((row) => (q ? row.displayTitle.toLowerCase().includes(q) : true));
   }, [query, sessions]);
+
+  const handleDelete = (
+    event: MouseEvent<HTMLButtonElement>,
+    sessionId: string,
+    displayTitle: string,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onDeleteSession(sessionId, displayTitle);
+  };
 
   if (sessions.length === 0) {
     return (
@@ -88,17 +100,25 @@ export function ChatSessionsSection({
               <div className="px-3 py-2 text-[11px] text-(--dim)">No matching chats</div>
             )}
             {sessionRows.map(({ session, displayTitle }) => (
-              <Link
-                key={session.id}
-                href={`/chat?session=${session.id}`}
-                onClick={() => {
-                  if (isMobile) onCloseMobile();
-                }}
-                className="block px-3 py-1.5 text-xs text-(--dim) hover:text-(--fg) hover:bg-(--surface) rounded transition-colors truncate"
-                title={displayTitle}
-              >
-                {displayTitle}
-              </Link>
+              <div key={session.id} className="group flex items-center gap-1">
+                <Link
+                  href={`/chat?session=${session.id}`}
+                  onClick={() => {
+                    if (isMobile) onCloseMobile();
+                  }}
+                  className="flex-1 min-w-0 px-3 py-1.5 text-xs text-(--dim) hover:text-(--fg) hover:bg-(--surface) rounded transition-colors truncate"
+                  title={displayTitle}
+                >
+                  {displayTitle}
+                </Link>
+                <button
+                  onClick={(event) => handleDelete(event, session.id, displayTitle)}
+                  className="opacity-60 md:opacity-0 md:group-hover:opacity-100 p-1.5 rounded-full hover:bg-(--accent) transition-all shrink-0"
+                  title={`Delete ${displayTitle}`}
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-(--dim)" />
+                </button>
+              </div>
             ))}
           </div>
         </div>

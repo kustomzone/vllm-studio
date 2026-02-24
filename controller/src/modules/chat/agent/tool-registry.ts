@@ -6,13 +6,14 @@ import { buildAgentFsTools } from "./tool-registry-agentfs";
 import { createTextResult } from "./tool-registry-common";
 import { buildMcpTools } from "./tool-registry-mcp";
 import { buildPlanTools } from "./tool-registry-plan";
+import type { AgentEventType } from "./contracts";
 
 export interface AgentToolRegistryOptions {
   sessionId: string;
   mcpEnabled: boolean;
   agentMode: boolean;
   agentFiles?: boolean;
-  emitEvent?: (type: string, data: Record<string, unknown>) => void;
+  emitEvent?: (type: AgentEventType, data: Record<string, unknown>) => void;
 }
 
 /**
@@ -59,4 +60,3 @@ export const buildAgentTools = async (
 
   return tools;
 };
-

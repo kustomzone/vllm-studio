@@ -123,7 +123,7 @@ export class DistributedClusterManager {
     const node = this.store.getNode(nodeId);
     if (!node) return;
     await this.context.eventManager.publish(
-      new Event("distributed_node_updated", { node: toNodeView(node, this.staleAfterMs) }),
+      new Event("distributed_node_updated", { node: toNodeView(node, this.staleAfterMs) })
     );
   }
 
@@ -133,7 +133,7 @@ export class DistributedClusterManager {
    */
   private async emitTopologyUpdated(modelId: string): Promise<void> {
     await this.context.eventManager.publish(
-      new Event("distributed_topology_updated", { topology: this.getTopology(modelId, null) }),
+      new Event("distributed_topology_updated", { topology: this.getTopology(modelId, null) })
     );
   }
 
@@ -171,7 +171,10 @@ export class DistributedClusterManager {
    * @param input - Heartbeat payload.
    * @returns Updated node view or null if unknown node.
    */
-  public async heartbeat(nodeId: string, input: HeartbeatInput): Promise<DistributedNodeView | null> {
+  public async heartbeat(
+    nodeId: string,
+    input: HeartbeatInput
+  ): Promise<DistributedNodeView | null> {
     this.assertNodeId(nodeId);
     const now = new Date().toISOString();
     const metrics = JSON.stringify(input.metrics ?? {});
@@ -204,7 +207,7 @@ export class DistributedClusterManager {
     modelId: string,
     nodeId: string,
     startLayer: number,
-    endLayer: number,
+    endLayer: number
   ): Promise<void> {
     this.assertNodeId(nodeId);
     if (!modelId.trim()) {
@@ -225,7 +228,7 @@ export class DistributedClusterManager {
       const overlaps = startLayer < row.end_layer && row.start_layer < endLayer;
       if (overlaps) {
         throw new Error(
-          `Allocation overlaps with node ${row.node_id} [${row.start_layer}, ${row.end_layer})`,
+          `Allocation overlaps with node ${row.node_id} [${row.start_layer}, ${row.end_layer})`
         );
       }
     }
@@ -246,6 +249,20 @@ export class DistributedClusterManager {
       await this.emitTopologyUpdated(modelId);
     }
     return deleted;
+  }
+
+  /**
+   * Re-emit full distributed cluster state to SSE subscribers.
+   * @returns Promise that resolves once all broadcast events are queued.
+   */
+  public async broadcastState(): Promise<void> {
+    const nodes = this.store.listNodes();
+    const modelIds = Array.from(
+      new Set(this.listAllocations().map((allocation) => allocation.model_id))
+    );
+
+    await Promise.all(nodes.map((node) => this.emitNodeUpdated(node.node_id)));
+    await Promise.all(modelIds.map((modelId) => this.emitTopologyUpdated(modelId)));
   }
 
   /**

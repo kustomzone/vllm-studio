@@ -16,6 +16,7 @@ dist/
 build/
 .pytest_cache/
 .coverage
+.ruff_cache/
 
 AGENTS.md
 
@@ -76,6 +77,8 @@ data/mcp_servers.json
 # Local scripts (user-specific)
 scripts/*.local.sh
 .worktree/
+.pi/
+.ralph/
 
 # Sensitive data - do not commit specific IPs or domains
 # Use environment variables or config files instead

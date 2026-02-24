@@ -4,7 +4,8 @@ import type { AgentMessage, ThinkingLevel } from "@mariozechner/pi-agent-core";
 import { Agent } from "@mariozechner/pi-agent-core";
 import type { AssistantMessage, ImageContent } from "@mariozechner/pi-ai";
 import { AsyncQueue } from "../../../core/async";
-import { cleanUtf8StreamContent, type Utf8State } from "../../proxy/proxy-parsers";
+import { cleanUtf8StreamContent } from "../../proxy/proxy-parsers";
+import type { Utf8State } from "../../proxy/types";
 import type { AppContext } from "../../../types/context";
 import { handleAgentEvent, type ToolExecutionInfo } from "./agent-event-handler";
 import { createOpenAiCompatibleModel } from "./model-factory";
@@ -14,12 +15,15 @@ import { streamOpenAiCompletionsSafe } from "./stream-openai-completions-safe";
 import { buildSystemPrompt } from "./system-prompt-builder";
 import { persistAssistantMessage, extractToolResultText } from "./run-manager-persistence";
 import { createRunPublisher, createSseStream } from "./run-manager-sse";
+import { AGENT_RUN_EVENT_TYPES, type AgentEventType } from "./contracts";
 
 type ResolvedModelSelection = {
   requestModel: string;
   storedModel: string;
   provider: string;
 };
+
+const RUN_EVENT_QUEUE_CAPACITY = 1024;
 
 export interface ChatRunOptions {
   sessionId: string;
@@ -84,7 +88,8 @@ export class ChatRunManager {
     }
 
     const content = options.content.trim();
-    if (!content) {
+    const hasImageInput = Array.isArray(options.images) && options.images.length > 0;
+    if (!content && !hasImageInput) {
       throw new Error("Message content is required");
     }
 
@@ -153,7 +158,7 @@ export class ChatRunManager {
 
     this.context.stores.chatStore.createRun(runId, sessionId, runOptions);
 
-    const queue = new AsyncQueue<string>(200);
+    const queue = new AsyncQueue<string>(RUN_EVENT_QUEUE_CAPACITY);
     const abort = new AbortController();
     const agent = new Agent({
       initialState: {
@@ -213,7 +218,7 @@ export class ChatRunManager {
 
     const { publish } = createRunPublisher(this.context, { runId, sessionId, queue });
 
-    const publishPlanEvent = (type: string, data: Record<string, unknown>): void => {
+    const publishPlanEvent = (type: AgentEventType, data: Record<string, unknown>): void => {
       publish(type, data);
     };
 
@@ -284,7 +289,7 @@ export class ChatRunManager {
       );
     });
 
-    publish("run_start", {
+    publish(AGENT_RUN_EVENT_TYPES.RUN_START, {
       user_message_id: userMessageId,
       model: storedModel,
     });
@@ -302,7 +307,7 @@ export class ChatRunManager {
           status: runStatus,
           finishedAt: new Date().toISOString(),
         });
-        publish("run_end", {
+        publish(AGENT_RUN_EVENT_TYPES.RUN_END, {
           status: runStatus,
           error: runError,
         });
@@ -368,13 +373,16 @@ export class ChatRunManager {
 
     this.context.stores.chatStore.createRun(runId, sessionId, runOptions);
 
-    const queue = new AsyncQueue<string>(200);
+    const queue = new AsyncQueue<string>(RUN_EVENT_QUEUE_CAPACITY);
     const abort = new AbortController();
     const { publish } = createRunPublisher(this.context, { runId, sessionId, queue });
 
     const runPromise = (async (): Promise<void> => {
-      publish("run_start", { user_message_id: userMessageId, model: storedModel });
-      publish("turn_start", { turn_index: 0 });
+      publish(AGENT_RUN_EVENT_TYPES.RUN_START, {
+        user_message_id: userMessageId,
+        model: storedModel,
+      });
+      publish(AGENT_RUN_EVENT_TYPES.TURN_START, { turn_index: 0 });
 
       const assistantMessageId = randomUUID();
       const assistant: AssistantMessage = {
@@ -412,12 +420,16 @@ export class ChatRunManager {
         timestamp: Date.now(),
       };
 
-      publish("message_start", {
+      publish(AGENT_RUN_EVENT_TYPES.MESSAGE_START, {
         message_id: assistantMessageId,
         message: assistant,
         turn_index: 0,
       });
-      publish("message_end", { message_id: assistantMessageId, message: assistant, turn_index: 0 });
+      publish(AGENT_RUN_EVENT_TYPES.MESSAGE_END, {
+        message_id: assistantMessageId,
+        message: assistant,
+        turn_index: 0,
+      });
 
       persistAssistantMessage(this.context, {
         sessionId,
@@ -427,7 +439,7 @@ export class ChatRunManager {
         runId,
         turnIndex: 0,
       });
-      publish("turn_end", {
+      publish(AGENT_RUN_EVENT_TYPES.TURN_END, {
         message_id: assistantMessageId,
         message: assistant,
         toolResults: [],
@@ -438,7 +450,7 @@ export class ChatRunManager {
         status: "completed",
         finishedAt: new Date().toISOString(),
       });
-      publish("run_end", { status: "completed", error: null });
+      publish(AGENT_RUN_EVENT_TYPES.RUN_END, { status: "completed", error: null });
     })()
       .catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
@@ -446,7 +458,7 @@ export class ChatRunManager {
           status: "error",
           finishedAt: new Date().toISOString(),
         });
-        publish("run_end", { status: "error", error: message });
+        publish(AGENT_RUN_EVENT_TYPES.RUN_END, { status: "error", error: message });
       })
       .finally(() => {
         queue.close();

@@ -12,6 +12,7 @@ import {
   ROCM_UPGRADE_ENV,
   getUpgradeCommandFromEnvironment,
 } from "./runtime-upgrade-config";
+import { RUNTIME_UPGRADE_TIMEOUT_MS } from "./configs";
 
 export interface RuntimeUpgradeResult {
   success: boolean;
@@ -26,8 +27,6 @@ export interface RuntimeUpgradeOptions {
   args?: string[];
   version?: string;
 }
-
-const DEFAULT_TIMEOUT_MS = 10 * 60_000;
 
 const resolveCommand = (command: string | undefined, envKey: string): string | null => {
   if (command?.trim()) {
@@ -47,7 +46,7 @@ const parseCommandInput = (args: unknown): string[] | null => {
 };
 
 const runCommandUpgrade = (command: string, args: string[]): RuntimeUpgradeResult => {
-  const result = runCommand(command, args, DEFAULT_TIMEOUT_MS);
+  const result = runCommand(command, args, RUNTIME_UPGRADE_TIMEOUT_MS);
   const success = result.status === 0;
   return {
     success,
@@ -81,7 +80,7 @@ export const upgradeSglangRuntime = async (
   const commandResult = runCommand(
     python,
     args,
-    DEFAULT_TIMEOUT_MS,
+    RUNTIME_UPGRADE_TIMEOUT_MS,
   );
   const runtime = await getSglangRuntimeInfo(config);
   if (commandResult.status !== 0) {

@@ -1,6 +1,8 @@
 // CRITICAL
 import type { AsyncQueue } from "../../../core/async";
 import type { AppContext } from "../../../types/context";
+import { AGENT_RUN_KEEPALIVE_INTERVAL_MS } from "./configs";
+import type { AgentEventType } from "./contracts";
 
 /**
  * Encode a server-sent event payload.
@@ -24,8 +26,6 @@ export async function* createSseStream(
   abort: AbortController,
   runPromise: Promise<void>
 ): AsyncIterable<string> {
-  const KEEPALIVE_INTERVAL_MS = 15_000;
-
   const sleep = (ms: number, signal: AbortSignal): Promise<void> =>
     new Promise<void>((resolve, reject) => {
       if (signal.aborted) {
@@ -49,7 +49,9 @@ export async function* createSseStream(
     while (true) {
       const winner = await Promise.race([
         pendingShift.then((value) => ({ kind: "value" as const, value })),
-        sleep(KEEPALIVE_INTERVAL_MS, abort.signal).then(() => ({ kind: "keepalive" as const })),
+        sleep(AGENT_RUN_KEEPALIVE_INTERVAL_MS, abort.signal).then(() => ({
+          kind: "keepalive" as const,
+        })),
       ]);
 
       if (winner.kind === "keepalive") {
@@ -85,7 +87,7 @@ export function createRunPublisher(
     sessionId: string;
     queue: AsyncQueue<string>;
   }
-): { publish: (type: string, data: Record<string, unknown>) => void } {
+): { publish: (type: AgentEventType, data: Record<string, unknown>) => void } {
   const { runId, sessionId, queue } = params;
   let eventSeq = 0;
 

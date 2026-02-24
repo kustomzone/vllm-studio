@@ -85,7 +85,7 @@ export function ToolDropdown({
               : [
                   "flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all:ease-in:200ms disabled:opacity-50",
                   isActive
-                    ? "bg-(--bg) text-(--hl1) border border-(--border)"
+                    ? "bg-transparent text-(--fg) border border-(--border) ring-1 ring-(--accent)/25"
                     : "hover:bg-(--accent) text-(--dim)",
                   buttonClassName ?? "",
                 ].join(" ")

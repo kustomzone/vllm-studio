@@ -2,6 +2,12 @@
 import type { AppContext } from "../../../types/context";
 import type { JobReporter } from "../orchestrator";
 import { fetchInference } from "../../../services/inference/inference-client";
+import {
+  VOICE_ASSISTANT_PROGRESS,
+  VOICE_ASSISTANT_SNIPPET_LENGTH_CHARS,
+  VOICE_ASSISTANT_TEXT_FETCH_TIMEOUT_MS,
+  VOICE_ASSISTANT_TTS_INPUT_LIMIT_CHARS,
+} from "../configs";
 
 /**
  * Voice assistant turn workflow.
@@ -30,28 +36,32 @@ export async function voiceAssistantTurn(
   const audioPath = input["audio_path"] as string | undefined;
   const sttModel = input["stt_model"] as string | undefined;
   if (audioPath && sttModel && !userText) {
-    reporter.progress(10);
+    reporter.progress(VOICE_ASSISTANT_PROGRESS.sttComplete);
     reporter.log("STT: transcribing audio input");
     try {
       const { transcribeAudio } = await import("../../../services/integrations/stt");
       const sttResult = await transcribeAudio({ audioPath, modelPath: sttModel });
       userText = sttResult.text;
       result["stt_text"] = userText;
-      reporter.log(`STT: transcribed "${userText.slice(0, 80)}"`);
+      reporter.log(
+        `STT: transcribed "${userText.slice(0, VOICE_ASSISTANT_SNIPPET_LENGTH_CHARS)}"`
+      );
     } catch (error) {
       reporter.log(`STT: failed — ${String(error)}`);
       throw new Error(`STT failed: ${String(error)}`);
     }
   }
-  reporter.progress(20);
+  reporter.progress(VOICE_ASSISTANT_PROGRESS.llmStart);
 
   if (!userText) {
     throw new Error("No text input and no audio provided");
   }
 
   // ── Stage 2: LLM completion ────────────────────────────────────────
-  reporter.progress(30);
-  reporter.log(`LLM: sending "${userText.slice(0, 80)}" to inference`);
+  reporter.progress(VOICE_ASSISTANT_PROGRESS.llmComplete);
+  reporter.log(
+    `LLM: sending "${userText.slice(0, VOICE_ASSISTANT_SNIPPET_LENGTH_CHARS)}" to inference`
+  );
 
   const model = typeof input["model"] === "string" ? input["model"] : undefined;
   const messages = [{ role: "user", content: userText }];
@@ -64,7 +74,7 @@ export async function voiceAssistantTurn(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      timeoutMs: 120_000,
+      timeoutMs: VOICE_ASSISTANT_TEXT_FETCH_TIMEOUT_MS,
     });
 
     if (response.status !== 200) {
@@ -82,20 +92,20 @@ export async function voiceAssistantTurn(
     reporter.log(`LLM: failed — ${String(error)}`);
     throw new Error(`LLM failed: ${String(error)}`);
   }
-  reporter.progress(70);
+  reporter.progress(VOICE_ASSISTANT_PROGRESS.llmPosted);
 
   // ── Stage 3: Optional TTS ──────────────────────────────────────────
   const ttsModel = input["tts_model"] as string | undefined;
   const ttsOutput = input["tts_output_path"] as string | undefined;
   const llmText = result["llm_text"] as string;
   if (ttsModel && llmText) {
-    reporter.progress(80);
+    reporter.progress(VOICE_ASSISTANT_PROGRESS.ttsStart);
     reporter.log(`TTS: synthesizing ${llmText.length} chars`);
     try {
       const { synthesizeSpeech } = await import("../../../services/integrations/tts");
       const outputPath = ttsOutput ?? `/tmp/job-tts-${_jobId}.wav`;
       await synthesizeSpeech({
-        text: llmText.slice(0, 2000),
+        text: llmText.slice(0, VOICE_ASSISTANT_TTS_INPUT_LIMIT_CHARS),
         modelPath: ttsModel,
         outputPath,
       });
@@ -108,7 +118,7 @@ export async function voiceAssistantTurn(
     }
   }
 
-  reporter.progress(100);
+  reporter.progress(VOICE_ASSISTANT_PROGRESS.completed);
   reporter.status("completed");
   reporter.log("Workflow completed");
   return result;
