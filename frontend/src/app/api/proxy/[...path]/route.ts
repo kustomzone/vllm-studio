@@ -45,6 +45,19 @@ function getClientInfo(request: NextRequest) {
   return { ip, country, ua };
 }
 
+function normalizeBackendUrl(value: string | null): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.toString().replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
+}
+
 async function handleRequest(request: NextRequest, method: string, path: string[]) {
   const startTime = Date.now();
   const client = getClientInfo(request);
@@ -52,16 +65,25 @@ async function handleRequest(request: NextRequest, method: string, path: string[
   try {
     // Get dynamic settings
     const settings = await getApiSettings();
-    const BACKEND_URL = settings.backendUrl;
+    const overrideHeaderUrl = normalizeBackendUrl(request.headers.get("x-backend-url"));
+    const overrideCookieUrl = normalizeBackendUrl(
+      request.cookies.get("vllmstudio_backend_url")?.value ?? null,
+    );
+    const overrideUrl = overrideHeaderUrl ?? overrideCookieUrl;
+    const BACKEND_URL = overrideUrl ?? settings.backendUrl;
     const API_KEY = settings.apiKey;
 
     const url = new URL(request.url);
-    const searchParams = url.searchParams.toString();
+    const forwardedParams = new URLSearchParams(url.searchParams);
+    const apiKeyQuery = forwardedParams.get("api_key");
+    // Never forward credentials to the controller as query params.
+    if (apiKeyQuery) forwardedParams.delete("api_key");
+    const searchParams = forwardedParams.toString();
     const targetUrl = `${BACKEND_URL}/${path.join("/")}${searchParams ? `?${searchParams}` : ""}`;
     const hasAuth = Boolean(request.headers.get("authorization"));
 
     console.log(
-      `[PROXY] ip=${client.ip} | country=${client.country} | method=${method} | path=/${path.join("/")} | backend=${BACKEND_URL} | auth=${hasAuth ? "present" : "none"}`,
+      `[PROXY] ip=${client.ip} | country=${client.country} | method=${method} | path=/${path.join("/")} | backend=${BACKEND_URL} | override=${overrideUrl ? "yes" : "no"} | auth=${hasAuth ? "present" : "none"}`,
     );
 
     const headers: HeadersInit = {
@@ -75,6 +97,8 @@ async function handleRequest(request: NextRequest, method: string, path: string[
     const incomingAuth = request.headers.get("authorization");
     if (incomingAuth) {
       headers["Authorization"] = incomingAuth;
+    } else if (apiKeyQuery) {
+      headers["Authorization"] = `Bearer ${apiKeyQuery}`;
     } else if (API_KEY) {
       headers["Authorization"] = `Bearer ${API_KEY}`;
     }
@@ -90,11 +114,13 @@ async function handleRequest(request: NextRequest, method: string, path: string[
     const contentType = response.headers.get("content-type") || "application/json";
 
     if (contentType.includes("text/event-stream") && response.body) {
+      const runId = response.headers.get("x-run-id");
       return new NextResponse(response.body, {
         status: response.status,
         headers: {
           "Content-Type": contentType,
           "Cache-Control": response.headers.get("cache-control") || "no-cache",
+          ...(runId ? { "X-Run-Id": runId } : {}),
         },
       });
     }

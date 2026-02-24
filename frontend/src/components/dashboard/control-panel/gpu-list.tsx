@@ -1,7 +1,7 @@
+// CRITICAL
 "use client";
 
-import { useRealtimeStatus } from "@/hooks/use-realtime-status";
-import { toGB } from "@/lib/formatters";
+import { toGB, toGBFromMB } from "@/lib/formatters";
 import type { GPU } from "@/lib/types";
 
 interface GpuListProps {
@@ -9,8 +9,7 @@ interface GpuListProps {
 }
 
 export function GpuList({ gpus: staticGpus }: GpuListProps) {
-  const { gpus: realtimeGpus } = useRealtimeStatus();
-  const gpus = realtimeGpus.length > 0 ? realtimeGpus : staticGpus;
+  const gpus = staticGpus;
 
   if (gpus.length === 0) {
     return (
@@ -50,8 +49,14 @@ export function GpuList({ gpus: staticGpus }: GpuListProps) {
 }
 
 function GpuRow({ gpu }: { gpu: GPU }) {
-  const memUsed = toGB(gpu.memory_used_mb ?? gpu.memory_used);
-  const memTotal = toGB(gpu.memory_total_mb ?? gpu.memory_total);
+  const memUsed =
+    gpu.memory_used_mb !== undefined && gpu.memory_used_mb !== null
+      ? toGBFromMB(gpu.memory_used_mb)
+      : toGB(gpu.memory_used);
+  const memTotal =
+    gpu.memory_total_mb !== undefined && gpu.memory_total_mb !== null
+      ? toGBFromMB(gpu.memory_total_mb)
+      : toGB(gpu.memory_total);
   // Guard against divide by zero or invalid total
   const memPct = memTotal > 0 ? Math.min((memUsed / memTotal) * 100, 100) : 0;
   const temp = gpu.temp_c ?? gpu.temperature ?? 0;
@@ -59,9 +64,9 @@ function GpuRow({ gpu }: { gpu: GPU }) {
   const power = gpu.power_draw || 0;
 
   const getTempColor = (t: number) => {
-    if (t > 80) return "text-(--error)";
-    if (t > 65) return "text-(--warning)";
-    return "text-(--success)";
+    if (t > 80) return "text-(--err)";
+    if (t > 65) return "text-(--hl3)";
+    return "text-(--hl2)";
   };
 
   return (

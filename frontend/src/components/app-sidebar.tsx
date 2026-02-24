@@ -4,33 +4,14 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  LayoutDashboard,
-  FileText,
-  Settings2,
-  MessageSquareText,
-  BarChart3,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  Sparkles,
-  Compass,
-  Plus,
-  ScrollText,
-} from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import api from "@/lib/api";
 import { useAppStore } from "@/store";
-
-const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/chat", label: "Chat", icon: MessageSquareText },
-  { href: "/recipes", label: "Recipes", icon: Sparkles },
-  { href: "/discover", label: "Discover", icon: Compass },
-  { href: "/logs", label: "Logs", icon: ScrollText },
-  { href: "/usage", label: "Usage", icon: BarChart3 },
-  { href: "/configs", label: "Configs", icon: Settings2 },
-];
+import { ChatSessionsSection } from "./app-sidebar/chat-sessions-section";
+import { MobileHeaderStatus } from "./app-sidebar/mobile-header-status";
+import { navItems } from "./app-sidebar/nav-items";
+import { SidebarStatus } from "./app-sidebar/sidebar-status";
 
 interface AppSidebarProps {
   children: React.ReactNode;
@@ -38,52 +19,44 @@ interface AppSidebarProps {
 
 export function AppSidebar({ children }: AppSidebarProps) {
   const pathname = usePathname();
-  // Use consistent defaults for SSR to avoid hydration mismatch
-  const [hydrationState] = useState(() => {
-    if (typeof window === "undefined") {
-      return { mobile: false, collapsed: false };
-    }
-    const mobile = window.innerWidth < 768;
-    if (mobile) {
-      return { mobile, collapsed: true };
-    }
-    const saved = localStorage.getItem("app-sidebar-collapsed");
-    return { mobile, collapsed: saved === "true" };
-  });
-  const [collapsed, setCollapsed] = useState(hydrationState.collapsed);
-  const [isMobile, setIsMobile] = useState(hydrationState.mobile);
+  const [collapsed, setCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [status, setStatus] = useState<{
-    online: boolean;
-    inferenceOnline: boolean;
-    model?: string;
-  }>({
-    online: false,
-    inferenceOnline: false,
-  });
-  const [chatHistoryOpen, setChatHistoryOpen] = useState(true);
+  const [chatHistoryOpen, setChatHistoryOpen] = useState(pathname === "/chat");
+  const [hydrated, setHydrated] = useState(useAppStore.persist.hasHydrated());
   const loadingSessionsRef = useRef(false);
   const router = useRouter();
   const chatSessions = useAppStore((state) => state.sessions);
   const setSessions = useAppStore((state) => state.setSessions);
+  const updateSessions = useAppStore((state) => state.updateSessions);
+  const currentSessionId = useAppStore((state) => state.currentSessionId);
+  const setCurrentSessionId = useAppStore((state) => state.setCurrentSessionId);
+  const setCurrentSessionTitle = useAppStore((state) => state.setCurrentSessionTitle);
 
   useEffect(() => {
-    if (!useAppStore.persist.hasHydrated()) {
-      void useAppStore.persist.rehydrate();
-    }
-  }, []);
+    if (hydrated) return;
+    const unsubscribe = useAppStore.persist.onFinishHydration(() => {
+      setHydrated(true);
+    });
+    void useAppStore.persist.rehydrate();
+    return unsubscribe;
+  }, [hydrated]);
 
-  // Detect mobile
+  // Detect mobile and restore collapsed state after mount
   useEffect(() => {
-    const checkMobile = () => {
+    const applyLayout = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
       if (mobile) {
         setCollapsed(true);
+        return;
       }
+      const saved = localStorage.getItem("app-sidebar-collapsed");
+      setCollapsed(saved === "true");
     };
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
+    applyLayout();
+    window.addEventListener("resize", applyLayout);
+    return () => window.removeEventListener("resize", applyLayout);
   }, []);
 
   // Allow mobile sidebar control from chat page
@@ -112,55 +85,62 @@ export function AppSidebar({ children }: AppSidebarProps) {
     }
   };
 
-  // Check status
   useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const health = await api.getHealth();
-        setStatus({
-          online: health.status === "ok",
-          inferenceOnline: health.backend_reachable,
-          model: health.running_model?.split("/").pop(),
-        });
-      } catch {
-        setStatus({ online: false, inferenceOnline: false });
-      }
-    };
-    checkStatus();
-    const interval = setInterval(checkStatus, 5000);
+    setChatHistoryOpen(pathname === "/chat");
+  }, [pathname]);
 
-    // Also check when page becomes visible (mobile PWA support)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        checkStatus();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, []);
-
-  // Load chat sessions once when on chat page
+  // Load chat sessions once after hydration so sidebar search/list is available across pages.
   useEffect(() => {
-    if (pathname === "/chat" && !loadingSessionsRef.current) {
-      loadingSessionsRef.current = true;
-      api
-        .getChatSessions()
-        .then((result) => setSessions(result.sessions || []))
-        .catch(() => setSessions([]))
-        .finally(() => {
-          loadingSessionsRef.current = false;
-        });
-    }
-  }, [pathname, setSessions]);
+    if (!hydrated) return;
+    if (loadingSessionsRef.current) return;
+    loadingSessionsRef.current = true;
+    api
+      .getChatSessions()
+      .then((result) => setSessions(result.sessions || []))
+      .catch(() => setSessions([]))
+      .finally(() => {
+        loadingSessionsRef.current = false;
+      });
+  }, [hydrated, setSessions]);
 
   const createNewChat = () => {
     setMobileOpen(false);
     router.push("/chat?new=1");
   };
+
+  const handleDeleteSession = useCallback(
+    async (sessionId: string, displayTitle: string) => {
+      const label = displayTitle?.trim() || "this chat";
+      if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) return;
+
+      try {
+        await api.deleteChatSession(sessionId);
+        updateSessions((prev) => prev.filter((session) => session.id !== sessionId));
+
+        if (sessionId === currentSessionId) {
+          setCurrentSessionId(null);
+          setCurrentSessionTitle("New Chat");
+          if (pathname === "/chat") {
+            router.push("/chat?new=1");
+          }
+        }
+      } catch (err) {
+        console.error("Failed to delete chat session:", err);
+      }
+    },
+    [
+      currentSessionId,
+      pathname,
+      router,
+      setCurrentSessionId,
+      setCurrentSessionTitle,
+      updateSessions,
+    ],
+  );
+
+  if (pathname.startsWith("/setup")) {
+    return <div className="h-full w-full">{children}</div>;
+  }
 
   return (
     <div className="flex h-full min-h-full overflow-hidden">
@@ -178,17 +158,17 @@ export function AppSidebar({ children }: AppSidebarProps) {
           ${isMobile ? "fixed left-0 top-0 bottom-0 z-50" : "relative"}
           ${isMobile && !mobileOpen ? "-translate-x-full" : "translate-x-0"}
           ${collapsed && !isMobile ? "w-16" : "w-56"}
-          shrink-0 bg-[#0a0a0a]/95 backdrop-blur-xl border-r border-white/[0.06]
+          shrink-0 bg-(--bg)/95 backdrop-blur-xl border-r border-(--border)
           flex flex-col transition-all duration-200 ease-out
         `}
         style={{ paddingTop: "env(safe-area-inset-top, 0)" }}
       >
         {/* Logo */}
         <div
-          className={`flex items-center h-14 px-3 border-b border-white/[0.06] ${collapsed && !isMobile ? "justify-center" : "gap-3"}`}
+          className={`flex items-center h-14 px-3 border-b border-(--border) ${collapsed && !isMobile ? "justify-center" : "gap-3"}`}
         >
           <Image
-            src="/vllm-logo.jpg"
+            src="/mocks/logo-1.svg"
             alt="vLLM"
             width={28}
             height={28}
@@ -204,7 +184,6 @@ export function AppSidebar({ children }: AppSidebarProps) {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
-            const isChat = item.href === "/chat";
 
             return (
               <div key={item.href}>
@@ -215,9 +194,10 @@ export function AppSidebar({ children }: AppSidebarProps) {
                   }}
                   className={`
                     flex items-center gap-3 px-3 py-2.5 rounded-lg mb-0.5 transition-colors
-                    ${isActive
-                      ? "bg-white/[0.08] text-foreground"
-                      : "text-[#9a9590] hover:text-foreground hover:bg-white/[0.04]"
+                    ${
+                      isActive
+                        ? "bg-(--border) text-foreground"
+                        : "text-(--dim) hover:text-foreground hover:bg-(--border)"
                     }
                     ${collapsed && !isMobile ? "justify-center" : ""}
                   `}
@@ -228,92 +208,43 @@ export function AppSidebar({ children }: AppSidebarProps) {
                     <span className="text-sm font-medium">{item.label}</span>
                   )}
                 </Link>
-
-                {/* Chat sessions section */}
-                {isChat && pathname === "/chat" && (!collapsed || isMobile) && (
-                  <div className="ml-2 mt-2 mb-2">
-                    <button
-                      onClick={createNewChat}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg transition-colors text-sm font-medium mb-2"
-                    >
-                      <Plus className="w-4 h-4" />
-                      New Chat
-                    </button>
-
-                    {chatSessions.length > 0 && (
-                      <>
-                        <button
-                          onClick={() => setChatHistoryOpen(!chatHistoryOpen)}
-                          className="w-full flex items-center gap-2 px-3 py-1.5 text-[#9a9590] hover:text-[#b0a8a0] text-xs font-medium transition-colors"
-                        >
-                          <ChevronDown
-                            className={`h-3.5 w-3.5 transition-transform ${chatHistoryOpen ? "" : "-rotate-90"}`}
-                          />
-                          <span>Your chats</span>
-                        </button>
-
-                        {chatHistoryOpen && (
-                          <div className="space-y-0.5 max-h-96 overflow-y-auto ml-4 pr-1 scrollbar-thin">
-                            {chatSessions.map((session) => {
-                              const displayTitle = session.title || "New Chat";
-                              return (
-                                <Link
-                                  key={session.id}
-                                  href={`/chat?session=${session.id}`}
-                                  onClick={() => {
-                                    if (isMobile) setMobileOpen(false);
-                                  }}
-                                  className="block px-3 py-1.5 text-xs text-[#9a9590] hover:text-[#b0a8a0] hover:bg-(--accent)/10 rounded transition-colors truncate"
-                                  title={displayTitle}
-                                >
-                                  {displayTitle}
-                                </Link>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
               </div>
             );
           })}
+
+          {/* Chat sessions section (after nav items) */}
+          {(!collapsed || isMobile) && (
+            <div className="mt-3 pt-2 border-t border-(--border)/50">
+              <ChatSessionsSection
+                sessions={chatSessions}
+                open={chatHistoryOpen}
+                setOpen={setChatHistoryOpen}
+                isMobile={isMobile}
+                onCloseMobile={() => setMobileOpen(false)}
+                onNewChat={createNewChat}
+                onDeleteSession={handleDeleteSession}
+              />
+            </div>
+          )}
         </nav>
 
         {/* Status */}
         <div
-          className={`px-3 py-3 border-t border-white/[0.06] ${collapsed && !isMobile ? "flex justify-center" : ""}`}
+          className={`px-3 py-3 border-t border-(--border) ${collapsed && !isMobile ? "flex justify-center" : ""}`}
         >
-          <div className={`flex items-center gap-2 ${collapsed && !isMobile ? "" : ""}`}>
-            <div className={`relative flex items-center justify-center ${status.inferenceOnline ? 'text-emerald-400' : status.online ? 'text-amber-400' : 'text-red-400'}`}>
-              <div className={`w-2 h-2 rounded-full ${status.inferenceOnline ? 'bg-emerald-400' : status.online ? 'bg-amber-400' : 'bg-red-400'} ${status.inferenceOnline ? 'animate-pulse' : ''}`} />
-              {status.inferenceOnline && (
-                <div className="absolute inset-0 w-2 h-2 rounded-full bg-emerald-400 animate-ping opacity-30" />
-              )}
-            </div>
-            {(!collapsed || isMobile) && (
-              <span className="text-xs text-[#a0a0a0] truncate font-medium">
-                {status.inferenceOnline
-                  ? status.model || "Ready"
-                  : status.online
-                    ? "No model"
-                    : "Offline"}
-              </span>
-            )}
-          </div>
+          <SidebarStatus collapsed={collapsed} isMobile={isMobile} />
         </div>
 
         {/* Collapse toggle - desktop only */}
         {!isMobile && (
           <button
             onClick={toggleCollapsed}
-            className="absolute -right-3 top-20 w-6 h-6 bg-[#111] border border-white/[0.08] rounded-full flex items-center justify-center hover:bg-white/[0.08] hover:border-white/[0.12] transition-colors shadow-lg shadow-black/50"
+            className="absolute -right-3 top-20 w-6 h-6 bg-(--bg) border border-(--border) rounded-full flex items-center justify-center hover:bg-(--border) hover:border-(--border) transition-colors shadow-lg shadow-black/50"
           >
             {collapsed ? (
-              <ChevronRight className="h-3.5 w-3.5 text-[#888]" />
+              <ChevronRight className="h-3.5 w-3.5 text-(--dim)" />
             ) : (
-              <ChevronLeft className="h-3.5 w-3.5 text-[#888]" />
+              <ChevronLeft className="h-3.5 w-3.5 text-(--dim)" />
             )}
           </button>
         )}
@@ -324,35 +255,26 @@ export function AppSidebar({ children }: AppSidebarProps) {
         {/* Mobile header */}
         {isMobile && pathname !== "/chat" && (
           <div
-            className="sticky top-0 z-30 bg-(--card) border-b border-(--border) px-3 py-2 flex items-center gap-2"
+            className="sticky top-0 z-30 bg-(--surface) border-b border-(--border) px-3 py-2 flex items-center gap-2"
             style={{ paddingTop: "calc(0.5rem + env(safe-area-inset-top, 0))" }}
           >
             <button
               onClick={() => setMobileOpen(true)}
               className="p-1 -ml-1 rounded hover:bg-(--accent)"
             >
-              <Image src="/vllm-logo.jpg" alt="vLLM" width={20} height={20} className="rounded" />
+              <Image
+                src="/mocks/logo-1.svg"
+                alt="vLLM"
+                width={20}
+                height={20}
+                className="rounded"
+              />
             </button>
             <span className="font-medium text-xs">
               {navItems.find((item) => item.href === pathname)?.label || "vLLM Studio"}
             </span>
             <div className="ml-auto flex items-center gap-1.5">
-              <div
-                className={`w-1.5 h-1.5 rounded-full ${
-                  status.inferenceOnline
-                    ? "bg-(--success)"
-                    : status.online
-                      ? "bg-yellow-500"
-                      : "bg-(--error)"
-                }`}
-              />
-              <span className="text-[11px] text-[#9a9590]">
-                {status.inferenceOnline
-                  ? status.model?.slice(0, 12) || "Ready"
-                  : status.online
-                    ? "No model"
-                    : "Offline"}
-              </span>
+              <MobileHeaderStatus />
             </div>
           </div>
         )}

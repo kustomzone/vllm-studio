@@ -7,15 +7,26 @@ final class SettingsStore: ObservableObject {
   @Published var voiceModel: String { didSet { save() } }
   @Published var mcpEnabled: Bool { didSet { save() } }
   @Published var planModeEnabled: Bool { didSet { save() } }
+  @Published var themeId: String { didSet { save() } }
 
   init() {
     let defaults = UserDefaults.standard
-    backendUrl = defaults.string(forKey: "backend-url") ?? "http://localhost:8080"
+    // Controller defaults to :8080 (VLLM_STUDIO_PORT).
+    let storedBackend = defaults.string(forKey: "backend-url")
+    if storedBackend == nil || storedBackend?.isEmpty == true {
+      let fallback = "http://localhost:8080"
+      backendUrl = fallback
+      defaults.set(fallback, forKey: "backend-url")
+    } else {
+      backendUrl = storedBackend ?? "http://localhost:8080"
+    }
     apiKey = defaults.string(forKey: "api-key") ?? ""
-    voiceUrl = defaults.string(forKey: "voice-url") ?? "https://voice.homelabai.org"
+    // Voice endpoint is optional and intentionally has no hard-coded default.
+    voiceUrl = defaults.string(forKey: "voice-url") ?? ""
     voiceModel = defaults.string(forKey: "voice-model") ?? "whisper-large-v3-turbo"
     mcpEnabled = defaults.object(forKey: "mcp-enabled") as? Bool ?? true
     planModeEnabled = defaults.object(forKey: "plan-mode-enabled") as? Bool ?? false
+    themeId = defaults.string(forKey: "theme-id") ?? AppTheme.default.id
   }
 
   func saveNow() {
@@ -30,5 +41,6 @@ final class SettingsStore: ObservableObject {
     defaults.set(voiceModel, forKey: "voice-model")
     defaults.set(mcpEnabled, forKey: "mcp-enabled")
     defaults.set(planModeEnabled, forKey: "plan-mode-enabled")
+    defaults.set(themeId, forKey: "theme-id")
   }
 }

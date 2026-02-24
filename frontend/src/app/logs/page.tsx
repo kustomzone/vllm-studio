@@ -1,3 +1,4 @@
+// CRITICAL
 "use client";
 
 import { LogsView } from "./_components/logs-view";
@@ -8,7 +9,7 @@ export default function LogsPage() {
     sessions,
     filteredSessions,
     selectedSession,
-    logContent,
+    hasLogContent,
     filter,
     contentFilter,
     loading,
@@ -35,7 +36,7 @@ export default function LogsPage() {
       sessions={sessions}
       filteredSessions={filteredSessions}
       selectedSession={selectedSession}
-      logContent={logContent}
+      hasLogContent={hasLogContent}
       filter={filter}
       contentFilter={contentFilter}
       loading={loading}

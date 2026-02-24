@@ -1,12 +1,12 @@
-import type { GPU, Metrics, ProcessInfo, RecipeWithStatus } from "@/lib/types";
-
-type LaunchStage = "preempting" | "evicting" | "launching" | "waiting" | "ready" | "cancelled" | "error";
-
-type LaunchProgress = {
-  stage: LaunchStage;
-  message?: string;
-  progress?: number;
-} | null;
+import type {
+  GPU,
+  LaunchProgress,
+  Metrics,
+  ProcessInfo,
+  RecipeWithStatus,
+  RuntimePlatformKind,
+} from "@/lib/types";
+import type { LeaseInfo, RuntimeSummaryData, ServiceEntry } from "@/hooks/realtime-status-store/types";
 
 export interface DashboardLayoutProps {
   currentProcess: ProcessInfo | null;
@@ -17,7 +17,11 @@ export interface DashboardLayoutProps {
   logs: string[];
   launching: boolean;
   benchmarking: boolean;
-  launchProgress: LaunchProgress;
+  launchProgress: LaunchProgress | null;
+  platformKind: RuntimePlatformKind | null;
+  runtimeSummary?: RuntimeSummaryData | null;
+  services?: ServiceEntry[];
+  lease?: LeaseInfo | null;
   isConnected: boolean;
   reconnectAttempts: number;
   inferencePort?: number;

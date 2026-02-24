@@ -37,7 +37,7 @@ export function MCPSettingsModal({
   };
 
   const handleToggleServer = async (server: MCPServer) => {
-    setPendingServer(server.name);
+    setPendingServer(server.id ?? server.name);
     setActionError(null);
     try {
       await onUpdateServer({ ...server, enabled: !server.enabled });
@@ -50,10 +50,10 @@ export function MCPSettingsModal({
 
   const handleRemoveServer = async (server: MCPServer) => {
     if (!window.confirm(`Remove MCP server "${server.name}"?`)) return;
-    setPendingServer(server.name);
+    setPendingServer(server.id ?? server.name);
     setActionError(null);
     try {
-      await onRemoveServer(server.name);
+      await onRemoveServer(server.id ?? server.name);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Failed to remove server.");
     } finally {
@@ -64,15 +64,15 @@ export function MCPSettingsModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <button
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 z-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
         aria-label="Close"
       />
-      <div className="relative w-full max-w-lg mx-4 bg-(--card) border border-(--border) rounded-xl shadow-xl">
+      <div className="relative z-10 w-full max-w-lg mx-4 bg-(--surface) border border-(--border) rounded-xl shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-(--border)">
           <div className="flex items-center gap-2">
-            <Server className="h-5 w-5 text-[#9a9590]" />
+            <Server className="h-5 w-5 text-(--dim)" />
             <h2 className="text-lg font-semibold">MCP Servers</h2>
           </div>
           <div className="flex items-center gap-2">
@@ -82,14 +82,14 @@ export function MCPSettingsModal({
                 className="p-1.5 rounded hover:bg-(--accent)"
                 title="Refresh servers"
               >
-                <RefreshCw className="h-4 w-4 text-[#9a9590]" />
+                <RefreshCw className="h-4 w-4 text-(--dim)" />
               </button>
             )}
             <button
               onClick={onClose}
               className="p-1.5 rounded hover:bg-(--accent)"
             >
-              <X className="h-5 w-5 text-[#9a9590]" />
+              <X className="h-5 w-5 text-(--dim)" />
             </button>
           </div>
         </div>
@@ -106,15 +106,15 @@ export function MCPSettingsModal({
 
           <div className="space-y-4">
             {servers.length === 0 ? (
-              <div className="text-center py-8 text-[#6a6560]">
+              <div className="text-center py-8 text-(--dim)">
                 <Server className="h-8 w-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">No MCP servers configured</p>
               </div>
             ) : (
               servers.map((server) => (
                 <div
-                  key={server.name}
-                  className="flex flex-col gap-3 p-3 bg-(--background) border border-(--border) rounded-lg"
+                  key={server.id ?? server.name}
+                  className="flex flex-col gap-3 p-3 bg-(--bg) border border-(--border) rounded-lg"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
@@ -122,22 +122,22 @@ export function MCPSettingsModal({
                         {server.icon ? (
                           <span className="text-sm">{server.icon}</span>
                         ) : (
-                          <Server className="h-4 w-4 text-[#9a9590]" />
+                          <Server className="h-4 w-4 text-(--dim)" />
                         )}
                       </div>
                       <div>
                         <span className="text-sm font-medium">{server.name}</span>
-                        <p className="text-xs text-[#6a6560]">{server.command}</p>
+                        <p className="text-xs text-(--dim)">{server.command}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleToggleServer(server)}
-                        disabled={pendingServer === server.name}
+                        disabled={pendingServer === (server.id ?? server.name)}
                         className={`px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-60 ${
                           server.enabled
-                            ? "bg-(--success)/20 text-(--success)"
-                            : "bg-(--accent) text-[#6a6560]"
+                            ? "bg-(--hl2)/20 text-(--hl2)"
+                            : "bg-(--accent) text-(--dim)"
                         }`}
                       >
                         {server.enabled ? "Enabled" : "Disabled"}
@@ -147,14 +147,14 @@ export function MCPSettingsModal({
                         className="p-1.5 rounded hover:bg-(--accent)"
                         title="Remove server"
                       >
-                        <Trash2 className="h-4 w-4 text-[#9a9590]" />
+                        <Trash2 className="h-4 w-4 text-(--dim)" />
                       </button>
                     </div>
                   </div>
                 </div>
               ))
             )}
-            {actionError && <p className="text-xs text-(--error)">{actionError}</p>}
+            {actionError && <p className="text-xs text-(--err)">{actionError}</p>}
           </div>
         </div>
       </div>

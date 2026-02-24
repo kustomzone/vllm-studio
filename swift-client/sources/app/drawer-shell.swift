@@ -8,15 +8,7 @@ struct DrawerShell: View {
 
   var body: some View {
     ZStack {
-      NavigationStack { contentView }
-        .toolbar {
-          ToolbarItem(placement: .navigationBarLeading) {
-            Button(action: { withAnimation { isOpen.toggle() } }) {
-              Image(systemName: "line.3.horizontal")
-            }
-          }
-        }
-        .background(AppTheme.background)
+      contentView
         .simultaneousGesture(
           DragGesture()
             .onChanged { value in
@@ -42,28 +34,71 @@ struct DrawerShell: View {
   @ViewBuilder
   private var contentView: some View {
     switch selection {
-    case .dashboard: DashboardView()
-    case .chat: ChatListView()
-    case .discover: DiscoverView()
-    case .usage: UsageView()
-    case .configs: ConfigsView()
-    case .logs: LogsView()
+    case .dashboard: navRoot { DashboardView() }
+    case .chat: navRoot { ChatListView() }
+    case .recipes: navRoot { RecipesView() }
+    case .discover: navRoot { DiscoverView() }
+    case .logs: navRoot { LogsView() }
+    case .usage: navRoot { UsageView() }
+    case .settings: navRoot { ConfigsView() }
     }
+  }
+
+  private func navRoot<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    NavRootWrapper(content: content(), isOpen: $isOpen)
+  }
+}
+
+private struct NavRootWrapper<Content: View>: View {
+  let content: Content
+  @Binding var isOpen: Bool
+
+  var body: some View {
+    NavigationStack {
+      content
+    }
+    .toolbar {
+      #if canImport(UIKit)
+      ToolbarItem(placement: .navigationBarLeading) {
+        Button(action: { withAnimation { isOpen.toggle() } }) {
+          Image(systemName: "line.3.horizontal")
+        }
+      }
+      #else
+      ToolbarItem(placement: .cancellationAction) {
+        Button(action: { withAnimation { isOpen.toggle() } }) {
+          Image(systemName: "line.3.horizontal")
+        }
+      }
+      #endif
+    }
+    .background(AppTheme.background)
   }
 }
 
 enum DrawerRoute: String, CaseIterable, Identifiable {
-  case dashboard, chat, discover, usage, configs, logs
+  case dashboard, chat, recipes, discover, logs, usage, settings
   var id: String { rawValue }
-  var title: String { rawValue.capitalized }
+  var title: String {
+    switch self {
+    case .dashboard: "Dashboard"
+    case .chat: "Chat"
+    case .recipes: "Recipes"
+    case .discover: "Discover"
+    case .logs: "Logs"
+    case .usage: "Usage"
+    case .settings: "Settings"
+    }
+  }
   var icon: String {
     switch self {
     case .dashboard: "gauge"
     case .chat: "bubble.left.and.bubble.right"
-    case .discover: "sparkles"
+    case .recipes: "book"
+    case .discover: "compass"
+    case .logs: "scroll"
     case .usage: "chart.bar"
-    case .configs: "slider.horizontal.3"
-    case .logs: "list.bullet"
+    case .settings: "slider.horizontal.3"
     }
   }
 }

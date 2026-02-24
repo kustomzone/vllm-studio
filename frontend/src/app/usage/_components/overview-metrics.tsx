@@ -3,65 +3,92 @@
 
 import type { UsageStats } from "@/lib/types";
 import { formatNumber } from "@/lib/formatters";
-import { SectionHeader, ChangeIndicator } from "@/components/shared";
+import { ChangeIndicator } from "@/components/shared";
+import { Hash, Activity, TrendingUp, Users, Clock, Database } from "lucide-react";
+
+function MetricCard({
+  icon: Icon,
+  label,
+  value,
+  subvalue,
+  subvalueNode,
+  trend,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  subvalue?: string;
+  subvalueNode?: React.ReactNode;
+  trend?: React.ReactNode;
+}) {
+  return (
+    <div className="bg-(--surface) rounded-lg p-4">
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2 text-(--dim)">
+          <Icon className="h-4 w-4" />
+          <span className="text-xs">{label}</span>
+        </div>
+        {trend && <div className="flex items-center">{trend}</div>}
+      </div>
+      <div className="mt-3">
+        <div className="text-xl font-medium tabular-nums tracking-tight">
+          {value}
+        </div>
+        {(subvalue || subvalueNode) && (
+          <div className="mt-1.5 text-xs text-(--dim)">
+            {subvalueNode || subvalue}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function OverviewMetrics(stats: UsageStats) {
   return (
-    <section className="mb-6 pb-5 border-b border-(--border)/40">
-      {SectionHeader("Overview")}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-6">
-        <div>
-          <div className="text-xs text-(--muted-foreground) mb-1">Total Tokens</div>
-          <div className="text-lg font-medium tabular-nums">
-            {formatNumber(stats.totals.total_tokens)}
-          </div>
-        </div>
-        <div>
-          <div className="text-xs text-(--muted-foreground) mb-1">Requests</div>
-          <div className="text-lg font-medium tabular-nums">
-            {formatNumber(stats.totals.total_requests)}
-          </div>
-          <div className="text-[10px] text-(--muted-foreground) mt-0.5">
-            {formatNumber(stats.recent_activity.last_24h_requests)} last 24h
-          </div>
-        </div>
-        <div>
-          <div className="text-xs text-(--muted-foreground) mb-1">Success Rate</div>
-          <div
-            className={`text-lg font-medium tabular-nums ${
-              stats.totals.success_rate >= 95
-                ? "text-(--success)"
-                : stats.totals.success_rate >= 90
-                  ? "text-(--warning)"
-                  : "text-(--error)"
-            }`}
-          >
-            {stats.totals.success_rate.toFixed(1)}%
-          </div>
-        </div>
-        <div>
-          <div className="text-xs text-(--muted-foreground) mb-1">Sessions</div>
-          <div className="text-lg font-medium tabular-nums">
-            {formatNumber(stats.totals.unique_sessions)}
-          </div>
-          <div className="text-[10px] text-(--muted-foreground) mt-0.5">
-            {formatNumber(stats.totals.unique_users)} users
-          </div>
-        </div>
-        <div>
-          <div className="text-xs text-(--muted-foreground) mb-1">This Week</div>
-          <div className="text-lg font-medium tabular-nums">
-            {formatNumber(stats.week_over_week.this_week.requests)}
-          </div>
-          <div className="mt-0.5">{ChangeIndicator({ value: stats.week_over_week.change_pct.requests })}</div>
-        </div>
-        <div>
-          <div className="text-xs text-(--muted-foreground) mb-1">Cache Hit Rate</div>
-          <div className="text-lg font-medium tabular-nums">{stats.cache.hit_rate.toFixed(1)}%</div>
-          <div className="text-[10px] text-(--muted-foreground) mt-0.5">
-            {formatNumber(stats.cache.hits)} hits
-          </div>
-        </div>
+    <section className="mb-6 sm:mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+        <MetricCard
+          icon={Hash}
+          label="Total Tokens"
+          value={formatNumber(stats.totals.total_tokens)}
+          subvalue={`${formatNumber(stats.totals.prompt_tokens)} prompt · ${formatNumber(stats.totals.completion_tokens)} completion`}
+        />
+        <MetricCard
+          icon={Activity}
+          label="Total Requests"
+          value={formatNumber(stats.totals.total_requests)}
+          subvalueNode={
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-(--hl2)" />
+              {formatNumber(stats.recent_activity.last_24h_requests)} last 24h
+            </span>
+          }
+        />
+        <MetricCard
+          icon={TrendingUp}
+          label="Success Rate"
+          value={`${stats.totals.success_rate.toFixed(1)}%`}
+          subvalue={stats.totals.success_rate >= 95 ? "Excellent" : stats.totals.success_rate >= 90 ? "Good" : "Needs Attention"}
+        />
+        <MetricCard
+          icon={Users}
+          label="Active Sessions"
+          value={formatNumber(stats.totals.unique_sessions)}
+          subvalue={`${formatNumber(stats.totals.unique_users)} unique users`}
+        />
+        <MetricCard
+          icon={Clock}
+          label="This Week"
+          value={formatNumber(stats.week_over_week.this_week.requests)}
+          trend={<ChangeIndicator value={stats.week_over_week.change_pct.requests} />}
+        />
+        <MetricCard
+          icon={Database}
+          label="Cache Hit Rate"
+          value={`${stats.cache.hit_rate.toFixed(1)}%`}
+          subvalue={`${formatNumber(stats.cache.hits)} hits · ${formatNumber(stats.cache.misses)} misses`}
+        />
       </div>
     </section>
   );

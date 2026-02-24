@@ -1,3 +1,4 @@
+# CRITICAL
 # Environment files
 .env
 .env.*
@@ -15,29 +16,35 @@ dist/
 build/
 .pytest_cache/
 .coverage
+.ruff_cache/
+
+AGENTS.md
 
 # Data directories
 data/
 *.db
 *.sqlite
-docs
 # Logs
 *.log
-logs/
+/logs/
 
 # Recipes (user-specific)
-recipes/
+/recipes/
 
 # Node.js
 node_modules/
 .next/
 .turbo/
+bun.lock
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *~
+
+# Xcode user data
+**/xcuserdata/
 
 # OS
 .DS_Store
@@ -46,6 +53,17 @@ Thumbs.db
 # Build artifacts
 *.tar.gz
 *.zip
+.tmp/
+frontend/playwright-report/
+frontend/test-results/
+frontend/test-output/
+controller/test-output/
+
+# Local proofs / scratch
+proof-*.png
+proof-*.md
+proof-snapshot-*.md
+work/
 
 # Local config
 .claude/
@@ -59,3 +77,8 @@ data/mcp_servers.json
 # Local scripts (user-specific)
 scripts/*.local.sh
 .worktree/
+.pi/
+.ralph/
+
+# Sensitive data - do not commit specific IPs or domains
+# Use environment variables or config files instead

@@ -1,7 +1,14 @@
+// CRITICAL
 "use client";
 
-import type { ProcessInfo, RecipeWithStatus, Metrics, GPU } from "@/lib/types";
-import { toGB } from "@/lib/formatters";
+import type {
+  GPU,
+  Metrics,
+  ProcessInfo,
+  RecipeWithStatus,
+  RuntimePlatformKind,
+} from "@/lib/types";
+import { toGB, toGBFromMB } from "@/lib/formatters";
 
 interface StatusLineProps {
   currentProcess: ProcessInfo | null;
@@ -9,6 +16,7 @@ interface StatusLineProps {
   isConnected: boolean;
   metrics: Metrics | null;
   gpus: GPU[];
+  platformKind?: RuntimePlatformKind | null;
   inferencePort?: number;
   onNavigateChat: () => void;
   onNavigateLogs: () => void;
@@ -23,6 +31,7 @@ export function StatusLine({
   isConnected,
   metrics,
   gpus,
+  platformKind,
   inferencePort,
   onNavigateChat,
   onNavigateLogs,
@@ -32,9 +41,15 @@ export function StatusLine({
 }: StatusLineProps) {
   const modelName = currentRecipe?.name || currentProcess?.model_path?.split("/").pop();
   const isRunning = !!currentProcess;
+  const platformLabel = platformKind || "unknown";
 
   const totalPower = gpus.reduce((sum, g) => sum + (g.power_draw || 0), 0);
-  const totalMemUsed = gpus.reduce((sum, g) => sum + toGB(g.memory_used_mb ?? g.memory_used ?? 0), 0);
+  const totalMemUsed = gpus.reduce((sum, g) => {
+    if (g.memory_used_mb !== undefined && g.memory_used_mb !== null) {
+      return sum + toGBFromMB(g.memory_used_mb);
+    }
+    return sum + toGB(g.memory_used ?? 0);
+  }, 0);
   
   const totalCost = metrics?.lifetime_energy_kwh ? (metrics.lifetime_energy_kwh * 0.5).toFixed(2) : null;
   const sessionInput = metrics?.prompt_tokens_total || 0;
@@ -46,12 +61,12 @@ export function StatusLine({
         {/* Left - Model Status */}
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <div className={`w-2 h-2 ${isRunning ? "bg-(--success)" : "bg-foreground/30"}`} />
+            <div className={`w-2 h-2 ${isRunning ? "bg-(--hl2)" : "bg-foreground/30"}`} />
             <span className="text-xs uppercase tracking-widest text-foreground/40">
               {isRunning ? "Active" : "Standby"}
             </span>
             {!isConnected && (
-              <span className="text-xs text-(--warning)">[offline]</span>
+              <span className="text-xs text-(--hl3)">[offline]</span>
             )}
           </div>
           
@@ -59,11 +74,14 @@ export function StatusLine({
             {modelName || "No Model"}
           </h1>
           
-          {isRunning && (
-            <div className="mt-2 text-sm text-foreground/50 font-mono">
-              {currentProcess.backend} // PID {currentProcess.pid}
-            </div>
-          )}
+          <div className="mt-2 text-sm text-foreground/50 font-mono flex flex-wrap items-center gap-2">
+            {isRunning && (
+              <span>
+                {currentProcess.backend} {/* PID */} {currentProcess.pid}
+              </span>
+            )}
+            <span className="text-foreground/30">platform: {platformLabel}</span>
+          </div>
         </div>
 
         {/* Right - Analytics & Actions */}
@@ -87,7 +105,7 @@ export function StatusLine({
               {totalMemUsed.toFixed(1)}GB
             </span>
             {totalCost && (
-              <span className="text-(--success)">
+              <span className="text-(--hl2)">
                 {totalCost} PLN
               </span>
             )}
@@ -121,7 +139,7 @@ function Action({ text, onClick, disabled, danger }: { text: string; onClick: ()
       disabled={disabled}
       className={`px-3 py-1 text-xs uppercase tracking-wider transition-colors ${
         danger
-          ? "text-foreground/40 hover:text-(--error)"
+          ? "text-foreground/40 hover:text-(--err)"
           : "text-foreground/40 hover:text-foreground/70"
       } disabled:opacity-30 disabled:cursor-not-allowed`}
     >

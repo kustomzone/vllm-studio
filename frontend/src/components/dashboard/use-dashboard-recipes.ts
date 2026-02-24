@@ -1,3 +1,4 @@
+// CRITICAL
 import { useCallback, useEffect, useState } from "react";
 import api from "@/lib/api";
 import type { ProcessInfo, RecipeWithStatus } from "@/lib/types";
@@ -56,6 +57,16 @@ export function useDashboardRecipes(currentProcess: ProcessInfo | null) {
 
   useEffect(() => {
     reload();
+  }, [reload]);
+
+  useEffect(() => {
+    const handler = () => {
+      void reload();
+    };
+    window.addEventListener("vllm:recipe-event", handler as EventListener);
+    return () => {
+      window.removeEventListener("vllm:recipe-event", handler as EventListener);
+    };
   }, [reload]);
 
   return { recipes, currentRecipe, logs, loading, reload };

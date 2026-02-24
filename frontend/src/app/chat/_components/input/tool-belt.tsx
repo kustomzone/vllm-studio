@@ -1,46 +1,28 @@
 // CRITICAL
 "use client";
 
-import { useRef, useEffect, type ChangeEvent, type KeyboardEvent } from "react";
+import { useCallback, useRef, type KeyboardEvent } from "react";
 import { AttachmentsPreview } from "./attachments-preview";
 import { RecordingIndicator } from "./recording-indicator";
 import { TranscriptionStatus } from "./transcription-status";
-import { ToolBeltToolbar } from "./tool-belt-toolbar";
-import type { Attachment, ModelOption } from "../../types";
+import { CallModeIndicator } from "./call-mode-indicator";
 import { useAppStore } from "@/store";
-
-interface ToolBeltProps {
-  value: string;
-  onChange: (value: string) => void;
-  onSubmit: (attachments?: Attachment[]) => void;
-  disabled?: boolean;
-  isLoading?: boolean;
-  placeholder?: string;
-  onStop?: () => void;
-  selectedModel?: string;
-  availableModels?: ModelOption[];
-  onModelChange?: (modelId: string) => void;
-  mcpEnabled?: boolean;
-  onMcpToggle?: () => void;
-  artifactsEnabled?: boolean;
-  onArtifactsToggle?: () => void;
-  onOpenMcpSettings?: () => void;
-  onOpenChatSettings?: () => void;
-  hasSystemPrompt?: boolean;
-  deepResearchEnabled?: boolean;
-  onDeepResearchToggle?: () => void;
-  elapsedSeconds?: number;
-  queuedContext?: string;
-  onQueuedContextChange?: (value: string) => void;
-}
+import { useShallow } from "zustand/react/shallow";
+import { ToolBeltToolbarContainer } from "./tool-belt/tool-belt-toolbar-container";
+import { useComposerHeightCssVar } from "./tool-belt/use-composer-height-css-var";
+import { useAutosizeTextarea } from "./tool-belt/use-autosize-textarea";
+import { useAttachmentInputs } from "./tool-belt/use-attachment-inputs";
+import { useAudioRecording } from "./tool-belt/use-audio-recording";
+import { clearAttachmentUrls, formatDuration, formatFileSize } from "./tool-belt/utils";
+import type { ToolBeltProps } from "./tool-belt/types";
 
 export function ToolBelt({
-  value,
-  onChange,
   onSubmit,
   isLoading,
+  thinkingSnippet,
   placeholder = "Message...",
   onStop,
+  onOpenResults,
   selectedModel,
   availableModels = [],
   onModelChange,
@@ -53,213 +35,137 @@ export function ToolBelt({
   hasSystemPrompt = false,
   deepResearchEnabled = false,
   onDeepResearchToggle,
-  elapsedSeconds = 0,
-  queuedContext = "",
-  onQueuedContextChange,
+  planDrawer,
+  callModeEnabled = false,
+  onCallModeToggle,
 }: ToolBeltProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const isDisabled = false;
-  const attachments = useAppStore((state) => state.attachments);
-  const setAttachments = useAppStore((state) => state.setAttachments);
-  const updateAttachments = useAppStore((state) => state.updateAttachments);
-  const isRecording = useAppStore((state) => state.isRecording);
-  const setIsRecording = useAppStore((state) => state.setIsRecording);
-  const isTranscribing = useAppStore((state) => state.isTranscribing);
-  const setIsTranscribing = useAppStore((state) => state.setIsTranscribing);
-  const transcriptionError = useAppStore((state) => state.transcriptionError);
-  const setTranscriptionError = useAppStore((state) => state.setTranscriptionError);
-  const recordingDuration = useAppStore((state) => state.recordingDuration);
-  const setRecordingDuration = useAppStore((state) => state.setRecordingDuration);
-  const isTTSEnabled = useAppStore((state) => state.isTTSEnabled);
-  const setIsTTSEnabled = useAppStore((state) => state.setIsTTSEnabled);
+  const {
+    value,
+    setInput,
+    queuedContext,
+    setQueuedContext,
+    attachments,
+    setAttachments,
+    updateAttachments,
+    isRecording,
+    setIsRecording,
+    isTranscribing,
+    setIsTranscribing,
+    transcriptionError,
+    setTranscriptionError,
+    recordingDuration,
+    setRecordingDuration,
+    isTTSEnabled,
+    setIsTTSEnabled,
+    callModeSpeakingMessageId,
+  } = useAppStore(
+    useShallow((state) => ({
+      value: state.input,
+      setInput: state.setInput,
+      queuedContext: state.queuedContext,
+      setQueuedContext: state.setQueuedContext,
+      attachments: state.attachments,
+      setAttachments: state.setAttachments,
+      updateAttachments: state.updateAttachments,
+      isRecording: state.isRecording,
+      setIsRecording: state.setIsRecording,
+      isTranscribing: state.isTranscribing,
+      setIsTranscribing: state.setIsTranscribing,
+      transcriptionError: state.transcriptionError,
+      setTranscriptionError: state.setTranscriptionError,
+      recordingDuration: state.recordingDuration,
+      setRecordingDuration: state.setRecordingDuration,
+      isTTSEnabled: state.isTTSEnabled,
+      setIsTTSEnabled: state.setIsTTSEnabled,
+      callModeSpeakingMessageId: state.callModeSpeakingMessageId,
+    })),
+  );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
 
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      const scrollHeight = textareaRef.current.scrollHeight;
-      const minHeight = Number.parseFloat(
-        window.getComputedStyle(textareaRef.current).minHeight,
-      );
-      const baseHeight = Number.isFinite(minHeight) && minHeight > 0 ? minHeight : 44;
-      const shouldCap = window.innerWidth >= 768;
-      const newHeight = shouldCap
-        ? Math.min(Math.max(scrollHeight, baseHeight), 200)
-        : Math.max(scrollHeight, baseHeight);
-      textareaRef.current.style.height = newHeight + "px";
-      textareaRef.current.style.overflowY =
-        shouldCap && scrollHeight > 200 ? "auto" : "hidden";
-    }
-  }, [value, isLoading, queuedContext]);
+  // Keep the transcript from disappearing under the fixed mobile composer by exposing its height as a CSS var.
+  useComposerHeightCssVar(rootRef);
+  useAutosizeTextarea({ textareaRef, value, isLoading, queuedContext });
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const result = reader.result as string;
-        const base64 = result.split(",")[1];
-        resolve(base64);
-      };
-      reader.onerror = (error) => reject(error);
-    });
-  };
+  const {
+    fileInputRef,
+    imageInputRef,
+    handleFileInputChange,
+    handleImageInputChange,
+    removeAttachment,
+    handleAttachFile,
+    handleAttachImage,
+    handlePaste,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    isDragOver,
+  } = useAttachmentInputs({ updateAttachments });
 
-  const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>, type: "file" | "image") => {
-    const files = Array.from(e.target.files || []);
-    const newAttachments: Attachment[] = [];
+  const { startRecording, stopRecording } = useAudioRecording({
+    textareaRef,
+    isRecording,
+    setIsRecording,
+    setRecordingDuration,
+    setIsTranscribing,
+    setTranscriptionError,
+    setInput,
+    getCurrentInput: () => useAppStore.getState().input,
+    getRecordingDuration: () => useAppStore.getState().recordingDuration,
+  });
 
-    for (const file of files) {
-      const attachment: Attachment = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        type: type === "image" ? "image" : "file",
-        name: file.name,
-        size: file.size,
-        url: type === "image" ? URL.createObjectURL(file) : undefined,
-        file,
-      };
+  const handleTTSToggle = useCallback(() => {
+    const current = useAppStore.getState().isTTSEnabled;
+    setIsTTSEnabled(!current);
+  }, [setIsTTSEnabled]);
 
-      if (type === "image") {
-        try {
-          attachment.base64 = await fileToBase64(file);
-        } catch (err) {
-          console.error("Failed to convert image to base64:", err);
-        }
-      }
+  const handleDismissTranscriptionError = useCallback(() => {
+    setTranscriptionError(null);
+  }, [setTranscriptionError]);
 
-      newAttachments.push(attachment);
-    }
+  const handleTextChange = useCallback(
+    (nextValue: string) => {
+      if (isLoading) setQueuedContext(nextValue);
+      else setInput(nextValue);
+    },
+    [isLoading, setInput, setQueuedContext],
+  );
 
-    updateAttachments((prev) => [...prev, ...newAttachments]);
-    e.target.value = "";
-  };
-
-  const removeAttachment = (id: string) => {
-    updateAttachments((prev) => {
-      const attachment = prev.find((a) => a.id === id);
-      if (attachment?.url) {
-        URL.revokeObjectURL(attachment.url);
-      }
-      return prev.filter((a) => a.id !== id);
-    });
-  };
-
-  const transcribeAudio = async (audioBlob: Blob): Promise<string | null> => {
-    try {
-      setIsTranscribing(true);
-      setTranscriptionError(null);
-
-      const formData = new FormData();
-      formData.append("file", audioBlob, "recording.webm");
-      formData.append("model", "whisper-1");
-
-      const response = await fetch("/api/voice/transcribe", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.details || errorData.error || `Transcription failed (${response.status})`,
-        );
-      }
-
-      const data = await response.json();
-      if (!data.text) {
-        throw new Error("No transcription returned");
-      }
-      return data.text;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Transcription failed";
-      console.error("Transcription error:", err);
-      setTranscriptionError(errorMessage);
-      setTimeout(() => setTranscriptionError(null), 5000);
-      return null;
-    } finally {
-      setIsTranscribing(false);
-    }
-  };
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (e) => {
-        audioChunksRef.current.push(e.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        stream.getTracks().forEach((track) => track.stop());
-
-        const transcript = await transcribeAudio(audioBlob);
-        if (transcript) {
-          onChange(value ? `${value} ${transcript}` : transcript);
-          textareaRef.current?.focus();
-        }
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-      setRecordingDuration(0);
-
-      recordingIntervalRef.current = setInterval(() => {
-        setRecordingDuration(useAppStore.getState().recordingDuration + 1);
-      }, 1000);
-    } catch (err) {
-      console.error("Failed to start recording:", err);
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      if (recordingIntervalRef.current) {
-        clearInterval(recordingIntervalRef.current);
-        recordingIntervalRef.current = null;
-      }
-    }
-  };
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(async () => {
     if (isLoading) return;
-    if (!value.trim() && attachments.length === 0) return;
-    onSubmit(attachments.length > 0 ? [...attachments] : undefined);
-    setAttachments([]);
-  };
+    const state = useAppStore.getState();
+    const inputValue = state.input;
+    const currentAttachments = state.attachments;
+    if (!inputValue.trim() && currentAttachments.length === 0) return;
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
+    try {
+      await Promise.resolve(
+        onSubmit(inputValue, currentAttachments.length > 0 ? [...currentAttachments] : undefined),
+      );
+    } catch (err) {
+      console.error("Failed to send message:", err);
+      return;
     }
-  };
 
-  const canSend = value.trim() || attachments.length > 0;
+    clearAttachmentUrls(currentAttachments);
+    setAttachments([]);
+  }, [isLoading, onSubmit, setAttachments]);
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleSubmit();
+      }
+    },
+    [handleSubmit],
+  );
+
+  const canSend = value.trim().length > 0 || attachments.length > 0;
 
   return (
-    <div className="px-2 md:px-3 pb-0 bg-(--background)">
+    <div ref={rootRef} className="px-2 md:px-3 pb-0">
       <div className="w-full max-w-none md:max-w-4xl md:mx-auto px-0 md:px-0">
         <AttachmentsPreview
           attachments={attachments}
@@ -270,31 +176,47 @@ export function ToolBelt({
         {isRecording && (
           <RecordingIndicator
             duration={recordingDuration}
-            onStop={stopRecording}
+            onStop={callModeEnabled ? (onCallModeToggle ?? stopRecording) : stopRecording}
             formatDuration={formatDuration}
+          />
+        )}
+
+        {callModeEnabled && !isRecording && !isTranscribing && (
+          <CallModeIndicator
+            isSpeaking={callModeSpeakingMessageId !== null}
+            onDisable={onCallModeToggle ?? (() => {})}
           />
         )}
 
         <TranscriptionStatus
           isTranscribing={isTranscribing}
           error={transcriptionError}
-          onDismissError={() => setTranscriptionError(null)}
+          onDismissError={handleDismissTranscriptionError}
         />
 
         <div
-          className={`relative flex flex-col border rounded-2xl md:rounded-xl bg-(--card) shadow-sm ${
-            isLoading ? "border-blue-500/30" : "border-(--border)"
-          }`}
+          className={`relative flex flex-col bg-(--surface) rounded-3xl border transition-colors ${
+            isDragOver ? "border-(--accent) ring-2 ring-(--accent)/30" : "border-(--border)"
+          } ${isLoading ? "ring-1 ring-blue-500/30" : ""}`}
+          style={{
+            boxShadow: "0 0 0 1px rgba(255,255,255,0.03), 0 8px 40px rgba(0,0,0,0.35)",
+          }}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
         >
+          {isDragOver && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-3xl bg-(--accent)/10 pointer-events-none">
+              <span className="text-sm font-medium text-(--accent)">Drop files here</span>
+            </div>
+          )}
+          <div className="hidden md:block">{planDrawer}</div>
           <textarea
             ref={textareaRef}
-            value={isLoading && onQueuedContextChange ? queuedContext : value}
-            onChange={(e) =>
-              isLoading && onQueuedContextChange
-                ? onQueuedContextChange(e.target.value)
-                : onChange(e.target.value)
-            }
+            value={isLoading ? queuedContext : value}
+            onChange={(e) => handleTextChange(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={
               isDisabled
                 ? "No model running"
@@ -304,40 +226,41 @@ export function ToolBelt({
             }
             disabled={isDisabled}
             rows={1}
-            className="w-full px-3 py-2 md:px-4 md:py-3 bg-transparent text-[15px] md:text-sm resize-none focus:outline-none disabled:opacity-50 placeholder:text-[#9a9590] overflow-y-hidden min-h-[52px] md:min-h-[44px]"
+            className="w-full px-3 py-2.5 md:px-4 md:py-3 bg-transparent text-[15px] md:text-sm resize-none focus:outline-none disabled:opacity-50 placeholder:text-(--dim) overflow-y-hidden min-h-[44px] md:min-h-[44px]"
             style={{ fontSize: "16px", lineHeight: "1.5" }}
           />
 
           <input
             ref={fileInputRef}
             type="file"
-            onChange={(e) => handleFileSelect(e, "file")}
+            onChange={handleFileInputChange}
             className="hidden"
             multiple
-            accept=".txt,.pdf,.doc,.docx,.md,.json,.csv"
+            accept="*/*"
           />
           <input
             ref={imageInputRef}
             type="file"
-            onChange={(e) => handleFileSelect(e, "image")}
+            onChange={handleImageInputChange}
             className="hidden"
             multiple
             accept="image/*"
           />
 
-          <ToolBeltToolbar
+          <ToolBeltToolbarContainer
             isLoading={isLoading}
-            elapsedSeconds={elapsedSeconds}
+            thinkingSnippet={thinkingSnippet}
             isRecording={isRecording}
             isTranscribing={isTranscribing}
             attachmentsCount={attachments.length}
             disabled={isDisabled}
-            canSend={canSend as boolean}
+            canSend={canSend}
             hasSystemPrompt={hasSystemPrompt}
             mcpEnabled={mcpEnabled}
             artifactsEnabled={artifactsEnabled}
             deepResearchEnabled={deepResearchEnabled}
             isTTSEnabled={isTTSEnabled}
+            onOpenResults={onOpenResults}
             availableModels={availableModels}
             selectedModel={selectedModel}
             onModelChange={onModelChange}
@@ -346,13 +269,15 @@ export function ToolBelt({
             onMcpToggle={onMcpToggle}
             onArtifactsToggle={onArtifactsToggle}
             onDeepResearchToggle={onDeepResearchToggle}
-            onTTSToggle={() => setIsTTSEnabled(!isTTSEnabled)}
-            onAttachFile={() => fileInputRef.current?.click()}
-            onAttachImage={() => imageInputRef.current?.click()}
+            onTTSToggle={handleTTSToggle}
+            onAttachFile={handleAttachFile}
+            onAttachImage={handleAttachImage}
             onStartRecording={startRecording}
             onStopRecording={stopRecording}
             onStop={onStop}
             onSubmit={handleSubmit}
+            callModeEnabled={callModeEnabled}
+            onCallModeToggle={onCallModeToggle}
           />
         </div>
       </div>

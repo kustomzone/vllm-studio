@@ -1,3 +1,4 @@
+// CRITICAL
 /**
  * Formatting utilities for display purposes
  */
@@ -13,14 +14,29 @@ function safeNumber(value: unknown, defaultValue = 0): number {
 }
 
 /**
- * Convert MB values to GB for display
- * The API returns memory in MB (memory_used_mb, memory_total_mb fields)
- * This consistently divides by 1024 to convert MB -> GB
+ * Convert a memory value to GB for display.
+ *
+ * The GPU API returns values in bytes. Other APIs may return MiB.
+ * We detect based on magnitude:
+ *   > 1 million → bytes (even 1MB = 1M bytes, smallest realistic GPU memory query)
+ *   > 1,000     → MiB (1000 MiB = ~1GB, smallest realistic GPU)
+ *   ≤ 1,000     → already GB
  */
 function toGB(value: number | null | undefined): number {
   const safe = safeNumber(value, 0);
-  // Always treat as MB and convert to GB
-  return Math.round((safe / 1024) * 10) / 10;
+  if (safe === 0) return 0;
+  // 1 million+ is definitely bytes (API returns bytes for GPU memory)
+  if (safe > 1_000_000) return Math.round((safe / (1024 * 1024 * 1024)) * 100) / 100;
+  // 1000-1M range is MiB (no GPU has less than 1GB)
+  if (safe > 1_000) return Math.round((safe / 1024) * 100) / 100;
+  // Small values assumed to already be in GB
+  return Math.round(safe * 100) / 100;
+}
+
+function toGBFromMB(value: number | null | undefined): number {
+  const safe = safeNumber(value, 0);
+  if (safe === 0) return 0;
+  return Math.round((safe / 1024) * 100) / 100;
 }
 
 function formatNumber(n: number): string {
@@ -40,10 +56,4 @@ function formatDate(dateStr: string): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function formatHour(hour: number): string {
-  const period = hour >= 12 ? "PM" : "AM";
-  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-  return `${displayHour}${period}`;
-}
-
-export { toGB, formatNumber, formatDuration, formatDate, formatHour };
+export { toGB, toGBFromMB, formatNumber, formatDuration, formatDate };

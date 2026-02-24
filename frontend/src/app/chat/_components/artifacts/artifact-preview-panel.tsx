@@ -1,71 +1,104 @@
 // CRITICAL
 "use client";
 
-import { useMemo, useState, useCallback, useEffect, useRef } from "react";
-import {
-  Code,
-  FileCode,
-  Palette,
-  Layers,
-  X,
-  Maximize2,
-  ChevronLeft,
-  ChevronRight,
-  Play,
-  Pause,
-} from "lucide-react";
+import { useMemo, useState, useCallback } from "react";
+import * as Icons from "../icons";
 import type { Artifact } from "@/lib/types";
-import { useAppStore } from "@/store";
+import { CodePreview } from "../code";
+import {
+  ArtifactGroupPill,
+  ArtifactPreviewIframe,
+  ArtifactTypeIcon,
+  ArtifactVersionPill,
+  type ArtifactGroup,
+} from "./artifact-preview-panel/components";
 
 interface ArtifactPreviewPanelProps {
   artifacts: Artifact[];
 }
 
 export function ArtifactPreviewPanel({ artifacts }: ArtifactPreviewPanelProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(true);
   const [activeTab, setActiveTab] = useState<"preview" | "code">("preview");
 
-  const resolvedSelectedId = useMemo(() => {
-    if (selectedId && artifacts.some((a) => a.id === selectedId)) {
-      return selectedId;
-    }
-    return artifacts[artifacts.length - 1]?.id ?? null;
-  }, [selectedId, artifacts]);
+  const groups = useMemo<ArtifactGroup[]>(() => {
+    const map = new Map<string, ArtifactGroup>();
+    artifacts.forEach((artifact, index) => {
+      const titleKey = (artifact.title || artifact.type).trim().toLowerCase();
+      const groupId = artifact.groupId || `${artifact.type}:${titleKey || artifact.type}`;
+      const label = (artifact.title || artifact.type).trim() || artifact.type.toUpperCase();
+      const existing = map.get(groupId);
+      if (existing) {
+        existing.artifacts.push(artifact);
+        existing.lastIndex = index;
+      } else {
+        map.set(groupId, {
+          id: groupId,
+          label,
+          artifacts: [artifact],
+          lastIndex: index,
+        });
+      }
+    });
+
+    return Array.from(map.values())
+      .map((group) => ({
+        ...group,
+        artifacts: [...group.artifacts].sort(
+          (a, b) => (a.version ?? 0) - (b.version ?? 0),
+        ),
+      }))
+      .sort((a, b) => a.lastIndex - b.lastIndex);
+  }, [artifacts]);
+
+  const resolvedGroupId =
+    selectedGroupId && groups.some((group) => group.id === selectedGroupId)
+      ? selectedGroupId
+      : groups[groups.length - 1]?.id ?? null;
+
+  const activeGroup = useMemo(() => {
+    if (!resolvedGroupId) return null;
+    return groups.find((group) => group.id === resolvedGroupId) ?? null;
+  }, [groups, resolvedGroupId]);
+
+  const versions = activeGroup?.artifacts ?? [];
+  const resolvedVersionId =
+    selectedVersionId && versions.some((artifact) => artifact.id === selectedVersionId)
+      ? selectedVersionId
+      : versions[versions.length - 1]?.id ?? null;
+
+  const activeArtifact = useMemo(() => {
+    if (!resolvedVersionId) return null;
+    return versions.find((artifact) => artifact.id === resolvedVersionId) ?? null;
+  }, [versions, resolvedVersionId]);
 
   const selectedIndex = useMemo(() => {
-    return artifacts.findIndex((a) => a.id === resolvedSelectedId);
-  }, [artifacts, resolvedSelectedId]);
-
-  const selectedArtifact = artifacts.find((a) => a.id === resolvedSelectedId);
-
-  // Auto-select latest artifact
-  useEffect(() => {
-    if (artifacts.length > 0 && !selectedId) {
-      setSelectedId(artifacts[artifacts.length - 1].id);
-    }
-  }, [artifacts, selectedId]);
+    if (!activeArtifact || versions.length === 0) return 0;
+    return versions.findIndex((artifact) => artifact.id === activeArtifact.id);
+  }, [versions, activeArtifact]);
 
   const handlePrev = useCallback(() => {
-    if (artifacts.length <= 1) return;
-    const newIndex = selectedIndex <= 0 ? artifacts.length - 1 : selectedIndex - 1;
-    setSelectedId(artifacts[newIndex].id);
-  }, [artifacts, selectedIndex]);
+    if (versions.length <= 1) return;
+    const newIndex = selectedIndex <= 0 ? versions.length - 1 : selectedIndex - 1;
+    setSelectedVersionId(versions[newIndex].id);
+  }, [versions, selectedIndex]);
 
   const handleNext = useCallback(() => {
-    if (artifacts.length <= 1) return;
-    const newIndex = selectedIndex >= artifacts.length - 1 ? 0 : selectedIndex + 1;
-    setSelectedId(artifacts[newIndex].id);
-  }, [artifacts, selectedIndex]);
+    if (versions.length <= 1) return;
+    const newIndex = selectedIndex >= versions.length - 1 ? 0 : selectedIndex + 1;
+    setSelectedVersionId(versions[newIndex].id);
+  }, [versions, selectedIndex]);
 
   if (artifacts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-        <div className="w-12 h-12 rounded-xl bg-white/[0.03] flex items-center justify-center mb-4">
-          <Layers className="h-6 w-6 text-[#444]" />
+        <div className="w-12 h-12 rounded-xl bg-white/3 flex items-center justify-center mb-4">
+          <Icons.Layers className="h-6 w-6 text-(--dim)" />
         </div>
-        <p className="text-sm text-[#666] mb-1">No artifacts yet</p>
-        <p className="text-xs text-[#444] max-w-[200px]">
+        <p className="text-sm text-(--dim) mb-1">No artifacts yet</p>
+        <p className="text-xs text-(--dim) max-w-50">
           Artifacts will appear here when the model generates code, SVGs, or HTML previews
         </p>
       </div>
@@ -75,14 +108,14 @@ export function ArtifactPreviewPanel({ artifacts }: ArtifactPreviewPanelProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.06]">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-(--border)">
         <div className="flex items-center gap-1">
           <button
             onClick={() => setActiveTab("preview")}
             className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
               activeTab === "preview"
-                ? "bg-white/[0.08] text-foreground"
-                : "text-[#666] hover:text-[#888]"
+                ? "bg-(--border) text-foreground"
+                : "text-(--dim) hover:text-(--dim)"
             }`}
           >
             Preview
@@ -90,9 +123,7 @@ export function ArtifactPreviewPanel({ artifacts }: ArtifactPreviewPanelProps) {
           <button
             onClick={() => setActiveTab("code")}
             className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-              activeTab === "code"
-                ? "bg-white/[0.08] text-foreground"
-                : "text-[#666] hover:text-[#888]"
+              activeTab === "code" ? "bg-(--border) text-foreground" : "text-(--dim) hover:text-(--dim)"
             }`}
           >
             Code
@@ -100,37 +131,48 @@ export function ArtifactPreviewPanel({ artifacts }: ArtifactPreviewPanelProps) {
         </div>
 
         <div className="flex items-center gap-1">
-          {artifacts.length > 1 && (
+          {versions.length > 1 && (
             <>
-              <button
-                onClick={handlePrev}
-                className="p-1.5 rounded hover:bg-white/[0.06] text-[#666]"
-              >
-                <ChevronLeft className="h-4 w-4" />
+              <button onClick={handlePrev} className="p-1.5 rounded hover:bg-white/6 text-(--dim)">
+                <Icons.ChevronLeft className="h-4 w-4" />
               </button>
-              <span className="text-xs text-[#666] tabular-nums">
-                {selectedIndex + 1}/{artifacts.length}
+              <span className="text-xs text-(--dim) tabular-nums">
+                {selectedIndex + 1}/{versions.length}
               </span>
-              <button
-                onClick={handleNext}
-                className="p-1.5 rounded hover:bg-white/[0.06] text-[#666]"
-              >
-                <ChevronRight className="h-4 w-4" />
+              <button onClick={handleNext} className="p-1.5 rounded hover:bg-white/6 text-(--dim)">
+                <Icons.ChevronRight className="h-4 w-4" />
               </button>
             </>
           )}
         </div>
       </div>
 
-      {/* Artifact selector */}
-      {artifacts.length > 1 && (
-        <div className="flex gap-1 p-2 border-b border-white/[0.06] overflow-x-auto">
-          {artifacts.map((artifact) => (
-            <ArtifactPill
+      {/* Group selector */}
+      {groups.length > 1 && (
+        <div className="flex gap-1 p-2 border-b border-(--border) overflow-x-auto">
+          {groups.map((group) => (
+            <ArtifactGroupPill
+              key={group.id}
+              group={group}
+              isSelected={group.id === activeGroup?.id}
+              onClick={() => {
+                setSelectedGroupId(group.id);
+                setSelectedVersionId(group.artifacts[group.artifacts.length - 1]?.id ?? null);
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Version selector */}
+      {activeGroup && activeGroup.artifacts.length > 1 && (
+        <div className="flex gap-1 px-3 py-2 border-b border-(--border) overflow-x-auto">
+          {activeGroup.artifacts.map((artifact) => (
+            <ArtifactVersionPill
               key={artifact.id}
               artifact={artifact}
-              isSelected={artifact.id === resolvedSelectedId}
-              onClick={() => setSelectedId(artifact.id)}
+              isSelected={artifact.id === activeArtifact?.id}
+              onClick={() => setSelectedVersionId(artifact.id)}
             />
           ))}
         </div>
@@ -138,131 +180,49 @@ export function ArtifactPreviewPanel({ artifacts }: ArtifactPreviewPanelProps) {
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">
-        {selectedArtifact && activeTab === "preview" && (
-          <ArtifactPreviewIframe artifact={selectedArtifact} isPlaying={isPlaying} />
+        {activeArtifact && activeTab === "preview" && (
+          <ArtifactPreviewIframe artifact={activeArtifact} isPlaying={isPlaying} />
         )}
-        {selectedArtifact && activeTab === "code" && (
-          <pre className="h-full overflow-auto p-4 text-xs font-mono text-[#888] leading-relaxed">
-            <code>{selectedArtifact.code}</code>
-          </pre>
+        {activeArtifact && activeTab === "code" && (
+          <CodePreview
+            code={activeArtifact.code}
+            language={
+              activeArtifact.type === "react"
+                ? "jsx"
+                : activeArtifact.type === "javascript"
+                  ? "javascript"
+                  : activeArtifact.type === "python"
+                    ? "python"
+                    : activeArtifact.type
+            }
+            className="h-full text-(--fg)"
+          />
         )}
       </div>
 
       {/* Bottom bar */}
-      {selectedArtifact && (
-        <div className="flex items-center justify-between px-3 py-2 border-t border-white/[0.06]">
+      {activeArtifact && (
+        <div className="flex items-center justify-between px-3 py-2 border-t border-(--border)">
           <div className="flex items-center gap-2 min-w-0">
-            <ArtifactTypeIcon type={selectedArtifact.type} />
-            <span className="text-xs text-[#888] truncate">
-              {selectedArtifact.title || `${selectedArtifact.type.toUpperCase()}`}
+            <ArtifactTypeIcon type={activeArtifact.type} />
+            <span className="text-xs text-(--dim) truncate">
+              {activeArtifact.title || `${activeArtifact.type.toUpperCase()}`}
             </span>
+            {activeArtifact.version && (
+              <span className="text-[10px] text-violet-300">v{activeArtifact.version}</span>
+            )}
           </div>
           <div className="flex items-center gap-1">
             <button
               onClick={() => setIsPlaying(!isPlaying)}
-              className="p-1.5 rounded hover:bg-white/[0.06] text-[#666]"
+              className="p-1.5 rounded hover:bg-white/6 text-(--dim)"
               title={isPlaying ? "Pause" : "Play"}
             >
-              {isPlaying ? (
-                <Pause className="h-3.5 w-3.5" />
-              ) : (
-                <Play className="h-3.5 w-3.5" />
-              )}
+              {isPlaying ? <Icons.Pause className="h-3.5 w-3.5" /> : <Icons.Play className="h-3.5 w-3.5" />}
             </button>
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function ArtifactPill({
-  artifact,
-  isSelected,
-  onClick,
-}: {
-  artifact: Artifact;
-  isSelected: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] whitespace-nowrap transition-colors flex-shrink-0 ${
-        isSelected
-          ? "bg-white/[0.08] text-foreground border border-white/[0.08]"
-          : "bg-transparent text-[#666] hover:bg-white/[0.04] border border-transparent"
-      }`}
-    >
-      <ArtifactTypeIcon type={artifact.type} className="h-3 w-3" />
-      <span className="max-w-[100px] truncate">
-        {artifact.title?.slice(0, 20) || artifact.type}
-      </span>
-    </button>
-  );
-}
-
-function ArtifactTypeIcon({
-  type,
-  className = "h-4 w-4",
-}: {
-  type: Artifact["type"];
-  className?: string;
-}) {
-  switch (type) {
-    case "svg":
-      return <Palette className={`${className} text-pink-400`} />;
-    case "html":
-      return <FileCode className={`${className} text-blue-400`} />;
-    case "react":
-      return <Code className={`${className} text-cyan-400`} />;
-    case "javascript":
-      return <Code className={`${className} text-yellow-400`} />;
-    default:
-      return <Code className={`${className} text-[#666]`} />;
-  }
-}
-
-// Simple iframe preview without the full artifact viewer complexity
-function ArtifactPreviewIframe({
-  artifact,
-  isPlaying,
-}: {
-  artifact: Artifact;
-  isPlaying: boolean;
-}) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  const srcDoc = useMemo(() => {
-    if (!isPlaying) return "<!DOCTYPE html><html><body style='background:#0a0a0a'></body></html>";
-
-    switch (artifact.type) {
-      case "svg": {
-        const svgCode = artifact.code.includes("<svg")
-          ? artifact.code
-          : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">${artifact.code}</svg>`;
-        return `<!DOCTYPE html>
-<html><head><style>*{margin:0;padding:0}body{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;background:#0a0a0a}</style></head>
-<body>${svgCode}</body></html>`;
-      }
-      case "html":
-        return artifact.code.includes("<!DOCTYPE") || artifact.code.includes("<html")
-          ? artifact.code
-          : `<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script><style>*{margin:0;padding:0}body{background:#0a0a0a}</style></head><body>${artifact.code}</body></html>`;
-      default:
-        return `<!DOCTYPE html><html><body style="background:#0a0a0a;padding:20px"><pre style="color:#888;font-family:monospace;font-size:12px;white-space:pre-wrap">${artifact.code}</pre></body></html>`;
-    }
-  }, [artifact, isPlaying]);
-
-  return (
-    <div className="w-full h-full bg-[#0a0a0a]">
-      <iframe
-        ref={iframeRef}
-        srcDoc={srcDoc}
-        className="w-full h-full border-0"
-        sandbox="allow-scripts allow-same-origin allow-forms"
-        title={artifact.title || "Artifact Preview"}
-      />
     </div>
   );
 }
