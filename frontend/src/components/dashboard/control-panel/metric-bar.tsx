@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMotionValueEvent, useSpring } from "framer-motion";
 import type { GPU, Metrics, ProcessInfo } from "@/lib/types";
 import { toGB, toGBFromMB } from "@/lib/formatters";
+import { UiMetricTile } from "@/components/ui-kit";
 
 interface MetricBarProps {
   metrics: Metrics | null;
@@ -107,64 +108,31 @@ export function MetricBar({ metrics, gpus, currentProcess, logs }: MetricBarProp
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-px bg-foreground/5">
-      <MetricBox
+      <UiMetricTile
         label="generation"
         value={genTps > 0 ? animatedGenTps.toFixed(1) : "--"}
         unit="tok/s"
-        peak={genPeak > 0 ? genPeak.toFixed(1) : undefined}
-        live={genTps > 0}
+        footnote={genPeak > 0 ? `peak ${genPeak.toFixed(1)}` : undefined}
+        isLive={genTps > 0}
+        tone={genTps > 0 ? "info" : "neutral"}
       />
-      <MetricBox
+      <UiMetricTile
         label="prefill"
         value={prefillTps > 0 ? animatedPrefillTps.toFixed(1) : "--"}
         unit="tok/s"
-        peak={prefillPeak > 0 ? prefillPeak.toFixed(1) : undefined}
-        live={prefillTps > 0}
+        footnote={prefillPeak > 0 ? `peak ${prefillPeak.toFixed(1)}` : undefined}
+        isLive={prefillTps > 0}
+        tone={prefillTps > 0 ? "info" : "neutral"}
       />
-      <MetricBox
+      <UiMetricTile
         label="memory"
         value={`${totalMemUsed.toFixed(1)}/${totalMemMax.toFixed(0)}`}
         unit="GB"
+        tone="neutral"
       />
-      <MetricBox label="kv cache" value={kvCache > 0 ? kvCache.toString() : "--"} unit="%" />
-      <MetricBox label="power" value={Math.round(totalPower).toString()} unit="W" />
-      {totalCost && <MetricBox label="cost" value={totalCost} unit="PLN" accent />}
-    </div>
-  );
-}
-
-function MetricBox({
-  label,
-  value,
-  unit,
-  peak,
-  live,
-  accent,
-}: {
-  label: string;
-  value: string;
-  unit: string;
-  peak?: string;
-  live?: boolean;
-  accent?: boolean;
-}) {
-  return (
-    <div className="bg-background p-4">
-      <div className="text-[10px] uppercase tracking-widest text-foreground/30 mb-1 flex items-center gap-1.5">
-        {label}
-        {live && <span className="h-1.5 w-1.5 rounded-full bg-(--hl2) animate-pulse" />}
-      </div>
-      <div className="flex items-baseline gap-2">
-        <span
-          className={`text-2xl font-light tabular-nums transition-colors duration-300 ${
-            accent ? "text-(--hl2)" : live ? "text-(--fg)" : ""
-          }`}
-        >
-          {value}
-        </span>
-        <span className="text-xs text-foreground/30">{unit}</span>
-      </div>
-      {peak && <div className="text-[10px] text-foreground/20 mt-1 font-mono">peak {peak}</div>}
+      <UiMetricTile label="kv cache" value={kvCache > 0 ? kvCache.toString() : "--"} unit="%" />
+      <UiMetricTile label="power" value={Math.round(totalPower).toString()} unit="W" />
+      {totalCost && <UiMetricTile label="cost" value={totalCost} unit="PLN" tone="success" />}
     </div>
   );
 }

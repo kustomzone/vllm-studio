@@ -13,6 +13,7 @@ import { Virtuoso } from "react-virtuoso";
 import { ChatMessageItem } from "./chat-message-item";
 import { PerfProfiler } from "../perf/perf-profiler";
 import { ChatRunStatusLine } from "./chat-run-status-line";
+import { UiStatusPill } from "@/components/ui-kit";
 import type { AgentFileEntry, Artifact, ChatMessage } from "@/lib/types";
 import { fileIcon, flattenAgentFiles } from "./chat-message-list/agent-file-chips";
 import { filterVisibleMessages } from "./chat-message-list/visible-messages";
@@ -198,15 +199,20 @@ export function ChatMessageList({
                   <button
                     key={file.path}
                     onClick={() => onOpenAgentFile(file.path)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono border transition-colors whitespace-nowrap ${
-                      isSelected
-                        ? "bg-violet-500/20 text-violet-200 border-violet-500/40"
-                        : "bg-white/4 text-(--dim) border-white/10 hover:text-(--fg) hover:bg-white/8"
-                    }`}
+                    className="cursor-pointer"
                     title={file.path}
                   >
-                    <Icon className="h-3 w-3" />
-                    <span className="max-w-[160px] truncate">{file.name}</span>
+                    <UiStatusPill
+                      tone={isSelected ? "success" : "neutral"}
+                      className={`gap-1.5 whitespace-nowrap transition-all ${
+                        isSelected
+                          ? "bg-(--surface)/70 text-(--fg) border-(--hl2)/60"
+                          : "bg-background/40 text-(--dim) border-white/12 hover:text-(--fg) hover:bg-background/55"
+                      }`}
+                    >
+                      <Icon className="h-3 w-3 shrink-0" />
+                      <span className="max-w-[160px] truncate">{file.name}</span>
+                    </UiStatusPill>
                   </button>
                 );
               })}

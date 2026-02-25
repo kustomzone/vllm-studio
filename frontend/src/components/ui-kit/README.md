@@ -17,6 +17,8 @@ This folder is the standardized visual foundation for frontend surfaces.
   - `UiStatusBadge`
   - `UiTimelineMarker`
   - `UiPulseLabel`
+  - `UiStatusPill`
+  - `UiMetricTile`
 
 ## Usage Rules
 

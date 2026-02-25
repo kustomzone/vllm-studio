@@ -113,6 +113,81 @@ export function UiTimelineMarker({
   );
 }
 
+interface UiStatusPillProps {
+  children: ReactNode;
+  tone?: UiTone;
+  className?: string;
+  style?: CSSProperties;
+}
+
+export function UiStatusPill({ children, tone = "neutral", className, style }: UiStatusPillProps) {
+  const toneConfig = resolveUiToneConfig(tone);
+  const toneStyle: CSSProperties = {
+    borderColor: `color-mix(in srgb, var(${toneConfig.dotVar}) 35%, transparent)`,
+    backgroundColor: `color-mix(in srgb, var(${toneConfig.dotVar}) 12%, transparent)`,
+    color: `var(${toneConfig.dotVar})`,
+  };
+
+  return (
+    <span
+      className={joinClassNames(
+        "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none",
+        className,
+      )}
+      style={{ ...toneStyle, ...(style ?? {}) }}
+    >
+      {children}
+    </span>
+  );
+}
+
+interface UiMetricTileProps {
+  label: string;
+  value: string;
+  unit: string;
+  tone?: UiTone;
+  className?: string;
+  footnote?: string;
+  isLive?: boolean;
+}
+
+export function UiMetricTile({
+  label,
+  value,
+  unit,
+  tone = "neutral",
+  className,
+  footnote,
+  isLive,
+}: UiMetricTileProps) {
+  const toneConfig = resolveUiToneConfig(tone);
+  return (
+    <div className={joinClassNames("bg-background p-4", className)}>
+      <div className="text-[10px] uppercase tracking-widest text-foreground/30 mb-1 flex items-center gap-1.5">
+        {label}
+        {isLive && (
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{ backgroundColor: `var(${toneConfig.dotVar})` }}
+          />
+        )}
+      </div>
+      <div className="flex items-baseline gap-2">
+        <span
+          className={joinClassNames(
+            "text-2xl font-light tabular-nums transition-colors duration-300",
+            tone !== "neutral" ? toneConfig.textClass : "",
+          )}
+        >
+          {value}
+        </span>
+        <span className="text-xs text-foreground/30">{unit}</span>
+      </div>
+      {footnote && <div className="text-[10px] text-foreground/20 mt-1 font-mono">{footnote}</div>}
+    </div>
+  );
+}
+
 interface UiPulseLabelProps {
   children: ReactNode;
   tone?: UiTone;
