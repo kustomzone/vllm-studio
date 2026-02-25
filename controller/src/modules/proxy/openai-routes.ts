@@ -4,13 +4,19 @@ import { HttpStatus, notFound, serviceUnavailable } from "../../core/errors";
 import { buildSseHeaders } from "../../http/sse";
 import type { AppContext } from "../../types/context";
 import type { Recipe } from "../lifecycle/types";
+import { buildInferenceUrl } from "../../services/inference/inference-client";
+import {
+  DAYTONA_PROVIDER,
+  DEFAULT_CHAT_PROVIDER,
+  parseProviderModel,
+  resolveProviderConfig,
+} from "../../services/provider-routing";
 import {
   createToolCallStream,
   normalizeReasoningAndContentInMessage,
   normalizeToolCallsInMessage,
   normalizeToolRequest,
 } from "./tool-call-core";
-import { buildInferenceUrl } from "../../services/inference/inference-client";
 
 export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
   const findRecipeByModel = (modelName: string): Recipe | null => {
@@ -66,8 +72,34 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
       throw new HttpStatus(400, "Invalid JSON body");
     }
 
-    if (!matchedRecipe && requestedModel && context.config.strict_openai_models) {
+    const providerModel = requestedModel
+      ? parseProviderModel(requestedModel)
+      : { provider: DEFAULT_CHAT_PROVIDER, modelId: "" };
+    const requestProvider = providerModel.provider;
+    const providerRouting =
+      requestProvider !== DEFAULT_CHAT_PROVIDER
+        ? resolveProviderConfig(requestProvider, {
+            daytonaApiUrl: context.config.daytona_api_url,
+            daytonaApiKey: context.config.daytona_api_key,
+          })
+        : null;
+
+    if (providerRouting && requestedModel) {
+      parsed["model"] = providerModel.modelId;
+      bodyChanged = true;
+    }
+
+    if (
+      !matchedRecipe &&
+      requestProvider === DEFAULT_CHAT_PROVIDER &&
+      requestedModel &&
+      context.config.strict_openai_models
+    ) {
       throw notFound(`Model not managed: ${requestedModel}`);
+    }
+
+    if (!providerRouting && requestProvider === DAYTONA_PROVIDER) {
+      throw new HttpStatus(400, "Missing Daytona provider credentials");
     }
 
     if (matchedRecipe) {
@@ -81,26 +113,31 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
 
     const toolsPayload = Array.isArray(parsed["tools"]) ? parsed["tools"] : [];
     const hasTools = toolsPayload.length > 0;
-    const useDirectInference = isStreaming && hasTools;
+    const useDirectInference = isStreaming && hasTools && !providerRouting;
+    const upstreamUrl =
+      providerRouting && requestedModel
+        ? `${providerRouting.baseUrl.replace(/\/+$/, "")}/v1/chat/completions`
+        : useDirectInference
+          ? buildInferenceUrl(context, "/v1/chat/completions")
+          : "http://localhost:4100/v1/chat/completions";
     const masterKey = process.env["LITELLM_MASTER_KEY"] ?? "sk-master";
     const inferenceKey = process.env["INFERENCE_API_KEY"] ?? "";
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      ...(useDirectInference
-        ? inferenceKey
-          ? { Authorization: `Bearer ${inferenceKey}` }
-          : {}
-        : { Authorization: `Bearer ${masterKey}` }),
+      ...(providerRouting
+        ? { Authorization: `Bearer ${providerRouting.apiKey}` }
+        : useDirectInference
+          ? inferenceKey
+            ? { Authorization: `Bearer ${inferenceKey}` }
+            : {}
+          : { Authorization: `Bearer ${masterKey}` }),
     };
-    const litellmUrl = "http://localhost:4100/v1/chat/completions";
-    const inferenceUrl = buildInferenceUrl(context, "/v1/chat/completions");
-    const upstreamUrl = useDirectInference ? inferenceUrl : litellmUrl;
     const finalBody = bodyChanged
       ? new TextEncoder().encode(JSON.stringify(parsed)).buffer
       : bodyBuffer;
 
     if (!isStreaming) {
-      const response = await fetch(litellmUrl, { method: "POST", headers, body: finalBody });
+      const response = await fetch(upstreamUrl, { method: "POST", headers, body: finalBody });
       const result = (await response.json()) as Record<string, unknown>;
 
       const usage = result["usage"] as Record<string, number> | undefined;
@@ -150,7 +187,11 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
     const reader = upstreamResponse.body?.getReader();
     if (!reader) {
       throw serviceUnavailable(
-        useDirectInference ? "Inference backend unavailable" : "LiteLLM backend unavailable"
+        providerRouting
+          ? `${requestProvider} backend unavailable`
+          : useDirectInference
+            ? "Inference backend unavailable"
+            : "LiteLLM backend unavailable"
       );
     }
 

@@ -12,6 +12,8 @@ export interface Config {
   host: string;
   port: number;
   api_key?: string;
+  daytona_api_url?: string;
+  daytona_api_key?: string;
   inference_port: number;
 
   data_dir: string;
@@ -63,6 +65,8 @@ export const createConfig = (): Config => {
     VLLM_STUDIO_HOST: z.string().default("0.0.0.0"),
     VLLM_STUDIO_PORT: z.coerce.number().int().positive().default(8080),
     VLLM_STUDIO_API_KEY: z.string().optional(),
+    VLLM_STUDIO_DAYTONA_API_KEY: z.string().optional(),
+    VLLM_STUDIO_DAYTONA_API_URL: z.string().optional(),
     VLLM_STUDIO_INFERENCE_PORT: z.coerce.number().int().positive().default(8000),
 
     VLLM_STUDIO_DATA_DIR: z.string().default(defaultDataDirectory),
@@ -104,6 +108,15 @@ export const createConfig = (): Config => {
 
   if (parsed.VLLM_STUDIO_API_KEY) {
     config.api_key = parsed.VLLM_STUDIO_API_KEY;
+  }
+  if (parsed.VLLM_STUDIO_DAYTONA_API_KEY) {
+    config.daytona_api_key = parsed.VLLM_STUDIO_DAYTONA_API_KEY;
+  }
+  if (parsed.VLLM_STUDIO_DAYTONA_API_URL) {
+    const raw = parsed.VLLM_STUDIO_DAYTONA_API_URL.trim();
+    if (raw) {
+      config.daytona_api_url = raw;
+    }
   }
   if (parsed.VLLM_STUDIO_SGLANG_PYTHON) {
     config.sglang_python = parsed.VLLM_STUDIO_SGLANG_PYTHON;

@@ -16,6 +16,13 @@ import { buildSystemPrompt } from "./system-prompt-builder";
 import { persistAssistantMessage, extractToolResultText } from "./run-manager-persistence";
 import { createRunPublisher, createSseStream } from "./run-manager-sse";
 import { AGENT_RUN_EVENT_TYPES, type AgentEventType } from "./contracts";
+import {
+  DAYTONA_PROVIDER,
+  DEFAULT_CHAT_PROVIDER,
+  parseProviderModel,
+  resolveProviderConfig,
+  normalizeModelForRequest,
+} from "../../../services/provider-routing";
 
 type ResolvedModelSelection = {
   requestModel: string;
@@ -100,6 +107,10 @@ export class ChatRunManager {
     const modelSelection = await this.resolveModel(session, options.model, options.provider);
     const requestModel = modelSelection.requestModel;
     const storedModel = modelSelection.storedModel;
+    const apiKey = this.resolveApiKey(modelSelection.provider);
+    if (modelSelection.provider === DAYTONA_PROVIDER && apiKey === "none") {
+      throw new Error("Missing Daytona provider credentials");
+    }
     const systemPrompt = buildSystemPrompt(
       session,
       options.systemPrompt,
@@ -170,7 +181,7 @@ export class ChatRunManager {
       },
       convertToLlm: mapAgentMessagesToLlm,
       streamFn: streamOpenAiCompletionsSafe,
-      getApiKey: (): string => this.resolveApiKey(),
+      getApiKey: (): string => apiKey,
       maxRetryDelayMs: 60_000,
     });
     agent.sessionId = sessionId;
@@ -525,15 +536,12 @@ export class ChatRunManager {
     override?: string,
     overrideProvider?: string
   ): Promise<ResolvedModelSelection> {
+    const parsedOverride = parseProviderModel(typeof override === "string" ? override : "");
     const providerFromOverride =
       typeof overrideProvider === "string" ? overrideProvider.trim() : "";
-
-    const parsedOverride = this.parseModelWithProvider(override);
     if (parsedOverride.modelId) {
-      const provider =
-        providerFromOverride.length > 0 ? providerFromOverride : parsedOverride.provider;
-      const storedModel =
-        provider === "openai" ? parsedOverride.modelId : `${provider}/${parsedOverride.modelId}`;
+      const provider = providerFromOverride || parsedOverride.provider;
+      const storedModel = normalizeModelForRequest(provider, parsedOverride.modelId);
       return {
         requestModel: parsedOverride.modelId,
         provider,
@@ -542,15 +550,15 @@ export class ChatRunManager {
     }
 
     const sessionModel = typeof session["model"] === "string" ? session["model"] : undefined;
-    const parsedSessionModel = this.parseModelWithProvider(sessionModel);
+    const parsedSessionModel = parseProviderModel(sessionModel || "");
     if (parsedSessionModel.modelId) {
+      const provider =
+        providerFromOverride ||
+        (parsedSessionModel.provider ? parsedSessionModel.provider : DEFAULT_CHAT_PROVIDER);
       return {
         requestModel: parsedSessionModel.modelId,
-        provider: parsedSessionModel.provider,
-        storedModel:
-          parsedSessionModel.provider === "openai"
-            ? parsedSessionModel.modelId
-            : `${parsedSessionModel.provider}/${parsedSessionModel.modelId}`,
+        provider,
+        storedModel: normalizeModelForRequest(provider, parsedSessionModel.modelId),
       };
     }
 
@@ -558,66 +566,50 @@ export class ChatRunManager {
       this.context.config.inference_port
     );
     if (current?.served_model_name) {
-      const parsedCurrent = this.parseModelWithProvider(current.served_model_name);
+      const parsedCurrent = parseProviderModel(current.served_model_name);
       if (parsedCurrent.modelId) {
         return {
           requestModel: parsedCurrent.modelId,
-          provider: parsedCurrent.provider,
-          storedModel:
-            parsedCurrent.provider === "openai"
-              ? parsedCurrent.modelId
-              : `${parsedCurrent.provider}/${parsedCurrent.modelId}`,
+          provider: parsedCurrent.provider || DEFAULT_CHAT_PROVIDER,
+          storedModel: normalizeModelForRequest(
+            parsedCurrent.provider || DEFAULT_CHAT_PROVIDER,
+            parsedCurrent.modelId
+          ),
         };
       }
     }
     if (current?.model_path) {
       const parts = current.model_path.split("/");
-      const tail = parts[parts.length - 1];
-      const parsedCurrent = this.parseModelWithProvider(tail);
+      const tail = parts[parts.length - 1] ?? "";
+      const parsedCurrent = parseProviderModel(tail);
       if (parsedCurrent.modelId) {
+        const provider = providerFromOverride || parsedCurrent.provider || DEFAULT_CHAT_PROVIDER;
         return {
           requestModel: parsedCurrent.modelId,
-          provider: parsedCurrent.provider,
-          storedModel:
-            parsedCurrent.provider === "openai"
-              ? parsedCurrent.modelId
-              : `${parsedCurrent.provider}/${parsedCurrent.modelId}`,
+          provider,
+          storedModel: normalizeModelForRequest(provider, parsedCurrent.modelId),
         };
       }
     }
-    return { requestModel: "default", provider: "openai", storedModel: "default" };
-  }
-
-  /**
-   * Parse model identifier with optional `provider/model` prefix.
-   * @param raw - Raw model string.
-   * @returns Parsed model identifier and provider.
-   */
-  private parseModelWithProvider(raw?: string): { provider: string; modelId: string } {
-    if (typeof raw !== "string") {
-      return { provider: "openai", modelId: "" };
-    }
-    const trimmed = raw.trim();
-    if (!trimmed) {
-      return { provider: "openai", modelId: "" };
-    }
-
-    const delimiter = trimmed.indexOf("/");
-    if (delimiter > 0 && delimiter < trimmed.length - 1) {
-      const provider = trimmed.slice(0, delimiter).trim();
-      const modelId = trimmed.slice(delimiter + 1).trim();
-      if (modelId.length > 0) {
-        return { provider: provider || "openai", modelId };
-      }
-    }
-    return { provider: "openai", modelId: trimmed };
+    return {
+      requestModel: "default",
+      provider: DEFAULT_CHAT_PROVIDER,
+      storedModel: "default",
+    };
   }
 
   /**
    * Resolve API key for model calls.
    * @returns API key string.
    */
-  private resolveApiKey(): string {
+  private resolveApiKey(provider = DEFAULT_CHAT_PROVIDER): string {
+    if (provider === DAYTONA_PROVIDER) {
+      const providerConfig = resolveProviderConfig(provider, {
+        daytonaApiUrl: this.context.config.daytona_api_url,
+        daytonaApiKey: this.context.config.daytona_api_key,
+      });
+      return providerConfig?.apiKey ?? "none";
+    }
     return this.context.config.api_key ?? process.env["OPENAI_API_KEY"] ?? "none";
   }
 
