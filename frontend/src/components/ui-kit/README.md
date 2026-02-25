@@ -4,7 +4,8 @@ This folder is the standardized visual foundation for frontend surfaces.
 
 ## Scope
 
-- Building blocks: reusable UI primitives for panel surfaces, status badges, timeline markers, and pulse labels.
+- Building blocks: reusable UI primitives for panel surfaces, status badges, timeline markers, pulse labels,
+  modal shells, and shared content surfaces.
 - Styles: shared tone config and class conventions.
 - Themes: all primitives must consume theme variables (`--bg`, `--surface`, `--fg`, `--dim`, `--border`, `--hl1`, `--hl2`, `--hl3`, `--err`).
 
@@ -19,6 +20,9 @@ This folder is the standardized visual foundation for frontend surfaces.
   - `UiPulseLabel`
   - `UiStatusPill`
   - `UiMetricTile`
+  - `UiInsetSurface`
+  - `UiModal`
+  - `UiModalHeader`
 
 ## Usage Rules
 
@@ -31,4 +35,4 @@ This folder is the standardized visual foundation for frontend surfaces.
 1. Activity tab (completed in this rollout)
 2. Chat message chrome and toolbelt status controls
 3. Shared dashboard/config cards and badges
-4. Remaining page-level controls and modal patterns
+4. Remaining page-level controls and modal patterns (in progress)

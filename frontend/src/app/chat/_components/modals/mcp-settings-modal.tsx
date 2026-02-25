@@ -5,6 +5,7 @@ import { X, Server, RefreshCw, Trash2 } from "lucide-react";
 import type { MCPServer } from "@/lib/types";
 import { McpServerForm, type McpServerFormPayload } from "@/components/mcp";
 import { useAppStore } from "@/store";
+import { UiInsetSurface, UiModal, UiModalHeader } from "@/components/ui-kit";
 
 interface MCPSettingsModalProps {
   isOpen: boolean;
@@ -62,102 +63,84 @@ export function MCPSettingsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <button
-        className="absolute inset-0 z-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-        aria-label="Close"
-      />
-      <div className="relative z-10 w-full max-w-lg mx-4 bg-(--surface) border border-(--border) rounded-xl shadow-xl">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-(--border)">
-          <div className="flex items-center gap-2">
-            <Server className="h-5 w-5 text-(--dim)" />
-            <h2 className="text-lg font-semibold">MCP Servers</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            {onRefresh && (
-              <button
-                onClick={onRefresh}
-                className="p-1.5 rounded hover:bg-(--accent)"
-                title="Refresh servers"
-              >
-                <RefreshCw className="h-4 w-4 text-(--dim)" />
-              </button>
-            )}
+    <UiModal isOpen={isOpen} onClose={onClose} className="max-w-lg mx-4">
+      <UiModalHeader
+        title="MCP Servers"
+        icon={<Server className="h-5 w-5 text-(--dim)" />}
+        actions={
+          onRefresh ? (
             <button
-              onClick={onClose}
+              onClick={onRefresh}
               className="p-1.5 rounded hover:bg-(--accent)"
+              title="Refresh servers"
             >
-              <X className="h-5 w-5 text-(--dim)" />
+              <RefreshCw className="h-4 w-4 text-(--dim)" />
             </button>
-          </div>
-        </div>
+          ) : null
+        }
+        onClose={onClose}
+        closeIcon={<X className="h-5 w-5 text-(--dim)" />}
+      />
+      <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+        <McpServerForm
+          onSubmit={handleAddServer}
+          title="Add MCP server"
+          submitLabel="Add server"
+          submittingLabel="Adding…"
+          testIdPrefix="mcp-settings-form"
+        />
 
-        {/* Content */}
-        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-          <McpServerForm
-            onSubmit={handleAddServer}
-            title="Add MCP server"
-            submitLabel="Add server"
-            submittingLabel="Adding…"
-            testIdPrefix="mcp-settings-form"
-          />
-
-          <div className="space-y-4">
-            {servers.length === 0 ? (
-              <div className="text-center py-8 text-(--dim)">
-                <Server className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No MCP servers configured</p>
-              </div>
-            ) : (
-              servers.map((server) => (
-                <div
-                  key={server.id ?? server.name}
-                  className="flex flex-col gap-3 p-3 bg-(--bg) border border-(--border) rounded-lg"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-(--accent) flex items-center justify-center">
-                        {server.icon ? (
-                          <span className="text-sm">{server.icon}</span>
-                        ) : (
-                          <Server className="h-4 w-4 text-(--dim)" />
-                        )}
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium">{server.name}</span>
-                        <p className="text-xs text-(--dim)">{server.command}</p>
-                      </div>
+        <div className="space-y-4">
+          {servers.length === 0 ? (
+            <div className="text-center py-8 text-(--dim)">
+              <Server className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No MCP servers configured</p>
+            </div>
+          ) : (
+            servers.map((server) => (
+              <UiInsetSurface
+                key={server.id ?? server.name}
+                className="flex flex-col gap-3 p-3 border border-(--border) rounded-lg"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-(--accent) flex items-center justify-center">
+                      {server.icon ? (
+                        <span className="text-sm">{server.icon}</span>
+                      ) : (
+                        <Server className="h-4 w-4 text-(--dim)" />
+                      )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleToggleServer(server)}
-                        disabled={pendingServer === (server.id ?? server.name)}
-                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-60 ${
-                          server.enabled
-                            ? "bg-(--hl2)/20 text-(--hl2)"
-                            : "bg-(--accent) text-(--dim)"
-                        }`}
-                      >
-                        {server.enabled ? "Enabled" : "Disabled"}
-                      </button>
-                      <button
-                        onClick={() => handleRemoveServer(server)}
-                        className="p-1.5 rounded hover:bg-(--accent)"
-                        title="Remove server"
-                      >
-                        <Trash2 className="h-4 w-4 text-(--dim)" />
-                      </button>
+                    <div>
+                      <span className="text-sm font-medium">{server.name}</span>
+                      <p className="text-xs text-(--dim)">{server.command}</p>
                     </div>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleToggleServer(server)}
+                      disabled={pendingServer === (server.id ?? server.name)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-60 ${
+                        server.enabled ? "bg-(--hl2)/20 text-(--hl2)" : "bg-(--accent) text-(--dim)"
+                      }`}
+                    >
+                      {server.enabled ? "Enabled" : "Disabled"}
+                    </button>
+                    <button
+                      onClick={() => handleRemoveServer(server)}
+                      className="p-1.5 rounded hover:bg-(--accent)"
+                      title="Remove server"
+                    >
+                      <Trash2 className="h-4 w-4 text-(--dim)" />
+                    </button>
+                  </div>
                 </div>
-              ))
-            )}
-            {actionError && <p className="text-xs text-(--err)">{actionError}</p>}
-          </div>
+              </UiInsetSurface>
+            ))
+          )}
+          {actionError && <p className="text-xs text-(--err)">{actionError}</p>}
         </div>
       </div>
-    </div>
+    </UiModal>
   );
 }

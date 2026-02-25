@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useState, type SyntheticEvent } from "react";
+import { UiInsetSurface } from "@/components/ui-kit";
 
 export interface McpServerFormPayload {
   name: string;
@@ -121,100 +122,97 @@ export function McpServerForm({
     [name, command, args, env, icon, enabled, onSubmit, resetForm],
   );
 
-  const containerClass =
-    `space-y-4 rounded-lg border border-(--border) bg-(--bg) p-4 ${className}`.trim();
-
   return (
-    <form onSubmit={handleSubmit} className={containerClass}>
-      <div className="text-xs font-semibold uppercase tracking-wide text-(--dim)">
-        {title}
-      </div>
+    <UiInsetSurface className={`space-y-4 ${className}`.trim()}>
+      <form onSubmit={handleSubmit}>
+        <div className="text-xs font-semibold uppercase tracking-wide text-(--dim)">{title}</div>
 
-      <div className="grid gap-3">
-        <label className="text-xs text-(--dim)">
-          Name
-          <input
-            name="name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="exa"
-            className="mt-1 w-full rounded-md border border-(--border) bg-(--surface) px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-(--hl1)"
-            data-testid={`${testIdPrefix}-name`}
-          />
-        </label>
+        <div className="grid gap-3">
+          <label className="text-xs text-(--dim)">
+            Name
+            <input
+              name="name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="exa"
+              className="mt-1 w-full rounded-md border border-(--border) bg-(--surface) px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-(--hl1)"
+              data-testid={`${testIdPrefix}-name`}
+            />
+          </label>
 
-        <label className="text-xs text-(--dim)">
-          Command
-          <input
-            name="command"
-            value={command}
-            onChange={(event) => setCommand(event.target.value)}
-            placeholder="npx -y exa-mcp-server"
-            className="mt-1 w-full rounded-md border border-(--border) bg-(--surface) px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-(--hl1)"
-            data-testid={`${testIdPrefix}-command`}
-          />
-        </label>
+          <label className="text-xs text-(--dim)">
+            Command
+            <input
+              name="command"
+              value={command}
+              onChange={(event) => setCommand(event.target.value)}
+              placeholder="npx -y exa-mcp-server"
+              className="mt-1 w-full rounded-md border border-(--border) bg-(--surface) px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-(--hl1)"
+              data-testid={`${testIdPrefix}-command`}
+            />
+          </label>
 
-        <label className="text-xs text-(--dim)">
-          Args (space-separated)
-          <input
-            name="args"
-            value={args}
-            onChange={(event) => setArgs(event.target.value)}
-            placeholder="--foo bar"
-            className="mt-1 w-full rounded-md border border-(--border) bg-(--surface) px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-(--hl1)"
-            data-testid={`${testIdPrefix}-args`}
-          />
-        </label>
+          <label className="text-xs text-(--dim)">
+            Args (space-separated)
+            <input
+              name="args"
+              value={args}
+              onChange={(event) => setArgs(event.target.value)}
+              placeholder="--foo bar"
+              className="mt-1 w-full rounded-md border border-(--border) bg-(--surface) px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-(--hl1)"
+              data-testid={`${testIdPrefix}-args`}
+            />
+          </label>
 
-        <label className="text-xs text-(--dim)">
-          Env (one per line: KEY=VALUE)
-          <textarea
-            name="env"
-            value={env}
-            onChange={(event) => setEnv(event.target.value)}
-            placeholder="EXA_API_KEY=..."
-            rows={3}
-            className="mt-1 w-full rounded-md border border-(--border) bg-(--surface) px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-(--hl1)"
-            data-testid={`${testIdPrefix}-env`}
-          />
-        </label>
+          <label className="text-xs text-(--dim)">
+            Env (one per line: KEY=VALUE)
+            <textarea
+              name="env"
+              value={env}
+              onChange={(event) => setEnv(event.target.value)}
+              placeholder="EXA_API_KEY=..."
+              rows={3}
+              className="mt-1 w-full rounded-md border border-(--border) bg-(--surface) px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-(--hl1)"
+              data-testid={`${testIdPrefix}-env`}
+            />
+          </label>
 
-        <label className="text-xs text-(--dim)">
-          Icon (optional)
-          <input
-            name="icon"
-            value={icon}
-            onChange={(event) => setIcon(event.target.value)}
-            placeholder="🔎"
-            className="mt-1 w-full rounded-md border border-(--border) bg-(--surface) px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-(--hl1)"
-            data-testid={`${testIdPrefix}-icon`}
-          />
-        </label>
+          <label className="text-xs text-(--dim)">
+            Icon (optional)
+            <input
+              name="icon"
+              value={icon}
+              onChange={(event) => setIcon(event.target.value)}
+              placeholder="🔎"
+              className="mt-1 w-full rounded-md border border-(--border) bg-(--surface) px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-(--hl1)"
+              data-testid={`${testIdPrefix}-icon`}
+            />
+          </label>
 
-        <label className="flex items-center gap-2 text-xs text-(--dim)">
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(event) => setEnabled(event.target.checked)}
-            className="h-4 w-4 rounded border-(--border) bg-(--surface)"
-            data-testid={`${testIdPrefix}-enabled`}
-          />
-          Enable on add
-        </label>
-      </div>
+          <label className="flex items-center gap-2 text-xs text-(--dim)">
+            <input
+              type="checkbox"
+              checked={enabled}
+              onChange={(event) => setEnabled(event.target.checked)}
+              className="h-4 w-4 rounded border-(--border) bg-(--surface)"
+              data-testid={`${testIdPrefix}-enabled`}
+            />
+            Enable on add
+          </label>
+        </div>
 
-      {formError && <p className="text-xs text-(--err)">{formError}</p>}
+        {formError && <p className="text-xs text-(--err)">{formError}</p>}
 
-      <button
-        type="button"
-        onClick={handleSubmit}
-        disabled={isSubmitting}
-        className="inline-flex items-center gap-2 rounded-md bg-(--hl1) px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-(--surface) disabled:opacity-60"
-        data-testid={`${testIdPrefix}-submit`}
-      >
-        {isSubmitting ? submittingLabel : submitLabel}
-      </button>
-    </form>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={isSubmitting}
+          className="inline-flex items-center gap-2 rounded-md bg-(--hl1) px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-(--surface) disabled:opacity-60"
+          data-testid={`${testIdPrefix}-submit`}
+        >
+          {isSubmitting ? submittingLabel : submitLabel}
+        </button>
+      </form>
+    </UiInsetSurface>
   );
 }

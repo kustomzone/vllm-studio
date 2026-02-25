@@ -3,6 +3,7 @@
 
 import { X, BarChart3 } from "lucide-react";
 import type { SessionUsage, ChatMessage } from "@/lib/types";
+import { UiInsetSurface, UiModal, UiModalHeader } from "@/components/ui-kit";
 
 interface UsageModalProps {
   isOpen: boolean;
@@ -22,89 +23,72 @@ export function UsageModal({
   if (!isOpen) return null;
 
   const formatNumber = (n: number) => n.toLocaleString();
-  const formatCost = (cost?: number | null) =>
-    cost != null ? `$${cost.toFixed(4)}` : "-";
+  const formatCost = (cost?: number | null) => (cost != null ? `$${cost.toFixed(4)}` : "-");
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <button
-        className="absolute inset-0 z-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-        aria-label="Close"
+    <UiModal isOpen={isOpen} onClose={onClose} className="max-w-md mx-4">
+      <UiModalHeader
+        title="Session Usage"
+        icon={<BarChart3 className="h-5 w-5 text-(--dim)" />}
+        onClose={onClose}
+        closeIcon={<X className="h-5 w-5 text-(--dim)" />}
       />
-      <div className="relative z-10 w-full max-w-md mx-4 bg-(--surface) border border-(--border) rounded-xl shadow-xl">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-(--border)">
-          <div className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-(--dim)" />
-            <h2 className="text-lg font-semibold">Session Usage</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded hover:bg-(--accent)"
-          >
-            <X className="h-5 w-5 text-(--dim)" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-6 space-y-4">
-          {sessionUsage ? (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-(--bg) border border-(--border) rounded-lg">
-                  <div className="text-xs text-(--dim) uppercase tracking-wide mb-1">
-                    Prompt Tokens
-                  </div>
-                  <div className="text-xl font-semibold">
-                    {formatNumber(sessionUsage.prompt_tokens)}
-                  </div>
+      <div className="p-6 space-y-4">
+        {sessionUsage ? (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <UiInsetSurface>
+                <div className="text-xs text-(--dim) uppercase tracking-wide mb-1">
+                  Prompt Tokens
                 </div>
-                <div className="p-4 bg-(--bg) border border-(--border) rounded-lg">
-                  <div className="text-xs text-(--dim) uppercase tracking-wide mb-1">
-                    Completion Tokens
-                  </div>
-                  <div className="text-xl font-semibold">
-                    {formatNumber(sessionUsage.completion_tokens)}
-                  </div>
+                <div className="text-xl font-semibold">
+                  {formatNumber(sessionUsage.prompt_tokens)}
                 </div>
-              </div>
-
-              <div className="p-4 bg-(--bg) border border-(--border) rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-xs text-(--dim) uppercase tracking-wide mb-1">
-                      Total Tokens
-                    </div>
-                    <div className="text-2xl font-semibold">
-                      {formatNumber(sessionUsage.total_tokens)}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-(--dim) uppercase tracking-wide mb-1">
-                      Estimated Cost
-                    </div>
-                    <div className="text-xl font-semibold text-(--hl1)">
-                      {formatCost(sessionUsage.estimated_cost)}
-                    </div>
-                  </div>
+              </UiInsetSurface>
+              <UiInsetSurface>
+                <div className="text-xs text-(--dim) uppercase tracking-wide mb-1">
+                  Completion Tokens
                 </div>
-              </div>
-
-              <div className="text-xs text-(--dim)">
-                Model: {selectedModel || "Unknown"}
-                <br />
-                Messages: {messages.length}
-              </div>
-            </>
-          ) : (
-            <div className="text-center py-8 text-(--dim)">
-              <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No usage data available</p>
+                <div className="text-xl font-semibold">
+                  {formatNumber(sessionUsage.completion_tokens)}
+                </div>
+              </UiInsetSurface>
             </div>
-          )}
-        </div>
+
+            <UiInsetSurface>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-(--dim) uppercase tracking-wide mb-1">
+                    Total Tokens
+                  </div>
+                  <div className="text-2xl font-semibold">
+                    {formatNumber(sessionUsage.total_tokens)}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-(--dim) uppercase tracking-wide mb-1">
+                    Estimated Cost
+                  </div>
+                  <div className="text-xl font-semibold text-(--hl1)">
+                    {formatCost(sessionUsage.estimated_cost)}
+                  </div>
+                </div>
+              </div>
+            </UiInsetSurface>
+
+            <div className="text-xs text-(--dim)">
+              Model: {selectedModel || "Unknown"}
+              <br />
+              Messages: {messages.length}
+            </div>
+          </>
+        ) : (
+          <div className="text-center py-8 text-(--dim)">
+            <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">No usage data available</p>
+          </div>
+        )}
       </div>
-    </div>
+    </UiModal>
   );
 }

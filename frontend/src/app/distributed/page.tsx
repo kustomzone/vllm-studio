@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { PageState } from "@/components/shared";
 import api from "@/lib/api";
+import { UiInsetSurface } from "@/components/ui-kit";
 import { useDistributedCluster } from "./hooks/use-distributed-cluster";
 
 const formatTime = (value: string | null | undefined) => {
@@ -212,101 +213,116 @@ export default function DistributedPage() {
             </button>
           </div>
         </div>
-        <section className="rounded-lg border border-(--border) bg-(--bg) p-4 space-y-2">
+        <UiInsetSurface className="space-y-2">
           <div className="flex items-center gap-2 text-sm">
             <ShieldCheck className="h-4 w-4 text-(--dim)" />
             <span>Distributed infrastructure scope</span>
           </div>
           <p className="text-xs text-(--dim)">
             This page is the manual distributed control-plane for model hosting topology. It stores
-            node registration + heartbeat state, records explicit layer allocations, and computes coverage
-            (gaps/overlaps) per model.
+            node registration + heartbeat state, records explicit layer allocations, and computes
+            coverage (gaps/overlaps) per model.
           </p>
           <ul className="text-xs text-(--dim) list-disc pl-5 space-y-1">
-            <li>Controller owns state in <code>distributed_nodes</code> and <code>distributed_allocations</code> (SQLite-backed).</li>
-            <li>API paths used here are <code>POST /distributed/nodes/register</code>, <code>/distributed/nodes/:nodeId/heartbeat</code>, <code>/distributed/allocations/:nodeId</code>, <code>/distributed/topology/:modelId</code>, and <code>/distributed/status</code>.</li>
-            <li>Events are pushed through SSE as <code>distributed_node_updated</code> and <code>distributed_topology_updated</code>, and then rehydrated on the page.</li>
-            <li>Out of scope: automatic scheduler, cross-node inference dispatch, and transfer of active request traffic.</li>
+            <li>
+              Controller owns state in <code>distributed_nodes</code> and{" "}
+              <code>distributed_allocations</code> (SQLite-backed).
+            </li>
+            <li>
+              API paths used here are <code>POST /distributed/nodes/register</code>,{" "}
+              <code>/distributed/nodes/:nodeId/heartbeat</code>,{" "}
+              <code>/distributed/allocations/:nodeId</code>,{" "}
+              <code>/distributed/topology/:modelId</code>, and <code>/distributed/status</code>.
+            </li>
+            <li>
+              Events are pushed through SSE as <code>distributed_node_updated</code> and{" "}
+              <code>distributed_topology_updated</code>, and then rehydrated on the page.
+            </li>
+            <li>
+              Out of scope: automatic scheduler, cross-node inference dispatch, and transfer of
+              active request traffic.
+            </li>
           </ul>
-        </section>
+        </UiInsetSurface>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="rounded-lg border border-(--border) bg-(--bg) p-3">
+          <UiInsetSurface className="p-3">
             <div className="text-[10px] uppercase tracking-wider text-(--dim)">Nodes</div>
             <div className="text-xl mt-1">{cluster.status?.nodes_total ?? 0}</div>
-          </div>
-          <div className="rounded-lg border border-(--border) bg-(--bg) p-3">
+          </UiInsetSurface>
+          <UiInsetSurface className="p-3">
             <div className="text-[10px] uppercase tracking-wider text-(--dim)">Online</div>
             <div className="text-xl mt-1 text-emerald-400">{cluster.status?.nodes_online ?? 0}</div>
-          </div>
-          <div className="rounded-lg border border-(--border) bg-(--bg) p-3">
+          </UiInsetSurface>
+          <UiInsetSurface className="p-3">
             <div className="text-[10px] uppercase tracking-wider text-(--dim)">Stale</div>
             <div className="text-xl mt-1 text-amber-400">{cluster.status?.nodes_stale ?? 0}</div>
-          </div>
-          <div className="rounded-lg border border-(--border) bg-(--bg) p-3">
+          </UiInsetSurface>
+          <UiInsetSurface className="p-3">
             <div className="text-[10px] uppercase tracking-wider text-(--dim)">Models</div>
             <div className="text-xl mt-1">{cluster.status?.models.length ?? 0}</div>
-          </div>
+          </UiInsetSurface>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-4">
-          <form
-            onSubmit={handleRegisterNode}
-            className="rounded-lg border border-(--border) bg-(--bg) p-4 space-y-3"
-          >
-            <div className="flex items-center gap-2 text-sm">
-              <Server className="h-4 w-4 text-(--dim)" />
-              <span>Register Node</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                value={nodeForm.node_id}
-                onChange={(event) => setNodeForm((v) => ({ ...v, node_id: event.target.value }))}
-                placeholder="node_id"
-                className="px-3 py-2 rounded-lg bg-(--surface) border border-(--border) text-sm"
-              />
-              <input
-                value={nodeForm.label}
-                onChange={(event) => setNodeForm((v) => ({ ...v, label: event.target.value }))}
-                placeholder="label"
-                className="px-3 py-2 rounded-lg bg-(--surface) border border-(--border) text-sm"
-              />
-              <input
-                value={nodeForm.backend}
-                onChange={(event) => setNodeForm((v) => ({ ...v, backend: event.target.value }))}
-                placeholder="backend (vllm/mlx/...)"
-                className="px-3 py-2 rounded-lg bg-(--surface) border border-(--border) text-sm"
-              />
-              <input
-                value={nodeForm.transport}
-                onChange={(event) => setNodeForm((v) => ({ ...v, transport: event.target.value }))}
-                placeholder="transport"
-                className="px-3 py-2 rounded-lg bg-(--surface) border border-(--border) text-sm"
-              />
-              <input
-                value={nodeForm.host}
-                onChange={(event) => setNodeForm((v) => ({ ...v, host: event.target.value }))}
-                placeholder="host"
-                className="px-3 py-2 rounded-lg bg-(--surface) border border-(--border) text-sm"
-              />
-              <input
-                value={nodeForm.port}
-                onChange={(event) => setNodeForm((v) => ({ ...v, port: event.target.value }))}
-                placeholder="port"
-                className="px-3 py-2 rounded-lg bg-(--surface) border border-(--border) text-sm"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={registering}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-(--hl1) text-white text-sm disabled:opacity-60"
-            >
-              {registering ? <Activity className="h-4 w-4 animate-spin" /> : null}
-              Register
-            </button>
-          </form>
+          <UiInsetSurface className="space-y-3">
+            <form onSubmit={handleRegisterNode} className="space-y-3">
+              <div className="flex items-center gap-2 text-sm">
+                <Server className="h-4 w-4 text-(--dim)" />
+                <span>Register Node</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  value={nodeForm.node_id}
+                  onChange={(event) => setNodeForm((v) => ({ ...v, node_id: event.target.value }))}
+                  placeholder="node_id"
+                  className="px-3 py-2 rounded-lg bg-(--surface) border border-(--border) text-sm"
+                />
+                <input
+                  value={nodeForm.label}
+                  onChange={(event) => setNodeForm((v) => ({ ...v, label: event.target.value }))}
+                  placeholder="label"
+                  className="px-3 py-2 rounded-lg bg-(--surface) border border-(--border) text-sm"
+                />
+                <input
+                  value={nodeForm.backend}
+                  onChange={(event) => setNodeForm((v) => ({ ...v, backend: event.target.value }))}
+                  placeholder="backend (vllm/mlx/...)"
+                  className="px-3 py-2 rounded-lg bg-(--surface) border border-(--border) text-sm"
+                />
+                <input
+                  value={nodeForm.transport}
+                  onChange={(event) =>
+                    setNodeForm((v) => ({ ...v, transport: event.target.value }))
+                  }
+                  placeholder="transport"
+                  className="px-3 py-2 rounded-lg bg-(--surface) border border-(--border) text-sm"
+                />
+                <input
+                  value={nodeForm.host}
+                  onChange={(event) => setNodeForm((v) => ({ ...v, host: event.target.value }))}
+                  placeholder="host"
+                  className="px-3 py-2 rounded-lg bg-(--surface) border border-(--border) text-sm"
+                />
+                <input
+                  value={nodeForm.port}
+                  onChange={(event) => setNodeForm((v) => ({ ...v, port: event.target.value }))}
+                  placeholder="port"
+                  className="px-3 py-2 rounded-lg bg-(--surface) border border-(--border) text-sm"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={registering}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-(--hl1) text-white text-sm disabled:opacity-60"
+              >
+                {registering ? <Activity className="h-4 w-4 animate-spin" /> : null}
+                Register
+              </button>
+            </form>
+          </UiInsetSurface>
 
-          <div className="rounded-lg border border-(--border) bg-(--bg) p-4 space-y-3">
+          <UiInsetSurface className="space-y-3">
             <div className="text-sm">Model Scope</div>
             <div className="grid grid-cols-[1fr,140px] gap-2">
               <input
@@ -323,10 +339,10 @@ export default function DistributedPage() {
               />
             </div>
             <p className="text-xs text-(--dim)">
-              Empty model scope shows cluster-level status only. Set both model and total layers to validate
-              contiguous full coverage.
+              Empty model scope shows cluster-level status only. Set both model and total layers to
+              validate contiguous full coverage.
             </p>
-          </div>
+          </UiInsetSurface>
         </div>
 
         {actionError && (
@@ -340,7 +356,7 @@ export default function DistributedPage() {
           </div>
         )}
 
-        <div className="rounded-lg border border-(--border) bg-(--bg) overflow-hidden">
+        <UiInsetSurface className="overflow-hidden p-0">
           <div className="px-4 py-3 border-b border-(--border) text-sm">Nodes</div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -357,17 +373,26 @@ export default function DistributedPage() {
               </thead>
               <tbody>
                 {cluster.nodes.map((node, index) => (
-                  <tr key={node.node_id} className={index > 0 ? "border-t border-(--border)/50" : ""}>
+                  <tr
+                    key={node.node_id}
+                    className={index > 0 ? "border-t border-(--border)/50" : ""}
+                  >
                     <td className="py-2 px-4">
                       <div className="font-mono text-xs">{node.node_id}</div>
-                      {node.label ? <div className="text-[11px] text-(--dim)">{node.label}</div> : null}
+                      {node.label ? (
+                        <div className="text-[11px] text-(--dim)">{node.label}</div>
+                      ) : null}
                     </td>
                     <td className="py-2 px-4 text-xs uppercase">{node.backend ?? "-"}</td>
                     <td className="py-2 px-4 text-xs">
                       {[node.host, node.port].filter(Boolean).join(":") || "-"}
                     </td>
-                    <td className="py-2 px-4 text-xs text-(--dim)">{summarizeRecord(node.capabilities)}</td>
-                    <td className="py-2 px-4 text-xs text-(--dim)">{summarizeRecord(node.metrics)}</td>
+                    <td className="py-2 px-4 text-xs text-(--dim)">
+                      {summarizeRecord(node.capabilities)}
+                    </td>
+                    <td className="py-2 px-4 text-xs text-(--dim)">
+                      {summarizeRecord(node.metrics)}
+                    </td>
                     <td className="py-2 px-4 text-xs">{formatTime(node.last_heartbeat_at)}</td>
                     <td className="py-2 px-4">
                       <div className="inline-flex items-center gap-1 text-xs">
@@ -393,59 +418,68 @@ export default function DistributedPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </UiInsetSurface>
 
         <div className="grid lg:grid-cols-2 gap-4">
-          <form
-            onSubmit={handleSetAllocation}
-            className="rounded-lg border border-(--border) bg-(--bg) p-4 space-y-3"
-          >
-            <div className="text-sm">Set Allocation</div>
-            <div className="grid grid-cols-3 gap-2">
-              <select
-                value={allocationForm.node_id}
-                onChange={(event) => setAllocationForm((v) => ({ ...v, node_id: event.target.value }))}
-                className="px-3 py-2 rounded-lg bg-(--surface) border border-(--border) text-sm"
+          <UiInsetSurface className="space-y-3">
+            <form onSubmit={handleSetAllocation} className="space-y-3">
+              <div className="text-sm">Set Allocation</div>
+              <div className="grid grid-cols-3 gap-2">
+                <select
+                  value={allocationForm.node_id}
+                  onChange={(event) =>
+                    setAllocationForm((v) => ({ ...v, node_id: event.target.value }))
+                  }
+                  className="px-3 py-2 rounded-lg bg-(--surface) border border-(--border) text-sm"
+                >
+                  <option value="">Select node</option>
+                  {cluster.nodes.map((node) => (
+                    <option key={node.node_id} value={node.node_id}>
+                      {node.node_id}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={allocationForm.start_layer}
+                  onChange={(event) =>
+                    setAllocationForm((v) => ({ ...v, start_layer: event.target.value }))
+                  }
+                  placeholder="start_layer"
+                  className="px-3 py-2 rounded-lg bg-(--surface) border border-(--border) text-sm"
+                />
+                <input
+                  value={allocationForm.end_layer}
+                  onChange={(event) =>
+                    setAllocationForm((v) => ({ ...v, end_layer: event.target.value }))
+                  }
+                  placeholder="end_layer"
+                  className="px-3 py-2 rounded-lg bg-(--surface) border border-(--border) text-sm"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={savingAllocation || !scopeModelId.trim()}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-(--hl1) text-white text-sm disabled:opacity-60"
               >
-                <option value="">Select node</option>
-                {cluster.nodes.map((node) => (
-                  <option key={node.node_id} value={node.node_id}>
-                    {node.node_id}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={allocationForm.start_layer}
-                onChange={(event) => setAllocationForm((v) => ({ ...v, start_layer: event.target.value }))}
-                placeholder="start_layer"
-                className="px-3 py-2 rounded-lg bg-(--surface) border border-(--border) text-sm"
-              />
-              <input
-                value={allocationForm.end_layer}
-                onChange={(event) => setAllocationForm((v) => ({ ...v, end_layer: event.target.value }))}
-                placeholder="end_layer"
-                className="px-3 py-2 rounded-lg bg-(--surface) border border-(--border) text-sm"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={savingAllocation || !scopeModelId.trim()}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-(--hl1) text-white text-sm disabled:opacity-60"
-            >
-              {savingAllocation ? <Activity className="h-4 w-4 animate-spin" /> : null}
-              Save Allocation
-            </button>
-          </form>
+                {savingAllocation ? <Activity className="h-4 w-4 animate-spin" /> : null}
+                Save Allocation
+              </button>
+            </form>
+          </UiInsetSurface>
 
-          <div className="rounded-lg border border-(--border) bg-(--bg) p-4 space-y-3">
+          <UiInsetSurface className="space-y-3">
             <div className="text-sm">Topology</div>
             {!scopeModelId.trim() ? (
-              <p className="text-xs text-(--dim)">Set a model scope to load topology and allocations.</p>
+              <p className="text-xs text-(--dim)">
+                Set a model scope to load topology and allocations.
+              </p>
             ) : cluster.topology ? (
               <div className="space-y-2 text-xs">
                 <div>
                   Contiguous:{" "}
-                  <span className={cluster.topology.contiguous ? "text-emerald-300" : "text-amber-300"}>
+                  <span
+                    className={cluster.topology.contiguous ? "text-emerald-300" : "text-amber-300"}
+                  >
                     {cluster.topology.contiguous === null
                       ? "unknown (missing total_layers)"
                       : cluster.topology.contiguous
@@ -461,10 +495,10 @@ export default function DistributedPage() {
             ) : (
               <p className="text-xs text-(--dim)">No topology data available.</p>
             )}
-          </div>
+          </UiInsetSurface>
         </div>
 
-        <div className="rounded-lg border border-(--border) bg-(--bg) overflow-hidden">
+        <UiInsetSurface className="overflow-hidden p-0">
           <div className="px-4 py-3 border-b border-(--border) text-sm">
             Allocations {scopeModelId.trim() ? `(${scopeModelId.trim()})` : ""}
           </div>
@@ -509,9 +543,9 @@ export default function DistributedPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </UiInsetSurface>
 
-        <div className="rounded-lg border border-(--border) bg-(--bg) p-4">
+        <UiInsetSurface>
           <div className="text-sm mb-2">Topology Issues</div>
           {!cluster.topology || cluster.topology.issues.length === 0 ? (
             <p className="text-xs text-(--dim)">No gap/overlap issues reported.</p>
@@ -531,7 +565,7 @@ export default function DistributedPage() {
               ))}
             </div>
           )}
-        </div>
+        </UiInsetSurface>
       </div>
     </div>
   );
