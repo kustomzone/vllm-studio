@@ -22,9 +22,14 @@ export type UseRunEventHandlerArgs = {
   setStreamError: (value: string | null) => void;
   setAgentPlan: (value: AgentPlan | null) => void;
 
-  generateTitle: (sessionId: string, userContent: string, assistantContent: string) => Promise<string | null>;
+  generateTitle: (
+    sessionId: string,
+    userContent: string,
+    assistantContent: string,
+  ) => Promise<string | null>;
 
   extractToolResultText: (input: unknown) => string;
+  recordToolExecutionMetadata: (toolCallId: string, toolName: string, input: unknown) => void;
   recordToolResult: (toolCallId: string, resultText: string, isError: boolean) => void;
   updateExecutingTools: (updater: (executingTools: Set<string>) => Set<string>) => void;
 
@@ -41,4 +46,3 @@ export type UseRunEventHandlerArgs = {
 };
 
 export type RunEventHandler = (event: ChatRunStreamEvent) => void;
-

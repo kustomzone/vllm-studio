@@ -22,6 +22,7 @@ export function useRunEventHandler(args: UseRunEventHandlerArgs) {
     setAgentPlan,
     generateTitle,
     extractToolResultText,
+    recordToolExecutionMetadata,
     recordToolResult,
     updateExecutingTools,
     mapAgentMessageToChatMessage,
@@ -124,6 +125,9 @@ export function useRunEventHandler(args: UseRunEventHandlerArgs) {
         case "tool_execution_start": {
           const toolCallId = typeof data["toolCallId"] === "string" ? data["toolCallId"] : "";
           if (!toolCallId) return;
+          const toolName = typeof data["toolName"] === "string" ? data["toolName"] : toolCallId;
+          const input = data["args"];
+          recordToolExecutionMetadata(toolCallId, toolName, input);
           updateExecutingTools((prev) => new Set(prev).add(toolCallId));
           return;
         }
@@ -243,6 +247,7 @@ export function useRunEventHandler(args: UseRunEventHandlerArgs) {
       mapAgentMessageToChatMessage,
       moveAgentFileVersions,
       recordToolResult,
+      recordToolExecutionMetadata,
       readAgentFile,
       runCompletedRef,
       setAgentPlan,

@@ -9,10 +9,16 @@ import type { ChatMessage, ChatMessagePart, ToolResult } from "@/lib/types";
 type UseChatToolResultsArgs = {
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   isToolPart: (part: ChatMessagePart) => part is Extract<ChatMessagePart, { toolCallId: string }>;
-  updateToolResultsMap: (updater: (prev: Map<string, ToolResult>) => Map<string, ToolResult>) => void;
+  updateToolResultsMap: (
+    updater: (prev: Map<string, ToolResult>) => Map<string, ToolResult>,
+  ) => void;
 };
 
-export function useChatToolResults({ setMessages, isToolPart, updateToolResultsMap }: UseChatToolResultsArgs) {
+export function useChatToolResults({
+  setMessages,
+  isToolPart,
+  updateToolResultsMap,
+}: UseChatToolResultsArgs) {
   const extractToolResultText = useCallback((result: unknown): string => {
     if (result == null) return "";
     if (typeof result === "string") return result;
@@ -67,9 +73,12 @@ export function useChatToolResults({ setMessages, isToolPart, updateToolResultsM
     (toolCallId: string, resultText: string, isError: boolean) => {
       updateToolResultsMap((prev) => {
         const next = new Map(prev);
+        const existing = next.get(toolCallId);
         const payload: ToolResult = {
           tool_call_id: toolCallId,
           content: resultText,
+          ...(existing?.name ? { name: existing.name } : {}),
+          ...(existing?.input !== undefined ? { input: existing.input } : {}),
           isError,
         };
         next.set(toolCallId, payload);
@@ -80,6 +89,23 @@ export function useChatToolResults({ setMessages, isToolPart, updateToolResultsM
     [applyToolResultToMessages, updateToolResultsMap],
   );
 
-  return { extractToolResultText, recordToolResult };
-}
+  const recordToolExecutionMetadata = useCallback(
+    (toolCallId: string, toolName: string, input: unknown) => {
+      updateToolResultsMap((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(toolCallId);
+        next.set(toolCallId, {
+          tool_call_id: toolCallId,
+          content: existing?.content ?? "",
+          name: toolName,
+          input,
+          ...(existing?.isError !== undefined ? { isError: existing.isError } : {}),
+        });
+        return next;
+      });
+    },
+    [updateToolResultsMap],
+  );
 
+  return { extractToolResultText, recordToolResult, recordToolExecutionMetadata };
+}

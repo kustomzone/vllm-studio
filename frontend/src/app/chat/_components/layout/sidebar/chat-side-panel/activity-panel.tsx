@@ -10,9 +10,15 @@ export interface ActivityPanelProps {
   activityGroups: ActivityGroup[];
   agentPlan?: { steps: Array<{ status: string; title: string }> } | null;
   isLoading?: boolean;
+  runStatusLine?: string;
 }
 
-export function ActivityPanel({ activityGroups, agentPlan, isLoading }: ActivityPanelProps) {
+export function ActivityPanel({
+  activityGroups,
+  agentPlan,
+  isLoading,
+  runStatusLine,
+}: ActivityPanelProps) {
   if (activityGroups.length === 0) {
     return <div className="py-8 text-center text-sm text-(--fg)">No activity yet</div>;
   }
@@ -27,6 +33,20 @@ export function ActivityPanel({ activityGroups, agentPlan, isLoading }: Activity
 
   return (
     <div className="h-full flex flex-col bg-(--bg)">
+      {isLoading && runStatusLine?.trim() && (
+        <UiPanelSurface className="px-3 py-2 mb-2 bg-(--bg)/90 border-none border-b rounded-none">
+          <div className="flex items-center gap-2">
+            <span className="relative">
+              <span className="absolute inset-0 inline-flex h-2.5 w-2.5 animate-ping rounded-full bg-(--hl2) opacity-70" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-(--hl2)" />
+            </span>
+            <UiPulseLabel className="text-[11px] truncate" tone="active">
+              {runStatusLine}
+            </UiPulseLabel>
+          </div>
+        </UiPanelSurface>
+      )}
+
       {totalSteps > 0 && (
         <UiPanelSurface className="px-3 py-3 mb-2 bg-(--bg)/90 border-none border-b rounded-none">
           <div className="flex items-center justify-between mb-2">

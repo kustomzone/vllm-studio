@@ -18,6 +18,7 @@ export type SidebarContentsProps = {
   activityGroups: ActivityGroup[];
   agentPlan: AgentPlan | null;
   isLoading: boolean;
+  runStatusLine: string;
 
   contextStats?: Omit<
     ContextStats,
@@ -62,7 +63,12 @@ export function buildSidebarContents(props: SidebarContentsProps): {
     activityContent: (
       <div className="h-full flex flex-col">
         <PerfProfiler id={`${prefix}activity-panel`}>
-          <ActivityPanel activityGroups={props.activityGroups} agentPlan={props.agentPlan} isLoading={props.isLoading} />
+          <ActivityPanel
+            activityGroups={props.activityGroups}
+            agentPlan={props.agentPlan}
+            isLoading={props.isLoading}
+            runStatusLine={props.runStatusLine}
+          />
         </PerfProfiler>
       </div>
     ),
@@ -103,4 +109,3 @@ export function buildSidebarContents(props: SidebarContentsProps): {
     ),
   };
 }
-

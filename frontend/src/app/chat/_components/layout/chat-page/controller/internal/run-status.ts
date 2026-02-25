@@ -20,6 +20,7 @@ interface ActiveToolCall {
   toolCallId: string;
   toolName: string;
   target?: string;
+  input?: unknown;
 }
 
 function toSingleLine(value: string): string {
@@ -70,6 +71,9 @@ function extractFromRecord(record: Record<string, unknown>): string | undefined 
     "filePath",
     "filename",
     "file",
+    "from",
+    "to",
+    "cwd",
     "target",
     "name",
     "command",
@@ -109,6 +113,16 @@ function extractToolTarget(input: unknown): string | undefined {
   return undefined;
 }
 
+function extractMoveTarget(input: unknown): string | undefined {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return undefined;
+  const record = input as Record<string, unknown>;
+  const from = asString(record["from"]);
+  const to = asString(record["to"]);
+  if (!from && !to) return undefined;
+  if (from && to) return `${from} -> ${to}`;
+  return from || to;
+}
+
 function getToolPartToolName(part: ToolPart, toolResultsMap: Map<string, ToolResult>): string {
   const nameFromPart =
     typeof part.toolName === "string" && part.toolName.trim().length > 0
@@ -145,16 +159,33 @@ function findActiveToolCall(
         toolCallId: part.toolCallId,
         toolName: getToolPartToolName(part, toolResultsMap),
         target: extractToolTarget(part.input),
+        input: part.input,
       };
     }
   }
 
   const [toolCallId] = Array.from(executingTools);
-  return { toolCallId, toolName: toolCallId, target: undefined };
+  const toolResult = toolResultsMap.get(toolCallId);
+  return {
+    toolCallId,
+    toolName: toolResult?.name?.trim() || toolCallId,
+    target: extractToolTarget(toolResult?.input),
+    input: toolResult?.input,
+  };
 }
 
 function toolActionLabel(toolName: string): string {
   const normalized = toolName.toLowerCase();
+
+  if (normalized === "list_files") return "listed files";
+  if (normalized === "read_file") return "read file";
+  if (normalized === "write_file") return "created file";
+  if (normalized === "delete_file") return "deleted file";
+  if (normalized === "make_directory") return "created directory";
+  if (normalized === "move_file") return "moved file";
+  if (normalized === "execute_command") return "ran command";
+  if (normalized === "create_plan") return "updated plan";
+  if (normalized === "update_plan") return "updated plan";
 
   if (
     normalized.includes("search") ||
@@ -177,7 +208,10 @@ function toolActionLabel(toolName: string): string {
   }
 
   const referencesFile = normalized.includes("file") || normalized.includes("path");
-  if (referencesFile && (normalized.includes("create") || normalized.includes("write") || normalized.includes("save"))) {
+  if (
+    referencesFile &&
+    (normalized.includes("create") || normalized.includes("write") || normalized.includes("save"))
+  ) {
     return "created file";
   }
   if (referencesFile && (normalized.includes("move") || normalized.includes("rename"))) {
@@ -189,7 +223,11 @@ function toolActionLabel(toolName: string): string {
   if (referencesFile && (normalized.includes("read") || normalized.includes("open"))) {
     return "opened file";
   }
-  if (normalized.includes("command") || normalized.includes("shell") || normalized.includes("exec")) {
+  if (
+    normalized.includes("command") ||
+    normalized.includes("shell") ||
+    normalized.includes("exec")
+  ) {
     return "ran command";
   }
 
@@ -198,6 +236,13 @@ function toolActionLabel(toolName: string): string {
 
 function formatToolCallStatus(toolCall: ActiveToolCall): string {
   const action = toolActionLabel(toolCall.toolName);
+  const normalizedTool = toolCall.toolName.toLowerCase();
+  if (normalizedTool === "move_file") {
+    const moveTarget = extractMoveTarget(toolCall.input);
+    if (moveTarget) {
+      return truncateStatus(`${action}: ${moveTarget}`);
+    }
+  }
   if (toolCall.target) {
     return truncateStatus(`${action}: ${toolCall.target}`);
   }
@@ -208,7 +253,8 @@ function formatToolCallStatus(toolCall: ActiveToolCall): string {
 }
 
 export function pickThinkingPhrase(elapsedSeconds: number): string {
-  const index = Math.floor(Math.max(0, elapsedSeconds) / PHRASE_CYCLE_SECONDS) % THINKING_PHRASES.length;
+  const index =
+    Math.floor(Math.max(0, elapsedSeconds) / PHRASE_CYCLE_SECONDS) % THINKING_PHRASES.length;
   return THINKING_PHRASES[index];
 }
 

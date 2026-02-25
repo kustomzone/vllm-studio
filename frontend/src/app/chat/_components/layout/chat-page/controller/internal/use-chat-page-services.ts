@@ -82,6 +82,7 @@ export function useChatPageServices({
     setAgentPlan: store.setAgentPlan,
     generateTitle,
     extractToolResultText: toolResults.extractToolResultText,
+    recordToolExecutionMetadata: toolResults.recordToolExecutionMetadata,
     recordToolResult: toolResults.recordToolResult,
     updateExecutingTools: store.updateExecutingTools,
     mapAgentMessageToChatMessage: messageMapping.mapAgentMessageToChatMessage,
