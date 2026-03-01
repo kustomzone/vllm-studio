@@ -16,6 +16,13 @@ interface ToolboxError {
   sandboxId?: string;
 }
 
+type ApiError = Error & {
+  status: number;
+  method: HttpMethod;
+  path: string;
+  bodySnippet: string;
+};
+
 export interface DaytonaFileEntry {
   name: string;
   isDirectory: boolean;
@@ -538,9 +545,14 @@ export class DaytonaToolboxClient {
     });
     if (!response.ok) {
       const payload = await response.text();
-      throw new Error(
-        `[Daytona] API request failed (${response.status}): ${payload.slice(0, 600)}`
-      );
+      const error = new Error(
+        `[Daytona] API request failed (${response.status}) ${method} ${path}: ${payload.slice(0, 300)}`
+      ) as ApiError;
+      error.status = response.status;
+      error.method = method;
+      error.path = path;
+      error.bodySnippet = payload.slice(0, 600);
+      throw error;
     }
     return response.json();
   }
@@ -638,16 +650,41 @@ export class DaytonaToolboxClient {
     throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
-  private async createSessionSandbox(sessionId: string): Promise<string> {
-    const payload = (await this.requestApiJson("POST", "/sandbox", {
-      name: `vllm-studio-${sanitizeSessionId(sessionId)}`,
-      labels: {
-        source: "vllm-studio",
-        session_id: sanitizeSessionId(sessionId),
-      },
-    })) as Record<string, unknown>;
+  private isApiError(value: unknown): value is ApiError {
+    if (!value || typeof value !== "object") return false;
+    const record = value as Record<string, unknown>;
+    return (
+      typeof record["status"] === "number" &&
+      typeof record["method"] === "string" &&
+      typeof record["path"] === "string" &&
+      typeof record["bodySnippet"] === "string"
+    );
+  }
 
-    return this.extractSandboxId(payload);
+  private async createSessionSandbox(sessionId: string): Promise<string> {
+    const sessionKey = sanitizeSessionId(sessionId);
+
+    try {
+      const payload = (await this.requestApiJson("POST", "/sandbox", {
+        name: `vllm-studio-${sessionKey}`,
+        labels: {
+          source: "vllm-studio",
+          session_id: sessionKey,
+        },
+      })) as Record<string, unknown>;
+
+      return this.extractSandboxId(payload);
+    } catch (error) {
+      // Daytona sometimes responds to create with conflict when the sandbox already exists.
+      // In that case, reuse the existing sandbox instead of failing.
+      if (this.isApiError(error) && error.status === 409) {
+        const existing = await this.findSessionSandbox(sessionId);
+        if (existing) {
+          return existing;
+        }
+      }
+      throw error;
+    }
   }
 
   private async createAndCacheSessionSandbox(sessionId: string): Promise<string> {

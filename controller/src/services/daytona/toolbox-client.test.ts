@@ -151,4 +151,56 @@ describe("daytona toolbox retry behavior", () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it("reuses existing sandbox when create returns 409 conflict", async () => {
+    const originalFetch = globalThis.fetch;
+    const calls: Array<{ method: string; url: string }> = [];
+    let sandboxListCalls = 0;
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      const url = String(input);
+      calls.push({ method, url });
+
+      if (url.endsWith("/api/sandbox") && method === "GET") {
+        sandboxListCalls += 1;
+        // First lookup: nothing reusable, so client will attempt create.
+        if (sandboxListCalls === 1) {
+          return new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        // After create returns 409, list should reveal the existing sandbox.
+        return new Response(
+          JSON.stringify([{ id: "sandbox-existing", name: "vllm-studio_session-3", state: "running" }]),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+
+      if (url.endsWith("/api/sandbox") && method === "POST") {
+        return new Response("already exists", { status: 409 });
+      }
+
+      if (url.includes("/toolbox/sandbox-existing/") && url.includes("/files/folder")) {
+        return new Response("ok", { status: 200, headers: { "content-type": "application/json" } });
+      }
+
+      if (url.includes("/toolbox/sandbox-existing/") && url.includes("/files?") && method === "GET") {
+        return createFileListResponse();
+      }
+
+      return new Response("unexpected", { status: 500 });
+    }) as typeof fetch;
+
+    try {
+      const client = new DaytonaToolboxClient(createConfig({ daytona_api_key: "token" }));
+      const files = await client.listFiles("session-3", "");
+      expect(files).toEqual([]);
+      expect(calls.some((entry) => entry.method === "POST" && entry.url.endsWith("/api/sandbox"))).toBe(true);
+      expect(calls.some((entry) => entry.url.includes("/toolbox/sandbox-existing/"))).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
