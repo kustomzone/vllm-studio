@@ -6,6 +6,16 @@ const SESSION_ROOT_PREFIX = "workspace/vllm-studio";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
+const RETRYABLE_STATUS_CODES = new Set([403, 404, 409, 423, 429, 500, 502, 503, 504]);
+
+interface ToolboxError {
+  status: number;
+  method: HttpMethod;
+  path: string;
+  bodySnippet: string;
+  sandboxId?: string;
+}
+
 export interface DaytonaFileEntry {
   name: string;
   isDirectory: boolean;
@@ -117,6 +127,7 @@ export class DaytonaToolboxClient {
   private readonly configuredSandboxId: string | undefined;
   private readonly sandboxBySession = new Map<string, string>();
   private readonly ensuredRoots = new Set<string>();
+  private readonly sandboxOrderBySession = new Map<string, string[]>();
 
   public constructor(config: Config) {
     const runtime = resolveDaytonaRuntime(config);
@@ -130,10 +141,19 @@ export class DaytonaToolboxClient {
   }
 
   public async listFiles(sessionId: string, path: string): Promise<DaytonaFileEntry[]> {
-    await this.ensureSessionRoot(sessionId);
     const sessionPath = this.resolveSessionPath(sessionId, path);
-    const query = this.buildQuery({ path: sessionPath.length > 0 ? sessionPath : undefined });
-    const payload = await this.requestToolboxJson(sessionId, "GET", `/files${query}`);
+
+    let payload: unknown;
+    await this.withToolboxRetry(
+      sessionId,
+      "list files",
+      async () => {
+        await this.ensureSessionRoot(sessionId);
+        const query = this.buildQuery({ path: sessionPath.length > 0 ? sessionPath : undefined });
+        payload = await this.requestToolboxJson(sessionId, "GET", `/files${query}`);
+      }
+    );
+
     const rows = Array.isArray(payload) ? payload : [];
     return rows
       .map((entry) => this.parseFileEntry(entry))
@@ -144,12 +164,20 @@ export class DaytonaToolboxClient {
     sessionId: string,
     path: string
   ): Promise<{ isDirectory: boolean; size: number }> {
-    await this.ensureSessionRoot(sessionId);
     const sessionPath = this.resolveSessionPath(sessionId, path);
-    const query = this.buildQuery({ path: sessionPath });
-    const payload = await this.requestToolboxJson(sessionId, "GET", `/files/info${query}`);
-    const record = payload as Record<string, unknown>;
 
+    let payload: unknown;
+    await this.withToolboxRetry(
+      sessionId,
+      "get file info",
+      async () => {
+        await this.ensureSessionRoot(sessionId);
+        const query = this.buildQuery({ path: sessionPath });
+        payload = await this.requestToolboxJson(sessionId, "GET", `/files/info${query}`);
+      }
+    );
+
+    const record = (payload ?? {}) as Record<string, unknown>;
     const isDirectory =
       parseBooleanLike(record["isDir"]) ||
       parseBooleanLike(record["isDirectory"]) ||
@@ -160,26 +188,48 @@ export class DaytonaToolboxClient {
   }
 
   public async readFile(sessionId: string, path: string): Promise<string> {
-    await this.ensureSessionRoot(sessionId);
     const sessionPath = this.resolveSessionPath(sessionId, path);
-    const query = this.buildQuery({ path: sessionPath });
-    return this.requestToolboxText(sessionId, "GET", `/files/download${query}`);
+
+    let content = "";
+    await this.withToolboxRetry(
+      sessionId,
+      "read file",
+      async () => {
+        await this.ensureSessionRoot(sessionId);
+        const query = this.buildQuery({ path: sessionPath });
+        content = await this.requestToolboxText(sessionId, "GET", `/files/download${query}`);
+      }
+    );
+
+    return content;
   }
 
   public async writeFile(sessionId: string, path: string, data: string | Buffer): Promise<void> {
-    await this.ensureSessionRoot(sessionId);
     const sessionPath = this.resolveSessionPath(sessionId, path);
-    const query = this.buildQuery({ path: sessionPath });
-    const form = new FormData();
     const payload = typeof data === "string" ? data : new Uint8Array(data);
-    form.set("file", new Blob([payload]), "file");
-    const response = await this.requestToolbox(sessionId, "POST", `/files/upload${query}`, {
-      body: form,
-    });
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`[Daytona] write file failed (${response.status}): ${body.slice(0, 600)}`);
-    }
+
+    await this.withToolboxRetry(
+      sessionId,
+      "write file",
+      async () => {
+        await this.ensureSessionRoot(sessionId);
+        const query = this.buildQuery({ path: sessionPath });
+        const form = new FormData();
+        form.set("file", new Blob([payload]), "file");
+        const { response, sandboxId } = await this.requestToolbox(
+          sessionId,
+          "POST",
+          `/files/upload${query}`,
+          {
+            body: form,
+          }
+        );
+        if (!response.ok) {
+          const body = await response.text();
+          throw this.createToolboxError("POST", `/files/upload${query}`, response.status, body, sandboxId);
+        }
+      }
+    );
   }
 
   public async deletePath(
@@ -187,35 +237,53 @@ export class DaytonaToolboxClient {
     path: string,
     options: { recursive: boolean; force: boolean }
   ): Promise<void> {
-    await this.ensureSessionRoot(sessionId);
     const sessionPath = this.resolveSessionPath(sessionId, path);
-    const query = this.buildQuery({
-      path: sessionPath,
-      recursive: options.recursive ? "true" : undefined,
-      force: options.force ? "true" : undefined,
-    });
-    const response = await this.requestToolbox(sessionId, "DELETE", `/files${query}`);
-    if (!response.ok) {
-      const body = await response.text();
-      if (options.force && response.status === 404) {
-        return;
+
+    await this.withToolboxRetry(
+      sessionId,
+      "delete path",
+      async () => {
+        await this.ensureSessionRoot(sessionId);
+        const query = this.buildQuery({
+          path: sessionPath,
+          recursive: options.recursive ? "true" : undefined,
+          force: options.force ? "true" : undefined,
+        });
+        const { response, sandboxId } = await this.requestToolbox(sessionId, "DELETE", `/files${query}`);
+        if (!response.ok) {
+          const body = await response.text();
+          if (options.force && response.status === 404) {
+            return;
+          }
+          throw this.createToolboxError("DELETE", `/files${query}`, response.status, body, sandboxId);
+        }
       }
-      throw new Error(`[Daytona] delete path failed (${response.status}): ${body.slice(0, 600)}`);
-    }
+    );
   }
 
   public async createFolder(sessionId: string, path: string, mode = "755"): Promise<void> {
     const cleaned = path.replace(/^\/+/, "").trim();
-    if (cleaned.length > 0) {
-      await this.ensureSessionRoot(sessionId);
-    }
     const sessionPath = this.resolveSessionPath(sessionId, path);
-    const query = this.buildQuery({ path: sessionPath, mode });
-    const response = await this.requestToolbox(sessionId, "POST", `/files/folder${query}`);
-    if (!response.ok && response.status !== 409) {
-      const body = await response.text();
-      throw new Error(`[Daytona] create folder failed (${response.status}): ${body.slice(0, 600)}`);
-    }
+
+    await this.withToolboxRetry(
+      sessionId,
+      "create folder",
+      async () => {
+        if (cleaned.length > 0) {
+          await this.ensureSessionRoot(sessionId);
+        }
+        const query = this.buildQuery({ path: sessionPath, mode });
+        const { response, sandboxId } = await this.requestToolbox(
+          sessionId,
+          "POST",
+          `/files/folder${query}`
+        );
+        if (!response.ok && response.status !== 409) {
+          const body = await response.text();
+          throw this.createToolboxError("POST", `/files/folder${query}`, response.status, body, sandboxId);
+        }
+      }
+    );
   }
 
   public async movePath(
@@ -223,11 +291,18 @@ export class DaytonaToolboxClient {
     sourcePath: string,
     destinationPath: string
   ): Promise<void> {
-    await this.ensureSessionRoot(sessionId);
     const source = this.resolveSessionPath(sessionId, sourcePath);
     const destination = this.resolveSessionPath(sessionId, destinationPath);
-    const query = this.buildQuery({ source, destination });
-    await this.requestToolboxJson(sessionId, "POST", `/files/move${query}`);
+
+    await this.withToolboxRetry(
+      sessionId,
+      "move path",
+      async () => {
+        await this.ensureSessionRoot(sessionId);
+        const query = this.buildQuery({ source, destination });
+        await this.requestToolboxJson(sessionId, "POST", `/files/move${query}`);
+      }
+    );
   }
 
   public async executeCommand(
@@ -239,7 +314,6 @@ export class DaytonaToolboxClient {
       env?: Record<string, string>;
     } = {}
   ): Promise<DaytonaCommandResult> {
-    await this.ensureSessionRoot(sessionId);
     const cwd = this.resolveCommandCwd(sessionId, options.cwd);
     const payload: Record<string, unknown> = {
       command,
@@ -250,12 +324,20 @@ export class DaytonaToolboxClient {
       ...(options.env ? { env: options.env } : {}),
     };
 
-    const result = (await this.requestToolboxJson(
+    let result: Record<string, unknown> = {};
+    await this.withToolboxRetry(
       sessionId,
-      "POST",
-      "/process/execute",
-      payload
-    )) as Record<string, unknown>;
+      "execute command",
+      async () => {
+        await this.ensureSessionRoot(sessionId);
+        result = (await this.requestToolboxJson(
+          sessionId,
+          "POST",
+          "/process/execute",
+          payload
+        )) as Record<string, unknown>;
+      }
+    );
 
     const output = parseStringLike(result["result"]) || parseStringLike(result["output"]);
     const exitCode = parseNumberLike(result["exitCode"]) ?? parseNumberLike(result["exit_code"]);
@@ -265,6 +347,60 @@ export class DaytonaToolboxClient {
       exitCode,
       raw: result,
     };
+  }
+
+  public async listSandboxes(): Promise<Array<{ id: string; name: string; state: string }>> {
+    const payload = await this.requestApiJson("GET", "/sandbox");
+    const items = Array.isArray(payload) ? payload : [];
+    return items.map((entry) => {
+      const record = entry as Record<string, unknown>;
+      return {
+        id: parseStringLike(record["id"]),
+        name: parseStringLike(record["name"]),
+        state: parseStringLike(record["state"] ?? record["status"]),
+      };
+    }).filter((s) => s.id.length > 0);
+  }
+
+  public async deleteSandbox(sandboxId: string): Promise<void> {
+    const response = await fetch(`${this.apiBaseUrl}/sandbox/${sandboxId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${this.apiKey}` },
+    });
+    if (!response.ok && response.status !== 404) {
+      const body = await response.text();
+      throw new Error(`[Daytona] delete sandbox failed (${response.status}): ${body.slice(0, 300)}`);
+    }
+    for (const [sessionId, cached] of this.sandboxBySession) {
+      if (cached === sandboxId) {
+        this.sandboxBySession.delete(sessionId);
+      }
+      const existing = this.sandboxOrderBySession.get(sessionId);
+      if (existing && existing.includes(sandboxId)) {
+        const next = existing.filter((id) => id !== sandboxId);
+        if (next.length > 0) {
+          this.sandboxOrderBySession.set(sessionId, next);
+        } else {
+          this.sandboxOrderBySession.delete(sessionId);
+        }
+      }
+    }
+  }
+
+  public async cleanupStoppedSandboxes(): Promise<{ deleted: number; errors: string[] }> {
+    const sandboxes = await this.listSandboxes();
+    const stopped = sandboxes.filter((s) => s.state === "stopped");
+    let deleted = 0;
+    const errors: string[] = [];
+    for (const sandbox of stopped) {
+      try {
+        await this.deleteSandbox(sandbox.id);
+        deleted++;
+      } catch (e) {
+        errors.push(e instanceof Error ? e.message : String(e));
+      }
+    }
+    return { deleted, errors };
   }
 
   private getSessionRoot(sessionId: string): string {
@@ -332,17 +468,13 @@ export class DaytonaToolboxClient {
       return cached;
     }
 
-    const payload = (await this.requestApiJson("POST", "/sandbox", {
-      name: `vllm-studio-${sanitizeSessionId(sessionId)}`,
-      labels: {
-        source: "vllm-studio",
-        session_id: sanitizeSessionId(sessionId),
-      },
-    })) as Record<string, unknown>;
+    const preferred = await this.findSessionSandbox(sessionId);
+    if (preferred) {
+      this.sandboxBySession.set(sessionId, preferred);
+      return preferred;
+    }
 
-    const sandboxId = this.extractSandboxId(payload);
-    this.sandboxBySession.set(sessionId, sandboxId);
-    return sandboxId;
+    return this.createAndCacheSessionSandbox(sessionId);
   }
 
   private extractSandboxId(payload: Record<string, unknown>): string {
@@ -376,8 +508,18 @@ export class DaytonaToolboxClient {
     if (this.ensuredRoots.has(key)) {
       return;
     }
-    await this.createFolder(sessionId, "", "755");
+    await this.createFolderInternal(sessionId, "", "755");
     this.ensuredRoots.add(key);
+  }
+
+  private async createFolderInternal(sessionId: string, path: string, mode = "755"): Promise<void> {
+    const sessionPath = this.resolveSessionPath(sessionId, path);
+    const query = this.buildQuery({ path: sessionPath, mode });
+    const { response, sandboxId } = await this.requestToolbox(sessionId, "POST", `/files/folder${query}`);
+    if (!response.ok && response.status !== 409) {
+      const body = await response.text();
+      throw this.createToolboxError("POST", `/files/folder${query}`, response.status, body, sandboxId);
+    }
   }
 
   private async requestApiJson(
@@ -403,6 +545,172 @@ export class DaytonaToolboxClient {
     return response.json();
   }
 
+  private createToolboxError(
+    method: HttpMethod,
+    path: string,
+    status: number,
+    body: string,
+    sandboxId?: string
+  ): ToolboxError {
+    return {
+      status,
+      method,
+      path,
+      ...(sandboxId ? { sandboxId } : {}),
+      bodySnippet: body.slice(0, 600),
+    };
+  }
+
+  private isToolboxError(value: unknown): value is ToolboxError {
+    if (!value || typeof value !== "object") return false;
+    const record = value as Record<string, unknown>;
+    return (
+      typeof record["status"] === "number" &&
+      typeof record["method"] === "string" &&
+      typeof record["path"] === "string" &&
+      typeof record["bodySnippet"] === "string"
+    );
+  }
+
+  private formatToolboxError(operation: string, error: ToolboxError): Error {
+    const sandbox = error.sandboxId ? ` sandbox=${error.sandboxId}` : "";
+    return new Error(
+      `[Daytona] ${operation} failed (${error.status})${sandbox}: ${error.method} ${error.path} - ${error.bodySnippet}`
+    );
+  }
+
+  private isRetryableToolboxStatus(status: number): boolean {
+    return RETRYABLE_STATUS_CODES.has(status);
+  }
+
+  private invalidateSessionState(sessionId: string): void {
+    this.ensuredRoots.delete(sessionId);
+    this.sandboxBySession.delete(sessionId);
+  }
+
+  private async withToolboxRetry(
+    sessionId: string,
+    operation: string,
+    action: () => Promise<void>
+  ): Promise<void> {
+    const maxAttempts = 2;
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        await action();
+        return;
+      } catch (error) {
+        lastError = error;
+        if (!this.isToolboxError(error)) {
+          throw error;
+        }
+
+        const shouldRetry = attempt < maxAttempts - 1 && this.isRetryableToolboxStatus(error.status);
+        if (!shouldRetry) {
+          throw this.formatToolboxError(operation, error);
+        }
+
+        const failedSandbox = error.sandboxId;
+        this.invalidateSessionState(sessionId);
+
+        let nextSandboxId: string | null = null;
+        if (failedSandbox) {
+          this.removeSessionSandboxId(sessionId, failedSandbox);
+          nextSandboxId = this.sandboxOrderBySession.get(sessionId)?.[0] ?? null;
+        }
+
+        if (!nextSandboxId) {
+          nextSandboxId = await this.findSessionSandbox(sessionId, failedSandbox);
+        }
+
+        if (!nextSandboxId) {
+          nextSandboxId = await this.createAndCacheSessionSandbox(sessionId);
+        }
+
+        this.sandboxBySession.set(sessionId, nextSandboxId);
+      }
+    }
+
+    if (this.isToolboxError(lastError)) {
+      throw this.formatToolboxError(operation, lastError);
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  }
+
+  private async createSessionSandbox(sessionId: string): Promise<string> {
+    const payload = (await this.requestApiJson("POST", "/sandbox", {
+      name: `vllm-studio-${sanitizeSessionId(sessionId)}`,
+      labels: {
+        source: "vllm-studio",
+        session_id: sanitizeSessionId(sessionId),
+      },
+    })) as Record<string, unknown>;
+
+    return this.extractSandboxId(payload);
+  }
+
+  private async createAndCacheSessionSandbox(sessionId: string): Promise<string> {
+    const sandboxId = await this.createSessionSandbox(sessionId);
+    this.sandboxBySession.set(sessionId, sandboxId);
+    this.pushSessionSandboxId(sessionId, sandboxId);
+    return sandboxId;
+  }
+
+  private async findSessionSandbox(
+    sessionId: string,
+    excludedSandboxId?: string
+  ): Promise<string | null> {
+    const existingOrder = this.sandboxOrderBySession.get(sessionId);
+    if (existingOrder && existingOrder.length > 0) {
+      const first = existingOrder.find((id) => id !== excludedSandboxId);
+      if (first) return first;
+    }
+
+    const sessionKey = sanitizeSessionId(sessionId);
+    const all = await this.listSandboxes();
+    const preferred = all.find(
+      (sandbox) =>
+        sandbox.id !== excludedSandboxId &&
+        sandbox.name === `vllm-studio-${sessionKey}` &&
+        sandbox.state !== "stopped"
+    );
+    if (preferred) {
+      this.pushSessionSandboxId(sessionId, preferred.id);
+      return preferred.id;
+    }
+
+    const fallback = all.find(
+      (sandbox) => sandbox.id !== excludedSandboxId && sandbox.state !== "stopped"
+    );
+    if (!fallback) return null;
+    this.pushSessionSandboxId(sessionId, fallback.id);
+    return fallback.id;
+  }
+
+  private pushSessionSandboxId(sessionId: string, sandboxId: string): void {
+    const existing = this.sandboxOrderBySession.get(sessionId) ?? [];
+    if (existing.includes(sandboxId)) {
+      this.sandboxOrderBySession.set(
+        sessionId,
+        [sandboxId, ...existing.filter((id) => id !== sandboxId)]
+      );
+      return;
+    }
+    this.sandboxOrderBySession.set(sessionId, [sandboxId, ...existing]);
+  }
+
+  private removeSessionSandboxId(sessionId: string, sandboxId: string): void {
+    const existing = this.sandboxOrderBySession.get(sessionId);
+    if (!existing) return;
+    const next = existing.filter((id) => id !== sandboxId);
+    if (next.length > 0) {
+      this.sandboxOrderBySession.set(sessionId, next);
+    } else {
+      this.sandboxOrderBySession.delete(sessionId);
+    }
+  }
+
   private async requestToolbox(
     sessionId: string,
     method: HttpMethod,
@@ -411,10 +719,10 @@ export class DaytonaToolboxClient {
       body?: BodyInit;
       headers?: Record<string, string>;
     } = {}
-  ): Promise<Response> {
+  ): Promise<{ response: Response; sandboxId: string }> {
     const sandboxId = await this.resolveSandboxId(sessionId);
     const url = `${this.proxyBaseUrl}/toolbox/${sandboxId}${path}`;
-    return fetch(url, {
+    const response = await fetch(url, {
       method,
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
@@ -422,6 +730,7 @@ export class DaytonaToolboxClient {
       },
       ...(init.body ? { body: init.body } : {}),
     });
+    return { response, sandboxId };
   }
 
   private async requestToolboxJson(
@@ -430,7 +739,7 @@ export class DaytonaToolboxClient {
     path: string,
     body?: Record<string, unknown>
   ): Promise<unknown> {
-    const response = await this.requestToolbox(sessionId, method, path, {
+    const { response, sandboxId } = await this.requestToolbox(sessionId, method, path, {
       ...(body
         ? {
             body: JSON.stringify(body),
@@ -441,9 +750,7 @@ export class DaytonaToolboxClient {
 
     if (!response.ok) {
       const payload = await response.text();
-      throw new Error(
-        `[Daytona] toolbox request failed (${response.status}) ${method} ${path}: ${payload.slice(0, 600)}`
-      );
+      throw this.createToolboxError(method, path, response.status, payload, sandboxId);
     }
 
     const contentType = response.headers.get("content-type") ?? "";
@@ -466,12 +773,10 @@ export class DaytonaToolboxClient {
     method: HttpMethod,
     path: string
   ): Promise<string> {
-    const response = await this.requestToolbox(sessionId, method, path);
+    const { response, sandboxId } = await this.requestToolbox(sessionId, method, path);
     if (!response.ok) {
       const payload = await response.text();
-      throw new Error(
-        `[Daytona] toolbox text request failed (${response.status}) ${method} ${path}: ${payload.slice(0, 600)}`
-      );
+      throw this.createToolboxError(method, path, response.status, payload, sandboxId);
     }
     return response.text();
   }

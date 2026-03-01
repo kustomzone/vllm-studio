@@ -176,22 +176,33 @@ REMOTE
 }
 
 restart_frontend() {
+  step "Building frontend"
+  remote bash <<'REMOTE'
+set -e
+cd /home/ser/workspace/projects/lmvllm/frontend
+export BACKEND_URL=http://localhost:8080
+export LITELLM_URL=http://localhost:4100
+export LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-sk-master}
+npx next build 2>&1 | tail -5
+REMOTE
+  ok "next build"
+
   step "Restarting frontend on :3000"
   remote bash <<'REMOTE'
 set -e
 cd /home/ser/workspace/projects/lmvllm/frontend
 docker compose -f ../docker-compose.yml stop frontend 2>/dev/null || true
+pkill -f "next start" 2>/dev/null || true
 pkill -f "next dev" 2>/dev/null || true
 fuser -k 3000/tcp >/dev/null 2>&1 || true
-rm -f .next/dev/lock
 sleep 1
 export BACKEND_URL=http://localhost:8080
 export LITELLM_URL=http://localhost:4100
-export LITELLM_MASTER_KEY=sk-master
-nohup npm run dev > /tmp/frontend-stdout.log 2>&1 &
+export LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-sk-master}
+nohup npx next start > /tmp/frontend-stdout.log 2>&1 &
 REMOTE
   wait_port 3000 frontend 15 || return 1
-  ok "frontend :3000"
+  ok "frontend :3000 (production)"
 }
 
 # ─── Infra ────────────────────────────────────────────────────────────────

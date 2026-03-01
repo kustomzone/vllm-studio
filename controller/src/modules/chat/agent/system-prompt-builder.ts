@@ -40,7 +40,7 @@ export function buildAgentModePrompt(session: Record<string, unknown>): string |
   lines.push("## Workflow");
   lines.push("1. If NO <current_plan> exists: call create_plan ONCE with 3-8 steps.");
   lines.push(
-    "2. Execute each step using tools. Mark steps done with update_plan({ action: 'complete', step_index: N })."
+    "2. Execute each step using tools. Mark steps done with update_plan({ action: 'complete', step_index: N }) and set active work with update_plan({ action: 'status', step_index: N, status: 'running' })."
   );
   lines.push(
     "3. For files: write_file creates parent directories automatically - no need for make_directory."
@@ -52,6 +52,7 @@ export function buildAgentModePrompt(session: Record<string, unknown>): string |
   lines.push("");
   lines.push("## Tool Examples");
   lines.push("- create_plan({ tasks: [{ title: 'Research X' }, { title: 'Write report' }] })");
+  lines.push("- update_plan({ action: 'status', step_index: 0, status: 'running' })");
   lines.push("- update_plan({ action: 'complete', step_index: 0 })");
   lines.push("- execute_command({ command: 'ls -la' })");
   lines.push("- write_file({ path: 'research/notes.md', content: '# Notes\\n...' })");
@@ -60,6 +61,7 @@ export function buildAgentModePrompt(session: Record<string, unknown>): string |
   lines.push("## Rules");
   lines.push("- Do NOT loop on plan creation. Create plan ONCE.");
   lines.push("- Do NOT describe what you could do — just DO IT with tools.");
+  lines.push("- Always keep exactly one active step marked as status='running' until it is complete.");
   lines.push("- Mark each step complete IMMEDIATELY after finishing it.");
   lines.push(
     "- Prefer editing existing files over creating new ones. If you need to revise, read_file then write_file to the same path."
