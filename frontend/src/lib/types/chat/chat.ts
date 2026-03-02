@@ -28,6 +28,7 @@ export interface ToolResult {
   tool_call_id: string;
   content: string;
   name?: string;
+  input?: unknown;
   isError?: boolean;
 }
 
@@ -124,4 +125,3 @@ export interface SessionUsage {
   total_tokens: number;
   estimated_cost?: number | null;
 }
-

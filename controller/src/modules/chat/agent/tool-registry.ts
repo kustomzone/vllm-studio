@@ -4,13 +4,13 @@ import type { TSchema } from "@sinclair/typebox";
 import type { AppContext } from "../../../types/context";
 import { buildAgentFsTools } from "./tool-registry-agentfs";
 import { createTextResult } from "./tool-registry-common";
-import { buildMcpTools } from "./tool-registry-mcp";
+import { buildDaytonaTools } from "./tool-registry-daytona";
 import { buildPlanTools } from "./tool-registry-plan";
 import type { AgentEventType } from "./contracts";
+import { isDaytonaAgentModeEnabled } from "../../../services/daytona/toolbox-client";
 
 export interface AgentToolRegistryOptions {
   sessionId: string;
-  mcpEnabled: boolean;
   agentMode: boolean;
   agentFiles?: boolean;
   emitEvent?: (type: AgentEventType, data: Record<string, unknown>) => void;
@@ -24,19 +24,20 @@ export interface AgentToolRegistryOptions {
  */
 export const buildAgentTools = async (
   context: AppContext,
-  options: AgentToolRegistryOptions,
+  options: AgentToolRegistryOptions
 ): Promise<AgentTool[]> => {
   const tools: AgentTool[] = [];
-
-  if (options.mcpEnabled) {
-    tools.push(...(await buildMcpTools(context)));
-  }
+  const daytonaAgentMode = isDaytonaAgentModeEnabled(context.config);
 
   if (options.agentMode) {
     tools.push(...buildPlanTools(context, options));
   }
 
-  if (options.agentMode || options.agentFiles) {
+  if (options.agentMode && daytonaAgentMode) {
+    tools.push(...buildDaytonaTools(context, options));
+  }
+
+  if ((options.agentMode || options.agentFiles) && daytonaAgentMode) {
     tools.push(...buildAgentFsTools(context, options));
   }
 

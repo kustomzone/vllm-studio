@@ -60,6 +60,8 @@ const eslintConfig = defineConfig([
     // Test artifacts:
     "playwright-report/**",
     "test-results/**",
+    "desktop/dist/**",
+    "dist-desktop/**",
   ]),
 ]);
 

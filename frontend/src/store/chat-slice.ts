@@ -88,13 +88,30 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set)
   setIsMobile: (isMobile) => set({ isMobile }),
   setUserScrolledUp: (userScrolledUp) => set({ userScrolledUp }),
 
-  // MCP & tools
-  setMcpEnabled: (mcpEnabled) => set({ mcpEnabled }),
+  // Sidebar
+  setSidebarCollapsed: (collapsed) =>
+    set((state) => {
+      if (state.sidebar.collapsed === collapsed) return state;
+      return { sidebar: { ...state.sidebar, collapsed } };
+    }),
+  toggleSidebarCollapsed: () =>
+    set((state) => ({
+      sidebar: { ...state.sidebar, collapsed: !state.sidebar.collapsed },
+    })),
+  setSidebarMobileOpen: (mobileOpen) =>
+    set((state) => {
+      if (state.sidebar.mobileOpen === mobileOpen) return state;
+      return { sidebar: { ...state.sidebar, mobileOpen } };
+    }),
+  toggleSidebarMobileOpen: () =>
+    set((state) => ({
+      sidebar: { ...state.sidebar, mobileOpen: !state.sidebar.mobileOpen },
+    })),
+
+  // Tooling
+  setToolsEnabled: (toolsEnabled) => set({ toolsEnabled }),
   setArtifactsEnabled: (artifactsEnabled) => set({ artifactsEnabled }),
   setActiveArtifactId: (activeArtifactId) => set({ activeArtifactId }),
-  setMcpServers: (mcpServers) => set({ mcpServers }),
-  setMcpSettingsOpen: (mcpSettingsOpen) => set({ mcpSettingsOpen }),
-  setMcpTools: (mcpTools) => set({ mcpTools }),
   setExecutingTools: (executingTools) =>
     set((state) => {
       if (state.executingTools === executingTools) return state;
@@ -144,10 +161,6 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set)
 
   setCallModeEnabled: (callModeEnabled) => set({ callModeEnabled }),
   setCallModeSpeakingMessageId: (callModeSpeakingMessageId) => set({ callModeSpeakingMessageId }),
-
-  // MCP action state
-  setMcpPendingServer: (mcpPendingServer) => set({ mcpPendingServer }),
-  setMcpActionError: (mcpActionError) => set({ mcpActionError }),
 
   // Message UI state
   setCopiedMessageId: (copiedMessageId) =>

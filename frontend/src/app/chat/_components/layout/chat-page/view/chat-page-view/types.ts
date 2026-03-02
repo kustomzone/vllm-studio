@@ -8,7 +8,6 @@ import type {
   AgentFileVersion,
   Artifact,
   ChatMessage,
-  MCPServer,
   SessionUsage,
 } from "@/lib/types";
 import type { AgentPlan } from "../../../../agent/agent-types";
@@ -32,6 +31,7 @@ export interface ChatPageViewProps {
   isLoading: boolean;
   streamError: string | null;
   streamStalled: boolean;
+  runStatusLine: string;
   contextStats?: Omit<
     ContextStats,
     "compactionHistory" | "lastCompaction" | "totalCompactions" | "totalTokensCompacted"
@@ -90,8 +90,6 @@ export interface ChatPageViewProps {
   // Modals
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
-  mcpSettingsOpen: boolean;
-  setMcpSettingsOpen: (open: boolean) => void;
   usageOpen: boolean;
   setUsageOpen: (open: boolean) => void;
   exportOpen: boolean;
@@ -105,11 +103,6 @@ export interface ChatPageViewProps {
   onRemoveCustomChatModel: (modelId: string) => void;
   deepResearch: DeepResearchConfig;
   setDeepResearch: (next: DeepResearchConfig) => void;
-  mcpServers: MCPServer[];
-  addMcpServer: (server: MCPServer) => Promise<void>;
-  updateMcpServer: (server: MCPServer) => Promise<void>;
-  removeMcpServer: (name: string) => Promise<void>;
-  loadMCPServers: () => void | Promise<void>;
   sessionUsage: SessionUsage | null;
   onExportJson: () => void;
   onExportMarkdown: () => void;

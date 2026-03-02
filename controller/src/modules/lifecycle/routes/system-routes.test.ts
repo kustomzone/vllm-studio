@@ -27,6 +27,7 @@ describe("System Routes", () => {
       db_path: ":memory:",
       models_dir: "/models",
       strict_openai_models: false,
+      daytona_agent_mode: false,
     };
 
     const mockContext = {
@@ -81,12 +82,6 @@ describe("System Routes", () => {
           addPromptTokens: mock(() => undefined),
           addCompletionTokens: mock(() => undefined),
           addRequests: mock(() => undefined),
-        },
-        mcpStore: {
-          list: mock(() => []),
-          get: mock(() => undefined),
-          save: mock(() => undefined),
-          delete: mock(() => undefined),
         },
       },
     } as unknown as AppContext;

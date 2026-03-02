@@ -8,7 +8,6 @@ import { LRUCache, hashString } from "../types";
 import {
   boxTagsParser,
   thinkingParser,
-  mcpXmlParser,
   artifactsParser,
   markdownParser,
 } from "./parsers";
@@ -54,18 +53,13 @@ export class MessageParsingService implements IMessageParsingService {
       }
     }
 
-    // Step 1: Strip MCP XML if enabled
+    // Step 1: Strip box tags if enabled
     let processedContent = content;
-    if (this.config.enableMcpXmlStripping) {
-      processedContent = mcpXmlParser.parse(processedContent);
-    }
-
-    // Step 2: Strip box tags if enabled
     if (this.config.enableBoxTagStripping) {
       processedContent = boxTagsParser.parse(processedContent);
     }
 
-    // Step 3: Extract artifacts if enabled
+    // Step 2: Extract artifacts if enabled
     let artifacts: Artifact[] = [];
     let contentWithoutArtifacts = processedContent;
     const shouldExtractArtifacts = options.extractArtifacts ?? this.config.enableArtifacts;
@@ -76,7 +70,7 @@ export class MessageParsingService implements IMessageParsingService {
       contentWithoutArtifacts = artifactResult.text;
     }
 
-    // Step 4: Extract thinking if enabled
+    // Step 3: Extract thinking if enabled
     let thinking: ThinkingResult = {
       thinkingContent: null,
       mainContent: contentWithoutArtifacts,
@@ -100,16 +94,20 @@ export class MessageParsingService implements IMessageParsingService {
       }
     }
 
-    // Step 5: Parse markdown segments
-    const segments = markdownParser.parse(thinking.mainContent);
+    // Step 4: Normalize + parse markdown segments
+    const normalizedMainContent = markdownParser.normalizeForRender(thinking.mainContent);
+    const segments = markdownParser.parse(normalizedMainContent);
 
     // Build result
     const result: ParsedMessage = {
       raw: content,
       hash,
-      thinking,
+      thinking: {
+        ...thinking,
+        mainContent: normalizedMainContent,
+      },
       artifacts,
-      contentWithoutArtifacts,
+      contentWithoutArtifacts: normalizedMainContent,
       segments,
       isStreaming: options.isStreaming ?? false,
       parsedAt: Date.now(),
@@ -167,10 +165,6 @@ export class MessageParsingService implements IMessageParsingService {
 
     let result = content;
 
-    if (this.config.enableMcpXmlStripping) {
-      result = mcpXmlParser.parse(result);
-    }
-
     if (this.config.enableBoxTagStripping) {
       result = boxTagsParser.parse(result);
     }
@@ -183,7 +177,8 @@ export class MessageParsingService implements IMessageParsingService {
    */
   getSegments(content: string): MarkdownSegment[] {
     if (!content) return [];
-    return markdownParser.parse(content);
+    const normalized = markdownParser.normalizeForRender(content);
+    return markdownParser.parse(normalized);
   }
 
   /**
@@ -191,7 +186,8 @@ export class MessageParsingService implements IMessageParsingService {
    */
   renderMarkdown(content: string): string {
     if (!content) return "";
-    return markdownParser.renderToHtml(content);
+    const normalized = markdownParser.normalizeForRender(content);
+    return markdownParser.renderToHtml(normalized);
   }
 
   /**

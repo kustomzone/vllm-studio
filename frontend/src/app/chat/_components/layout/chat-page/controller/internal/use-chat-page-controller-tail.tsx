@@ -193,7 +193,9 @@ export function useChatPageControllerTail({
         return;
       }
 
-      const message = messages.find((entry) => entry.id === messageId && entry.role === "assistant");
+      const message = messages.find(
+        (entry) => entry.id === messageId && entry.role === "assistant",
+      );
       if (!message) {
         return;
       }
@@ -417,6 +419,7 @@ export function useChatPageControllerTail({
       isLoading,
       streamError,
       streamStalled,
+      runStatusLine: thinkingSnippet,
       showEmptyState,
     },
     context: {
@@ -455,13 +458,6 @@ export function useChatPageControllerTail({
       listeningPending,
       openActivityPanel,
       openContextPanel,
-    },
-    mcp: {
-      mcpServers: tools.mcpServers,
-      addMcpServer: tools.addMcpServer,
-      updateMcpServer: tools.updateMcpServer,
-      removeMcpServer: tools.removeMcpServer,
-      loadMCPServers: tools.loadMCPServers,
     },
     exportActions: { onExportJson, onExportMarkdown },
   });

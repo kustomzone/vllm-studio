@@ -8,10 +8,17 @@ import { loadPersistedConfig } from "./persisted-config";
 /**
  * Runtime configuration for the controller.
  */
+export type OpenAIModelActivationPolicy = "load_if_idle" | "switch_on_request";
+
 export interface Config {
   host: string;
   port: number;
   api_key?: string;
+  daytona_api_url?: string;
+  daytona_api_key?: string;
+  daytona_proxy_url?: string;
+  daytona_sandbox_id?: string;
+  daytona_agent_mode: boolean;
   inference_port: number;
 
   data_dir: string;
@@ -23,6 +30,7 @@ export interface Config {
   llama_bin?: string;
   exllamav3_command?: string;
   strict_openai_models: boolean;
+  openai_model_activation_policy?: OpenAIModelActivationPolicy;
 }
 
 /**
@@ -63,6 +71,11 @@ export const createConfig = (): Config => {
     VLLM_STUDIO_HOST: z.string().default("0.0.0.0"),
     VLLM_STUDIO_PORT: z.coerce.number().int().positive().default(8080),
     VLLM_STUDIO_API_KEY: z.string().optional(),
+    VLLM_STUDIO_DAYTONA_API_KEY: z.string().optional(),
+    VLLM_STUDIO_DAYTONA_API_URL: z.string().optional(),
+    VLLM_STUDIO_DAYTONA_PROXY_URL: z.string().optional(),
+    VLLM_STUDIO_DAYTONA_SANDBOX_ID: z.string().optional(),
+    VLLM_STUDIO_DAYTONA_AGENT_MODE: z.string().optional(),
     VLLM_STUDIO_INFERENCE_PORT: z.coerce.number().int().positive().default(8000),
 
     VLLM_STUDIO_DATA_DIR: z.string().default(defaultDataDirectory),
@@ -76,6 +89,7 @@ export const createConfig = (): Config => {
     VLLM_STUDIO_LLAMA_BIN: z.string().optional(),
     VLLM_STUDIO_EXLLAMAV3_COMMAND: z.string().optional(),
     VLLM_STUDIO_STRICT_OPENAI_MODELS: z.string().optional(),
+    VLLM_STUDIO_OPENAI_MODEL_ACTIVATION_POLICY: z.string().optional(),
   });
 
   const parsed = schema.parse(process.env);
@@ -84,6 +98,15 @@ export const createConfig = (): Config => {
   const strictOpenAIModelsEnabled = strictOpenAIModels
     ? ["1", "true", "yes", "on"].includes(strictOpenAIModels.trim().toLowerCase())
     : false;
+  const daytonaAgentModeRaw = parsed.VLLM_STUDIO_DAYTONA_AGENT_MODE;
+  const daytonaAgentMode = daytonaAgentModeRaw
+    ? ["1", "true", "yes", "on"].includes(daytonaAgentModeRaw.trim().toLowerCase())
+    : true;
+  const activationPolicyRaw = parsed.VLLM_STUDIO_OPENAI_MODEL_ACTIVATION_POLICY
+    ?.trim()
+    .toLowerCase();
+  const openaiModelActivationPolicy: OpenAIModelActivationPolicy =
+    activationPolicyRaw === "switch_on_request" ? "switch_on_request" : "load_if_idle";
 
   const config: Config = {
     host: parsed.VLLM_STUDIO_HOST,
@@ -94,6 +117,8 @@ export const createConfig = (): Config => {
     db_path: resolve(parsed.VLLM_STUDIO_DB_PATH),
     models_dir: resolve(parsed.VLLM_STUDIO_MODELS_DIR),
     strict_openai_models: strictOpenAIModelsEnabled,
+    daytona_agent_mode: daytonaAgentMode,
+    openai_model_activation_policy: openaiModelActivationPolicy,
   };
 
   const litellmDatabaseUrl =
@@ -104,6 +129,27 @@ export const createConfig = (): Config => {
 
   if (parsed.VLLM_STUDIO_API_KEY) {
     config.api_key = parsed.VLLM_STUDIO_API_KEY;
+  }
+  if (parsed.VLLM_STUDIO_DAYTONA_API_KEY) {
+    config.daytona_api_key = parsed.VLLM_STUDIO_DAYTONA_API_KEY;
+  }
+  if (parsed.VLLM_STUDIO_DAYTONA_API_URL) {
+    const raw = parsed.VLLM_STUDIO_DAYTONA_API_URL.trim();
+    if (raw) {
+      config.daytona_api_url = raw;
+    }
+  }
+  if (parsed.VLLM_STUDIO_DAYTONA_PROXY_URL) {
+    const raw = parsed.VLLM_STUDIO_DAYTONA_PROXY_URL.trim();
+    if (raw) {
+      config.daytona_proxy_url = raw;
+    }
+  }
+  if (parsed.VLLM_STUDIO_DAYTONA_SANDBOX_ID) {
+    const raw = parsed.VLLM_STUDIO_DAYTONA_SANDBOX_ID.trim();
+    if (raw) {
+      config.daytona_sandbox_id = raw;
+    }
   }
   if (parsed.VLLM_STUDIO_SGLANG_PYTHON) {
     config.sglang_python = parsed.VLLM_STUDIO_SGLANG_PYTHON;

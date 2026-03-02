@@ -54,6 +54,7 @@ function generateTitleFromMessage(content: string): string {
  */
 export const registerChatsRoutes = (app: Hono, context: AppContext): void => {
   app.get("/chats", async (ctx) => {
+    ctx.header("Cache-Control", "private, max-age=5, stale-while-revalidate=10");
     return ctx.json(context.stores.chatStore.listSessions());
   });
 
@@ -256,7 +257,6 @@ export const registerChatsRoutes = (app: Hono, context: AppContext): void => {
     const model = typeof body["model"] === "string" ? body["model"] : undefined;
     const provider = typeof body["provider"] === "string" ? body["provider"] : undefined;
     const systemPrompt = typeof body["system"] === "string" ? body["system"] : undefined;
-    const mcpEnabled = body["mcp_enabled"] === true;
     const agentMode = body["agent_mode"] === true;
     const agentFiles = body["agent_files"] === true;
     const deepResearch = body["deep_research"] === true;
@@ -281,7 +281,6 @@ export const registerChatsRoutes = (app: Hono, context: AppContext): void => {
     const runOptions = {
       sessionId,
       content,
-      mcpEnabled,
       agentMode,
       agentFiles,
       deepResearch,

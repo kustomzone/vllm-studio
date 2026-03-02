@@ -7,7 +7,6 @@ import { isHttpStatus } from "../core/errors";
 import { registerAllChatRoutes } from "../modules/chat/routes";
 import { registerDownloadsRoutes } from "../modules/downloads/routes";
 import { registerAllLifecycleRoutes } from "../modules/lifecycle/routes";
-import { registerMcpRoutes } from "../modules/mcp/routes";
 import { registerModelsRoutes } from "../modules/models/routes";
 import { registerAllMonitoringRoutes } from "../modules/monitoring/routes";
 import { registerAllProxyRoutes } from "../modules/proxy/routes";
@@ -16,6 +15,7 @@ import { registerAudioRoutes } from "../modules/audio/routes";
 import { registerJobsRoutes } from "../modules/jobs/routes";
 import { registerDistributedRoutes } from "../modules/distributed/routes";
 import { createOpenApiSpec } from "./openapi-spec";
+import { createMutatingAuthMiddleware, createMutatingRateLimitMiddleware } from "./security-middleware";
 
 /**
  * Create the Hono application.
@@ -42,6 +42,9 @@ export const createApp = (context: AppContext): Hono => {
     await next();
   });
 
+  app.use("*", createMutatingRateLimitMiddleware(context));
+  app.use("*", createMutatingAuthMiddleware(context));
+
   // Register all routes
   registerAllLifecycleRoutes(app, context);
   registerModelsRoutes(app, context);
@@ -49,7 +52,6 @@ export const createApp = (context: AppContext): Hono => {
   registerDownloadsRoutes(app, context);
   registerAllChatRoutes(app, context);
   registerAllMonitoringRoutes(app, context);
-  registerMcpRoutes(app, context);
   registerAudioRoutes(app, context);
   registerJobsRoutes(app, context, context.jobManager);
   registerDistributedRoutes(app, context.distributedManager);

@@ -32,18 +32,18 @@ export function ControlPanel(props: DashboardLayoutProps) {
 
       {/* Metric Bar - Horizontal strip */}
       {currentProcess && (
-        <MetricBar metrics={metrics} gpus={gpus} />
+        <MetricBar metrics={metrics} gpus={gpus} currentProcess={currentProcess} logs={logs} />
       )}
 
       {/* Two Column Layout */}
-      <div className="grid lg:grid-cols-2 gap-8 min-w-0">
+      <div className="grid lg:grid-cols-2 gap-8 min-w-0 items-stretch">
         {/* Left - GPU List */}
-        <div className="min-w-0">
+        <div className="min-w-0 flex flex-col">
           <GpuList gpus={gpus} />
         </div>
 
         {/* Right - Recipes + Runtimes */}
-        <div className="min-w-0 space-y-8">
+        <div className="min-w-0 flex flex-col gap-8">
           <RecipeList
             recipes={recipes}
             launching={props.launching}

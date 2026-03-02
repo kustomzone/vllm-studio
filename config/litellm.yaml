@@ -123,9 +123,9 @@ model_list:
 # Router settings
 router_settings:
   routing_strategy: "simple-shuffle"
-  num_retries: 3
+  num_retries: 0
   timeout: 600
-  retry_after: 3
+  retry_after: 0
   enable_pre_call_checks: false
   cooldown_time: 0
   allowed_fails: 3
@@ -137,29 +137,21 @@ litellm_settings:
   request_timeout: 600
   telemetry: false
   stream_chunk_size: 1024
-  num_retries: 3
+  num_retries: 0
   max_budget: 0
   budget_duration: 0
   modify_params: false
   enable_message_redaction: false
   force_ipv4: true
-
-  # Redis caching for LLM responses (optional)
   cache: true
   cache_params:
-    type: "redis"
-    host: "vllm-studio-redis"
-    port: 6379
-    ttl: 3600
-    namespace: "litellm:cache"
-    supported_call_types: ["acompletion", "completion", "embedding"]
+    type: "local"
+    supported_call_types:
+      - "completion"
+      - "acompletion"
 
   # Custom callback: extract <think> blocks into reasoning_content
   callbacks: think_parser.think_parser
-
-  # Prometheus metrics collection
-  success_callback: ["prometheus"]
-  failure_callback: ["prometheus"]
 
 # General settings
 general_settings:

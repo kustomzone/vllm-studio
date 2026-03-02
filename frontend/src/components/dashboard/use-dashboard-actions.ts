@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import api from "@/lib/api";
 
 export function useDashboardActions(reload: () => Promise<void>) {
@@ -10,11 +10,12 @@ export function useDashboardActions(reload: () => Promise<void>) {
     try {
       await api.launch(recipeId, true);
     } catch (e) {
-      alert("Failed to launch: " + (e as Error).message);
-    } finally {
+      alert("Failed to start launch: " + (e as Error).message);
       setLaunching(false);
     }
   };
+
+  const clearLaunching = useCallback(() => setLaunching(false), []);
 
   const onStop = async () => {
     if (!confirm("Stop the current model?")) return;
@@ -39,5 +40,5 @@ export function useDashboardActions(reload: () => Promise<void>) {
     }
   };
 
-  return { launching, benchmarking, onLaunch, onStop, onBenchmark };
+  return { launching, benchmarking, onLaunch, onStop, onBenchmark, clearLaunching };
 }

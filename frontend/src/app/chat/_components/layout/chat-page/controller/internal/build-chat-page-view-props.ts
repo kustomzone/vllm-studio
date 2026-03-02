@@ -24,6 +24,7 @@ type DerivedSlice = Pick<
   | "isLoading"
   | "streamError"
   | "streamStalled"
+  | "runStatusLine"
   | "showEmptyState"
 >;
 
@@ -69,11 +70,6 @@ type ChatSlice = Pick<
   | "openContextPanel"
 >;
 
-type McpSlice = Pick<
-  ChatPageViewProps,
-  "mcpServers" | "addMcpServer" | "updateMcpServer" | "removeMcpServer" | "loadMCPServers"
->;
-
 type ExportSlice = Pick<ChatPageViewProps, "onExportJson" | "onExportMarkdown">;
 
 export function buildChatPageViewProps(args: {
@@ -84,10 +80,9 @@ export function buildChatPageViewProps(args: {
   artifacts: ArtifactSlice;
   agentFiles: AgentFilesSlice;
   chat: ChatSlice;
-  mcp: McpSlice;
   exportActions: ExportSlice;
 }): ChatPageViewProps {
-  const { store, ui, derived, context, artifacts, agentFiles, chat, mcp, exportActions } = args;
+  const { store, ui, derived, context, artifacts, agentFiles, chat, exportActions } = args;
 
   return {
     sidebarOpen: ui.sidebarOpen,
@@ -104,6 +99,7 @@ export function buildChatPageViewProps(args: {
     isLoading: derived.isLoading,
     streamError: derived.streamError,
     streamStalled: derived.streamStalled,
+    runStatusLine: derived.runStatusLine,
     contextStats: context.contextStats,
     contextBreakdown: context.contextBreakdown,
     contextUsageLabel: context.contextUsageLabel,
@@ -147,8 +143,6 @@ export function buildChatPageViewProps(args: {
 
     settingsOpen: store.settingsOpen,
     setSettingsOpen: store.setSettingsOpen,
-    mcpSettingsOpen: store.mcpSettingsOpen,
-    setMcpSettingsOpen: store.setMcpSettingsOpen,
     usageOpen: store.usageOpen,
     setUsageOpen: store.setUsageOpen,
     exportOpen: store.exportOpen,
@@ -163,12 +157,6 @@ export function buildChatPageViewProps(args: {
     onRemoveCustomChatModel: store.removeCustomChatModel,
     deepResearch: store.deepResearch,
     setDeepResearch: store.setDeepResearch,
-
-    mcpServers: mcp.mcpServers,
-    addMcpServer: mcp.addMcpServer,
-    updateMcpServer: mcp.updateMcpServer,
-    removeMcpServer: mcp.removeMcpServer,
-    loadMCPServers: mcp.loadMCPServers,
 
     sessionUsage: store.sessionUsage,
 

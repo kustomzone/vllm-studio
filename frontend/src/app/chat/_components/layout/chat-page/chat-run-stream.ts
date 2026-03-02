@@ -5,6 +5,7 @@ import { useCallback, useEffect } from "react";
 import type { MutableRefObject } from "react";
 import api, { type ChatRunStreamEvent } from "@/lib/api";
 import type { ToolResult } from "@/lib/types";
+import { pushStreamErrorToast } from "./controller/internal/use-stream-error-toast";
 
 export interface ChatRunStreamPayload {
   content: string;
@@ -12,7 +13,6 @@ export interface ChatRunStreamPayload {
   model?: string;
   provider?: string;
   system?: string;
-  mcp_enabled?: boolean;
   agent_mode?: boolean;
   agent_files?: boolean;
   deep_research?: boolean;
@@ -87,7 +87,12 @@ export function useChatRunStream({
           if (!abortController.signal.aborted && !runCompletedRef.current) {
             console.warn("[stream] Idle timeout reached — aborting hung stream");
             abortController.abort();
-            setStreamError("Stream timed out (no events for 2 minutes)");
+            const timeoutMsg = "Stream timed out (no events for 2 minutes)";
+            setStreamError(timeoutMsg);
+            pushStreamErrorToast(timeoutMsg, {
+              activeRunId: activeRunIdRef.current,
+              lastEventTime: lastEventTimeRef.current,
+            });
           }
         }, STREAM_IDLE_TIMEOUT_MS);
       };
@@ -105,12 +110,23 @@ export function useChatRunStream({
         for await (const event of stream) {
           lastEventTimeRef.current = Date.now();
           resetIdleTimer();
+          if (event.event === "keepalive") continue;
           handleRunEvent(event);
+
+          if (event.event === "run_end") {
+            runCompletedRef.current = true;
+            abortController.abort();
+            break;
+          }
         }
       } catch (err) {
         if (!abortController.signal.aborted && !runCompletedRef.current) {
           const message = err instanceof Error ? err.message : String(err);
           setStreamError(message);
+          pushStreamErrorToast(message, {
+            activeRunId: activeRunIdRef.current,
+            lastEventTime: lastEventTimeRef.current,
+          });
           const streamError = err instanceof Error ? err : new Error(message);
           if (!runIdForLifecycle) {
             (

@@ -189,4 +189,41 @@ export const registerAgentFilesRoutes = (app: Hono, context: AppContext): void =
     );
     return ctx.json({ success: true });
   });
+
+  app.get("/agent/sandboxes", async (ctx) => {
+    const { isDaytonaAgentModeEnabled, getDaytonaToolboxClient } = await import(
+      "../../services/daytona/toolbox-client"
+    );
+    if (!isDaytonaAgentModeEnabled(context.config)) {
+      return ctx.json({ sandboxes: [], daytona_enabled: false });
+    }
+    const client = getDaytonaToolboxClient(context.config);
+    const sandboxes = await client.listSandboxes();
+    return ctx.json({ sandboxes, daytona_enabled: true });
+  });
+
+  app.post("/agent/sandboxes/cleanup", async (ctx) => {
+    const { isDaytonaAgentModeEnabled, getDaytonaToolboxClient } = await import(
+      "../../services/daytona/toolbox-client"
+    );
+    if (!isDaytonaAgentModeEnabled(context.config)) {
+      return ctx.json({ deleted: 0, errors: [], daytona_enabled: false });
+    }
+    const client = getDaytonaToolboxClient(context.config);
+    const result = await client.cleanupStoppedSandboxes();
+    return ctx.json({ ...result, daytona_enabled: true });
+  });
+
+  app.delete("/agent/sandboxes/:sandboxId", async (ctx) => {
+    const sandboxId = ctx.req.param("sandboxId");
+    const { isDaytonaAgentModeEnabled, getDaytonaToolboxClient } = await import(
+      "../../services/daytona/toolbox-client"
+    );
+    if (!isDaytonaAgentModeEnabled(context.config)) {
+      return ctx.json({ success: false, error: "Daytona not enabled" }, 400);
+    }
+    const client = getDaytonaToolboxClient(context.config);
+    await client.deleteSandbox(sandboxId);
+    return ctx.json({ success: true });
+  });
 };

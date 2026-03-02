@@ -1,9 +1,9 @@
 // CRITICAL
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
-import type { ChatMessage, ChatSessionDetail, StoredMessage } from "@/lib/types";
+import type { ChatMessage, ChatSessionDetail, StoredMessage, ToolResult } from "@/lib/types";
 
 export interface UseChatSessionBootstrapArgs {
   newChatFromUrl: boolean;
@@ -21,12 +21,31 @@ export interface UseChatSessionBootstrapArgs {
   loadAgentFiles: (args: { sessionId: string }) => void;
   clearPlan: () => void;
   clearAgentFiles: () => void;
+  setExecutingTools: (value: Set<string>) => void;
+  setToolResultsMap: (value: Map<string, ToolResult>) => void;
+  resetCompaction: () => void;
   messagesLengthRef: MutableRefObject<number>;
   sessionIdRef: MutableRefObject<string | null>;
   activeRunIdRef: MutableRefObject<string | null>;
   runAbortControllerRef: MutableRefObject<AbortController | null>;
   getLastSessionId: () => string | null;
   setLastSessionId: (sessionId: string) => void;
+}
+
+export function resolveNewChatResetGate({
+  newChatFromUrl,
+  hasHandledNewChatReset,
+}: {
+  newChatFromUrl: boolean;
+  hasHandledNewChatReset: boolean;
+}) {
+  if (!newChatFromUrl) {
+    return { shouldReset: false, hasHandledNewChatReset: false };
+  }
+  if (hasHandledNewChatReset) {
+    return { shouldReset: false, hasHandledNewChatReset: true };
+  }
+  return { shouldReset: true, hasHandledNewChatReset: true };
 }
 
 export function useChatSessionBootstrap({
@@ -45,6 +64,9 @@ export function useChatSessionBootstrap({
   loadAgentFiles,
   clearPlan,
   clearAgentFiles,
+  setExecutingTools,
+  setToolResultsMap,
+  resetCompaction,
   messagesLengthRef,
   sessionIdRef,
   activeRunIdRef,
@@ -63,7 +85,13 @@ export function useChatSessionBootstrap({
   const resetActiveSession = useCallback(() => {
     startNewSession();
     clearActiveRun();
-  }, [startNewSession, clearActiveRun]);
+    setExecutingTools(new Set());
+    setToolResultsMap(new Map());
+    clearPlan();
+    clearAgentFiles();
+    resetCompaction();
+  }, [startNewSession, clearActiveRun, setExecutingTools, setToolResultsMap, clearPlan, clearAgentFiles, resetCompaction]);
+  const handledNewChatResetRef = useRef(false);
 
   // Load sessions on mount
   useEffect(() => {
@@ -116,13 +144,20 @@ export function useChatSessionBootstrap({
 
   // Handle URL session/new params and restore last session if needed
   useEffect(() => {
-    if (newChatFromUrl) {
+    const gate = resolveNewChatResetGate({
+      newChatFromUrl,
+      hasHandledNewChatReset: handledNewChatResetRef.current,
+    });
+    handledNewChatResetRef.current = gate.hasHandledNewChatReset;
+
+    if (gate.shouldReset) {
       resetActiveSession();
       setMessages([]);
       clearPlan();
       clearAgentFiles();
       return;
     }
+    if (newChatFromUrl) return;
 
     const targetSessionId = sessionFromUrl || getLastSessionId();
     if (!targetSessionId) return;
@@ -130,7 +165,12 @@ export function useChatSessionBootstrap({
     // Avoid re-loading the same session repeatedly
     if (targetSessionId === currentSessionId) return;
 
-    resetActiveSession();
+    // Only abort active runs and clear transient tool state; defer clearing messages
+    // until the new session has loaded to avoid a flash of empty content.
+    clearActiveRun();
+    setExecutingTools(new Set());
+    setToolResultsMap(new Map());
+    resetCompaction();
 
     // If the URL is missing session but we have a remembered one, reflect it in the URL
     if (!sessionFromUrl) {
@@ -158,9 +198,11 @@ export function useChatSessionBootstrap({
       const stored = session.messages ?? [];
       setMessages(mapStoredMessages(stored));
       hydrateAgentState(session);
+      clearAgentFiles();
       void loadAgentFiles({ sessionId: session.id });
     })();
   }, [
+    clearActiveRun,
     clearAgentFiles,
     clearPlan,
     currentSessionId,
@@ -171,10 +213,14 @@ export function useChatSessionBootstrap({
     mapStoredMessages,
     newChatFromUrl,
     resetActiveSession,
+    resetCompaction,
     router,
     selectedModel,
     sessionFromUrl,
+    setExecutingTools,
+    setLastSessionId,
     setMessages,
     setSelectedModel,
+    setToolResultsMap,
   ]);
 }

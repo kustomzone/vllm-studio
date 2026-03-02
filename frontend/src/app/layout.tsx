@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppSidebar } from "@/components/app-sidebar";
+import { getThemeBootstrapScript } from "@/lib/theme/runtime";
 import { Providers } from "./providers";
 
 const geistSans = Geist({
@@ -43,6 +44,21 @@ export const metadata: Metadata = {
   },
 };
 
+const bootScript = `${getThemeBootstrapScript()}
+  const isProd = ${process.env.NODE_ENV === "production" ? "true" : "false"};
+  if (isProd && 'serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    });
+  }
+  const setAppHeight = () => {
+    document.documentElement.style.setProperty('--app-height', String(window.innerHeight) + 'px');
+  };
+  window.addEventListener('resize', setAppHeight);
+  window.addEventListener('orientationchange', setAppHeight);
+  setAppHeight();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -56,25 +72,7 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <script
           dangerouslySetInnerHTML={{
-            __html: `
-              try {
-                var s = JSON.parse(localStorage.getItem('vllm-studio-chat-state') || '{}');
-                var t = (s.state || s).themeId;
-                if (t) document.documentElement.setAttribute('data-theme', t);
-              } catch(e) {}
-              const isProd = ${process.env.NODE_ENV === "production" ? "true" : "false"};
-              if (isProd && 'serviceWorker' in navigator) {
-                window.addEventListener('load', () => {
-                  navigator.serviceWorker.register('/sw.js').catch(() => {});
-                });
-              }
-              const setAppHeight = () => {
-                document.documentElement.style.setProperty('--app-height', \`\${window.innerHeight}px\`);
-              };
-              window.addEventListener('resize', setAppHeight);
-              window.addEventListener('orientationchange', setAppHeight);
-              setAppHeight();
-            `,
+            __html: bootScript,
           }}
         />
       </head>

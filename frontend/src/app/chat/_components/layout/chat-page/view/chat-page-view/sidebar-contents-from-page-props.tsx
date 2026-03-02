@@ -11,6 +11,7 @@ export type ChatPageSidebarInputs = {
   activityGroups: ActivityGroup[];
   agentPlan: AgentPlan | null;
   isLoading: boolean;
+  runStatusLine: string;
 
   contextStats?: Omit<
     ContextStats,
@@ -43,12 +44,16 @@ export type ChatPageSidebarInputs = {
   hasSession: boolean;
 };
 
-export function buildSidebarContentsFromPageProps(variant: SidebarContentsVariant, props: ChatPageSidebarInputs) {
+export function buildSidebarContentsFromPageProps(
+  variant: SidebarContentsVariant,
+  props: ChatPageSidebarInputs,
+) {
   return buildSidebarContents({
     variant,
     activityGroups: props.activityGroups,
     agentPlan: props.agentPlan,
     isLoading: props.isLoading,
+    runStatusLine: props.runStatusLine,
     contextStats: props.contextStats,
     contextBreakdown: props.contextBreakdown,
     compactionHistory: props.compactionHistory,
@@ -67,4 +72,3 @@ export function buildSidebarContentsFromPageProps(variant: SidebarContentsVarian
     hasSession: props.hasSession,
   });
 }
-

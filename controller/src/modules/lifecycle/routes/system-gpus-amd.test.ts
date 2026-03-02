@@ -54,6 +54,7 @@ exit 2
       db_path: ":memory:",
       models_dir: "/models",
       strict_openai_models: false,
+      daytona_agent_mode: false,
     };
 
     const mockContext = {
@@ -109,12 +110,6 @@ exit 2
           addCompletionTokens: mock(() => undefined),
           addRequests: mock(() => undefined),
           increment: mock(() => undefined),
-        },
-        mcpStore: {
-          list: mock(() => []),
-          get: mock(() => undefined),
-          save: mock(() => undefined),
-          delete: mock(() => undefined),
         },
       },
     } as unknown as AppContext;

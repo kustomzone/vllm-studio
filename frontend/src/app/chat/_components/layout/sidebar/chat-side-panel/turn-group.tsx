@@ -1,13 +1,19 @@
 // CRITICAL
 "use client";
 
+import { ChevronRight } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import type { ActivityGroup } from "@/app/chat/types";
 import { getTurnSummary } from "./tool-categorization";
 import { ThinkingItem } from "./thinking-item";
 import { ToolItem } from "./tool-item";
 
-export function TurnGroup({ group, hasActiveThinking }: { group: ActivityGroup; hasActiveThinking: boolean }) {
+interface TurnGroupProps {
+  group: ActivityGroup;
+  hasActiveThinking: boolean;
+}
+
+export function TurnGroup({ group, hasActiveThinking }: TurnGroupProps) {
   const [collapsed, setCollapsed] = useState(!group.isLatest);
 
   const summary = useMemo(() => getTurnSummary(group.items), [group.items]);
@@ -18,37 +24,33 @@ export function TurnGroup({ group, hasActiveThinking }: { group: ActivityGroup; 
   }, [group.isLatest]);
 
   return (
-    <div>
-      <button onClick={toggleCollapsed} className="flex items-center gap-2 py-2 pl-1 pr-2 w-full text-left group">
-        <div className="w-5 h-5 rounded-full bg-(--bg) border border-(--border) flex items-center justify-center z-10">
-          <span className="text-[9px] text-(--fg) font-medium">{group.turnNumber || 1}</span>
+    <div className="border-b border-(--border)/50">
+      <button
+        onClick={toggleCollapsed}
+        className={`w-full px-4 py-2.5 text-left group ${
+          !group.isLatest ? "cursor-pointer hover:bg-(--fg)/[0.03]" : "cursor-default"
+        } transition-colors`}
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-(--fg)">
+            {group.isLatest ? "Current turn" : `Turn ${group.turnNumber || 1}`}
+          </span>
+          {!group.isLatest && summary.count > 0 && <span className="text-xs text-(--dim)">{summary.label}</span>}
+          {group.isLatest && hasActiveThinking && (
+            <span className="inline-flex h-1.5 w-1.5 rounded-full bg-(--hl1) animate-pulse" />
+          )}
+          {!group.isLatest && (
+            <ChevronRight
+              className={`h-3.5 w-3.5 text-(--dim) shrink-0 ml-auto transition-transform duration-150 ${
+                !isCollapsed ? "rotate-90" : "group-hover:text-(--fg)"
+              }`}
+            />
+          )}
         </div>
-        <span className="text-[10px] text-(--fg) uppercase tracking-wider">
-          {group.isLatest ? "Current" : "Turn"}
-        </span>
-        {!group.isLatest && summary.count > 0 && (
-          <span
-            className="text-[9px] px-1.5 py-0.5 rounded-full"
-            style={{ color: summary.color, backgroundColor: `${summary.color}15` }}
-          >
-            {summary.label}
-          </span>
-        )}
-        {group.isLatest && hasActiveThinking && (
-          <span className="relative flex h-1.5 w-1.5 ml-auto mr-2">
-            <span className="animate-ping absolute h-full w-full rounded-full bg-(--hl2) opacity-60" />
-            <span className="relative h-1.5 w-1.5 rounded-full bg-(--hl2)" />
-          </span>
-        )}
-        {!group.isLatest && (
-          <span className="ml-auto text-[9px] text-(--dim) group-hover:text-(--dim) transition-colors">
-            {isCollapsed ? "+" : "−"}
-          </span>
-        )}
       </button>
 
       {!isCollapsed && (
-        <div className="space-y-1">
+        <div className="px-4 pb-3 space-y-2">
           {group.items.map((item) =>
             item.type === "thinking" ? (
               <ThinkingItem key={item.id} content={item.content} isActive={item.isActive} />

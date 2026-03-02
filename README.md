@@ -2,27 +2,40 @@
 
 Unified local AI workstation for model lifecycle, chat/agent workflows, orchestration, observability, and remote deployment.
 
-## Release: v1.12.0
+## Release: v1.13.0
 
 This release consolidates major repo changes currently in the tree, including:
-- controller module reorganization and typed module boundaries
-- chat send/stream reliability fixes (done-state detection, attachment/send flow, rollback behavior)
-- SSE/run queue hardening to reduce stuck/incomplete UI states
-- frontend input and toolbar refinements
-- Dockerized controller runtime and compose wiring for persistent frontend+backend services
-- repository cleanup and docs reset
+
+- OpenAI proxy activation policy controls for `load_if_idle` and `switch_on_request`
+- lifecycle-aware run aborts when model eviction happens
+- SSE run stream termination fixes across backend and frontend
+- Daytona toolbox reliability hardening (route fallback, quota cleanup retry, alias-safe command parsing)
+- dashboard launch-state cleanup improvements
+- expanded controller/daytona test coverage for run termination and toolbox behavior
+
+## Docs
+
+- Overview: docs/README.md
+- Setup and deployment: setup/README.md
+- Environment variables: docs/environment.md
 
 ## Repository layout
 
 - `controller/`: Bun/Hono backend, orchestration, chat runtime, lifecycle, metrics
 - `frontend/`: Next.js app, chat UI, proxy endpoints, client state
+- `cli/`: Bun CLI for controller access
+- `swift-client/`: iOS/macOS client (XcodeGen)
 - `shared/`: shared types/contracts
 - `config/`: runtime and integration configs
-- `scripts/`: operational scripts
+- `docs/`: documentation index and environment notes
+- `scripts/`: operational scripts (deployment + controller daemon helpers)
+- `docker-compose.yml`: full stack service definitions
+- `scripts/daemon-*.sh`: start/status/stop helpers for background controller runs
 
 ## Quick start
 
-1. Controller:
+1. Controller (local):
+
 ```bash
 cd controller
 npx tsc --noEmit
@@ -31,6 +44,7 @@ bun src/main.ts
 ```
 
 2. Frontend:
+
 ```bash
 cd frontend
 npm run test
@@ -39,9 +53,18 @@ npm run build
 npm run dev
 ```
 
-3. Full stack with Docker:
+3. Full stack with Docker (controller + frontend + infra):
+
 ```bash
 docker compose up -d --build controller frontend
+```
+
+4. Run controller as a background daemon:
+
+```bash
+./scripts/daemon-start.sh
+./scripts/daemon-status.sh
+./scripts/daemon-stop.sh
 ```
 
 ## Health checks
@@ -50,6 +73,11 @@ docker compose up -d --build controller frontend
 curl -sS http://localhost:8080/health
 curl -I http://localhost:3000
 ```
+
+## API docs
+
+- http://localhost:8080/api/docs
+- http://localhost:8080/api/spec
 
 ## Setup guide
 
@@ -62,6 +90,7 @@ See `setup/README.md` for complete setup, deployment, and verification instructi
 - Release tags: `vX.Y.Z`
 
 For this release:
+
 - merge release work into `main` and `dev`
-- tag `v1.12.0`
+- tag `v1.13.0`
 - create a new post-release working branch
