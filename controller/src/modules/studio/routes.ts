@@ -84,21 +84,60 @@ export const deriveRecommendationVramGb = (gpus: GpuInfo[]): number => {
   }, 0);
 };
 
+const parseOptionalStringUpdate = (value: unknown): string | null | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== "string") {
+    throw badRequest("Expected string or null");
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const parseOptionalBooleanUpdate = (value: unknown): boolean | null | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(normalized)) return true;
+    if (["0", "false", "no", "off"].includes(normalized)) return false;
+  }
+  throw badRequest("daytona_agent_mode must be boolean");
+};
+
 /**
  * Register studio routes.
  * @param app - Hono app.
  * @param context - App context.
  */
 export const registerStudioRoutes = (app: Hono, context: AppContext): void => {
-  app.get("/studio/settings", async (ctx) => {
+  const buildSettingsPayload = () => {
     const persisted = loadPersistedConfig(context.config.data_dir);
-    return ctx.json({
+    return {
       config_path: getPersistedConfigPath(context.config.data_dir),
-      persisted,
+      persisted: {
+        models_dir: persisted.models_dir,
+        daytona_api_url: persisted.daytona_api_url,
+        daytona_proxy_url: persisted.daytona_proxy_url,
+        daytona_sandbox_id: persisted.daytona_sandbox_id,
+        daytona_agent_mode: persisted.daytona_agent_mode,
+        daytona_api_key_configured:
+          typeof persisted.daytona_api_key === "string" && persisted.daytona_api_key.trim().length > 0,
+      },
       effective: {
         models_dir: context.config.models_dir,
+        daytona_api_url: context.config.daytona_api_url ?? null,
+        daytona_proxy_url: context.config.daytona_proxy_url ?? null,
+        daytona_sandbox_id: context.config.daytona_sandbox_id ?? null,
+        daytona_agent_mode: context.config.daytona_agent_mode,
+        daytona_api_key_configured: Boolean(context.config.daytona_api_key),
       },
-    });
+    };
+  };
+
+  app.get("/studio/settings", async (ctx) => {
+    return ctx.json(buildSettingsPayload());
   });
 
   app.post("/studio/settings", async (ctx) => {
@@ -106,18 +145,61 @@ export const registerStudioRoutes = (app: Hono, context: AppContext): void => {
     if (body && typeof body !== "object") {
       throw badRequest("Invalid payload");
     }
-    const modelsDirectory = typeof body?.models_dir === "string" ? body.models_dir.trim() : "";
-    if (!modelsDirectory) {
-      throw badRequest("models_dir is required");
+
+    const modelsDirectory = parseOptionalStringUpdate(body?.models_dir);
+    const daytonaApiUrl = parseOptionalStringUpdate(body?.daytona_api_url);
+    const daytonaApiKey = parseOptionalStringUpdate(body?.daytona_api_key);
+    const daytonaProxyUrl = parseOptionalStringUpdate(body?.daytona_proxy_url);
+    const daytonaSandboxId = parseOptionalStringUpdate(body?.daytona_sandbox_id);
+    const daytonaAgentMode = parseOptionalBooleanUpdate(body?.daytona_agent_mode);
+
+    const hasAnyUpdate =
+      modelsDirectory !== undefined ||
+      daytonaApiUrl !== undefined ||
+      daytonaApiKey !== undefined ||
+      daytonaProxyUrl !== undefined ||
+      daytonaSandboxId !== undefined ||
+      daytonaAgentMode !== undefined;
+
+    if (!hasAnyUpdate) {
+      throw badRequest("No supported settings provided");
     }
-    const saved = savePersistedConfig(context.config.data_dir, { models_dir: modelsDirectory });
-    context.config.models_dir = resolve(saved.models_dir ?? context.config.models_dir);
+
+    const saved = savePersistedConfig(context.config.data_dir, {
+      ...(modelsDirectory !== undefined ? { models_dir: modelsDirectory } : {}),
+      ...(daytonaApiUrl !== undefined ? { daytona_api_url: daytonaApiUrl } : {}),
+      ...(daytonaApiKey !== undefined ? { daytona_api_key: daytonaApiKey } : {}),
+      ...(daytonaProxyUrl !== undefined ? { daytona_proxy_url: daytonaProxyUrl } : {}),
+      ...(daytonaSandboxId !== undefined ? { daytona_sandbox_id: daytonaSandboxId } : {}),
+      ...(daytonaAgentMode !== undefined ? { daytona_agent_mode: daytonaAgentMode } : {}),
+    });
+
+    if (saved.models_dir) {
+      context.config.models_dir = resolve(saved.models_dir);
+    }
+    if (typeof saved.daytona_agent_mode === "boolean") {
+      context.config.daytona_agent_mode = saved.daytona_agent_mode;
+    }
+
+    const apiKey = saved.daytona_api_key?.trim();
+    if (apiKey) context.config.daytona_api_key = apiKey;
+    else delete context.config.daytona_api_key;
+
+    const apiUrl = saved.daytona_api_url?.trim();
+    if (apiUrl) context.config.daytona_api_url = apiUrl;
+    else delete context.config.daytona_api_url;
+
+    const proxyUrl = saved.daytona_proxy_url?.trim();
+    if (proxyUrl) context.config.daytona_proxy_url = proxyUrl;
+    else delete context.config.daytona_proxy_url;
+
+    const sandboxId = saved.daytona_sandbox_id?.trim();
+    if (sandboxId) context.config.daytona_sandbox_id = sandboxId;
+    else delete context.config.daytona_sandbox_id;
+
     return ctx.json({
       success: true,
-      persisted: saved,
-      effective: {
-        models_dir: context.config.models_dir,
-      },
+      ...buildSettingsPayload(),
     });
   });
 
@@ -155,6 +237,11 @@ export const registerStudioRoutes = (app: Hono, context: AppContext): void => {
         db_path: context.config.db_path,
         sglang_python: context.config.sglang_python ?? null,
         tabby_api_dir: context.config.tabby_api_dir ?? null,
+        daytona_api_url: context.config.daytona_api_url ?? null,
+        daytona_proxy_url: context.config.daytona_proxy_url ?? null,
+        daytona_sandbox_id: context.config.daytona_sandbox_id ?? null,
+        daytona_agent_mode: context.config.daytona_agent_mode,
+        daytona_api_key_configured: Boolean(context.config.daytona_api_key),
       },
     });
   });

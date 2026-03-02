@@ -24,18 +24,20 @@ export function TurnGroup({ group, hasActiveThinking }: TurnGroupProps) {
   }, [group.isLatest]);
 
   return (
-    <div className="border-b border-(--border)/50">
+    <div className="rounded-md border border-(--border)/70 bg-(--surface)/35">
       <button
         onClick={toggleCollapsed}
-        className={`w-full px-4 py-2.5 text-left group ${
+        className={`w-full px-3 py-2 text-left group ${
           !group.isLatest ? "cursor-pointer hover:bg-(--fg)/[0.03]" : "cursor-default"
         } transition-colors`}
       >
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-(--fg)">
+          <span className="text-xs font-semibold tracking-wide text-(--fg)">
             {group.isLatest ? "Current turn" : `Turn ${group.turnNumber || 1}`}
           </span>
-          {!group.isLatest && summary.count > 0 && <span className="text-xs text-(--dim)">{summary.label}</span>}
+          {!group.isLatest && summary.count > 0 && (
+            <span className="text-[11px] text-(--dim)">{summary.label}</span>
+          )}
           {group.isLatest && hasActiveThinking && (
             <span className="inline-flex h-1.5 w-1.5 rounded-full bg-(--hl1) animate-pulse" />
           )}
@@ -50,7 +52,7 @@ export function TurnGroup({ group, hasActiveThinking }: TurnGroupProps) {
       </button>
 
       {!isCollapsed && (
-        <div className="px-4 pb-3 space-y-2">
+        <div className="px-3 pb-2.5 space-y-2">
           {group.items.map((item) =>
             item.type === "thinking" ? (
               <ThinkingItem key={item.id} content={item.content} isActive={item.isActive} />

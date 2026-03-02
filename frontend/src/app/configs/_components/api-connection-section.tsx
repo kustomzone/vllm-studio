@@ -6,24 +6,28 @@ export function ApiConnectionSection({
   apiSettingsLoading,
   apiSettings,
   showApiKey,
+  showDaytonaApiKey,
   testing,
   saving,
   connectionStatus,
   statusMessage,
   onApiSettingsChange,
   onToggleApiKey,
+  onToggleDaytonaApiKey,
   onTestConnection,
   onSave,
 }: {
   apiSettingsLoading: boolean;
   apiSettings: ApiConnectionSettings;
   showApiKey: boolean;
+  showDaytonaApiKey: boolean;
   testing: boolean;
   saving: boolean;
   connectionStatus: ConnectionStatus;
   statusMessage: string;
   onApiSettingsChange: (nextSettings: ApiConnectionSettings) => void;
   onToggleApiKey: () => void;
+  onToggleDaytonaApiKey: () => void;
   onTestConnection: () => void;
   onSave: () => void;
 }) {
@@ -45,11 +49,13 @@ export function ApiConnectionSection({
             />
 
             <ApiKeyField
+              label="API Key"
               apiKey={apiSettings.apiKey}
               hasApiKey={apiSettings.hasApiKey}
               showApiKey={showApiKey}
               onToggle={onToggleApiKey}
               onChange={(apiKey) => onApiSettingsChange({ ...apiSettings, apiKey })}
+              placeholderWhenUnset="Optional"
             />
 
             <ApiField
@@ -65,6 +71,64 @@ export function ApiConnectionSection({
               placeholder="whisper-large-v3-turbo"
               onChange={(voiceModel) => onApiSettingsChange({ ...apiSettings, voiceModel })}
             />
+
+            <div className="h-px bg-(--border)/70" />
+
+            <div className="space-y-1">
+              <h3 className="text-xs font-semibold tracking-wide text-(--fg)">
+                Daytona Agent Runtime
+              </h3>
+              <p className="text-[11px] text-(--dim)">
+                Configure Daytona sandbox access for agent file and tool execution.
+              </p>
+            </div>
+
+            <ApiField
+              label="Daytona API URL"
+              value={apiSettings.daytonaApiUrl}
+              placeholder="https://app.daytona.io/api"
+              onChange={(daytonaApiUrl) => onApiSettingsChange({ ...apiSettings, daytonaApiUrl })}
+            />
+
+            <ApiKeyField
+              label="Daytona API Key"
+              apiKey={apiSettings.daytonaApiKey}
+              hasApiKey={apiSettings.hasDaytonaApiKey}
+              showApiKey={showDaytonaApiKey}
+              onToggle={onToggleDaytonaApiKey}
+              onChange={(daytonaApiKey) => onApiSettingsChange({ ...apiSettings, daytonaApiKey })}
+              placeholderWhenUnset="Optional"
+            />
+
+            <ApiField
+              label="Daytona Proxy URL"
+              value={apiSettings.daytonaProxyUrl}
+              placeholder="https://app.daytona.io/api"
+              onChange={(daytonaProxyUrl) =>
+                onApiSettingsChange({ ...apiSettings, daytonaProxyUrl })
+              }
+            />
+
+            <ApiField
+              label="Daytona Sandbox ID"
+              value={apiSettings.daytonaSandboxId}
+              placeholder="Optional fixed sandbox id"
+              onChange={(daytonaSandboxId) =>
+                onApiSettingsChange({ ...apiSettings, daytonaSandboxId })
+              }
+            />
+
+            <label className="inline-flex items-center gap-2 text-xs text-(--fg)">
+              <input
+                type="checkbox"
+                checked={apiSettings.daytonaAgentMode}
+                onChange={(event) =>
+                  onApiSettingsChange({ ...apiSettings, daytonaAgentMode: event.target.checked })
+                }
+                className="h-3.5 w-3.5 rounded border-(--border) bg-(--surface)"
+              />
+              Enable Daytona agent mode
+            </label>
 
             <div className="flex items-center justify-between pt-2">
               <div className="flex items-center gap-2">
@@ -128,27 +192,31 @@ function ApiField({
 }
 
 function ApiKeyField({
+  label,
   apiKey,
   hasApiKey,
   showApiKey,
   onToggle,
   onChange,
+  placeholderWhenUnset,
 }: {
+  label: string;
   apiKey: string;
   hasApiKey: boolean;
   showApiKey: boolean;
   onToggle: () => void;
   onChange: (value: string) => void;
+  placeholderWhenUnset: string;
 }) {
   return (
     <div>
-      <label className="block text-xs text-(--dim) mb-1.5">API Key</label>
+      <label className="block text-xs text-(--dim) mb-1.5">{label}</label>
       <div className="relative">
         <input
           type={showApiKey ? "text" : "password"}
           value={apiKey}
           onChange={(event) => onChange(event.target.value)}
-          placeholder={hasApiKey ? "••••••••" : "Optional"}
+          placeholder={hasApiKey ? "••••••••" : placeholderWhenUnset}
           className="w-full px-3 py-2 pr-10 bg-(--surface) border border-(--border) rounded-lg text-sm text-(--fg) placeholder-(--dim)/50 focus:outline-none focus:border-(--hl1)"
         />
         <button
@@ -163,13 +231,7 @@ function ApiKeyField({
   );
 }
 
-function ApiStatus({
-  status,
-  message,
-}: {
-  status: ConnectionStatus;
-  message: string;
-}) {
+function ApiStatus({ status, message }: { status: ConnectionStatus; message: string }) {
   return (
     <div
       className={`flex items-center gap-1.5 text-xs ${
@@ -186,4 +248,3 @@ function ApiStatus({
     </div>
   );
 }
-

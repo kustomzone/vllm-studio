@@ -14,6 +14,12 @@ export interface ApiConnectionSettings {
   hasApiKey: boolean;
   voiceUrl: string;
   voiceModel: string;
+  daytonaApiUrl: string;
+  daytonaApiKey: string;
+  hasDaytonaApiKey: boolean;
+  daytonaProxyUrl: string;
+  daytonaSandboxId: string;
+  daytonaAgentMode: boolean;
 }
 
 export type ConnectionStatus = "unknown" | "connected" | "error";
@@ -26,9 +32,18 @@ const DEFAULT_API_SETTINGS: ApiConnectionSettings = {
   hasApiKey: false,
   voiceUrl: "",
   voiceModel: "whisper-large-v3-turbo",
+  daytonaApiUrl: "",
+  daytonaApiKey: "",
+  hasDaytonaApiKey: false,
+  daytonaProxyUrl: "",
+  daytonaSandboxId: "",
+  daytonaAgentMode: true,
 };
 
-const mergeApiSettings = (server?: Partial<ApiConnectionSettings>): ApiConnectionSettings => {
+const mergeApiSettings = (
+  server?: Partial<ApiConnectionSettings>,
+  current?: ApiConnectionSettings,
+): ApiConnectionSettings => {
   const localBackendUrl = getStoredBackendUrl();
   const localApiKey = getApiKey();
 
@@ -38,6 +53,24 @@ const mergeApiSettings = (server?: Partial<ApiConnectionSettings>): ApiConnectio
     hasApiKey: Boolean(localApiKey) || Boolean(server?.hasApiKey),
     voiceUrl: server?.voiceUrl || DEFAULT_API_SETTINGS.voiceUrl,
     voiceModel: server?.voiceModel || DEFAULT_API_SETTINGS.voiceModel,
+    daytonaApiUrl:
+      server?.daytonaApiUrl ?? current?.daytonaApiUrl ?? DEFAULT_API_SETTINGS.daytonaApiUrl,
+    daytonaApiKey:
+      server?.daytonaApiKey ?? current?.daytonaApiKey ?? DEFAULT_API_SETTINGS.daytonaApiKey,
+    hasDaytonaApiKey:
+      server?.hasDaytonaApiKey ??
+      current?.hasDaytonaApiKey ??
+      DEFAULT_API_SETTINGS.hasDaytonaApiKey,
+    daytonaProxyUrl:
+      server?.daytonaProxyUrl ?? current?.daytonaProxyUrl ?? DEFAULT_API_SETTINGS.daytonaProxyUrl,
+    daytonaSandboxId:
+      server?.daytonaSandboxId ??
+      current?.daytonaSandboxId ??
+      DEFAULT_API_SETTINGS.daytonaSandboxId,
+    daytonaAgentMode:
+      server?.daytonaAgentMode ??
+      current?.daytonaAgentMode ??
+      DEFAULT_API_SETTINGS.daytonaAgentMode,
   };
 };
 
@@ -51,6 +84,7 @@ export function useConfigs() {
   const [apiSettings, setApiSettings] = useState<ApiConnectionSettings>(DEFAULT_API_SETTINGS);
   const [apiSettingsLoading, setApiSettingsLoading] = useState(true);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showDaytonaApiKey, setShowDaytonaApiKey] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("unknown");
@@ -62,7 +96,7 @@ export function useConfigs() {
       const res = await fetch("/api/settings");
       if (res.ok) {
         const settings = (await res.json()) as Partial<ApiConnectionSettings>;
-        setApiSettings(mergeApiSettings(settings));
+        setApiSettings((previous) => mergeApiSettings(settings, previous));
         return;
       }
     } catch (e) {
@@ -70,7 +104,27 @@ export function useConfigs() {
     } finally {
       setApiSettingsLoading(false);
     }
-    setApiSettings(mergeApiSettings());
+    setApiSettings((previous) => mergeApiSettings(undefined, previous));
+  };
+
+  const loadStudioSettings = async () => {
+    try {
+      const settings = await api.getStudioSettings();
+      setApiSettings((previous) =>
+        mergeApiSettings(
+          {
+            daytonaApiUrl: settings.effective.daytona_api_url ?? "",
+            hasDaytonaApiKey: settings.effective.daytona_api_key_configured,
+            daytonaProxyUrl: settings.effective.daytona_proxy_url ?? "",
+            daytonaSandboxId: settings.effective.daytona_sandbox_id ?? "",
+            daytonaAgentMode: settings.effective.daytona_agent_mode,
+          },
+          previous,
+        ),
+      );
+    } catch (e) {
+      console.error("Failed to load studio settings:", e);
+    }
   };
 
   const persistLocalApiSettings = () => {
@@ -154,6 +208,7 @@ export function useConfigs() {
     persistLocalApiSettings();
 
     let savedRemotely = false;
+    let savedDaytonaRemotely = false;
     try {
       setSaving(true);
       setStatusMessage("");
@@ -169,8 +224,7 @@ export function useConfigs() {
       });
       if (res.ok) {
         const updated = (await res.json()) as Partial<ApiConnectionSettings>;
-        setApiSettings(mergeApiSettings(updated));
-        setStatusMessage("Settings saved");
+        setApiSettings((previous) => mergeApiSettings(updated, previous));
         savedRemotely = true;
       } else {
         const err = await res.json().catch(() => ({}));
@@ -180,6 +234,51 @@ export function useConfigs() {
       setStatusMessage("Saved locally");
     } finally {
       setSaving(false);
+    }
+
+    if (backendUrl) {
+      const daytonaApiKeyInput = apiSettings.daytonaApiKey.trim();
+      const daytonaApiKeyPayload =
+        daytonaApiKeyInput.length > 0
+          ? daytonaApiKeyInput
+          : apiSettings.hasDaytonaApiKey
+            ? undefined
+            : null;
+
+      try {
+        const updated = await api.updateStudioSettings({
+          daytona_api_url: apiSettings.daytonaApiUrl.trim() || null,
+          ...(daytonaApiKeyPayload !== undefined ? { daytona_api_key: daytonaApiKeyPayload } : {}),
+          daytona_proxy_url: apiSettings.daytonaProxyUrl.trim() || null,
+          daytona_sandbox_id: apiSettings.daytonaSandboxId.trim() || null,
+          daytona_agent_mode: apiSettings.daytonaAgentMode,
+        });
+
+        setApiSettings((previous) =>
+          mergeApiSettings(
+            {
+              daytonaApiUrl: updated.effective.daytona_api_url ?? "",
+              daytonaApiKey: "",
+              hasDaytonaApiKey: updated.effective.daytona_api_key_configured,
+              daytonaProxyUrl: updated.effective.daytona_proxy_url ?? "",
+              daytonaSandboxId: updated.effective.daytona_sandbox_id ?? "",
+              daytonaAgentMode: updated.effective.daytona_agent_mode,
+            },
+            previous,
+          ),
+        );
+        savedDaytonaRemotely = true;
+      } catch (error) {
+        const daytonaMessage =
+          error instanceof Error ? error.message : "Failed to save Daytona settings";
+        setStatusMessage(daytonaMessage);
+      }
+    }
+
+    if (savedRemotely && (savedDaytonaRemotely || !backendUrl)) {
+      setStatusMessage("Settings saved");
+    } else if (savedRemotely && backendUrl) {
+      setStatusMessage("Saved API settings, Daytona settings failed");
     }
 
     // Always attempt to refresh config when a backend URL is present.
@@ -196,6 +295,7 @@ export function useConfigs() {
   useEffect(() => {
     loadConfig();
     loadApiSettings();
+    loadStudioSettings();
   }, []);
 
   return {
@@ -206,12 +306,14 @@ export function useConfigs() {
     apiSettings,
     apiSettingsLoading,
     showApiKey,
+    showDaytonaApiKey,
     saving,
     testing,
     connectionStatus,
     statusMessage,
     setApiSettings,
     setShowApiKey,
+    setShowDaytonaApiKey,
     loadConfig,
     saveApiSettings,
     testConnection,

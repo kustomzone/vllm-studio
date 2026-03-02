@@ -29,10 +29,17 @@ export function createStudioApi(core: ApiCore) {
 
     getStudioSettings: (): Promise<StudioSettings> => core.request("/studio/settings"),
 
-    updateStudioSettings: (modelsDir: string): Promise<StudioSettings & { success: boolean }> =>
+    updateStudioSettings: (payload: {
+      models_dir?: string | null;
+      daytona_api_url?: string | null;
+      daytona_api_key?: string | null;
+      daytona_proxy_url?: string | null;
+      daytona_sandbox_id?: string | null;
+      daytona_agent_mode?: boolean | null;
+    }): Promise<StudioSettings & { success: boolean }> =>
       core.request("/studio/settings", {
         method: "POST",
-        body: JSON.stringify({ models_dir: modelsDir }),
+        body: JSON.stringify(payload),
       }),
 
     getStudioDiagnostics: (): Promise<StudioDiagnostics> => core.request("/studio/diagnostics"),

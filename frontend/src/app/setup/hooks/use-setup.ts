@@ -4,7 +4,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
-import type { ModelRecommendation, Recipe, StudioDiagnostics, StudioSettings, VllmUpgradeResult } from "@/lib/types";
+import type {
+  ModelRecommendation,
+  Recipe,
+  StudioDiagnostics,
+  StudioSettings,
+  VllmUpgradeResult,
+} from "@/lib/types";
 import { useDownloads } from "@/hooks/use-downloads";
 
 const normalizeId = (value: string): string =>
@@ -69,7 +75,7 @@ export function useSetup() {
     }
     setSavingSettings(true);
     try {
-      const result = await api.updateStudioSettings(modelsDir.trim());
+      const result = await api.updateStudioSettings({ models_dir: modelsDir.trim() });
       setSettings(result);
       setModelsDir(result.effective.models_dir);
       setStep(1);
@@ -126,7 +132,9 @@ export function useSetup() {
     if (!activeDownload || activeDownload.status !== "completed") {
       return;
     }
-    const recipeBase = normalizeId(activeDownload.model_id.split("/").pop() ?? activeDownload.model_id);
+    const recipeBase = normalizeId(
+      activeDownload.model_id.split("/").pop() ?? activeDownload.model_id,
+    );
     const existing = await api.getRecipes().catch(() => ({ recipes: [] }));
     const existingIds = new Set(existing.recipes.map((recipe) => recipe.id));
     let recipeId = recipeBase || `model-${Date.now()}`;

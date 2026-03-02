@@ -22,6 +22,7 @@ interface ConfigsViewProps {
   apiSettings: ApiConnectionSettings;
   apiSettingsLoading: boolean;
   showApiKey: boolean;
+  showDaytonaApiKey: boolean;
   saving: boolean;
   testing: boolean;
   connectionStatus: ConnectionStatus;
@@ -31,6 +32,7 @@ interface ConfigsViewProps {
   onReload: () => void;
   onApiSettingsChange: (nextSettings: ApiConnectionSettings) => void;
   onToggleApiKey: () => void;
+  onToggleDaytonaApiKey: () => void;
   onTestConnection: () => void;
   onSaveSettings: () => void;
 }
@@ -43,6 +45,7 @@ export function ConfigsView({
   apiSettings,
   apiSettingsLoading,
   showApiKey,
+  showDaytonaApiKey,
   saving,
   testing,
   connectionStatus,
@@ -52,6 +55,7 @@ export function ConfigsView({
   onReload,
   onApiSettingsChange,
   onToggleApiKey,
+  onToggleDaytonaApiKey,
   onTestConnection,
   onSaveSettings,
 }: ConfigsViewProps) {
@@ -81,12 +85,14 @@ export function ConfigsView({
                 apiSettingsLoading={apiSettingsLoading}
                 apiSettings={apiSettings}
                 showApiKey={showApiKey}
+                showDaytonaApiKey={showDaytonaApiKey}
                 testing={testing}
                 saving={saving}
                 connectionStatus={connectionStatus}
                 statusMessage={statusMessage}
                 onApiSettingsChange={onApiSettingsChange}
                 onToggleApiKey={onToggleApiKey}
+                onToggleDaytonaApiKey={onToggleDaytonaApiKey}
                 onTestConnection={onTestConnection}
                 onSave={onSaveSettings}
               />
@@ -102,7 +108,9 @@ export function ConfigsView({
                   <ConnectionFlow />
                 </div>
               ) : (
-                buildNoBackendState("Connect to the backend in the Connection tab and retry to load services.")
+                buildNoBackendState(
+                  "Connect to the backend in the Connection tab and retry to load services.",
+                )
               )}
             </section>
           )}
@@ -115,7 +123,9 @@ export function ConfigsView({
                   <ConfigCards data={data} />
                 </>
               ) : (
-                buildNoBackendState("Connect to the backend in the Connection tab and retry to load system details.")
+                buildNoBackendState(
+                  "Connect to the backend in the Connection tab and retry to load system details.",
+                )
               )}
             </section>
           )}

@@ -34,7 +34,7 @@ export const ThinkingItem = memo(
         <div className="min-w-0 flex-1">
           {hasContent ? (
             <p
-              className={`text-xs leading-relaxed break-words whitespace-pre-wrap ${
+              className={`text-[11px] leading-relaxed break-words whitespace-pre-wrap ${
                 isActive ? "text-(--fg)/90" : "text-(--dim)"
               }`}
             >
@@ -42,7 +42,7 @@ export const ThinkingItem = memo(
               {!expanded && isTruncated ? "…" : ""}
             </p>
           ) : (
-            <p className="text-xs leading-relaxed text-(--dim)">Thinking…</p>
+            <p className="text-[11px] leading-relaxed text-(--dim)">Thinking…</p>
           )}
 
           {hasContent && isTruncated && (
@@ -51,7 +51,9 @@ export const ThinkingItem = memo(
               className="mt-1 inline-flex items-center gap-1 text-[11px] text-(--dim) hover:text-(--fg) transition-colors"
             >
               <span>{expanded ? "Show less" : "Show more"}</span>
-              <ChevronRight className={`h-3 w-3 transition-transform ${expanded ? "-rotate-90" : "rotate-90"}`} />
+              <ChevronRight
+                className={`h-3 w-3 transition-transform ${expanded ? "-rotate-90" : "rotate-90"}`}
+              />
             </button>
           )}
         </div>

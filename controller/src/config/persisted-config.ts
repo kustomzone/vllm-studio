@@ -4,6 +4,11 @@ import { resolve } from "node:path";
 
 export interface PersistedConfig {
   models_dir?: string;
+  daytona_api_url?: string;
+  daytona_api_key?: string;
+  daytona_proxy_url?: string;
+  daytona_sandbox_id?: string;
+  daytona_agent_mode?: boolean;
 }
 
 export const getPersistedConfigPath = (dataDirectory: string): string => {
@@ -24,13 +29,27 @@ export const loadPersistedConfig = (dataDirectory: string): PersistedConfig => {
   }
 };
 
-export const savePersistedConfig = (dataDirectory: string, updates: PersistedConfig): PersistedConfig => {
+type PersistedConfigUpdates = {
+  [K in keyof PersistedConfig]?: PersistedConfig[K] | null;
+};
+
+export const savePersistedConfig = (
+  dataDirectory: string,
+  updates: PersistedConfigUpdates
+): PersistedConfig => {
   const path = getPersistedConfigPath(dataDirectory);
   const current = loadPersistedConfig(dataDirectory);
-  const next: PersistedConfig = {
-    ...current,
-    ...updates,
-  };
+  const next: PersistedConfig = { ...current };
+  (Object.keys(updates) as Array<keyof PersistedConfigUpdates>).forEach((key) => {
+    const value = updates[key];
+    if (value === null) {
+      delete next[key];
+      return;
+    }
+    if (value !== undefined) {
+      next[key] = value as PersistedConfig[typeof key];
+    }
+  });
   mkdirSync(dataDirectory, { recursive: true });
   writeFileSync(path, JSON.stringify(next, null, 2));
   return next;

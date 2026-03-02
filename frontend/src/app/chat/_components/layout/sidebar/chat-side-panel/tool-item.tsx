@@ -10,7 +10,7 @@ interface ToolItemProps {
   item: ActivityItem;
 }
 
-const OUTPUT_PREVIEW_LIMIT = 500;
+const OUTPUT_PREVIEW_LIMIT = 700;
 
 function getToolDisplayName(name?: string) {
   if (!name) return "Tool";
@@ -32,29 +32,29 @@ function formatToolOutput(output?: unknown): string {
 function getChipToneClasses(state?: ActivityItem["state"]) {
   if (state === "error") {
     return {
-      chip: "border-(--err)/40 bg-(--err)/10 text-(--err)",
+      chip: "border-(--err)/40 bg-(--err)/12 text-(--err)",
       dot: "bg-(--err)",
-      detail: "border-(--err)/25 text-(--err)/80",
+      detail: "border-(--err)/25 text-(--err)/85 bg-(--err)/[0.04]",
     };
   }
   if (state === "running") {
     return {
-      chip: "border-(--accent)/45 bg-(--accent)/10 text-(--accent)",
+      chip: "border-(--accent)/45 bg-(--accent)/12 text-(--accent)",
       dot: "bg-(--accent) animate-pulse",
-      detail: "border-(--accent)/25 text-(--fg)/75",
+      detail: "border-(--accent)/25 text-(--fg)/80 bg-(--accent)/[0.04]",
     };
   }
   if (state === "complete") {
     return {
-      chip: "border-(--fg)/20 bg-(--fg)/[0.05] text-(--fg)",
+      chip: "border-(--fg)/30 bg-(--fg)/[0.06] text-(--fg)",
       dot: "bg-(--fg)/70",
-      detail: "border-(--border)/60 text-(--fg)/75",
+      detail: "border-(--border)/60 text-(--fg)/80 bg-(--surface)/70",
     };
   }
   return {
-    chip: "border-(--border) bg-(--surface)/70 text-(--dim)",
+    chip: "border-(--border) bg-(--surface)/80 text-(--dim)",
     dot: "bg-(--dim)/60",
-    detail: "border-(--border)/60 text-(--fg)/70",
+    detail: "border-(--border)/60 text-(--fg)/75 bg-(--surface)/70",
   };
 }
 
@@ -69,7 +69,10 @@ export const ToolItem = memo(
     }, [hasDetails]);
 
     const toolName = useMemo(() => getToolDisplayName(item.toolName), [item.toolName]);
-    const outputText = useMemo(() => (expanded ? formatToolOutput(item.output) : ""), [expanded, item.output]);
+    const outputText = useMemo(
+      () => (expanded ? formatToolOutput(item.output) : ""),
+      [expanded, item.output],
+    );
     const tone = useMemo(() => getChipToneClasses(item.state), [item.state]);
 
     return (
@@ -77,23 +80,27 @@ export const ToolItem = memo(
         <button
           onClick={toggleExpanded}
           disabled={!hasDetails}
-          className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] leading-5 transition-colors ${tone.chip} ${
+          className={`inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] font-medium leading-4 transition-colors ${tone.chip} ${
             hasDetails ? "cursor-pointer hover:brightness-110" : "cursor-default"
           }`}
         >
-          <span className={`inline-flex h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} />
-          <span className="truncate max-w-[220px]">{toolName}</span>
+          <span className={`inline-flex h-1 w-1 shrink-0 rounded-full ${tone.dot}`} />
+          <span className="truncate max-w-[200px]">{toolName}</span>
           {hasDetails && (
-            <ChevronRight className={`h-3 w-3 shrink-0 opacity-70 transition-transform ${expanded ? "rotate-90" : ""}`} />
+            <ChevronRight
+              className={`h-3 w-3 shrink-0 opacity-70 transition-transform ${expanded ? "rotate-90" : ""}`}
+            />
           )}
         </button>
 
         {expanded && hasDetails && (
-          <div className={`ml-2 w-[calc(100%-0.5rem)] border-l pl-3 space-y-2 ${tone.detail}`}>
+          <div
+            className={`ml-2 w-[calc(100%-0.5rem)] rounded-md border px-2.5 py-2 space-y-2 ${tone.detail}`}
+          >
             {item.input != null && (
               <div>
                 <span className="text-[10px] uppercase tracking-wide text-(--dim)">Input</span>
-                <pre className="mt-1 max-h-28 overflow-x-auto overflow-y-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed">
+                <pre className="mt-1 max-h-28 overflow-x-auto overflow-y-auto whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed">
                   {String(safeJsonStringify(item.input, ""))}
                 </pre>
               </div>
@@ -103,7 +110,7 @@ export const ToolItem = memo(
                 <span className="text-[10px] uppercase tracking-wide text-(--dim)">
                   {item.state === "error" ? "Error" : "Output"}
                 </span>
-                <pre className="mt-1 max-h-44 overflow-x-auto overflow-y-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed">
+                <pre className="mt-1 max-h-44 overflow-x-auto overflow-y-auto whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed">
                   {outputText.slice(0, OUTPUT_PREVIEW_LIMIT)}
                   {outputText.length > OUTPUT_PREVIEW_LIMIT ? "..." : ""}
                 </pre>

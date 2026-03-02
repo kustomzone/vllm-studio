@@ -19,6 +19,11 @@ export interface SystemConfig {
   sglang_python: string | null;
   tabby_api_dir: string | null;
   llama_bin: string | null;
+  daytona_api_url: string | null;
+  daytona_proxy_url: string | null;
+  daytona_sandbox_id: string | null;
+  daytona_agent_mode: boolean;
+  daytona_api_key_configured: boolean;
 }
 
 export interface EnvironmentInfo {

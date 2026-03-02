@@ -78,6 +78,35 @@ export function ConfigCards({ data }: { data: ConfigData }) {
           icon={<Settings className="h-3 w-3" />}
           truncate
         />
+        <ConfigRow
+          label="Daytona mode"
+          value={data.config.daytona_agent_mode ? "Enabled" : "Disabled"}
+          icon={<Settings className="h-3 w-3" />}
+        />
+        <ConfigRow
+          label="Daytona API URL"
+          value={data.config.daytona_api_url || "Not configured"}
+          icon={<Settings className="h-3 w-3" />}
+          truncate
+        />
+        <ConfigRow
+          label="Daytona Proxy URL"
+          value={data.config.daytona_proxy_url || "Not configured"}
+          icon={<Settings className="h-3 w-3" />}
+          truncate
+        />
+        <ConfigRow
+          label="Daytona Sandbox ID"
+          value={data.config.daytona_sandbox_id || "Not configured"}
+          icon={<Settings className="h-3 w-3" />}
+          truncate
+        />
+        <ConfigRow
+          label="Daytona API Key"
+          value={data.config.daytona_api_key_configured ? "Configured" : "Not set"}
+          icon={<Settings className="h-3 w-3" />}
+          accent={data.config.daytona_api_key_configured}
+        />
       </ConfigSection>
 
       <ConfigSection title="Runtime Versions">

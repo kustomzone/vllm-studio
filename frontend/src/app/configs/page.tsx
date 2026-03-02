@@ -17,7 +17,11 @@ export default function ConfigsPage() {
   });
 
   // Show setup wizard only when backend is confirmed offline and setup has not been completed.
-  const showSetupWizard = !configs.isInitialLoading && configs.backendOnline === false && !setupComplete && !configs.hasConfigData;
+  const showSetupWizard =
+    !configs.isInitialLoading &&
+    configs.backendOnline === false &&
+    !setupComplete &&
+    !configs.hasConfigData;
 
   if (showSetupWizard) {
     return <SetupView {...setup} />;
@@ -32,6 +36,7 @@ export default function ConfigsPage() {
       apiSettings={configs.apiSettings}
       apiSettingsLoading={configs.apiSettingsLoading}
       showApiKey={configs.showApiKey}
+      showDaytonaApiKey={configs.showDaytonaApiKey}
       saving={configs.saving}
       testing={configs.testing}
       connectionStatus={configs.connectionStatus}
@@ -41,6 +46,7 @@ export default function ConfigsPage() {
       onReload={configs.loadConfig}
       onApiSettingsChange={configs.setApiSettings}
       onToggleApiKey={() => configs.setShowApiKey(!configs.showApiKey)}
+      onToggleDaytonaApiKey={() => configs.setShowDaytonaApiKey(!configs.showDaytonaApiKey)}
       onTestConnection={configs.testConnection}
       onSaveSettings={configs.saveApiSettings}
     />

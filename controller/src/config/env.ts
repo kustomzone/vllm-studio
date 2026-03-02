@@ -171,6 +171,41 @@ export const createConfig = (): Config => {
   if (persisted.models_dir) {
     config.models_dir = resolve(persisted.models_dir);
   }
+  if (typeof persisted.daytona_agent_mode === "boolean") {
+    config.daytona_agent_mode = persisted.daytona_agent_mode;
+  }
+  if (typeof persisted.daytona_api_key === "string") {
+    const value = persisted.daytona_api_key.trim();
+    if (value) {
+      config.daytona_api_key = value;
+    } else {
+      delete config.daytona_api_key;
+    }
+  }
+  if (typeof persisted.daytona_api_url === "string") {
+    const value = persisted.daytona_api_url.trim();
+    if (value) {
+      config.daytona_api_url = value;
+    } else {
+      delete config.daytona_api_url;
+    }
+  }
+  if (typeof persisted.daytona_proxy_url === "string") {
+    const value = persisted.daytona_proxy_url.trim();
+    if (value) {
+      config.daytona_proxy_url = value;
+    } else {
+      delete config.daytona_proxy_url;
+    }
+  }
+  if (typeof persisted.daytona_sandbox_id === "string") {
+    const value = persisted.daytona_sandbox_id.trim();
+    if (value) {
+      config.daytona_sandbox_id = value;
+    } else {
+      delete config.daytona_sandbox_id;
+    }
+  }
 
   return config;
 };
