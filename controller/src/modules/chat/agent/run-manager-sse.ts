@@ -43,6 +43,11 @@ export async function* createSseStream(
       signal.addEventListener("abort", onAbort, { once: true });
     });
 
+  const isRunEndChunk = (chunk: string): boolean => {
+    const eventMatch = chunk.match(/^event:\s*([^\n]+)$/m);
+    return (eventMatch?.[1] ?? "").trim() === "run_end";
+  };
+
   try {
     // Keep a single pending shift promise to avoid overlapping `queue.shift()` calls.
     let pendingShift = queue.shift(abort.signal);
@@ -61,6 +66,9 @@ export async function* createSseStream(
       }
 
       yield winner.value;
+      if (isRunEndChunk(winner.value)) {
+        break;
+      }
       pendingShift = queue.shift(abort.signal);
     }
   } catch {

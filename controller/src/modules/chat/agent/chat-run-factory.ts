@@ -20,9 +20,19 @@ import { mapToolCallsToMessage, parseToolServer } from "./run-manager-utils";
 
 const RUN_EVENT_QUEUE_CAPACITY = 1024;
 
+/**
+ * Create a streaming chat run backed by the Pi agent loop.
+ * @param context - Application context.
+ * @param activeRuns - Mutable run registry used for abort and eviction integration.
+ * @param options - Run options from the chats route.
+ * @returns Run identifier and SSE stream.
+ */
 export async function createChatRun(
   context: AppContext,
-  activeRuns: Map<string, { agent: Agent; abort: AbortController }>,
+  activeRuns: Map<
+    string,
+    { agent: Agent; abort: AbortController; model: string | null; provider: string }
+  >,
   options: ChatRunOptions
 ): Promise<ChatRunStream> {
   const sessionId = options.sessionId;
@@ -114,7 +124,7 @@ export async function createChatRun(
   });
   agent.sessionId = sessionId;
 
-  activeRuns.set(runId, { agent, abort });
+  activeRuns.set(runId, { agent, abort, model: requestModel, provider });
 
   const toolExecutionStarts = new Map<string, ToolExecutionInfo>();
   const toolCallToMessageId = new Map<string, string>();

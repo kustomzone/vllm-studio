@@ -2,16 +2,16 @@
 
 Unified local AI workstation for model lifecycle, chat/agent workflows, orchestration, observability, and remote deployment.
 
-## Release: v1.12.0
+## Release: v1.13.0
 
 This release consolidates major repo changes currently in the tree, including:
 
-- controller module reorganization and typed module boundaries
-- chat send/stream reliability fixes (done-state detection, attachment/send flow, rollback behavior)
-- SSE/run queue hardening to reduce stuck/incomplete UI states
-- frontend input and toolbar refinements
-- Dockerized controller runtime and compose wiring for persistent frontend+backend services
-- repository cleanup and docs reset
+- OpenAI proxy activation policy controls for `load_if_idle` and `switch_on_request`
+- lifecycle-aware run aborts when model eviction happens
+- SSE run stream termination fixes across backend and frontend
+- Daytona toolbox reliability hardening (route fallback, quota cleanup retry, alias-safe command parsing)
+- dashboard launch-state cleanup improvements
+- expanded controller/daytona test coverage for run termination and toolbox behavior
 
 ## Docs
 
@@ -92,5 +92,5 @@ See `setup/README.md` for complete setup, deployment, and verification instructi
 For this release:
 
 - merge release work into `main` and `dev`
-- tag `v1.12.0`
+- tag `v1.13.0`
 - create a new post-release working branch

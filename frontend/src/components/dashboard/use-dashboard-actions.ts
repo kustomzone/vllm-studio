@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import api from "@/lib/api";
 
 export function useDashboardActions(reload: () => Promise<void>) {
@@ -14,6 +14,8 @@ export function useDashboardActions(reload: () => Promise<void>) {
       setLaunching(false);
     }
   };
+
+  const clearLaunching = useCallback(() => setLaunching(false), []);
 
   const onStop = async () => {
     if (!confirm("Stop the current model?")) return;
@@ -38,5 +40,5 @@ export function useDashboardActions(reload: () => Promise<void>) {
     }
   };
 
-  return { launching, benchmarking, onLaunch, onStop, onBenchmark };
+  return { launching, benchmarking, onLaunch, onStop, onBenchmark, clearLaunching };
 }

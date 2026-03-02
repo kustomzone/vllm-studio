@@ -8,6 +8,8 @@ import { loadPersistedConfig } from "./persisted-config";
 /**
  * Runtime configuration for the controller.
  */
+export type OpenAIModelActivationPolicy = "load_if_idle" | "switch_on_request";
+
 export interface Config {
   host: string;
   port: number;
@@ -28,6 +30,7 @@ export interface Config {
   llama_bin?: string;
   exllamav3_command?: string;
   strict_openai_models: boolean;
+  openai_model_activation_policy?: OpenAIModelActivationPolicy;
 }
 
 /**
@@ -86,6 +89,7 @@ export const createConfig = (): Config => {
     VLLM_STUDIO_LLAMA_BIN: z.string().optional(),
     VLLM_STUDIO_EXLLAMAV3_COMMAND: z.string().optional(),
     VLLM_STUDIO_STRICT_OPENAI_MODELS: z.string().optional(),
+    VLLM_STUDIO_OPENAI_MODEL_ACTIVATION_POLICY: z.string().optional(),
   });
 
   const parsed = schema.parse(process.env);
@@ -98,6 +102,11 @@ export const createConfig = (): Config => {
   const daytonaAgentMode = daytonaAgentModeRaw
     ? ["1", "true", "yes", "on"].includes(daytonaAgentModeRaw.trim().toLowerCase())
     : true;
+  const activationPolicyRaw = parsed.VLLM_STUDIO_OPENAI_MODEL_ACTIVATION_POLICY
+    ?.trim()
+    .toLowerCase();
+  const openaiModelActivationPolicy: OpenAIModelActivationPolicy =
+    activationPolicyRaw === "switch_on_request" ? "switch_on_request" : "load_if_idle";
 
   const config: Config = {
     host: parsed.VLLM_STUDIO_HOST,
@@ -109,6 +118,7 @@ export const createConfig = (): Config => {
     models_dir: resolve(parsed.VLLM_STUDIO_MODELS_DIR),
     strict_openai_models: strictOpenAIModelsEnabled,
     daytona_agent_mode: daytonaAgentMode,
+    openai_model_activation_policy: openaiModelActivationPolicy,
   };
 
   const litellmDatabaseUrl =

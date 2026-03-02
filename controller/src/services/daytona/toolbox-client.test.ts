@@ -203,4 +203,162 @@ describe("daytona toolbox retry behavior", () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it("falls back to legacy toolbox route when modern route returns 404", async () => {
+    const originalFetch = globalThis.fetch;
+    const calls: Array<{ method: string; url: string }> = [];
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      const url = String(input);
+      calls.push({ method, url });
+
+      if (url.endsWith("/api/sandbox") && method === "GET") {
+        return new Response(
+          JSON.stringify([{ id: "sandbox-legacy", name: "vllm-studio-session_legacy", state: "running" }]),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+
+      if (url.includes("/toolbox/sandbox-legacy/files/folder")) {
+        return new Response("not found", { status: 404 });
+      }
+      if (url.includes("/toolbox/sandbox-legacy/toolbox/files/folder")) {
+        return new Response("ok", { status: 200, headers: { "content-type": "application/json" } });
+      }
+
+      if (url.includes("/toolbox/sandbox-legacy/files?") && method === "GET") {
+        return new Response("not found", { status: 404 });
+      }
+      if (url.includes("/toolbox/sandbox-legacy/toolbox/files?") && method === "GET") {
+        return createFileListResponse();
+      }
+
+      return new Response("unexpected", { status: 500 });
+    }) as typeof fetch;
+
+    try {
+      const client = new DaytonaToolboxClient(createConfig({ daytona_api_key: "token" }));
+      const files = await client.listFiles("session-legacy", "");
+      expect(files).toEqual([]);
+      expect(
+        calls.some((entry) => entry.url.includes("/toolbox/sandbox-legacy/toolbox/files/folder"))
+      ).toBe(true);
+      expect(
+        calls.some((entry) => entry.url.includes("/toolbox/sandbox-legacy/toolbox/files?"))
+      ).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("retries sandbox creation after cleaning stopped sandboxes on quota-style errors", async () => {
+    const originalFetch = globalThis.fetch;
+    const calls: Array<{ method: string; url: string }> = [];
+    let createAttempts = 0;
+    let listedForCleanup = false;
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      const url = String(input);
+      calls.push({ method, url });
+
+      if (url.endsWith("/api/sandbox") && method === "GET") {
+        if (createAttempts === 0) {
+          // Initial findSessionSandbox lookup before first create attempt.
+          return new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (!listedForCleanup) {
+          listedForCleanup = true;
+          return new Response(
+            JSON.stringify([{ id: "sandbox-stopped", name: "old-sandbox", state: "stopped" }]),
+            { status: 200, headers: { "content-type": "application/json" } }
+          );
+        }
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      if (url.endsWith("/api/sandbox") && method === "POST") {
+        createAttempts += 1;
+        if (createAttempts === 1) {
+          return new Response("quota exceeded", { status: 403 });
+        }
+        return createSandboxResponse("sandbox-new");
+      }
+
+      if (url.endsWith("/api/sandbox/sandbox-stopped") && method === "DELETE") {
+        return new Response("", { status: 204 });
+      }
+
+      if (url.includes("/toolbox/sandbox-new/") && url.includes("/files/folder")) {
+        return new Response("ok", { status: 200, headers: { "content-type": "application/json" } });
+      }
+
+      if (url.includes("/toolbox/sandbox-new/") && url.includes("/files?") && method === "GET") {
+        return createFileListResponse();
+      }
+
+      return new Response("unexpected", { status: 500 });
+    }) as typeof fetch;
+
+    try {
+      const client = new DaytonaToolboxClient(createConfig({ daytona_api_key: "token" }));
+      const files = await client.listFiles("session-cleanup", "");
+      expect(files).toEqual([]);
+      expect(createAttempts).toBe(2);
+      expect(
+        calls.some((entry) => entry.method === "DELETE" && entry.url.endsWith("/api/sandbox/sandbox-stopped"))
+      ).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("handles explicit proxy URLs that already include /toolbox", async () => {
+    const originalFetch = globalThis.fetch;
+    const calls: Array<{ method: string; url: string }> = [];
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      const url = String(input);
+      calls.push({ method, url });
+
+      if (url.endsWith("/api/sandbox") && method === "GET") {
+        return new Response(
+          JSON.stringify([{ id: "sandbox-explicit", name: "vllm-studio-session_explicit", state: "running" }]),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      if (url.includes("/toolbox/sandbox-explicit/files/folder")) {
+        return new Response("ok", { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.includes("/toolbox/sandbox-explicit/files?") && method === "GET") {
+        return createFileListResponse();
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as typeof fetch;
+
+    try {
+      const client = new DaytonaToolboxClient(
+        createConfig({
+          daytona_api_key: "token",
+          daytona_proxy_url: "https://proxy.custom.daytona/toolbox",
+        })
+      );
+      const files = await client.listFiles("session-explicit", "");
+      expect(files).toEqual([]);
+      expect(
+        calls.some((entry) => entry.url.includes("https://proxy.custom.daytona/toolbox/sandbox-explicit/files/folder"))
+      ).toBe(true);
+      expect(calls.some((entry) => entry.url.includes("/toolbox/toolbox/"))).toBe(false);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

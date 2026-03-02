@@ -1,5 +1,6 @@
 // CRITICAL
 import type { Agent } from "@mariozechner/pi-agent-core";
+import { parseProviderModel } from "../../../services/provider-routing";
 import type { AppContext } from "../../../types/context";
 import { createChatRun } from "./chat-run-factory";
 import { createMockChatRun } from "./chat-run-factory-mock";
@@ -9,11 +10,21 @@ import type { ChatRunOptions, ChatRunStream } from "./run-manager-types";
 export type { ChatRunOptions, ChatRunStream } from "./run-manager-types";
 
 /**
+ * Active run metadata tracked for cancellation and model-scoped eviction handling.
+ */
+type ActiveRunEntry = {
+  agent: Agent;
+  abort: AbortController;
+  model: string | null;
+  provider: string;
+};
+
+/**
  * Controller-owned run manager for Pi agent sessions.
  */
 export class ChatRunManager {
   private readonly context: AppContext;
-  private readonly activeRuns = new Map<string, { agent: Agent; abort: AbortController }>();
+  private readonly activeRuns = new Map<string, ActiveRunEntry>();
 
   /**
    * Create a run manager.
@@ -36,6 +47,34 @@ export class ChatRunManager {
     active.agent.abort();
     active.abort.abort();
     return true;
+  }
+
+  /**
+   * Abort all active runs that target a model.
+   * @param modelName - Requested model name.
+   * @returns Number of aborted runs.
+   */
+  public abortRunsForModel(modelName: string): number {
+    const parsedTarget = parseProviderModel(modelName);
+    const targetModel = parsedTarget.modelId.toLowerCase();
+    const targetProvider = parsedTarget.provider.toLowerCase();
+    if (!targetModel) return 0;
+
+    let aborted = 0;
+    for (const active of this.activeRuns.values()) {
+      const candidateModel = active.model?.toLowerCase() ?? "";
+      const candidateProvider = active.provider.toLowerCase();
+      if (!candidateModel || candidateModel !== targetModel) {
+        continue;
+      }
+      if (targetProvider && candidateProvider && candidateProvider !== targetProvider) {
+        continue;
+      }
+      active.agent.abort();
+      active.abort.abort();
+      aborted += 1;
+    }
+    return aborted;
   }
 
   /**

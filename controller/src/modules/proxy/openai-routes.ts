@@ -1,9 +1,10 @@
 // CRITICAL
 import type { Hono } from "hono";
 import { HttpStatus, notFound, serviceUnavailable } from "../../core/errors";
+import { isRecipeRunning } from "../lifecycle/recipes/recipe-matching";
 import { buildSseHeaders } from "../../http/sse";
 import type { AppContext } from "../../types/context";
-import type { Recipe } from "../lifecycle/types";
+import type { ProcessInfo, Recipe } from "../lifecycle/types";
 import { buildInferenceUrl } from "../../services/inference/inference-client";
 import {
   DAYTONA_PROVIDER,
@@ -32,6 +33,62 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
       }
     }
     return null;
+  };
+
+  const findRecipeForProcess = (current: ProcessInfo): Recipe | null => {
+    for (const recipe of context.stores.recipeStore.list()) {
+      if (isRecipeRunning(recipe, current, { allowEitherPathContains: true })) {
+        return recipe;
+      }
+    }
+    return null;
+  };
+
+  const ensureRecipeIsActive = async (
+    recipe: Recipe,
+    current: ProcessInfo | null,
+    policy: "load_if_idle" | "switch_on_request"
+  ): Promise<void> => {
+    if (current && !isRecipeRunning(recipe, current, { allowEitherPathContains: true })) {
+      if (policy === "switch_on_request") {
+        const switchResult = await context.lifecycleCoordinator.ensureActive(recipe, {
+          force_evict: false,
+        });
+        if (switchResult.error) {
+          throw serviceUnavailable(switchResult.error);
+        }
+      }
+      return;
+    }
+
+    const switchResult = await context.lifecycleCoordinator.ensureActive(recipe, {
+      force_evict: false,
+    });
+    if (switchResult.error) {
+      throw serviceUnavailable(switchResult.error);
+    }
+  };
+
+  const applyLoadIfIdleModelRewrite = (
+    parsedBody: Record<string, unknown>,
+    current: ProcessInfo | null
+  ): boolean => {
+    if (!current) {
+      return false;
+    }
+
+    const runningRecipe = findRecipeForProcess(current);
+    if (!runningRecipe) {
+      return false;
+    }
+
+    const activeModel = runningRecipe.served_model_name ?? runningRecipe.id;
+    if (!activeModel) {
+      return false;
+    }
+
+    parsedBody["model"] = activeModel;
+    return true;
   };
 
   app.post("/v1/chat/completions", async (ctx) => {
@@ -103,11 +160,19 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
     }
 
     if (matchedRecipe) {
-      const switchResult = await context.lifecycleCoordinator.ensureActive(matchedRecipe, {
-        force_evict: false,
-      });
-      if (switchResult.error) {
-        throw serviceUnavailable(switchResult.error);
+      const current = await context.processManager.findInferenceProcess(context.config.inference_port);
+      const policy = context.config.openai_model_activation_policy ?? "load_if_idle";
+      const isMismatchedActive = Boolean(
+        current && !isRecipeRunning(matchedRecipe, current, { allowEitherPathContains: true })
+      );
+
+      if (isMismatchedActive && policy === "load_if_idle") {
+        if (applyLoadIfIdleModelRewrite(parsed, current)) {
+          bodyChanged = true;
+          requestedModel = typeof parsed["model"] === "string" ? parsed["model"] : requestedModel;
+        }
+      } else {
+        await ensureRecipeIsActive(matchedRecipe, current, policy);
       }
     }
 

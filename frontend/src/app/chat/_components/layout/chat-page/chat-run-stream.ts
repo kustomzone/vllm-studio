@@ -112,6 +112,12 @@ export function useChatRunStream({
           resetIdleTimer();
           if (event.event === "keepalive") continue;
           handleRunEvent(event);
+
+          if (event.event === "run_end") {
+            runCompletedRef.current = true;
+            abortController.abort();
+            break;
+          }
         }
       } catch (err) {
         if (!abortController.signal.aborted && !runCompletedRef.current) {

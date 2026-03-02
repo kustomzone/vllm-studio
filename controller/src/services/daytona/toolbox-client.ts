@@ -7,6 +7,7 @@ const SESSION_ROOT_PREFIX = "workspace/vllm-studio";
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 const RETRYABLE_STATUS_CODES = new Set([403, 404, 409, 423, 429, 500, 502, 503, 504]);
+const TOOLBOX_ENDPOINT_FALLBACK_STATUS_CODES = new Set([404, 405]);
 
 interface ToolboxError {
   status: number;
@@ -69,6 +70,14 @@ const parseNumberLike = (value: unknown): number | null => {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+};
+
+const joinPathSegments = (...parts: string[]): string => {
+  const segments = parts
+    .flatMap((part) => part.split("/"))
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  return `/${segments.join("/")}`;
 };
 
 export const resolveDaytonaProxyBaseUrl = (
@@ -661,30 +670,57 @@ export class DaytonaToolboxClient {
     );
   }
 
+  private isLikelySandboxQuotaError(error: ApiError): boolean {
+    if (error.status !== 403 && error.status !== 429) {
+      return false;
+    }
+    const body = error.bodySnippet.toLowerCase();
+    return (
+      body.includes("quota") ||
+      body.includes("limit") ||
+      body.includes("maximum") ||
+      body.includes("storage") ||
+      body.includes("capacity") ||
+      body.includes("insufficient") ||
+      body.includes("disk")
+    );
+  }
+
   private async createSessionSandbox(sessionId: string): Promise<string> {
     const sessionKey = sanitizeSessionId(sessionId);
+    const payloadFactory = (): Record<string, unknown> => ({
+      name: `vllm-studio-${sessionKey}`,
+      labels: {
+        source: "vllm-studio",
+        session_id: sessionKey,
+      },
+    });
 
-    try {
-      const payload = (await this.requestApiJson("POST", "/sandbox", {
-        name: `vllm-studio-${sessionKey}`,
-        labels: {
-          source: "vllm-studio",
-          session_id: sessionKey,
-        },
-      })) as Record<string, unknown>;
-
-      return this.extractSandboxId(payload);
-    } catch (error) {
-      // Daytona sometimes responds to create with conflict when the sandbox already exists.
-      // In that case, reuse the existing sandbox instead of failing.
-      if (this.isApiError(error) && error.status === 409) {
-        const existing = await this.findSessionSandbox(sessionId);
-        if (existing) {
-          return existing;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const payload = (await this.requestApiJson("POST", "/sandbox", payloadFactory())) as Record<
+          string,
+          unknown
+        >;
+        return this.extractSandboxId(payload);
+      } catch (error) {
+        // Daytona sometimes responds to create with conflict when the sandbox already exists.
+        // In that case, reuse the existing sandbox instead of failing.
+        if (this.isApiError(error) && error.status === 409) {
+          const existing = await this.findSessionSandbox(sessionId);
+          if (existing) {
+            return existing;
+          }
         }
+        if (this.isApiError(error) && this.isLikelySandboxQuotaError(error) && attempt === 0) {
+          await this.cleanupStoppedSandboxes();
+          continue;
+        }
+        throw error;
       }
-      throw error;
     }
+
+    throw new Error("[Daytona] sandbox creation failed after cleanup retry");
   }
 
   private async createAndCacheSessionSandbox(sessionId: string): Promise<string> {
@@ -748,6 +784,33 @@ export class DaytonaToolboxClient {
     }
   }
 
+  private buildToolboxRequestUrls(sandboxId: string, path: string): string[] {
+    const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+    const baseUrl = new URL(this.proxyBaseUrl);
+    const basePath =
+      baseUrl.pathname === "/" ? "" : baseUrl.pathname.replace(/\/+$/, "");
+    const toolboxRoot = basePath.endsWith("/toolbox")
+      ? basePath
+      : joinPathSegments(basePath, "toolbox");
+    const rootWithoutToolbox = basePath.endsWith("/toolbox")
+      ? basePath.slice(0, -"/toolbox".length)
+      : basePath;
+
+    const candidates = new Set<string>();
+    const addCandidate = (prefix: string): void => {
+      candidates.add(`${baseUrl.origin}${prefix}${normalizedPath}`);
+    };
+
+    // Preferred modern proxy route.
+    addCandidate(joinPathSegments(toolboxRoot, sandboxId));
+    // Legacy compatibility route observed on older generated clients.
+    addCandidate(joinPathSegments(toolboxRoot, sandboxId, "toolbox"));
+    // Runner API compatibility route.
+    addCandidate(joinPathSegments(rootWithoutToolbox, "sandboxes", sandboxId, "toolbox"));
+
+    return [...candidates];
+  }
+
   private async requestToolbox(
     sessionId: string,
     method: HttpMethod,
@@ -758,15 +821,31 @@ export class DaytonaToolboxClient {
     } = {}
   ): Promise<{ response: Response; sandboxId: string }> {
     const sandboxId = await this.resolveSandboxId(sessionId);
-    const url = `${this.proxyBaseUrl}/toolbox/${sandboxId}${path}`;
-    const response = await fetch(url, {
-      method,
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        ...(init.headers ?? {}),
-      },
-      ...(init.body ? { body: init.body } : {}),
-    });
+    const candidates = this.buildToolboxRequestUrls(sandboxId, path);
+
+    let response: Response | null = null;
+    for (let index = 0; index < candidates.length; index += 1) {
+      const candidate = candidates[index]!;
+      response = await fetch(candidate, {
+        method,
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          ...(init.headers ?? {}),
+        },
+        ...(init.body ? { body: init.body } : {}),
+      });
+
+      const shouldTryFallback =
+        TOOLBOX_ENDPOINT_FALLBACK_STATUS_CODES.has(response.status) &&
+        index < candidates.length - 1;
+      if (!shouldTryFallback) {
+        return { response, sandboxId };
+      }
+    }
+
+    if (!response) {
+      throw new Error("[Daytona] toolbox request failed: no response");
+    }
     return { response, sandboxId };
   }
 

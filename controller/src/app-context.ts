@@ -46,6 +46,7 @@ export const createAppContext = (): AppContext => {
   const launchState = createLaunchState();
   const { registry: metricsRegistry, metrics } = createMetrics();
   const processManager = createProcessManager(config, logger, eventManager);
+  let runManager: ChatRunManager | null = null;
   const lifecycleCoordinator = createLifecycleCoordinator({
     config,
     logger,
@@ -54,6 +55,7 @@ export const createAppContext = (): AppContext => {
     metrics,
     processManager,
     recipeStore,
+    abortRunsForModel: (modelName) => runManager?.abortRunsForModel(modelName) ?? 0,
   });
   const downloadManager = new DownloadManager(config, downloadStore, eventManager, logger);
 
@@ -80,7 +82,7 @@ export const createAppContext = (): AppContext => {
     },
   } as Omit<AppContext, "runManager" | "jobManager" | "distributedManager">;
 
-  const runManager = new ChatRunManager(baseContext as AppContext);
+  runManager = new ChatRunManager(baseContext as AppContext);
   const jobManager = new JobManager(baseContext as AppContext, jobStore);
   const distributedManager = new DistributedClusterManager(
     baseContext as AppContext,

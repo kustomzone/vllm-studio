@@ -20,9 +20,10 @@ export function useDashboardData() {
     const prev = prevStageRef.current;
     prevStageRef.current = stage;
     if (stage !== prev && DONE_STAGES.has(stage || "")) {
+      actions.clearLaunching();
       recipesState.reload();
     }
-  }, [realtime.launchProgress?.stage, recipesState.reload]);
+  }, [realtime.launchProgress?.stage, actions.clearLaunching, recipesState.reload]);
 
   const navigate = (path: string) => () => router.push(path);
 

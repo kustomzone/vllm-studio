@@ -39,7 +39,7 @@ export function createSystemApi(core: ApiCore) {
     ): Promise<{ success: boolean; pid?: number; message: string }> =>
       core.request(`/launch/${recipeId}?force=${force}`, {
         method: "POST",
-        timeout: 6 * 60 * 1000,
+        timeout: 30_000,
         retries: 0,
       }),
 
