@@ -10,5 +10,6 @@
 
 - Controller: ../controller/README.md
 - Frontend: ../frontend/README.md
+- Desktop app (Electron): desktop-electron.md
 - CLI: ../cli/README.md
 - Shared types: ../shared/README.md

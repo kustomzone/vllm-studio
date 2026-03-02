@@ -23,6 +23,16 @@ npm run test
 npm run lint
 ```
 
+## Desktop app (Electron)
+
+```bash
+npm run desktop:dev       # next dev + electron shell
+npm run desktop:build     # next standalone + desktop main build
+npm run desktop:dist      # production installers in dist-desktop/
+```
+
+Details: `../docs/desktop-electron.md`
+
 ## Configuration
 
 - Backend URL precedence is defined in src/lib/backend-config.ts
