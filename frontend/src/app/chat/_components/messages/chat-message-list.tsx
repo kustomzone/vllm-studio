@@ -13,9 +13,7 @@ import { Virtuoso } from "react-virtuoso";
 import { ChatMessageItem } from "./chat-message-item";
 import { PerfProfiler } from "../perf/perf-profiler";
 import { ChatRunStatusLine } from "./chat-run-status-line";
-import { UiStatusPill } from "@/components/ui-kit";
 import type { AgentFileEntry, Artifact, ChatMessage } from "@/lib/types";
-import { fileIcon, flattenAgentFiles } from "./chat-message-list/agent-file-chips";
 import { filterVisibleMessages } from "./chat-message-list/visible-messages";
 
 type MessageGroup = { type: "single"; message: ChatMessage; messageIndex: number };
@@ -56,9 +54,9 @@ export function ChatMessageList({
   artifactsByMessage,
   selectedModel,
   contextUsageLabel,
-  agentFiles,
-  selectedAgentFilePath,
-  onOpenAgentFile,
+  agentFiles: _agentFiles,
+  selectedAgentFilePath: _selectedAgentFilePath,
+  onOpenAgentFile: _onOpenAgentFile,
   scrollParent,
   messagesEndRef,
   onFork,
@@ -103,9 +101,6 @@ export function ChatMessageList({
     }
     return groups;
   }, [baseMessages, isLoading, visibleMessages]);
-
-  const fileChips = useMemo(() => flattenAgentFiles(agentFiles ?? []), [agentFiles]);
-  const hasAgentFiles = fileChips.length > 0 && onOpenAgentFile;
 
   const handleExport = useCallback(
     (payload: {
@@ -185,52 +180,10 @@ export function ChatMessageList({
     return (
       <div className="pt-4">
         {!isLoading && runStatusLine?.trim() && <ChatRunStatusLine line={runStatusLine} />}
-
-        {hasAgentFiles && onOpenAgentFile && (
-          <div className="mb-4">
-            <div className="text-[10px] uppercase tracking-[0.24em] text-(--dim) mb-2">
-              Agent Files
-            </div>
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
-              {fileChips.map((file) => {
-                const Icon = fileIcon(file.name);
-                const isSelected = selectedAgentFilePath === file.path;
-                return (
-                  <button
-                    key={file.path}
-                    onClick={() => onOpenAgentFile(file.path)}
-                    className="cursor-pointer"
-                    title={file.path}
-                  >
-                    <UiStatusPill
-                      tone={isSelected ? "success" : "neutral"}
-                      className={`gap-1.5 whitespace-nowrap transition-all ${
-                        isSelected
-                          ? "bg-(--surface)/70 text-(--fg) border-(--hl2)/60"
-                          : "bg-background/40 text-(--dim) border-white/12 hover:text-(--fg) hover:bg-background/55"
-                      }`}
-                    >
-                      <Icon className="h-3 w-3 shrink-0" />
-                      <span className="max-w-[160px] truncate">{file.name}</span>
-                    </UiStatusPill>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
         <div ref={messagesEndRef} />
       </div>
     );
-  }, [
-    fileChips,
-    hasAgentFiles,
-    isLoading,
-    messagesEndRef,
-    onOpenAgentFile,
-    runStatusLine,
-    selectedAgentFilePath,
-  ]);
+  }, [isLoading, messagesEndRef, runStatusLine]);
 
   const virtuosoComponents = useMemo(() => {
     return { List: VirtuosoList, Footer };

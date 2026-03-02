@@ -58,7 +58,9 @@ function ChatMessageItemBase({
   const messageMetadata = message.metadata as MessageMetadata | undefined;
   const isUser = messageRole === "user";
   const runId = (messageMetadata as { runId?: string } | undefined)?.runId ?? null;
-  const runDurationSeconds = useAppStore((state) => (runId ? state.runDurationsByRunId[runId] : undefined));
+  const runDurationSeconds = useAppStore((state) =>
+    runId ? state.runDurationsByRunId[runId] : undefined,
+  );
   const copied = useAppStore((state) => state.copiedMessageId === messageId);
   const setCopiedMessageId = useAppStore((state) => state.setCopiedMessageId);
   const setActiveArtifactId = useAppStore((state) => state.setActiveArtifactId);
@@ -135,7 +137,8 @@ function ChatMessageItemBase({
     });
   };
 
-  const actionButtonClassName = "p-1 rounded hover:bg-(--accent) transition-colors disabled:opacity-40";
+  const actionButtonClassName =
+    "p-1 rounded hover:bg-(--accent) transition-colors disabled:opacity-40";
 
   // User message rendering - simple on mobile, card on desktop
   if (isUser) {
@@ -157,23 +160,31 @@ function ChatMessageItemBase({
     <div id={`message-${message.id}`} className="flex flex-col group">
       <div className="max-w-full">
         <div className="flex items-center gap-2 mb-1">
-          <span className="md:hidden text-[10px] font-mono text-(--dim) truncate max-w-[70vw]" title={fullModelId}>
+          <span
+            className="md:hidden text-[10px] font-mono text-(--dim) truncate max-w-[70vw]"
+            title={fullModelId}
+          >
             {fullModelId}
           </span>
           <span className="hidden md:inline text-[10px] uppercase tracking-wider text-(--dim) md:tracking-[0.2em] md:text-(--dim) truncate max-w-[180px]">
             {displayModel || "Assistant"}
           </span>
-          {durationLabel && (
-            <span className="text-[10px] text-(--dim) font-mono" title="Turn runtime">
-              {durationLabel}
-            </span>
-          )}
-          {activeToolCount > 0 && (
-            <span className="inline-flex items-center gap-1 text-[10px] text-(--dim)">
-              <Icons.Loader2 className="h-3 w-3 text-amber-400 animate-spin" />
-              <span className="hidden md:inline">tools</span>
-            </span>
-          )}
+          <span
+            className="text-[10px] text-(--dim) font-mono tabular-nums min-w-[2.5rem]"
+            title={durationLabel ? "Turn runtime" : undefined}
+          >
+            {durationLabel ?? ""}
+          </span>
+          <span className="inline-flex items-center gap-1 text-[10px] text-(--dim) min-w-[2.75rem]">
+            {activeToolCount > 0 ? (
+              <>
+                <Icons.Loader2 className="h-3 w-3 text-amber-400 animate-spin" />
+                <span className="hidden md:inline">tools</span>
+              </>
+            ) : (
+              <span className="h-3 w-3" aria-hidden="true" />
+            )}
+          </span>
           {totalTokens != null && totalTokens > 0 && (
             <span className="hidden md:inline text-[10px] text-(--dim) font-mono">
               {totalTokens.toLocaleString()} tok
@@ -199,7 +210,11 @@ function ChatMessageItemBase({
               </button>
             )}
             {onFork && (
-              <button onClick={() => onFork(messageId)} className={actionButtonClassName} title="Fork">
+              <button
+                onClick={() => onFork(messageId)}
+                className={actionButtonClassName}
+                title="Fork"
+              >
                 <Icons.GitBranch className="h-3.5 w-3.5 text-(--dim)" />
               </button>
             )}
@@ -242,7 +257,11 @@ function ChatMessageItemBase({
           </div>
         </div>
 
-        <InlineThinking messageId={messageId} content={thinkingContent} isActive={isThinkingActive} />
+        <InlineThinking
+          messageId={messageId}
+          content={thinkingContent}
+          isActive={isThinkingActive}
+        />
         <InlineToolIndicator toolParts={toolParts} />
 
         {textContent ? (
@@ -259,7 +278,11 @@ function ChatMessageItemBase({
         {artifactsEnabled && artifacts && artifacts.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
             {artifacts.map((artifact) => (
-              <MiniArtifactCard key={artifact.id} artifact={artifact} onClick={() => setActiveArtifactId(artifact.id)} />
+              <MiniArtifactCard
+                key={artifact.id}
+                artifact={artifact}
+                onClick={() => setActiveArtifactId(artifact.id)}
+              />
             ))}
           </div>
         )}

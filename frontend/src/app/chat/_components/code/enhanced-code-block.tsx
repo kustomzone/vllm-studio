@@ -1,7 +1,7 @@
 // CRITICAL
 "use client";
 
-import { useCallback, useEffect, useId } from "react";
+import { useEffect, useId } from "react";
 import * as Icons from "../icons";
 import { CodePreview } from "./code-preview";
 import { useAppStore } from "@/store";
@@ -14,6 +14,61 @@ interface EnhancedCodeBlockProps {
   language?: string;
 }
 
+const LANGUAGE_ALIAS: Record<string, string> = {
+  js: "javascript",
+  ts: "typescript",
+  sh: "bash",
+  shell: "bash",
+  zsh: "bash",
+  yml: "yaml",
+  md: "markdown",
+  html: "markup",
+  xml: "markup",
+  txt: "",
+  text: "",
+  plain: "",
+  plaintext: "",
+};
+
+function normalizeLanguage(raw: string | undefined): string {
+  const trimmed = raw?.trim().toLowerCase() ?? "";
+  if (!trimmed) return "";
+  return LANGUAGE_ALIAS[trimmed] ?? trimmed;
+}
+
+function inferLanguageFromCode(code: string): string {
+  const trimmed = code.trim();
+  if (!trimmed) return "markdown";
+
+  if (/^#!.*\b(bash|zsh|sh)\b/i.test(trimmed)) return "bash";
+  if (/^#!.*\bpython\b/i.test(trimmed)) return "python";
+
+  if (
+    (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+    (trimmed.startsWith("[") && trimmed.endsWith("]"))
+  ) {
+    try {
+      JSON.parse(trimmed);
+      return "json";
+    } catch {
+      // Ignore and continue with lightweight heuristics.
+    }
+  }
+
+  if (/<\/?[a-z][\s\S]*>/i.test(trimmed)) return "markup";
+  if (/^(\s*[A-Za-z0-9_.-]+\s*:\s.+\n){2,}/m.test(trimmed)) return "yaml";
+  if (/(^|\n)\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|WITH)\b/i.test(trimmed)) return "sql";
+  if (
+    /(^|\n)\s*(import|export|const|let|function|class|interface|type)\b/.test(trimmed) ||
+    /=>/.test(trimmed)
+  ) {
+    return "typescript";
+  }
+  if (/(^|\n)\s*(def|class)\s+\w+/.test(trimmed) || /\bprint\(/.test(trimmed)) return "python";
+
+  return "markdown";
+}
+
 export function EnhancedCodeBlock({
   children,
   className,
@@ -22,8 +77,7 @@ export function EnhancedCodeBlock({
 }: EnhancedCodeBlockProps) {
   const blockId = useId();
   const blockState = useAppStore(
-    (state) =>
-      state.codeBlockState[blockId] ?? DEFAULT_CODE_BLOCK_ENTRY,
+    (state) => state.codeBlockState[blockId] ?? DEFAULT_CODE_BLOCK_ENTRY,
   );
   const updateCodeBlockState = useAppStore((state) => state.updateCodeBlockState);
   const deleteCodeBlockState = useAppStore((state) => state.deleteCodeBlockState);
@@ -34,48 +88,44 @@ export function EnhancedCodeBlock({
     return () => deleteCodeBlockState(blockId);
   }, [blockId, deleteCodeBlockState]);
 
-  const lang = language || className?.replace("language-", "") || "text";
   const code = String(children).replace(/\n$/, "");
+  const explicitLanguage = normalizeLanguage(language || className?.replace("language-", ""));
+  const lang = explicitLanguage || inferLanguageFromCode(code);
 
-  const setCopied = useCallback(
-    (value: boolean) => {
-      updateCodeBlockState(blockId, (prev) => ({ ...prev, copied: value }));
-    },
-    [blockId, updateCodeBlockState],
-  );
+  const setCopied = (value: boolean) => {
+    updateCodeBlockState(blockId, (prev) => ({ ...prev, copied: value }));
+  };
 
-  const setExpanded = useCallback(
-    (value: boolean) => {
-      updateCodeBlockState(blockId, (prev) => ({ ...prev, isExpanded: value }));
-    },
-    [blockId, updateCodeBlockState],
-  );
+  const setExpanded = (value: boolean) => {
+    updateCodeBlockState(blockId, (prev) => ({ ...prev, isExpanded: value }));
+  };
 
-  const copyCode = useCallback(() => {
+  const copyCode = () => {
     navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }, [code, setCopied]);
+  };
+
+  const lineCount = code.split("\n").length;
+  const isLongCode = lineCount > 20;
+  const shouldCollapse = isLongCode && !isExpanded;
+  const languageLabel = (lang || "code").toUpperCase();
 
   if (isStreaming) {
     return (
-      <div className="my-3 rounded-xl overflow-hidden border border-(--border) bg-(--surface)/90 shadow-sm">
-        <div className="flex items-center justify-between bg-(--surface)/80 backdrop-blur-sm px-4 py-2.5 border-b border-(--border)">
+      <div className="my-3 overflow-hidden rounded-md border border-(--border) bg-(--surface)">
+        <div className="flex items-center justify-between gap-2 border-b border-(--border) bg-(--surface) px-3 py-2">
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-red-400/80" />
-              <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/80" />
-              <div className="w-2.5 h-2.5 rounded-full bg-green-400/80" />
-            </div>
-            <span className="text-xs font-mono font-medium text-(--dim) bg-(--bg) px-2 py-0.5 rounded">
-              {lang || "code"}
+            <span className="rounded-sm border border-(--border) bg-background/40 px-2 py-0.5 text-[10px] font-mono font-semibold tracking-[0.08em] text-(--dim)">
+              {languageLabel}
             </span>
+            {isLongCode && <span className="text-[11px] text-(--dim)">{lineCount} lines</span>}
           </div>
 
           <div className="flex items-center gap-1">
             <button
               onClick={copyCode}
-              className="p-1.5 rounded-lg hover:bg-(--surface) transition-all duration-200 text-(--dim) hover:text-(--fg)"
+              className="rounded-md p-1.5 text-(--dim) transition-colors hover:bg-background/45 hover:text-(--fg)"
               title="Copy code"
             >
               {copied ? (
@@ -87,38 +137,27 @@ export function EnhancedCodeBlock({
           </div>
         </div>
 
-        <pre className="px-4 py-3 text-sm leading-relaxed font-mono text-(--fg) bg-transparent overflow-x-auto whitespace-pre">
-          {code}
-        </pre>
+        <CodePreview code={code} language={lang} />
       </div>
     );
   }
 
-  const lineCount = code.split("\n").length;
-  const isLongCode = lineCount > 20;
-  const shouldCollapse = isLongCode && !isExpanded;
-
   return (
-    <div className="my-3 rounded-xl overflow-hidden border border-(--border) bg-(--surface)/90 shadow-sm transition-all duration-200 hover:shadow-md group">
+    <div className="my-3 overflow-hidden rounded-md border border-(--border) bg-(--surface)">
       {/* Header */}
-      <div className="flex items-center justify-between bg-(--surface)/80 backdrop-blur-sm px-4 py-2.5 border-b border-(--border)">
+      <div className="flex items-center justify-between gap-2 border-b border-(--border) bg-(--surface) px-3 py-2">
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-red-400/80" />
-            <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/80" />
-            <div className="w-2.5 h-2.5 rounded-full bg-green-400/80" />
-          </div>
-          <span className="text-xs font-mono font-medium text-(--dim) bg-(--bg) px-2 py-0.5 rounded">
-            {lang || "code"}
+          <span className="rounded-sm border border-(--border) bg-background/40 px-2 py-0.5 text-[10px] font-mono font-semibold tracking-[0.08em] text-(--dim)">
+            {languageLabel}
           </span>
-          {isLongCode && <span className="text-xs text-(--dim)">{lineCount} lines</span>}
+          {isLongCode && <span className="text-[11px] text-(--dim)">{lineCount} lines</span>}
         </div>
 
         <div className="flex items-center gap-1">
           {isLongCode && (
             <button
               onClick={() => setExpanded(!isExpanded)}
-              className="p-1.5 rounded-lg hover:bg-(--surface) transition-all duration-200 text-(--dim) hover:text-(--fg)"
+              className="rounded-md p-1.5 text-(--dim) transition-colors hover:bg-background/45 hover:text-(--fg)"
               title={isExpanded ? "Collapse" : "Expand"}
             >
               {isExpanded ? (
@@ -131,7 +170,7 @@ export function EnhancedCodeBlock({
 
           <button
             onClick={copyCode}
-            className="p-1.5 rounded-lg hover:bg-(--surface) transition-all duration-200 text-(--dim) hover:text-(--fg)"
+            className="rounded-md p-1.5 text-(--dim) transition-colors hover:bg-background/45 hover:text-(--fg)"
             title="Copy code"
           >
             {copied ? (
@@ -148,10 +187,10 @@ export function EnhancedCodeBlock({
         <CodePreview code={code} language={lang} />
 
         {shouldCollapse && (
-          <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-(--surface) to-transparent flex items-end justify-center pb-3">
+          <div className="absolute bottom-0 left-0 right-0 flex h-24 items-end justify-center bg-gradient-to-t from-(--surface) to-transparent pb-3">
             <button
               onClick={() => setExpanded(true)}
-              className="text-xs text-(--dim) hover:text-(--fg) transition-colors flex items-center gap-1"
+              className="flex items-center gap-1 text-xs text-(--dim) transition-colors hover:text-(--fg)"
             >
               Expand full code
               <Icons.Maximize2 className="h-3 w-3" />
