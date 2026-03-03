@@ -92,6 +92,30 @@ describe("run-status", () => {
     expect(value).toBe("ran command: ls -la");
   });
 
+  it("formats computer_use calls as command executions", () => {
+    const value = buildRunStatusText({
+      isLoading: true,
+      streamStalled: false,
+      elapsedSeconds: 4,
+      executingTools: new Set(["tool-3b"]),
+      toolResultsMap: new Map(),
+      messages: [assistantToolMessage("tool-3b", "computer_use", { command: "npm test" })],
+    });
+    expect(value).toBe("ran command: npm test");
+  });
+
+  it("formats browser_open_url calls with website target", () => {
+    const value = buildRunStatusText({
+      isLoading: true,
+      streamStalled: false,
+      elapsedSeconds: 4,
+      executingTools: new Set(["tool-3c"]),
+      toolResultsMap: new Map(),
+      messages: [assistantToolMessage("tool-3c", "browser_open_url", { url: "https://example.com" })],
+    });
+    expect(value).toBe("opened browser: https://example.com");
+  });
+
   it("formats move_file tool calls with from/to target", () => {
     const value = buildRunStatusText({
       isLoading: true,

@@ -23,9 +23,12 @@ const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   web_search: "web",
   fetch_url: "web",
   browse: "web",
+  browser_open_url: "web",
   http_request: "web",
   execute_code: "code",
   run_command: "code",
+  execute_command: "code",
+  computer_use: "code",
   bash: "code",
   python: "code",
   shell: "code",
@@ -81,4 +84,3 @@ export const getTurnSummary = (items: ActivityItem[]): { label: string; count: n
   const meta = CATEGORY_META[dominant];
   return { label: `${meta.label} (${toolItems.length})`, count: toolItems.length, color: meta.color };
 };
-

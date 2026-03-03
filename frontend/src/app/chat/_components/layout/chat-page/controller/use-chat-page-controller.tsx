@@ -94,6 +94,8 @@ export function useChatPageController(): ChatPageViewProps {
 
   // Derived state from messages
   const activityPanelVisible = sidebarOpen && sidebarTab === "activity";
+  const activityDataVisible =
+    sidebarOpen && (sidebarTab === "activity" || sidebarTab === "browser" || sidebarTab === "computer");
   const contextPanelVisible = sidebarOpen && sidebarTab === "context";
 
   const { thinkingActive, thinkingState, activityGroups } = Hooks.useChatDerived({
@@ -101,7 +103,7 @@ export function useChatPageController(): ChatPageViewProps {
     isLoading,
     executingTools: tools.executingTools,
     toolResultsMap: tools.toolResultsMap,
-    enableActivityGroups: activityPanelVisible,
+    enableActivityGroups: activityDataVisible,
   });
 
   const activityCount = useMemo(() => {

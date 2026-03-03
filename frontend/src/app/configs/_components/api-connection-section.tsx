@@ -2,6 +2,43 @@
 import { Activity, Check, Eye, EyeOff, Link, Loader2, X } from "lucide-react";
 import type { ApiConnectionSettings, ConnectionStatus } from "../hooks/use-configs";
 
+type AgentFsBackendMode =
+  | "daytona_only"
+  | "daytona_with_local_fallback"
+  | "local_only"
+  | "disabled";
+
+const resolveAgentFsBackendMode = (
+  apiSettings: ApiConnectionSettings,
+): AgentFsBackendMode => {
+  if (apiSettings.daytonaAgentMode && apiSettings.agentFsLocalFallback) {
+    return "daytona_with_local_fallback";
+  }
+  if (apiSettings.daytonaAgentMode) {
+    return "daytona_only";
+  }
+  if (apiSettings.agentFsLocalFallback) {
+    return "local_only";
+  }
+  return "disabled";
+};
+
+const applyAgentFsBackendMode = (
+  apiSettings: ApiConnectionSettings,
+  mode: AgentFsBackendMode,
+): ApiConnectionSettings => {
+  if (mode === "daytona_with_local_fallback") {
+    return { ...apiSettings, daytonaAgentMode: true, agentFsLocalFallback: true };
+  }
+  if (mode === "daytona_only") {
+    return { ...apiSettings, daytonaAgentMode: true, agentFsLocalFallback: false };
+  }
+  if (mode === "local_only") {
+    return { ...apiSettings, daytonaAgentMode: false, agentFsLocalFallback: true };
+  }
+  return { ...apiSettings, daytonaAgentMode: false, agentFsLocalFallback: false };
+};
+
 export function ApiConnectionSection({
   apiSettingsLoading,
   apiSettings,
@@ -31,6 +68,7 @@ export function ApiConnectionSection({
   onTestConnection: () => void;
   onSave: () => void;
 }) {
+  const agentFsBackendMode = resolveAgentFsBackendMode(apiSettings);
   return (
     <div className="mb-6 sm:mb-8">
       <div className="text-xs text-(--dim) uppercase tracking-wider mb-3">API Connection</div>
@@ -118,17 +156,31 @@ export function ApiConnectionSection({
               }
             />
 
-            <label className="inline-flex items-center gap-2 text-xs text-(--fg)">
-              <input
-                type="checkbox"
-                checked={apiSettings.daytonaAgentMode}
+            <div>
+              <label className="block text-xs text-(--dim) mb-1.5">Agent filesystem backend</label>
+              <select
+                value={agentFsBackendMode}
                 onChange={(event) =>
-                  onApiSettingsChange({ ...apiSettings, daytonaAgentMode: event.target.checked })
+                  onApiSettingsChange(
+                    applyAgentFsBackendMode(
+                      apiSettings,
+                      event.target.value as AgentFsBackendMode,
+                    ),
+                  )
                 }
-                className="h-3.5 w-3.5 rounded border-(--border) bg-(--surface)"
-              />
-              Enable Daytona agent mode
-            </label>
+                className="w-full px-3 py-2 bg-(--surface) border border-(--border) rounded-lg text-sm text-(--fg) focus:outline-none focus:border-(--hl1)"
+              >
+                <option value="daytona_only">Daytona only</option>
+                <option value="daytona_with_local_fallback">
+                  Daytona + local fallback
+                </option>
+                <option value="local_only">Local only</option>
+                <option value="disabled">Disabled</option>
+              </select>
+              <p className="mt-1 text-[11px] text-(--dim)">
+                Choose where agent file operations run. Recommended: Daytona + local fallback.
+              </p>
+            </div>
 
             <div className="flex items-center justify-between pt-2">
               <div className="flex items-center gap-2">

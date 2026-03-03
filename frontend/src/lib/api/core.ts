@@ -39,6 +39,44 @@ export type ApiCore = ReturnType<typeof createApiCore>;
 export function createApiCore(params: { baseUrl: string; useProxy: boolean }) {
   const { baseUrl, useProxy } = params;
 
+  const normalizeSsePayload = (event: string, data: Record<string, unknown>): ChatRunStreamEvent => {
+    // Backward-compatibility: some older proxy/controller stacks emit SSE frames with
+    // `event: message` (or no event line) and wrap the real event inside nested payloads.
+    //
+    // Supported legacy shapes:
+    // - { event: "run_start", data: { ... } }
+    // - { type: "run_start", data: { ... } }
+    // - { event: "run_start", payload: { ... } }
+    // - { type: "run_start", payload: { ... } }
+    const nestedEvent =
+      typeof data["event"] === "string"
+        ? (data["event"] as string)
+        : typeof data["type"] === "string"
+          ? (data["type"] as string)
+          : null;
+    const nestedData = isRecord(data["data"])
+      ? (data["data"] as Record<string, unknown>)
+      : isRecord(data["payload"])
+        ? (data["payload"] as Record<string, unknown>)
+        : null;
+
+    if (
+      (event === "message" || event === "") &&
+      nestedEvent &&
+      nestedData
+    ) {
+      return {
+        event: nestedEvent,
+        data: nestedData,
+      };
+    }
+
+    return { event: event || "message", data };
+  };
+
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
   const maybeClearInvalidBackendOverride = (response: Response): void => {
     if (!useProxy) return;
     if (response.headers.get("x-backend-override-invalid") !== "1") return;
@@ -167,7 +205,7 @@ export function createApiCore(params: { baseUrl: string; useProxy: boolean }) {
       } catch {
         data = { raw: dataString };
       }
-      const payload = { event: eventType || "message", data };
+      const payload = normalizeSsePayload(eventType, data);
       eventType = "";
       dataLines = [];
       return payload;

@@ -3,6 +3,19 @@ import { Cpu, Database, FolderOpen, Globe, Key, Server, Settings } from "lucide-
 import type { ConfigData } from "@/lib/types";
 import { ConfigRow } from "@/components/shared";
 
+const describeAgentFsBackend = (config: ConfigData["config"]): string => {
+  if (config.daytona_agent_mode && config.agent_fs_local_fallback) {
+    return "Daytona + local fallback";
+  }
+  if (config.daytona_agent_mode) {
+    return "Daytona only";
+  }
+  if (config.agent_fs_local_fallback) {
+    return "Local only";
+  }
+  return "Disabled";
+};
+
 export function ConfigCards({ data }: { data: ConfigData }) {
   const formatRuntime = (
     info?: ConfigData["runtime"]["backends"][keyof ConfigData["runtime"]["backends"]],
@@ -81,6 +94,11 @@ export function ConfigCards({ data }: { data: ConfigData }) {
         <ConfigRow
           label="Daytona mode"
           value={data.config.daytona_agent_mode ? "Enabled" : "Disabled"}
+          icon={<Settings className="h-3 w-3" />}
+        />
+        <ConfigRow
+          label="Agent FS backend"
+          value={describeAgentFsBackend(data.config)}
           icon={<Settings className="h-3 w-3" />}
         />
         <ConfigRow

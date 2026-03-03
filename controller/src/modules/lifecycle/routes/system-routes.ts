@@ -355,6 +355,7 @@ export const registerSystemRoutes = (app: Hono, context: AppContext): void => {
         daytona_proxy_url: context.config.daytona_proxy_url ?? null,
         daytona_sandbox_id: context.config.daytona_sandbox_id ?? null,
         daytona_agent_mode: context.config.daytona_agent_mode,
+        agent_fs_local_fallback: context.config.agent_fs_local_fallback,
         daytona_api_key_configured: Boolean(context.config.daytona_api_key),
       },
       services,

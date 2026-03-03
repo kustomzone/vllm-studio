@@ -13,6 +13,7 @@ const createConfig = (overrides: Partial<Config> = {}): Config => ({
   models_dir: "/models",
   strict_openai_models: false,
   daytona_agent_mode: true,
+  agent_fs_local_fallback: false,
   ...overrides,
 });
 
@@ -123,6 +124,115 @@ describe("daytona execute_command tool", () => {
       );
       expect(textPart?.text).toBe("ok");
       expect(executePayload?.["command"] as string | undefined).toBe("pwd");
+    } finally {
+      globalThis.fetch = originalFetch;
+      clearDaytonaToolboxClientCache();
+    }
+  });
+
+  it("exposes computer_use as an execute_command alias", async () => {
+    clearDaytonaToolboxClientCache();
+    const originalFetch = globalThis.fetch;
+    let executePayload: Record<string, unknown> | null = null;
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      const url = String(input);
+
+      if (url.endsWith("/api/sandbox") && method === "GET") {
+        return new Response(
+          JSON.stringify([{ id: "sandbox-tool-computer", name: "vllm-studio-session_computer", state: "running" }]),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+
+      if (url.includes("/files/folder")) {
+        return new Response("ok", { status: 200, headers: { "content-type": "application/json" } });
+      }
+
+      if (url.includes("/process/execute")) {
+        executePayload =
+          typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {};
+        return new Response(JSON.stringify({ result: "computer-ok", exitCode: 0 }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      return new Response("unexpected", { status: 500 });
+    }) as typeof fetch;
+
+    try {
+      const tools = buildDaytonaTools(
+        { config: createConfig({ daytona_api_key: "token" }) } as never,
+        { sessionId: "session-computer", agentMode: true }
+      );
+      const computerTool = tools.find((tool) => tool.name === AGENT_TOOL_NAMES.COMPUTER_USE);
+      expect(computerTool).toBeDefined();
+
+      const result = await computerTool!.execute("call-computer", { cmd: "pwd", timeout_ms: 2300 });
+      const textPart = result.content.find(
+        (item): item is { type: "text"; text: string } => item.type === "text"
+      );
+      expect(textPart?.text).toBe("computer-ok");
+      expect(executePayload?.["command"] as string | undefined).toBe("pwd");
+      expect(executePayload?.["timeout"] as number | undefined).toBe(3);
+    } finally {
+      globalThis.fetch = originalFetch;
+      clearDaytonaToolboxClientCache();
+    }
+  });
+
+  it("browser_open_url probes URLs from the backend machine", async () => {
+    clearDaytonaToolboxClientCache();
+    const originalFetch = globalThis.fetch;
+    let executePayload: Record<string, unknown> | null = null;
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      const url = String(input);
+
+      if (url.endsWith("/api/sandbox") && method === "GET") {
+        return new Response(
+          JSON.stringify([{ id: "sandbox-tool-browser", name: "vllm-studio-session_browser", state: "running" }]),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+
+      if (url.includes("/files/folder")) {
+        return new Response("ok", { status: 200, headers: { "content-type": "application/json" } });
+      }
+
+      if (url.includes("/process/execute")) {
+        executePayload =
+          typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {};
+        return new Response(
+          JSON.stringify({ result: "URL: https://example.com\nTitle: Example\nPreview: hello", exitCode: 0 }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }
+        );
+      }
+
+      return new Response("unexpected", { status: 500 });
+    }) as typeof fetch;
+
+    try {
+      const tools = buildDaytonaTools(
+        { config: createConfig({ daytona_api_key: "token" }) } as never,
+        { sessionId: "session-browser", agentMode: true }
+      );
+      const browserTool = tools.find((tool) => tool.name === AGENT_TOOL_NAMES.BROWSER_OPEN_URL);
+      expect(browserTool).toBeDefined();
+
+      const result = await browserTool!.execute("call-browser", { url: "https://example.com" });
+      const textPart = result.content.find(
+        (item): item is { type: "text"; text: string } => item.type === "text"
+      );
+      expect(textPart?.text).toContain("Title: Example");
+      expect(String(executePayload?.["command"] ?? "")).toContain("curl -L");
+      expect(String(executePayload?.["command"] ?? "")).toContain("https://example.com");
     } finally {
       globalThis.fetch = originalFetch;
       clearDaytonaToolboxClientCache();

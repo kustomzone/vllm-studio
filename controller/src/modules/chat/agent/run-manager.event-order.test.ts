@@ -13,6 +13,11 @@ type StreamEvent = {
   data: Record<string, unknown>;
 };
 
+/**
+ * Build a minimal app context for run-manager ordering tests.
+ * @param chatStore Backing chat store instance.
+ * @returns Mocked app context.
+ */
 function createTestContext(chatStore: ChatStore): AppContext {
   return {
     config: {
@@ -24,6 +29,7 @@ function createTestContext(chatStore: ChatStore): AppContext {
       models_dir: "/tmp/models",
       strict_openai_models: false,
       daytona_agent_mode: false,
+      agent_fs_local_fallback: false,
     },
     logger: {
       debug: () => undefined,
@@ -43,6 +49,11 @@ function createTestContext(chatStore: ChatStore): AppContext {
   } as unknown as AppContext;
 }
 
+/**
+ * Collect SSE events from a run stream until run_end.
+ * @param stream Run stream async iterator.
+ * @returns Parsed stream events.
+ */
 async function collectStreamEvents(stream: AsyncIterable<string>): Promise<StreamEvent[]> {
   const events: StreamEvent[] = [];
 
@@ -80,8 +91,8 @@ describe("ChatRunManager event ordering", () => {
   it("emits deterministic mock run events in order", async () => {
     process.env["VLLM_STUDIO_MOCK_INFERENCE"] = "1";
 
-    const tempDir = mkdtempSync(join(tmpdir(), "vllm-chat-run-"));
-    const dbPath = join(tempDir, "chat.db");
+    const temporaryDirectory = mkdtempSync(join(tmpdir(), "vllm-chat-run-"));
+    const dbPath = join(temporaryDirectory, "chat.db");
 
     try {
       const chatStore = new ChatStore(dbPath);
@@ -119,7 +130,7 @@ describe("ChatRunManager event ordering", () => {
       const sessionIds = new Set(events.map((event) => String(event.data["session_id"] ?? "")));
       expect(sessionIds).toEqual(new Set([sessionId]));
     } finally {
-      rmSync(tempDir, { recursive: true, force: true });
+      rmSync(temporaryDirectory, { recursive: true, force: true });
     }
   });
 });

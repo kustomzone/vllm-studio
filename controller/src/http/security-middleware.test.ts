@@ -8,6 +8,11 @@ import {
   resetMutatingRateLimitStoreForTests,
 } from "./security-middleware";
 
+/**
+ * Build a minimal app context for middleware tests.
+ * @param apiKey Optional API key to require auth.
+ * @returns Mocked app context.
+ */
 function createContext(apiKey?: string): AppContext {
   return {
     config: {
@@ -19,6 +24,7 @@ function createContext(apiKey?: string): AppContext {
       models_dir: "/tmp/models",
       strict_openai_models: false,
       daytona_agent_mode: false,
+      agent_fs_local_fallback: false,
       ...(apiKey ? { api_key: apiKey } : {}),
     },
     logger: {

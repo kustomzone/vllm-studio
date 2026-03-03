@@ -94,7 +94,10 @@ const parseOptionalStringUpdate = (value: unknown): string | null | undefined =>
   return trimmed.length > 0 ? trimmed : null;
 };
 
-const parseOptionalBooleanUpdate = (value: unknown): boolean | null | undefined => {
+const parseOptionalBooleanUpdate = (
+  value: unknown,
+  field: string
+): boolean | null | undefined => {
   if (value === undefined) return undefined;
   if (value === null) return null;
   if (typeof value === "boolean") return value;
@@ -103,7 +106,7 @@ const parseOptionalBooleanUpdate = (value: unknown): boolean | null | undefined 
     if (["1", "true", "yes", "on"].includes(normalized)) return true;
     if (["0", "false", "no", "off"].includes(normalized)) return false;
   }
-  throw badRequest("daytona_agent_mode must be boolean");
+  throw badRequest(`${field} must be boolean`);
 };
 
 /**
@@ -112,7 +115,27 @@ const parseOptionalBooleanUpdate = (value: unknown): boolean | null | undefined 
  * @param context - App context.
  */
 export const registerStudioRoutes = (app: Hono, context: AppContext): void => {
-  const buildSettingsPayload = () => {
+  const buildSettingsPayload = (): {
+    config_path: string;
+    persisted: {
+      models_dir: string | undefined;
+      daytona_api_url: string | undefined;
+      daytona_proxy_url: string | undefined;
+      daytona_sandbox_id: string | undefined;
+      daytona_agent_mode: boolean | undefined;
+      agent_fs_local_fallback: boolean | undefined;
+      daytona_api_key_configured: boolean;
+    };
+    effective: {
+      models_dir: string;
+      daytona_api_url: string | null;
+      daytona_proxy_url: string | null;
+      daytona_sandbox_id: string | null;
+      daytona_agent_mode: boolean;
+      agent_fs_local_fallback: boolean;
+      daytona_api_key_configured: boolean;
+    };
+  } => {
     const persisted = loadPersistedConfig(context.config.data_dir);
     return {
       config_path: getPersistedConfigPath(context.config.data_dir),
@@ -122,6 +145,7 @@ export const registerStudioRoutes = (app: Hono, context: AppContext): void => {
         daytona_proxy_url: persisted.daytona_proxy_url,
         daytona_sandbox_id: persisted.daytona_sandbox_id,
         daytona_agent_mode: persisted.daytona_agent_mode,
+        agent_fs_local_fallback: persisted.agent_fs_local_fallback,
         daytona_api_key_configured:
           typeof persisted.daytona_api_key === "string" && persisted.daytona_api_key.trim().length > 0,
       },
@@ -131,6 +155,7 @@ export const registerStudioRoutes = (app: Hono, context: AppContext): void => {
         daytona_proxy_url: context.config.daytona_proxy_url ?? null,
         daytona_sandbox_id: context.config.daytona_sandbox_id ?? null,
         daytona_agent_mode: context.config.daytona_agent_mode,
+        agent_fs_local_fallback: context.config.agent_fs_local_fallback,
         daytona_api_key_configured: Boolean(context.config.daytona_api_key),
       },
     };
@@ -151,7 +176,11 @@ export const registerStudioRoutes = (app: Hono, context: AppContext): void => {
     const daytonaApiKey = parseOptionalStringUpdate(body?.daytona_api_key);
     const daytonaProxyUrl = parseOptionalStringUpdate(body?.daytona_proxy_url);
     const daytonaSandboxId = parseOptionalStringUpdate(body?.daytona_sandbox_id);
-    const daytonaAgentMode = parseOptionalBooleanUpdate(body?.daytona_agent_mode);
+    const daytonaAgentMode = parseOptionalBooleanUpdate(body?.daytona_agent_mode, "daytona_agent_mode");
+    const agentFsLocalFallback = parseOptionalBooleanUpdate(
+      body?.agent_fs_local_fallback,
+      "agent_fs_local_fallback"
+    );
 
     const hasAnyUpdate =
       modelsDirectory !== undefined ||
@@ -159,7 +188,8 @@ export const registerStudioRoutes = (app: Hono, context: AppContext): void => {
       daytonaApiKey !== undefined ||
       daytonaProxyUrl !== undefined ||
       daytonaSandboxId !== undefined ||
-      daytonaAgentMode !== undefined;
+      daytonaAgentMode !== undefined ||
+      agentFsLocalFallback !== undefined;
 
     if (!hasAnyUpdate) {
       throw badRequest("No supported settings provided");
@@ -172,6 +202,9 @@ export const registerStudioRoutes = (app: Hono, context: AppContext): void => {
       ...(daytonaProxyUrl !== undefined ? { daytona_proxy_url: daytonaProxyUrl } : {}),
       ...(daytonaSandboxId !== undefined ? { daytona_sandbox_id: daytonaSandboxId } : {}),
       ...(daytonaAgentMode !== undefined ? { daytona_agent_mode: daytonaAgentMode } : {}),
+      ...(agentFsLocalFallback !== undefined
+        ? { agent_fs_local_fallback: agentFsLocalFallback }
+        : {}),
     });
 
     if (saved.models_dir) {
@@ -179,6 +212,9 @@ export const registerStudioRoutes = (app: Hono, context: AppContext): void => {
     }
     if (typeof saved.daytona_agent_mode === "boolean") {
       context.config.daytona_agent_mode = saved.daytona_agent_mode;
+    }
+    if (typeof saved.agent_fs_local_fallback === "boolean") {
+      context.config.agent_fs_local_fallback = saved.agent_fs_local_fallback;
     }
 
     const apiKey = saved.daytona_api_key?.trim();
@@ -241,6 +277,7 @@ export const registerStudioRoutes = (app: Hono, context: AppContext): void => {
         daytona_proxy_url: context.config.daytona_proxy_url ?? null,
         daytona_sandbox_id: context.config.daytona_sandbox_id ?? null,
         daytona_agent_mode: context.config.daytona_agent_mode,
+        agent_fs_local_fallback: context.config.agent_fs_local_fallback,
         daytona_api_key_configured: Boolean(context.config.daytona_api_key),
       },
     });

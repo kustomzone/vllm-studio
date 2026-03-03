@@ -55,6 +55,7 @@ exit 2
       models_dir: "/models",
       strict_openai_models: false,
       daytona_agent_mode: false,
+      agent_fs_local_fallback: false,
     };
 
     const mockContext = {

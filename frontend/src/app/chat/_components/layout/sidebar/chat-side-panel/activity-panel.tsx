@@ -40,10 +40,10 @@ export function ActivityPanel({
   const hasActiveThinking = latestGroup?.items.some((i) => i.type === "thinking" && i.isActive);
 
   return (
-    <div className="h-full flex flex-col bg-(--bg)">
+    <div className="h-full flex flex-col">
       {isLoading && runStatusLine?.trim() && (
         <div className="px-3 pt-3">
-          <div className="rounded-md border border-(--border)/70 bg-(--surface)/60 px-3 py-2">
+          <div className="px-3 py-2">
             <p className="text-xs leading-snug text-(--dim)">{runStatusLine}</p>
           </div>
         </div>
@@ -51,7 +51,7 @@ export function ActivityPanel({
 
       {totalSteps > 0 && (
         <div className="px-3 pt-3">
-          <div className="rounded-md border border-(--border)/70 bg-(--surface)/50 px-3 py-2.5">
+          <div className="px-3 py-2.5">
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-xs font-semibold tracking-wide text-(--fg)">Plan</span>
               <span className="text-[11px] text-(--dim) font-mono">
@@ -75,7 +75,7 @@ export function ActivityPanel({
       )}
 
       <div className="flex-1 overflow-y-auto">
-        <div className="px-3 py-3 space-y-2.5">
+        <div className="px-3 py-3 space-y-4 divide-y divide-(--border)/20">
           {activityGroups.map((group) => (
             <TurnGroup
               key={`${group.id}:${group.isLatest ? "latest" : "past"}`}
@@ -85,7 +85,7 @@ export function ActivityPanel({
           ))}
 
           {isLoading && (
-            <div className="rounded-md border border-(--border)/70 bg-(--surface)/50 px-3 py-2.5 flex items-start gap-2 text-(--dim)">
+            <div className="px-3 py-2.5 flex items-start gap-2 text-(--dim)">
               <Sparkles className="h-3.5 w-3.5 mt-0.5 text-(--hl2)" />
               <p className="text-xs leading-relaxed">
                 Agent is working… interleaved reasoning and tool updates stream live.

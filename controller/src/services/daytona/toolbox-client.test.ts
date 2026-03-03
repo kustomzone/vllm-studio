@@ -15,16 +15,17 @@ const createConfig = (overrides: Partial<Config> = {}): Config => ({
   models_dir: "/models",
   strict_openai_models: false,
   daytona_agent_mode: true,
+  agent_fs_local_fallback: false,
   ...overrides,
 });
 
-const createSandboxResponse = (id: string) =>
+const createSandboxResponse = (id: string): Response =>
   new Response(JSON.stringify({ id, name: `vllm-studio-${id}`, state: "running" }), {
     status: 200,
     headers: { "content-type": "application/json" },
   });
 
-const createFileListResponse = () =>
+const createFileListResponse = (): Response =>
   new Response(JSON.stringify([]), {
     status: 200,
     headers: { "content-type": "application/json" },

@@ -259,6 +259,14 @@ export function useChatSendUserMessage({
         const runModel = parsedModel.id.length > 0 ? parsedModel.id : undefined;
         const runProvider = runModel ? parsedModel.provider : undefined;
 
+        // Release the send guard before awaiting the stream. startRunStream
+        // sets isLoading=true synchronously which takes over as the primary
+        // duplicate-send guard. Holding isSendingRef for the entire stream
+        // duration blocks the user from sending the next message after
+        // turn_end (which sets isLoading=false while the stream is still
+        // technically open waiting for run_end).
+        isSendingRef.current = false;
+
         try {
           await startRunStream(sessionId, {
             content: messageText,

@@ -84,6 +84,11 @@ export function useRunEventHandler(args: UseRunEventHandlerArgs) {
           if (mapped) {
             upsertMessage(mapped);
           }
+          if (eventType === "message_end") {
+            // Fallback unblock: some backends stream message_end but omit turn_end/run_end.
+            // Allow the user to send the next prompt immediately after visible completion.
+            setIsLoading(false);
+          }
           return;
         }
         case "turn_end": {
@@ -121,6 +126,18 @@ export function useRunEventHandler(args: UseRunEventHandlerArgs) {
             const isError = record["isError"] === true;
             recordToolResult(toolCallId, resultText, isError);
           }
+          // Some runtimes occasionally skip/delay `run_end` while the turn is visibly done.
+          // Unblock the composer immediately on `turn_end` so users can send the next message.
+          setIsLoading(false);
+          updateExecutingTools(() => new Set());
+          return;
+        }
+        case "agent_end": {
+          // Fallback unblock: some runtimes emit `agent_end` but occasionally
+          // skip/delay `turn_end` + `run_end`. If the assistant output is
+          // visibly complete, release composer send guards immediately.
+          setIsLoading(false);
+          updateExecutingTools(() => new Set());
           return;
         }
         case "tool_execution_start": {

@@ -21,10 +21,10 @@ export const TabButton = memo(
         className={`relative px-2.5 py-2 text-[11px] font-medium transition-colors whitespace-nowrap rounded-none border-b-2 ${
           active
             ? accent
-              ? "text-(--hl2) border-(--hl2)"
-              : "text-(--fg) border-(--fg)/70"
+              ? "text-(--hl2) border-(--hl2)/60"
+              : "text-(--fg) border-(--fg)/40"
             : accent
-              ? "text-(--hl2)/60 border-transparent hover:text-(--hl2)"
+              ? "text-(--hl2)/50 border-transparent hover:text-(--hl2)"
               : "text-(--dim) border-transparent hover:text-(--fg)"
         }`}
       >

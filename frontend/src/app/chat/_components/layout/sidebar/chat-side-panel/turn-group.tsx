@@ -24,11 +24,11 @@ export function TurnGroup({ group, hasActiveThinking }: TurnGroupProps) {
   }, [group.isLatest]);
 
   return (
-    <div className="rounded-md border border-(--border)/70 bg-(--surface)/35">
+    <div className="">
       <button
         onClick={toggleCollapsed}
-        className={`w-full px-3 py-2 text-left group ${
-          !group.isLatest ? "cursor-pointer hover:bg-(--fg)/[0.03]" : "cursor-default"
+        className={`w-full px-1 py-1.5 text-left group ${
+          !group.isLatest ? "cursor-pointer hover:text-(--fg)" : "cursor-default"
         } transition-colors`}
       >
         <div className="flex items-center gap-2">
@@ -52,7 +52,7 @@ export function TurnGroup({ group, hasActiveThinking }: TurnGroupProps) {
       </button>
 
       {!isCollapsed && (
-        <div className="px-3 pb-2.5 space-y-2">
+        <div className="pb-2 space-y-1.5">
           {group.items.map((item) =>
             item.type === "thinking" ? (
               <ThinkingItem key={item.id} content={item.content} isActive={item.isActive} />

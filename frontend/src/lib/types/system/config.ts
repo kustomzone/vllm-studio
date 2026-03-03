@@ -23,6 +23,7 @@ export interface SystemConfig {
   daytona_proxy_url: string | null;
   daytona_sandbox_id: string | null;
   daytona_agent_mode: boolean;
+  agent_fs_local_fallback: boolean;
   daytona_api_key_configured: boolean;
 }
 

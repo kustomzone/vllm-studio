@@ -47,6 +47,8 @@ export const AGENT_TOOL_NAMES = {
   MAKE_DIRECTORY: "make_directory",
   MOVE_FILE: "move_file",
   EXECUTE_COMMAND: "execute_command",
+  COMPUTER_USE: "computer_use",
+  BROWSER_OPEN_URL: "browser_open_url",
 } as const;
 
 export type AgentToolName = (typeof AGENT_TOOL_NAMES)[keyof typeof AGENT_TOOL_NAMES];

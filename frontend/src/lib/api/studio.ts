@@ -36,6 +36,7 @@ export function createStudioApi(core: ApiCore) {
       daytona_proxy_url?: string | null;
       daytona_sandbox_id?: string | null;
       daytona_agent_mode?: boolean | null;
+      agent_fs_local_fallback?: boolean | null;
     }): Promise<StudioSettings & { success: boolean }> =>
       core.request("/studio/settings", {
         method: "POST",

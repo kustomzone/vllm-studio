@@ -20,6 +20,7 @@ export interface ApiConnectionSettings {
   daytonaProxyUrl: string;
   daytonaSandboxId: string;
   daytonaAgentMode: boolean;
+  agentFsLocalFallback: boolean;
 }
 
 export type ConnectionStatus = "unknown" | "connected" | "error";
@@ -38,6 +39,7 @@ const DEFAULT_API_SETTINGS: ApiConnectionSettings = {
   daytonaProxyUrl: "",
   daytonaSandboxId: "",
   daytonaAgentMode: true,
+  agentFsLocalFallback: false,
 };
 
 const mergeApiSettings = (
@@ -71,6 +73,10 @@ const mergeApiSettings = (
       server?.daytonaAgentMode ??
       current?.daytonaAgentMode ??
       DEFAULT_API_SETTINGS.daytonaAgentMode,
+    agentFsLocalFallback:
+      server?.agentFsLocalFallback ??
+      current?.agentFsLocalFallback ??
+      DEFAULT_API_SETTINGS.agentFsLocalFallback,
   };
 };
 
@@ -118,6 +124,10 @@ export function useConfigs() {
             daytonaProxyUrl: settings.effective.daytona_proxy_url ?? "",
             daytonaSandboxId: settings.effective.daytona_sandbox_id ?? "",
             daytonaAgentMode: settings.effective.daytona_agent_mode,
+            agentFsLocalFallback:
+              settings.effective.agent_fs_local_fallback ??
+              previous.agentFsLocalFallback ??
+              DEFAULT_API_SETTINGS.agentFsLocalFallback,
           },
           previous,
         ),
@@ -252,6 +262,7 @@ export function useConfigs() {
           daytona_proxy_url: apiSettings.daytonaProxyUrl.trim() || null,
           daytona_sandbox_id: apiSettings.daytonaSandboxId.trim() || null,
           daytona_agent_mode: apiSettings.daytonaAgentMode,
+          agent_fs_local_fallback: apiSettings.agentFsLocalFallback,
         });
 
         setApiSettings((previous) =>
@@ -263,6 +274,10 @@ export function useConfigs() {
               daytonaProxyUrl: updated.effective.daytona_proxy_url ?? "",
               daytonaSandboxId: updated.effective.daytona_sandbox_id ?? "",
               daytonaAgentMode: updated.effective.daytona_agent_mode,
+              agentFsLocalFallback:
+                updated.effective.agent_fs_local_fallback ??
+                previous.agentFsLocalFallback ??
+                DEFAULT_API_SETTINGS.agentFsLocalFallback,
             },
             previous,
           ),

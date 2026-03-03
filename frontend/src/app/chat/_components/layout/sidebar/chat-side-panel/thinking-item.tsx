@@ -24,10 +24,10 @@ export const ThinkingItem = memo(
     const displayText = expanded || !isTruncated ? fullText : previewText;
 
     return (
-      <div className="flex items-start gap-2.5 pl-1">
+      <div className="flex items-start gap-2.5">
         <span
           className={`mt-1.5 inline-flex h-1.5 w-1.5 shrink-0 rounded-full ${
-            isActive ? "bg-(--hl2) animate-pulse" : "bg-(--dim)/70"
+            isActive ? "bg-(--hl2) animate-pulse" : "bg-(--dim)/40"
           }`}
         />
 

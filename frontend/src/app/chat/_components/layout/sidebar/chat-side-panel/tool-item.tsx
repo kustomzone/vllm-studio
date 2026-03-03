@@ -32,29 +32,29 @@ function formatToolOutput(output?: unknown): string {
 function getChipToneClasses(state?: ActivityItem["state"]) {
   if (state === "error") {
     return {
-      chip: "border-(--err)/40 bg-(--err)/12 text-(--err)",
+      chip: "bg-(--err)/10 text-(--err)",
       dot: "bg-(--err)",
-      detail: "border-(--err)/25 text-(--err)/85 bg-(--err)/[0.04]",
+      detail: "text-(--err)/85 bg-(--err)/[0.04]",
     };
   }
   if (state === "running") {
     return {
-      chip: "border-(--accent)/45 bg-(--accent)/12 text-(--accent)",
+      chip: "bg-(--accent)/10 text-(--accent)",
       dot: "bg-(--accent) animate-pulse",
-      detail: "border-(--accent)/25 text-(--fg)/80 bg-(--accent)/[0.04]",
+      detail: "text-(--fg)/80 bg-(--accent)/[0.04]",
     };
   }
   if (state === "complete") {
     return {
-      chip: "border-(--fg)/30 bg-(--fg)/[0.06] text-(--fg)",
-      dot: "bg-(--fg)/70",
-      detail: "border-(--border)/60 text-(--fg)/80 bg-(--surface)/70",
+      chip: "bg-(--fg)/[0.06] text-(--fg)/80",
+      dot: "bg-(--fg)/50",
+      detail: "text-(--fg)/75 bg-(--fg)/[0.03]",
     };
   }
   return {
-    chip: "border-(--border) bg-(--surface)/80 text-(--dim)",
-    dot: "bg-(--dim)/60",
-    detail: "border-(--border)/60 text-(--fg)/75 bg-(--surface)/70",
+    chip: "bg-(--fg)/[0.05] text-(--dim)",
+    dot: "bg-(--dim)/50",
+    detail: "text-(--fg)/70 bg-(--fg)/[0.03]",
   };
 }
 
@@ -76,11 +76,11 @@ export const ToolItem = memo(
     const tone = useMemo(() => getChipToneClasses(item.state), [item.state]);
 
     return (
-      <div className="flex flex-col items-start gap-1.5 pl-1">
+      <div className="flex flex-col items-start gap-1.5">
         <button
           onClick={toggleExpanded}
           disabled={!hasDetails}
-          className={`inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] font-medium leading-4 transition-colors ${tone.chip} ${
+          className={`inline-flex max-w-full items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-medium leading-4 transition-colors ${tone.chip} ${
             hasDetails ? "cursor-pointer hover:brightness-110" : "cursor-default"
           }`}
         >
@@ -95,7 +95,7 @@ export const ToolItem = memo(
 
         {expanded && hasDetails && (
           <div
-            className={`ml-2 w-[calc(100%-0.5rem)] rounded-md border px-2.5 py-2 space-y-2 ${tone.detail}`}
+            className={`ml-2 w-[calc(100%-0.5rem)] rounded-md px-2.5 py-2 space-y-2 ${tone.detail}`}
           >
             {item.input != null && (
               <div>

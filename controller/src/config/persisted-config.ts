@@ -9,6 +9,7 @@ export interface PersistedConfig {
   daytona_proxy_url?: string;
   daytona_sandbox_id?: string;
   daytona_agent_mode?: boolean;
+  agent_fs_local_fallback?: boolean;
 }
 
 export const getPersistedConfigPath = (dataDirectory: string): string => {
@@ -40,14 +41,18 @@ export const savePersistedConfig = (
   const path = getPersistedConfigPath(dataDirectory);
   const current = loadPersistedConfig(dataDirectory);
   const next: PersistedConfig = { ...current };
-  (Object.keys(updates) as Array<keyof PersistedConfigUpdates>).forEach((key) => {
+  const writable = next as Record<
+    keyof PersistedConfig,
+    PersistedConfig[keyof PersistedConfig] | undefined
+  >;
+  (Object.keys(updates) as Array<keyof PersistedConfig>).forEach((key) => {
     const value = updates[key];
     if (value === null) {
       delete next[key];
       return;
     }
     if (value !== undefined) {
-      next[key] = value as PersistedConfig[typeof key];
+      writable[key] = value;
     }
   });
   mkdirSync(dataDirectory, { recursive: true });

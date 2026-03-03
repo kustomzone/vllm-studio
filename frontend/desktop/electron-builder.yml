@@ -25,16 +25,15 @@ directories:
   buildResources: desktop/resources
 
 mac:
+  icon: desktop/resources/icon.icns
   category: public.app-category.developer-tools
   target:
     - target: dmg
       arch:
         - arm64
-        - x64
     - target: zip
       arch:
         - arm64
-        - x64
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: desktop/resources/entitlements.mac.plist
@@ -49,5 +48,4 @@ win:
 linux:
   target:
     - AppImage
-
 

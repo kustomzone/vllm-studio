@@ -8,6 +8,7 @@ import { buildDaytonaTools } from "./tool-registry-daytona";
 import { buildPlanTools } from "./tool-registry-plan";
 import type { AgentEventType } from "./contracts";
 import { isDaytonaAgentModeEnabled } from "../../../services/daytona/toolbox-client";
+import { isAgentFsEnabled } from "../agent-files/store";
 
 export interface AgentToolRegistryOptions {
   sessionId: string;
@@ -28,6 +29,7 @@ export const buildAgentTools = async (
 ): Promise<AgentTool[]> => {
   const tools: AgentTool[] = [];
   const daytonaAgentMode = isDaytonaAgentModeEnabled(context.config);
+  const agentFsEnabled = isAgentFsEnabled(context.config);
 
   if (options.agentMode) {
     tools.push(...buildPlanTools(context, options));
@@ -37,7 +39,7 @@ export const buildAgentTools = async (
     tools.push(...buildDaytonaTools(context, options));
   }
 
-  if ((options.agentMode || options.agentFiles) && daytonaAgentMode) {
+  if ((options.agentMode || options.agentFiles) && agentFsEnabled) {
     tools.push(...buildAgentFsTools(context, options));
   }
 

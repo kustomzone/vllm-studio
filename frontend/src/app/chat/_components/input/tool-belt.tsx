@@ -1,7 +1,7 @@
 // CRITICAL
 "use client";
 
-import { useCallback, useRef, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, type KeyboardEvent } from "react";
 import { AttachmentsPreview } from "./attachments-preview";
 import { RecordingIndicator } from "./recording-indicator";
 import { TranscriptionStatus } from "./transcription-status";
@@ -82,6 +82,20 @@ export function ToolBelt({
     })),
   );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // When loading ends, move any queued text into the real input so the user
+  // can immediately send it instead of losing their typed message.
+  const prevLoadingRef = useRef(isLoading);
+  useEffect(() => {
+    if (prevLoadingRef.current && !isLoading) {
+      const queued = useAppStore.getState().queuedContext;
+      if (queued) {
+        setInput(queued);
+        setQueuedContext("");
+      }
+    }
+    prevLoadingRef.current = isLoading;
+  }, [isLoading, setInput, setQueuedContext]);
 
   // Keep the transcript from disappearing under the fixed mobile composer by exposing its height as a CSS var.
   useComposerHeightCssVar(rootRef);

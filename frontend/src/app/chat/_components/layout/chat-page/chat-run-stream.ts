@@ -79,7 +79,10 @@ export function useChatRunStream({
       // Safety timeout: if no SSE event arrives for 120s, abort the stream
       // to prevent the UI from getting stuck forever on a hung connection.
       const STREAM_IDLE_TIMEOUT_MS = 120_000;
+      // If a turn finishes but backend never emits `run_end`, auto-close the stream.
+      const RUN_END_GRACE_MS = 8_000;
       let idleTimer: ReturnType<typeof setTimeout> | null = null;
+      let runEndGraceTimer: ReturnType<typeof setTimeout> | null = null;
       const resetIdleTimer = () => {
         if (idleTimer) clearTimeout(idleTimer);
         if (abortController.signal.aborted) return;
@@ -96,6 +99,28 @@ export function useChatRunStream({
           }
         }, STREAM_IDLE_TIMEOUT_MS);
       };
+      const clearRunEndGraceTimer = () => {
+        if (runEndGraceTimer) {
+          clearTimeout(runEndGraceTimer);
+          runEndGraceTimer = null;
+        }
+      };
+      const armRunEndGraceTimer = () => {
+        clearRunEndGraceTimer();
+        if (abortController.signal.aborted || runCompletedRef.current) return;
+        runEndGraceTimer = setTimeout(() => {
+          if (!abortController.signal.aborted && !runCompletedRef.current) {
+            console.warn("[stream] turn_end seen without run_end — closing stream");
+            abortController.abort();
+            const timeoutMsg = "Run finished but did not close cleanly; stream was auto-closed";
+            setStreamError(timeoutMsg);
+            pushStreamErrorToast(timeoutMsg, {
+              activeRunId: activeRunIdRef.current,
+              lastEventTime: lastEventTimeRef.current,
+            });
+          }
+        }, RUN_END_GRACE_MS);
+      };
 
       try {
         resetIdleTimer();
@@ -109,12 +134,30 @@ export function useChatRunStream({
 
         for await (const event of stream) {
           lastEventTimeRef.current = Date.now();
+          if (event.event === "keepalive") {
+            // Keepalives should NOT keep loading forever.
+            continue;
+          }
+
+          // Any meaningful event means stream is still active.
           resetIdleTimer();
-          if (event.event === "keepalive") continue;
+          if (event.event !== "turn_end") {
+            clearRunEndGraceTimer();
+          }
+
+          if (
+            event.event === "turn_end" ||
+            event.event === "message_end" ||
+            event.event === "agent_end"
+          ) {
+            armRunEndGraceTimer();
+          }
+
           handleRunEvent(event);
 
           if (event.event === "run_end") {
             runCompletedRef.current = true;
+            clearRunEndGraceTimer();
             abortController.abort();
             break;
           }
@@ -139,6 +182,7 @@ export function useChatRunStream({
         }
       } finally {
         if (idleTimer) clearTimeout(idleTimer);
+        clearRunEndGraceTimer();
         if (runIdForLifecycle && activeRunIdRef.current === runIdForLifecycle) {
           activeRunIdRef.current = null;
         }

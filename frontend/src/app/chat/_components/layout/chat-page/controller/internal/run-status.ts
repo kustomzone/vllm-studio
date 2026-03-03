@@ -184,6 +184,8 @@ function toolActionLabel(toolName: string): string {
   if (normalized === "make_directory") return "created directory";
   if (normalized === "move_file") return "moved file";
   if (normalized === "execute_command") return "ran command";
+  if (normalized === "computer_use") return "ran command";
+  if (normalized === "browser_open_url") return "opened browser";
   if (normalized === "create_plan") return "updated plan";
   if (normalized === "update_plan") return "updated plan";
 

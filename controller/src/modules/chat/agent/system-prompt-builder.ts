@@ -35,7 +35,7 @@ export function buildAgentModePrompt(session: Record<string, unknown>): string |
 
   const lines: string[] = [];
   lines.push("<agent_mode>");
-  lines.push("You are in AGENT MODE with planning, file, and shell tools.");
+  lines.push("You are in AGENT MODE with planning, file, shell, browser, and computer tools.");
   lines.push("Use exact snake_case tool names and exact argument keys.");
   lines.push("Never invent tool names (for example, do not use title-cased names like 'Create Plan').");
   lines.push("");
@@ -58,7 +58,10 @@ export function buildAgentModePrompt(session: Record<string, unknown>): string |
   lines.push("- make_directory({ path })");
   lines.push("- move_file({ from, to })");
   lines.push("- execute_command({ command, cwd?, timeout? })");
+  lines.push("- computer_use({ command, cwd?, timeout? })");
+  lines.push("- browser_open_url({ url })");
   lines.push("  - execute_command also accepts { cmd } as a command alias.");
+  lines.push("  - computer_use also accepts { cmd } as a command alias.");
   lines.push(
     "  - timeout is seconds."
   );

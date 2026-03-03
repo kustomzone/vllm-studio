@@ -124,16 +124,9 @@ export function SidebarPane({
   return (
     <>
       <div
-        className="hidden md:flex shrink-0 flex-col h-full bg-(--bg) relative border-l border-(--border)"
-        style={{
-          width: `${displayWidth}px`,
-          backgroundImage: "linear-gradient(180deg, var(--surface), var(--bg))",
-        }}
+        className="hidden md:flex shrink-0 flex-col h-full bg-(--bg) relative border-l border-(--border)/40"
+        style={{ width: `${displayWidth}px` }}
       >
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{ boxShadow: "inset 1px 0 0 rgba(255,255,255,0.05)" }}
-        />
 
         <div
           className={`absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10 group flex items-center justify-center ${
@@ -150,7 +143,7 @@ export function SidebarPane({
           </div>
         </div>
 
-        <div className="relative flex items-center justify-between px-2 border-b border-(--border)">
+        <div className="relative flex items-center justify-between px-2 border-b border-(--border)/40">
           <div className="flex items-center gap-0 overflow-x-auto scrollbar-hide">
             {panels.map((panel) => (
               <TabButton
