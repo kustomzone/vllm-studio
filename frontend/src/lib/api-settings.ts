@@ -1,5 +1,5 @@
 // CRITICAL
-import { readFile, writeFile, mkdir, unlink } from "fs/promises";
+import { chmod, readFile, writeFile, mkdir, unlink } from "fs/promises";
 import { accessSync, constants, existsSync } from "fs";
 import { homedir, tmpdir } from "node:os";
 import path from "path";
@@ -93,6 +93,7 @@ export async function saveApiSettings(settings: ApiSettings): Promise<void> {
     for (const dir of DATA_DIR_CANDIDATES) {
       try {
         await mkdir(dir, { recursive: true });
+        await chmod(dir, 0o700).catch(() => undefined);
         const settingsFile = path.join(dir, SETTINGS_FILENAME);
         try {
           await writeFile(settingsFile, payload, "utf-8");
@@ -105,6 +106,7 @@ export async function saveApiSettings(settings: ApiSettings): Promise<void> {
             throw error;
           }
         }
+        await chmod(settingsFile, 0o600).catch(() => undefined);
         return;
       } catch (error) {
         lastError = error;

@@ -25,6 +25,7 @@ function createContext(apiKey?: string): AppContext {
       strict_openai_models: false,
       daytona_agent_mode: false,
       agent_fs_local_fallback: false,
+      cors_origins: ["http://localhost:3000"],
       ...(apiKey ? { api_key: apiKey } : {}),
     },
     logger: {
@@ -37,35 +38,35 @@ function createContext(apiKey?: string): AppContext {
 }
 
 describe("security middleware", () => {
-  it("blocks mutating requests without API key when configured", async () => {
+  it("blocks read requests without API key when configured", async () => {
     resetMutatingRateLimitStoreForTests();
     const app = new Hono();
     const context = createContext("secret-token");
 
     app.use("*", createMutatingAuthMiddleware(context));
-    app.post("/secure", (ctx) => ctx.json({ ok: true }));
+    app.get("/secure", (ctx) => ctx.json({ ok: true }));
 
-    const response = await app.request("/secure", { method: "POST" });
+    const response = await app.request("/secure", { method: "GET" });
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ detail: "Unauthorized" });
   });
 
-  it("accepts mutating requests with bearer token or x-api-key", async () => {
+  it("accepts protected requests with bearer token or x-api-key", async () => {
     resetMutatingRateLimitStoreForTests();
     const app = new Hono();
     const context = createContext("secret-token");
 
     app.use("*", createMutatingAuthMiddleware(context));
-    app.post("/secure", (ctx) => ctx.json({ ok: true }));
+    app.get("/secure", (ctx) => ctx.json({ ok: true }));
 
     const bearer = await app.request("/secure", {
-      method: "POST",
+      method: "GET",
       headers: { Authorization: "Bearer secret-token" },
     });
     expect(bearer.status).toBe(200);
 
     const apiKeyHeader = await app.request("/secure", {
-      method: "POST",
+      method: "GET",
       headers: { "X-API-Key": "secret-token" },
     });
     expect(apiKeyHeader.status).toBe(200);
@@ -80,6 +81,18 @@ describe("security middleware", () => {
     app.post("/secure", (ctx) => ctx.json({ ok: true }));
 
     const response = await app.request("/secure", { method: "POST" });
+    expect(response.status).toBe(200);
+  });
+
+  it("allows public health checks without auth", async () => {
+    resetMutatingRateLimitStoreForTests();
+    const app = new Hono();
+    const context = createContext("secret-token");
+
+    app.use("*", createMutatingAuthMiddleware(context));
+    app.get("/health", (ctx) => ctx.json({ ok: true }));
+
+    const response = await app.request("/health", { method: "GET" });
     expect(response.status).toBe(200);
   });
 

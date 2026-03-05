@@ -4,6 +4,7 @@ import type { MiddlewareHandler } from "hono";
 import type { AppContext } from "../types/context";
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const PUBLIC_PATHS = new Set(["/health"]);
 const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
 const DEFAULT_RATE_LIMIT_MAX_REQUESTS = 120;
 
@@ -20,6 +21,10 @@ export function resetMutatingRateLimitStoreForTests(): void {
 
 function isMutatingRequest(method: string): boolean {
   return MUTATING_METHODS.has(method.toUpperCase());
+}
+
+function isPublicRequest(method: string, path: string): boolean {
+  return method.toUpperCase() === "OPTIONS" || PUBLIC_PATHS.has(path);
 }
 
 function getClientIpFromRequestHeaders(header: (name: string) => string | undefined): string {
@@ -63,7 +68,7 @@ function buildMutatingRateLimitKey(path: string, method: string, clientIp: strin
 
 export function createMutatingAuthMiddleware(context: AppContext): MiddlewareHandler {
   return async (ctx, next) => {
-    if (!isMutatingRequest(ctx.req.method)) {
+    if (isPublicRequest(ctx.req.method, ctx.req.path)) {
       return next();
     }
 

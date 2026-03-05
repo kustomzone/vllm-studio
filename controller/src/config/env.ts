@@ -14,6 +14,7 @@ export interface Config {
   host: string;
   port: number;
   api_key?: string;
+  cors_origins?: string[];
   daytona_api_url?: string;
   daytona_api_key?: string;
   daytona_proxy_url?: string;
@@ -69,10 +70,45 @@ export const createConfig = (): Config => {
       : localDataDirectory;
   const defaultDatabasePath = resolve(defaultDataDirectory, "controller.db");
 
+  const isLoopbackHost = (value: string): boolean => {
+    const normalized = value.trim().toLowerCase();
+    return normalized === "127.0.0.1" || normalized === "localhost" || normalized === "::1";
+  };
+
+  const parseBooleanFlag = (value: string | undefined): boolean => {
+    if (!value) return false;
+    return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+  };
+
+  const normalizeOrigin = (value: string): string | null => {
+    try {
+      const origin = new URL(value.trim()).origin;
+      return origin === "null" ? null : origin;
+    } catch {
+      return null;
+    }
+  };
+
+  const parseCorsOrigins = (value: string | undefined): string[] => {
+    const defaults = [
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "http://localhost:3001",
+      "http://127.0.0.1:3001",
+      "http://host.docker.internal:3000",
+      "http://host.docker.internal:3001",
+    ];
+    const candidates =
+      value && value.trim().length > 0 ? value.split(",").map((entry) => entry.trim()) : defaults;
+    return [...new Set(candidates.map((entry) => normalizeOrigin(entry)).filter((entry): entry is string => Boolean(entry)))];
+  };
+
   const schema = z.object({
-    VLLM_STUDIO_HOST: z.string().default("0.0.0.0"),
+    VLLM_STUDIO_HOST: z.string().default("127.0.0.1"),
     VLLM_STUDIO_PORT: z.coerce.number().int().positive().default(8080),
     VLLM_STUDIO_API_KEY: z.string().optional(),
+    VLLM_STUDIO_ALLOW_UNAUTHENTICATED: z.string().optional(),
+    VLLM_STUDIO_CORS_ORIGINS: z.string().optional(),
     VLLM_STUDIO_DAYTONA_API_KEY: z.string().optional(),
     VLLM_STUDIO_DAYTONA_API_URL: z.string().optional(),
     VLLM_STUDIO_DAYTONA_PROXY_URL: z.string().optional(),
@@ -96,6 +132,7 @@ export const createConfig = (): Config => {
   });
 
   const parsed = schema.parse(process.env);
+  const host = parsed.VLLM_STUDIO_HOST.trim() || "127.0.0.1";
 
   const strictOpenAIModels = parsed.VLLM_STUDIO_STRICT_OPENAI_MODELS;
   const strictOpenAIModelsEnabled = strictOpenAIModels
@@ -116,7 +153,7 @@ export const createConfig = (): Config => {
     activationPolicyRaw === "switch_on_request" ? "switch_on_request" : "load_if_idle";
 
   const config: Config = {
-    host: parsed.VLLM_STUDIO_HOST,
+    host,
     port: parsed.VLLM_STUDIO_PORT,
     inference_port: parsed.VLLM_STUDIO_INFERENCE_PORT,
 
@@ -127,6 +164,7 @@ export const createConfig = (): Config => {
     daytona_agent_mode: daytonaAgentMode,
     agent_fs_local_fallback: localAgentFsFallback,
     openai_model_activation_policy: openaiModelActivationPolicy,
+    cors_origins: parseCorsOrigins(parsed.VLLM_STUDIO_CORS_ORIGINS),
     providers: [],
   };
 
@@ -139,6 +177,14 @@ export const createConfig = (): Config => {
   if (parsed.VLLM_STUDIO_API_KEY) {
     config.api_key = parsed.VLLM_STUDIO_API_KEY;
   }
+
+  const allowUnauthenticated = parseBooleanFlag(parsed.VLLM_STUDIO_ALLOW_UNAUTHENTICATED);
+  if (!config.api_key && !allowUnauthenticated && !isLoopbackHost(host)) {
+    throw new Error(
+      "VLLM_STUDIO_API_KEY is required when binding the controller to a non-loopback host. Set VLLM_STUDIO_ALLOW_UNAUTHENTICATED=true only for trusted local environments."
+    );
+  }
+
   if (parsed.VLLM_STUDIO_DAYTONA_API_KEY) {
     config.daytona_api_key = parsed.VLLM_STUDIO_DAYTONA_API_KEY;
   }

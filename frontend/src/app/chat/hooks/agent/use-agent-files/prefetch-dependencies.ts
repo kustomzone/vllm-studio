@@ -2,6 +2,7 @@
 "use client";
 
 import api from "@/lib/api";
+import { extractLocalHtmlAssetRefs } from "../../../utils/html-dependency-parser";
 import { isLocalImportSpecifier, resolvePath } from "../../../utils/path-resolver";
 
 export function getExtension(path: string): string {
@@ -12,21 +13,7 @@ export function getExtension(path: string): string {
 const isLocalSpecifier = isLocalImportSpecifier;
 
 function extractHtmlDependencies(html: string, basePath: string): string[] {
-  const dependencies: string[] = [];
-  const linkRegex = /<link\s+[^>]*rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*\/?>/gi;
-  const scriptRegex = /<script\s+[^>]*src=["']([^"']+)["'][^>]*><\/script>/gi;
-  let match: RegExpExecArray | null;
-  while ((match = linkRegex.exec(html)) !== null) {
-    const href = match[1];
-    if (!isLocalSpecifier(href)) continue;
-    dependencies.push(resolvePath(basePath, href));
-  }
-  while ((match = scriptRegex.exec(html)) !== null) {
-    const src = match[1];
-    if (!isLocalSpecifier(src)) continue;
-    dependencies.push(resolvePath(basePath, src));
-  }
-  return dependencies;
+  return extractLocalHtmlAssetRefs(html, basePath).map((asset) => asset.resolvedPath);
 }
 
 function extractJsImports(code: string, basePath: string): string[] {

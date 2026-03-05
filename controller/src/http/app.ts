@@ -24,13 +24,16 @@ import { createMutatingAuthMiddleware, createMutatingRateLimitMiddleware } from 
  */
 export const createApp = (context: AppContext): Hono => {
   const app = new Hono();
+  const allowedCorsOrigins = context.config.cors_origins ?? [];
 
   app.use(
     "*",
     cors({
-      origin: "*",
-      allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-      allowHeaders: ["*"],
+      origin: (origin) => (allowedCorsOrigins.includes(origin) ? origin : null),
+      allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      allowHeaders: ["Authorization", "Content-Type", "X-API-Key"],
+      exposeHeaders: ["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "Retry-After"],
+      maxAge: 600,
     })
   );
 

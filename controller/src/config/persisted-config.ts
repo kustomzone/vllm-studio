@@ -1,5 +1,5 @@
 // CRITICAL
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 export interface ProviderConfig {
@@ -64,7 +64,13 @@ export const savePersistedConfig = (
       writable[key] = value;
     }
   });
-  mkdirSync(dataDirectory, { recursive: true });
+  mkdirSync(dataDirectory, { recursive: true, mode: 0o700 });
   writeFileSync(path, JSON.stringify(next, null, 2));
+  try {
+    chmodSync(dataDirectory, 0o700);
+    chmodSync(path, 0o600);
+  } catch {
+    // Ignore permission hardening failures on unsupported filesystems.
+  }
   return next;
 };

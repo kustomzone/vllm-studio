@@ -32,6 +32,11 @@ const createFileListResponse = (): Response =>
     headers: { "content-type": "application/json" },
   });
 
+const toOriginAndPath = (value: string): string => {
+  const parsed = new URL(value);
+  return `${parsed.origin}${parsed.pathname}`;
+};
+
 describe("daytona toolbox config", () => {
   it("derives proxy URL from API base URL", () => {
     expect(resolveDaytonaProxyBaseUrl("https://app.daytona.io/api")).toBe(
@@ -356,9 +361,15 @@ describe("daytona toolbox retry behavior", () => {
       const files = await client.listFiles("session-explicit", "");
       expect(files).toEqual([]);
       expect(
-        calls.some((entry) => entry.url.includes("https://proxy.custom.daytona/toolbox/sandbox-explicit/files/folder"))
+        calls.some(
+          (entry) =>
+            toOriginAndPath(entry.url) ===
+            "https://proxy.custom.daytona/toolbox/sandbox-explicit/files/folder"
+        )
       ).toBe(true);
-      expect(calls.some((entry) => entry.url.includes("/toolbox/toolbox/"))).toBe(false);
+      expect(calls.some((entry) => new URL(entry.url).pathname.includes("/toolbox/toolbox/"))).toBe(
+        false
+      );
     } finally {
       globalThis.fetch = originalFetch;
     }

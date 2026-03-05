@@ -9,6 +9,7 @@ import {
   buildHtmlDocument,
   buildTextDocument,
 } from "../artifacts/artifact-templates";
+import { inlineHtmlLocalAssets } from "../../utils/html-dependency-parser";
 import { isLocalImportSpecifier, resolvePath, stripQueryAndHash } from "../../utils/path-resolver";
 import { getFileExtension } from "./agent-file-metadata";
 
@@ -147,60 +148,13 @@ function inlineLocalImports(
   currentPath: string,
   allFileVersions: Record<string, AgentFileVersion[]>,
 ): string {
-  let result = htmlContent;
   const moduleResolver = createModuleResolver(allFileVersions);
-
-  result = result.replace(
-    /<link\s+[^>]*rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*\/?>/gi,
-    (match, href) => {
-      if (href.startsWith("http://") || href.startsWith("https://") || href.startsWith("//")) {
-        return match;
-      }
-      const resolvedPath = resolvePath(currentPath, href);
-      const cssContent = getFileContent(resolvedPath, allFileVersions);
-      if (cssContent) {
-        return `<style>/* Inlined from ${href} */\n${cssContent}</style>`;
-      }
-      return match;
-    },
+  return inlineHtmlLocalAssets(
+    htmlContent,
+    currentPath,
+    (resolvedPath) => getFileContent(resolvedPath, allFileVersions),
+    (code, resolvedPath) => moduleResolver.rewriteImports(code, resolvedPath),
   );
-
-  result = result.replace(
-    /<link\s+[^>]*href=["']([^"']+)["'][^>]*rel=["']stylesheet["'][^>]*\/?>/gi,
-    (match, href) => {
-      if (href.startsWith("http://") || href.startsWith("https://") || href.startsWith("//")) {
-        return match;
-      }
-      const resolvedPath = resolvePath(currentPath, href);
-      const cssContent = getFileContent(resolvedPath, allFileVersions);
-      if (cssContent) {
-        return `<style>/* Inlined from ${href} */\n${cssContent}</style>`;
-      }
-      return match;
-    },
-  );
-
-  result = result.replace(
-    /<script\s+([^>]*?)src=["']([^"']+)["']([^>]*)><\/script>/gi,
-    (match, beforeAttrs, src, afterAttrs) => {
-      const attrs = `${beforeAttrs ?? ""} ${afterAttrs ?? ""}`.toLowerCase();
-      if (src.startsWith("http://") || src.startsWith("https://") || src.startsWith("//")) {
-        return match;
-      }
-      const resolvedPath = resolvePath(currentPath, src);
-      const jsContent = getFileContent(resolvedPath, allFileVersions);
-      if (!jsContent) return match;
-
-      const isModule = attrs.includes("type=\"module\"") || attrs.includes("type='module'");
-      if (isModule) {
-        const rewritten = moduleResolver.rewriteImports(jsContent, resolvedPath);
-        return `<script type="module">/* Inlined from ${src} */\n${rewritten}</script>`;
-      }
-      return `<script>/* Inlined from ${src} */\n${jsContent}</script>`;
-    },
-  );
-
-  return result;
 }
 
 export function buildPreviewDocumentWithImports(
