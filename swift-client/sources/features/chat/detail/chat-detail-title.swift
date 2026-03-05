@@ -4,14 +4,21 @@ extension ChatDetailViewModel {
   func updateTitle(user: String, assistant: String, api: ApiClient) async {
     let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     let defaults = ["", "new chat", "untitled", "chat"]
-    guard defaults.contains(trimmed) else { return }
+    guard defaults.contains(trimmed) else {
+      transition(.titleUpdated)
+      return
+    }
     let generated = try? await api.generateTitle(model: sessionModel, user: user, assistant: assistant)
     let fallback = fallbackTitle(user: user, assistant: assistant)
     let candidate = generated?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     let finalTitle = candidate.isEmpty ? fallback : candidate
-    guard !finalTitle.isEmpty else { return }
+    guard !finalTitle.isEmpty else {
+      transition(.titleUpdated)
+      return
+    }
     title = finalTitle
     _ = try? await api.updateChatSession(id: sessionId, title: finalTitle, model: nil)
+    transition(.titleUpdated)
   }
 
   private func fallbackTitle(user: String, assistant: String) -> String {

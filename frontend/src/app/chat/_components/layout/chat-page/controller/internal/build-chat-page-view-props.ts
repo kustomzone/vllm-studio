@@ -57,6 +57,13 @@ type AgentFilesSlice = Pick<
   | "onOpenAgentFile"
 >;
 
+type MachineSlice = Pick<
+  ChatPageViewProps,
+  | "machine"
+  | "machineLoading"
+  | "machineError"
+>;
+
 type ChatSlice = Pick<
   ChatPageViewProps,
   | "hasSession"
@@ -79,10 +86,11 @@ export function buildChatPageViewProps(args: {
   context: ContextSlice;
   artifacts: ArtifactSlice;
   agentFiles: AgentFilesSlice;
+  machine: MachineSlice;
   chat: ChatSlice;
   exportActions: ExportSlice;
 }): ChatPageViewProps {
-  const { store, ui, derived, context, artifacts, agentFiles, chat, exportActions } = args;
+  const { store, ui, derived, context, artifacts, agentFiles, machine, chat, exportActions } = args;
 
   return {
     sidebarOpen: ui.sidebarOpen,
@@ -124,6 +132,10 @@ export function buildChatPageViewProps(args: {
     onSelectAgentFile: agentFiles.onSelectAgentFile,
     hasSession: chat.hasSession,
     onOpenAgentFile: agentFiles.onOpenAgentFile,
+
+    machine: machine.machine,
+    machineLoading: machine.machineLoading,
+    machineError: machine.machineError,
 
     messages: chat.messages,
     selectedModel: store.selectedModel,

@@ -1,30 +1,20 @@
 // CRITICAL
-import type { Agent } from "@mariozechner/pi-agent-core";
-import { parseProviderModel } from "../../../services/provider-routing";
 import type { AppContext } from "../../../types/context";
 import { createChatRun } from "./chat-run-factory";
 import { createMockChatRun } from "./chat-run-factory-mock";
 import { isMockInferenceEnabled } from "./run-manager-utils";
 import type { ChatRunOptions, ChatRunStream } from "./run-manager-types";
+import { createRunRegistry, type RunRegistry } from "./run-registry";
+import { parseProviderModel } from "../../../services/provider-routing";
 
 export type { ChatRunOptions, ChatRunStream } from "./run-manager-types";
-
-/**
- * Active run metadata tracked for cancellation and model-scoped eviction handling.
- */
-type ActiveRunEntry = {
-  agent: Agent;
-  abort: AbortController;
-  model: string | null;
-  provider: string;
-};
 
 /**
  * Controller-owned run manager for Pi agent sessions.
  */
 export class ChatRunManager {
   private readonly context: AppContext;
-  private readonly activeRuns = new Map<string, ActiveRunEntry>();
+  private readonly activeRuns: RunRegistry = createRunRegistry();
 
   /**
    * Create a run manager.
@@ -40,12 +30,15 @@ export class ChatRunManager {
    * @returns True if a run was aborted.
    */
   public abortRun(runId: string): boolean {
-    const active = this.activeRuns.get(runId);
+    const active = this.activeRuns.getRun(runId);
     if (!active) {
       return false;
     }
+
+    this.activeRuns.markAbortRequested(runId);
     active.agent.abort();
     active.abort.abort();
+
     return true;
   }
 
@@ -61,7 +54,7 @@ export class ChatRunManager {
     if (!targetModel) return 0;
 
     let aborted = 0;
-    for (const active of this.activeRuns.values()) {
+    for (const active of this.activeRuns.listRuns()) {
       const candidateModel = active.model?.toLowerCase() ?? "";
       const candidateProvider = active.provider.toLowerCase();
       if (!candidateModel || candidateModel !== targetModel) {
@@ -72,6 +65,7 @@ export class ChatRunManager {
       }
       active.agent.abort();
       active.abort.abort();
+      this.activeRuns.markAbortRequested(active.runId);
       aborted += 1;
     }
     return aborted;
@@ -99,6 +93,7 @@ export class ChatRunManager {
       return createMockChatRun(this.context, session, options, content);
     }
 
-    return createChatRun(this.context, this.activeRuns, options);
+    const stream = await createChatRun(this.context, this.activeRuns, options);
+    return stream;
   }
 }

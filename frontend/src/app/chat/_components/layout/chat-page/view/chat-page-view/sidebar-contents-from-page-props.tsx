@@ -1,7 +1,7 @@
 // CRITICAL
 "use client";
 
-import type { AgentFileEntry, AgentFileVersion, Artifact } from "@/lib/types";
+import type { AgentFileEntry, AgentFileVersion, AgentMachineInfo, Artifact } from "@/lib/types";
 import type { AgentPlan } from "../../../../agent/agent-types";
 import type { ActivityGroup } from "../../../../../types";
 import type { CompactionEvent, ContextStats } from "@/lib/services/context-management";
@@ -42,6 +42,10 @@ export type ChatPageSidebarInputs = {
   selectedAgentFileLoading: boolean;
   onSelectAgentFile: (path: string | null) => void;
   hasSession: boolean;
+
+  machine: AgentMachineInfo | null;
+  machineLoading: boolean;
+  machineError: string | null;
 };
 
 export function buildSidebarContentsFromPageProps(
@@ -70,5 +74,8 @@ export function buildSidebarContentsFromPageProps(
     selectedAgentFileLoading: props.selectedAgentFileLoading,
     onSelectAgentFile: props.onSelectAgentFile,
     hasSession: props.hasSession,
+    machine: props.machine,
+    machineLoading: props.machineLoading,
+    machineError: props.machineError,
   });
 }

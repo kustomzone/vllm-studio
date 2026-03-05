@@ -14,8 +14,6 @@ export type UseRunEventHandlerArgs = {
   activeRunIdRef: MutableRefObject<string | null>;
   lastEventTimeRef: MutableRefObject<number>;
   runCompletedRef: MutableRefObject<boolean>;
-  lastUserInputRef: MutableRefObject<string>;
-  lastAssistantContentRef: MutableRefObject<string>;
 
   setStreamStalled: (value: boolean) => void;
   setIsLoading: (value: boolean) => void;

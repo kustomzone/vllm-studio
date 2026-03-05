@@ -2,6 +2,7 @@
 import type {
   AgentFileEntry,
   AgentFileVersion,
+  AgentMachineInfo,
   AgentState,
   ChatCompactionResponse,
   ChatSession,
@@ -144,5 +145,26 @@ export function createChatsApi(core: ApiCore) {
         method: "POST",
         body: JSON.stringify({ from, to }),
       }),
+
+    getAgentMachine: (
+      sessionId: string,
+      options?: { port?: number; includeScreenshot?: boolean; expiresInSeconds?: number },
+    ): Promise<AgentMachineInfo> => {
+      const params = new URLSearchParams();
+      if (typeof options?.port === "number" && Number.isFinite(options.port)) {
+        params.set("port", String(Math.floor(options.port)));
+      }
+      if (typeof options?.includeScreenshot === "boolean") {
+        params.set("include_screenshot", options.includeScreenshot ? "true" : "false");
+      }
+      if (
+        typeof options?.expiresInSeconds === "number" &&
+        Number.isFinite(options.expiresInSeconds)
+      ) {
+        params.set("expires_in_seconds", String(Math.floor(options.expiresInSeconds)));
+      }
+      const query = params.toString();
+      return core.request(`/agent/sessions/${encodeURIComponent(sessionId)}/machine${query ? `?${query}` : ""}`);
+    },
   };
 }

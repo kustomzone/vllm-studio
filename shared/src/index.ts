@@ -1,3 +1,10 @@
+export type {
+  StateMachineContainer,
+  StateMachineTransition,
+  StateMachineTransitionResult,
+} from "./state-machine";
+export { createStateMachine } from "./state-machine";
+
 export type { Backend, RecipeBase, RecipePayload } from "./recipe";
 export {
   CONTROLLER_BROWSER_EVENT_CHANNEL,

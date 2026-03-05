@@ -29,6 +29,7 @@ describe("System Routes", () => {
       strict_openai_models: false,
       daytona_agent_mode: false,
       agent_fs_local_fallback: false,
+      providers: [],
     };
 
     const mockContext = {

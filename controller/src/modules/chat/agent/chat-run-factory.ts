@@ -17,6 +17,7 @@ import { DAYTONA_PROVIDER } from "../../../services/provider-routing";
 import { resolveModel, resolveApiKey } from "./run-manager-model-resolver";
 import type { ChatRunOptions, ChatRunStream } from "./run-manager-types";
 import { mapToolCallsToMessage, parseToolServer } from "./run-manager-utils";
+import type { RunRegistry } from "./run-registry";
 
 const RUN_EVENT_QUEUE_CAPACITY = 1024;
 
@@ -29,10 +30,7 @@ const RUN_EVENT_QUEUE_CAPACITY = 1024;
  */
 export async function createChatRun(
   context: AppContext,
-  activeRuns: Map<
-    string,
-    { agent: Agent; abort: AbortController; model: string | null; provider: string }
-  >,
+  activeRuns: RunRegistry,
   options: ChatRunOptions
 ): Promise<ChatRunStream> {
   const sessionId = options.sessionId;
@@ -109,22 +107,29 @@ export async function createChatRun(
 
   const queue = new AsyncQueue<string>(RUN_EVENT_QUEUE_CAPACITY);
   const abort = new AbortController();
-  const agent = new Agent({
-    initialState: {
-      model,
-      systemPrompt: systemPrompt ?? "",
-      thinkingLevel,
-      tools: [],
-      messages: agentMessages,
-    },
-    convertToLlm: mapAgentMessagesToLlm,
-    streamFn: streamOpenAiCompletionsSafe,
-    getApiKey: (): string => apiKey,
-    maxRetryDelayMs: 60_000,
-  });
+  const runEntry = activeRuns.createRun(
+    runId,
+    new Agent({
+      initialState: {
+        model,
+        systemPrompt: systemPrompt ?? "",
+        thinkingLevel,
+        tools: [],
+        messages: agentMessages,
+      },
+      convertToLlm: mapAgentMessagesToLlm,
+      streamFn: streamOpenAiCompletionsSafe,
+      getApiKey: (): string => apiKey,
+      maxRetryDelayMs: 60_000,
+    }),
+    abort,
+    requestModel,
+    provider
+  );
+  const agent = runEntry.agent;
   agent.sessionId = sessionId;
 
-  activeRuns.set(runId, { agent, abort, model: requestModel, provider });
+  activeRuns.markRunning(runId);
 
   const toolExecutionStarts = new Map<string, ToolExecutionInfo>();
   const toolCallToMessageId = new Map<string, string>();
@@ -215,7 +220,7 @@ export async function createChatRun(
     })
     .finally(() => {
       unsubscribe();
-      activeRuns.delete(runId);
+      activeRuns.markFinished(runId);
       context.stores.chatStore.updateRun(runId, {
         status: runStatus,
         finishedAt: new Date().toISOString(),

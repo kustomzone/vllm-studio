@@ -22,12 +22,14 @@ final class ChatDetailViewModel: ObservableObject {
   @Published var error: String?
   @Published var agentMeta: [String: AgentMeta] = [:]
   @Published var currentPlan: [PlanTask]?
+  @Published var chatFlowPhase: ChatFlowPhase = .idle
   var api: ApiClient?
   var settings: SettingsStore?
   var sessionId: String = ""
   var tools: [McpTool] = []
   let openAIService: OpenAIChatService
   private var cancellables: Set<AnyCancellable> = []
+  var activeStreamTask: Task<Void, Never>?
 
   init() {
     let service = OpenAIChatService()
@@ -51,6 +53,8 @@ final class ChatDetailViewModel: ObservableObject {
     self.settings = settings
     self.sessionId = sessionId
     openAIService.configure(apiKey: settings.apiKey, baseURL: settings.backendUrl)
+    activeStreamTask?.cancel()
+    chatFlowPhase = .idle
     Task { await load() }
   }
 

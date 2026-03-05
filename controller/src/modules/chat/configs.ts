@@ -18,9 +18,11 @@ export type ThinkingLevelValue = (typeof THINKING_LEVELS)[number];
 export const COMPACTION_SYSTEM_PROMPT = [
   "You are a context-compaction assistant.",
   "Summarize the conversation so it can replace the full history.",
-  "The original first user message and the latest message will be preserved separately.",
+  "The original first user message and the latest exchange will be preserved separately.",
   "Do not repeat those messages verbatim; focus on key facts, decisions, preferences, and open tasks.",
   "Include important tool outputs, artifacts, and code references when relevant.",
+  "Clearly mark all completed tasks and decisions as DONE so the assistant does not redo them.",
+  "If there are pending or incomplete tasks, explicitly list them as PENDING.",
   "Keep the summary under 10k tokens and use concise bullets and short sections.",
 ].join("\n\n");
 

@@ -136,7 +136,13 @@ const requestSummary = async (
 };
 
 const createSummaryMessage = (summary: string, model?: string): MessageRecord => {
-  const content = `Context summary (compacted on ${new Date().toLocaleString()}):\n\n${summary}`;
+  const content = [
+    `[Context compacted on ${new Date().toLocaleString()}]`,
+    "",
+    "The following is a summary of the prior conversation. All tasks described as completed have already been done — do NOT redo them.",
+    "",
+    summary,
+  ].join("\n");
   return {
     role: "assistant",
     content,
@@ -148,8 +154,50 @@ const createSummaryMessage = (summary: string, model?: string): MessageRecord =>
 const pickFirstUserMessage = (messages: MessageRecord[]): MessageRecord | null =>
   messages.find((message) => getString(message["role"]) === "user") ?? null;
 
-const pickLastMessage = (messages: MessageRecord[]): MessageRecord | null =>
-  messages.length > 0 ? (messages[messages.length - 1] ?? null) : null;
+/**
+ * Pick the last user/assistant exchange to preserve after the summary.
+ * Returns a pair so the compacted session always ends with valid alternation.
+ * If the conversation ends with an assistant message, return the preceding user + that assistant.
+ * If it ends with a user message (no response yet), return only that user message.
+ * Never returns a standalone assistant message (would create assistant→assistant after summary).
+ */
+const pickLastExchange = (
+  messages: MessageRecord[],
+  firstUser: MessageRecord | null,
+): { lastUser: MessageRecord | null; lastAssistant: MessageRecord | null } => {
+  if (messages.length === 0) return { lastUser: null, lastAssistant: null };
+
+  const last = messages[messages.length - 1];
+  if (!last) return { lastUser: null, lastAssistant: null };
+  const lastRole = getString(last["role"]);
+
+  if (lastRole === "assistant") {
+    // Find the preceding user message for this assistant response
+    let precedingUser: MessageRecord | null = null;
+    for (let i = messages.length - 2; i >= 0; i--) {
+      if (getString(messages[i]!["role"]) === "user") {
+        precedingUser = messages[i]!;
+        break;
+      }
+    }
+    // Skip if the preceding user is the same as firstUser (already preserved)
+    if (precedingUser && firstUser && precedingUser["id"] === firstUser["id"]) {
+      precedingUser = null;
+    }
+    return { lastUser: precedingUser, lastAssistant: last };
+  }
+
+  if (lastRole === "user") {
+    // Last message is user with no response — skip if same as firstUser
+    if (firstUser && last["id"] === firstUser["id"]) {
+      return { lastUser: null, lastAssistant: null };
+    }
+    return { lastUser: last, lastAssistant: null };
+  }
+
+  // tool/system/other — skip
+  return { lastUser: null, lastAssistant: null };
+};
 
 const cloneMessageToSession = (
   context: AppContext,
@@ -221,7 +269,10 @@ export const compactChatSession = async (
   const summaryText = await requestSummary(context, model, systemPrompt, summaryMessages);
 
   const firstUser = options.preserveFirst === false ? null : pickFirstUserMessage(messages);
-  const lastMessage = options.preserveLast === false ? null : pickLastMessage(messages);
+  const { lastUser, lastAssistant } =
+    options.preserveLast === false
+      ? { lastUser: null, lastAssistant: null }
+      : pickLastExchange(messages, firstUser);
 
   const titleBase = getString(session["title"]) ?? "Chat";
   const newTitle = options.title ?? `${titleBase} (Compacted)`;
@@ -237,6 +288,8 @@ export const compactChatSession = async (
     agentState
   );
 
+  // Build a valid alternating message sequence:
+  //   [firstUser] → summary(assistant) → [lastUser → lastAssistant]
   if (firstUser) {
     cloneMessageToSession(context, newSessionId, firstUser);
   }
@@ -244,8 +297,11 @@ export const compactChatSession = async (
   const summaryMessage = createSummaryMessage(summaryText, model);
   cloneMessageToSession(context, newSessionId, summaryMessage);
 
-  if (lastMessage && (!firstUser || lastMessage["id"] !== firstUser["id"])) {
-    cloneMessageToSession(context, newSessionId, lastMessage);
+  if (lastUser) {
+    cloneMessageToSession(context, newSessionId, lastUser);
+  }
+  if (lastAssistant) {
+    cloneMessageToSession(context, newSessionId, lastAssistant);
   }
 
   const hydrated = context.stores.chatStore.getSession(newSessionId) ?? newSession;

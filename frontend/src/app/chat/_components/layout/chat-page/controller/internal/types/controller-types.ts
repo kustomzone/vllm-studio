@@ -1,6 +1,6 @@
 import type { MutableRefObject, RefObject } from "react";
 import type { ChatRunStreamEvent } from "@/lib/api";
-import type { ChatMessage, ChatSession, ToolResult } from "@/lib/types";
+import type { AgentMachineInfo, ChatMessage, ChatSession, ToolResult } from "@/lib/types";
 import type {
   useAgentFiles,
   useAgentState,
@@ -35,4 +35,15 @@ export interface RouterLike {
 
 export type MessagesContainerRef = RefObject<HTMLDivElement | null>;
 export type MessagesEndRef = RefObject<HTMLDivElement | null>;
+
+export interface AgentMachineService {
+  machine: AgentMachineInfo | null;
+  machineLoading: boolean;
+  machineError: string | null;
+  loadMachine: (
+    sessionId: string,
+    options?: { port?: number; includeScreenshot?: boolean; expiresInSeconds?: number }
+  ) => Promise<AgentMachineInfo | null>;
+  clearMachine: () => void;
+}
 

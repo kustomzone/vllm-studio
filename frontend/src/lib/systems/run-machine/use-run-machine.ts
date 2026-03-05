@@ -5,12 +5,10 @@ import { useCallback, useMemo, useRef } from "react";
 import type { ChatRunStreamEvent } from "@/lib/api";
 import { pushStreamErrorToast } from "@/app/chat/_components/layout/chat-page/controller/internal/use-stream-error-toast";
 import { applyRunMachineEffects, type RunMachineEffectRuntime } from "./run-effects";
-import {
-  createInitialRunMachineState,
-  transitionRunMachine,
-} from "./run-machine";
+import { createInitialRunMachineState, transitionRunMachine } from "./run-machine";
 import type { RunMachineContext } from "./types";
 import type { UseRunEventHandlerArgs } from "@/app/chat/hooks/run/use-run-event-handler/types";
+import { useAppStore } from "@/store";
 
 export function useRunMachine(args: UseRunEventHandlerArgs) {
   const {
@@ -19,8 +17,6 @@ export function useRunMachine(args: UseRunEventHandlerArgs) {
     activeRunIdRef,
     lastEventTimeRef,
     runCompletedRef,
-    lastUserInputRef,
-    lastAssistantContentRef,
     setStreamStalled,
     setIsLoading,
     setStreamError,
@@ -37,6 +33,7 @@ export function useRunMachine(args: UseRunEventHandlerArgs) {
   } = args;
 
   const stateRef = useRef(createInitialRunMachineState());
+  const lastAssistantContentRef = useRef<string>("");
 
   const runtime = useMemo<RunMachineEffectRuntime>(
     () => ({
@@ -101,10 +98,14 @@ export function useRunMachine(args: UseRunEventHandlerArgs) {
         };
       }
 
+      const store = useAppStore.getState();
+      const userMessage = store.messages.findLast((m) => m.role === "user");
+      const userTextPart = userMessage?.parts.find((p) => p.type === "text") as { text: string } | undefined;
+
       const context: RunMachineContext = {
         currentSessionId,
         currentSessionTitle,
-        lastUserInput: lastUserInputRef.current,
+        lastUserInput: userTextPart?.text ?? "",
         lastAssistantContent: lastAssistantContentRef.current,
       };
 
@@ -124,7 +125,6 @@ export function useRunMachine(args: UseRunEventHandlerArgs) {
       currentSessionTitle,
       lastAssistantContentRef,
       lastEventTimeRef,
-      lastUserInputRef,
       mapAgentMessageToChatMessage,
       runtime,
       setStreamStalled,

@@ -101,6 +101,7 @@ export function useChatPageControllerTail({
   sessions,
   tools,
   agentFiles,
+  agentMachine,
   router,
   sessionFromUrl,
   sidebarOpen,
@@ -155,6 +156,37 @@ export function useChatPageControllerTail({
 
   const hasSession = Boolean(sessionFromUrl || sessions.currentSessionId);
   const showEmptyState = messages.length === 0 && !isLoading && !streamError;
+  const { loadMachine, clearMachine } = agentMachine;
+
+  useEffect(() => {
+    if (!hasSession) {
+      clearMachine();
+      return;
+    }
+
+    const sessionId = sessionFromUrl || sessions.currentSessionId;
+    if (!sessionId) {
+      clearMachine();
+      return;
+    }
+
+    if (sidebarTab !== "browser" && sidebarTab !== "computer" && sidebarTab !== "files") {
+      return;
+    }
+
+    void loadMachine(sessionId, {
+      port: 6080,
+      expiresInSeconds: 3600,
+      includeScreenshot: sidebarTab === "computer" || sidebarTab === "files",
+    });
+  }, [
+    clearMachine,
+    hasSession,
+    loadMachine,
+    sessionFromUrl,
+    sessions.currentSessionId,
+    sidebarTab,
+  ]);
 
   const releasePlaybackResources = useCallback(() => {
     if (audioRef.current) {
@@ -447,6 +479,11 @@ export function useChatPageControllerTail({
       selectedAgentFileLoading: agentFiles.selectedAgentFileLoading,
       onSelectAgentFile: handleSelectAgentFile,
       onOpenAgentFile: handleOpenAgentFile,
+    },
+    machine: {
+      machine: agentMachine.machine,
+      machineLoading: agentMachine.machineLoading,
+      machineError: agentMachine.machineError,
     },
     chat: {
       hasSession,

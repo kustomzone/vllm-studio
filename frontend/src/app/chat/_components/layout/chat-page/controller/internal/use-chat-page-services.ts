@@ -23,9 +23,6 @@ export interface UseChatPageServicesArgs {
   lastEventTimeRef: MutableRefObject<number>;
   runCompletedRef: MutableRefObject<boolean>;
 
-  lastUserInputRef: MutableRefObject<string>;
-  lastAssistantContentRef: MutableRefObject<string>;
-
   setStreamStalled: (next: boolean) => void;
   setIsLoading: (next: boolean) => void;
   setStreamError: (next: string | null) => void;
@@ -37,13 +34,12 @@ export function useChatPageServices({
   activeRunIdRef,
   lastEventTimeRef,
   runCompletedRef,
-  lastUserInputRef,
-  lastAssistantContentRef,
   setStreamStalled,
   setIsLoading,
   setStreamError,
 }: UseChatPageServicesArgs) {
   const agentFiles = Hooks.useAgentFiles();
+  const agentMachine = Hooks.useAgentMachine();
   const agentState = Hooks.useAgentState();
   const sessions = Hooks.useChatSessions();
   const tools = Hooks.useChatTools();
@@ -73,8 +69,6 @@ export function useChatPageServices({
     activeRunIdRef,
     lastEventTimeRef,
     runCompletedRef,
-    lastUserInputRef,
-    lastAssistantContentRef,
     setStreamStalled,
     setIsLoading,
     setStreamError,
@@ -92,6 +86,7 @@ export function useChatPageServices({
 
   return {
     agentFiles,
+    agentMachine,
     agentState,
     sessions,
     tools,

@@ -10,6 +10,7 @@ import {
   type RefObject,
 } from "react";
 import { Virtuoso } from "react-virtuoso";
+import { Loader2 } from "lucide-react";
 import { ChatMessageItem } from "./chat-message-item";
 import { PerfProfiler } from "../perf/perf-profiler";
 import { ChatRunStatusLine } from "./chat-run-status-line";
@@ -176,14 +177,34 @@ export function ChatMessageList({
     ],
   );
 
+  const lastVisibleRole = visibleMessages[visibleMessages.length - 1]?.role;
+  const showThinkingBubble = isLoading && lastVisibleRole !== "assistant";
+
   const Footer = useCallback(() => {
     return (
       <div className="pt-4">
+        {showThinkingBubble && (
+          <div className="flex flex-col mb-3 md:mb-4">
+            <div className="max-w-full">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] uppercase tracking-wider text-(--dim) md:tracking-[0.2em]">
+                  Assistant
+                </span>
+              </div>
+              <div className="flex items-center gap-2.5 py-2 text-(--dim)">
+                <Loader2 className="h-4 w-4 animate-spin text-(--accent)" />
+                <span className="text-sm">
+                  {runStatusLine?.trim() || "Thinking..."}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
         {!isLoading && runStatusLine?.trim() && <ChatRunStatusLine line={runStatusLine} />}
         <div ref={messagesEndRef} />
       </div>
     );
-  }, [isLoading, messagesEndRef, runStatusLine]);
+  }, [isLoading, messagesEndRef, runStatusLine, showThinkingBubble]);
 
   const virtuosoComponents = useMemo(() => {
     return { List: VirtuosoList, Footer };

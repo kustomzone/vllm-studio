@@ -46,10 +46,10 @@ export function useChatPageController(): ChatPageViewProps {
 
   // Track the last user input for title generation
   const lastUserInputRef = useRef<string>("");
-  const lastAssistantContentRef = useRef<string>("");
 
   const {
     agentFiles: agentFilesService,
+    agentMachine,
     agentState,
     sessions,
     tools,
@@ -65,8 +65,6 @@ export function useChatPageController(): ChatPageViewProps {
     activeRunIdRef,
     lastEventTimeRef,
     runCompletedRef,
-    lastUserInputRef,
-    lastAssistantContentRef,
     setStreamStalled,
     setIsLoading,
     setStreamError,
@@ -192,6 +190,7 @@ export function useChatPageController(): ChatPageViewProps {
     sessions,
     tools,
     agentFiles: agentFilesService,
+    agentMachine,
     router,
     sessionFromUrl,
     sidebarOpen,

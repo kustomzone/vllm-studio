@@ -36,6 +36,20 @@ export interface DaytonaCommandResult {
   raw: Record<string, unknown>;
 }
 
+export interface DaytonaSignedPreviewUrl {
+  sandboxId: string;
+  port: number;
+  token: string;
+  url: string;
+}
+
+export interface DaytonaComputerUseScreenshot {
+  screenshot: string;
+  sizeBytes: number | null;
+  cursorPosition: Record<string, unknown> | null;
+  raw: Record<string, unknown>;
+}
+
 const trimOptional = (value: string | undefined): string | undefined => {
   if (!value) return undefined;
   const trimmed = value.trim();
@@ -417,6 +431,101 @@ export class DaytonaToolboxClient {
       }
     }
     return { deleted, errors };
+  }
+
+  public async getSignedPreviewUrl(
+    sessionId: string,
+    port: number,
+    expiresInSeconds = 3600
+  ): Promise<DaytonaSignedPreviewUrl> {
+    if (!Number.isInteger(port) || port <= 0) {
+      throw new Error("Port must be a positive integer");
+    }
+
+    const sandboxId = await this.resolveSandboxId(sessionId);
+    const query = this.buildQuery(
+      expiresInSeconds > 0
+        ? { expiresInSeconds: String(Math.floor(expiresInSeconds)) }
+        : {}
+    );
+
+    const payload = (await this.requestApiJson(
+      "GET",
+      `/sandbox/${encodeURIComponent(sandboxId)}/ports/${port}/signed-preview-url${query}`
+    )) as Record<string, unknown>;
+
+    const url = parseStringLike(payload["url"]);
+    const token = parseStringLike(payload["token"]);
+    const parsedPort = parseNumberLike(payload["port"]) ?? port;
+
+    if (!url || !token) {
+      throw new Error("[Daytona] Signed preview response missing url/token");
+    }
+
+    return {
+      sandboxId,
+      port: parsedPort,
+      token,
+      url,
+    };
+  }
+
+  public async startComputerUse(sessionId: string): Promise<Record<string, unknown>> {
+    let payload: Record<string, unknown> = {};
+    await this.withToolboxRetry(sessionId, "start computer use", async () => {
+      payload = (await this.requestToolboxJson(
+        sessionId,
+        "POST",
+        "/computeruse/start"
+      )) as Record<string, unknown>;
+    });
+    return payload;
+  }
+
+  public async getComputerUseStatus(sessionId: string): Promise<Record<string, unknown>> {
+    let payload: Record<string, unknown> = {};
+    await this.withToolboxRetry(sessionId, "get computer use status", async () => {
+      payload = (await this.requestToolboxJson(
+        sessionId,
+        "GET",
+        "/computeruse/status"
+      )) as Record<string, unknown>;
+    });
+    return payload;
+  }
+
+  public async getComputerUseScreenshot(
+    sessionId: string,
+    options: { showCursor?: boolean } = {}
+  ): Promise<DaytonaComputerUseScreenshot> {
+    let payload: Record<string, unknown> = {};
+    await this.withToolboxRetry(sessionId, "capture computer screenshot", async () => {
+      const query = this.buildQuery({
+        ...(typeof options.showCursor === "boolean"
+          ? { show_cursor: options.showCursor ? "true" : "false" }
+          : {}),
+      });
+      payload = (await this.requestToolboxJson(
+        sessionId,
+        "GET",
+        `/computeruse/screenshot${query}`
+      )) as Record<string, unknown>;
+    });
+
+    const screenshot = parseStringLike(payload["screenshot"]);
+    if (!screenshot) {
+      throw new Error("[Daytona] Screenshot response missing screenshot payload");
+    }
+
+    return {
+      screenshot,
+      sizeBytes: parseNumberLike(payload["sizeBytes"]),
+      cursorPosition:
+        payload["cursorPosition"] && typeof payload["cursorPosition"] === "object"
+          ? (payload["cursorPosition"] as Record<string, unknown>)
+          : null,
+      raw: payload,
+    };
   }
 
   private getSessionRoot(sessionId: string): string {

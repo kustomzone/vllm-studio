@@ -2,6 +2,7 @@
 "use client";
 
 export { useAgentFiles } from "./agent/use-agent-files";
+export { useAgentMachine } from "./agent/use-agent-machine";
 export { useAgentState } from "./agent/use-agent-state";
 export { useAvailableModels } from "./run/use-available-models";
 export { useChatArtifacts } from "./chat/use-chat-artifacts";

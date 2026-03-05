@@ -110,14 +110,12 @@ export function useChatRunStream({
         if (abortController.signal.aborted || runCompletedRef.current) return;
         runEndGraceTimer = setTimeout(() => {
           if (!abortController.signal.aborted && !runCompletedRef.current) {
+            // The turn already finished so the user has their response.
+            // Silently close the stream — run_end is a cleanup signal,
+            // not something the user needs to know about.
             console.warn("[stream] turn_end seen without run_end — closing stream");
+            runCompletedRef.current = true;
             abortController.abort();
-            const timeoutMsg = "Run finished but did not close cleanly; stream was auto-closed";
-            setStreamError(timeoutMsg);
-            pushStreamErrorToast(timeoutMsg, {
-              activeRunId: activeRunIdRef.current,
-              lastEventTime: lastEventTimeRef.current,
-            });
           }
         }, RUN_END_GRACE_MS);
       };
@@ -134,13 +132,13 @@ export function useChatRunStream({
 
         for await (const event of stream) {
           lastEventTimeRef.current = Date.now();
+          // Any data from the server (including keepalives) proves the
+          // connection and backend are alive, so reset the idle timer.
+          resetIdleTimer();
+
           if (event.event === "keepalive") {
-            // Keepalives should NOT keep loading forever.
             continue;
           }
-
-          // Any meaningful event means stream is still active.
-          resetIdleTimer();
           if (event.event !== "turn_end") {
             clearRunEndGraceTimer();
           }
@@ -161,6 +159,14 @@ export function useChatRunStream({
             abortController.abort();
             break;
           }
+        }
+
+        // Stream closed normally. If we never saw an explicit run_end
+        // (e.g. proxy dropped the final SSE frame), treat the stream
+        // closure itself as implicit completion so the grace timer
+        // doesn't fire a spurious error.
+        if (!runCompletedRef.current) {
+          runCompletedRef.current = true;
         }
       } catch (err) {
         if (!abortController.signal.aborted && !runCompletedRef.current) {

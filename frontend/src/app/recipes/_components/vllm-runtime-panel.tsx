@@ -1,86 +1,63 @@
 // CRITICAL
+"use client";
 
-import { useCallback, useEffect, useState } from "react";
 import { ArrowUpCircle, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import api from "@/lib/api";
-import type {
-  RuntimeBackendInfo,
-  RuntimeCommandPayload,
-  RuntimeCudaInfo,
-  RuntimeRocmInfo,
-  RuntimeUpgradeResult,
-  VllmRuntimeConfig,
-  VllmRuntimeInfo,
-  VllmUpgradeResult,
-} from "@/lib/types";
-
-type RuntimeBackendKind = "vllm" | "sglang" | "llamacpp" | "cuda" | "rocm";
-
-type RuntimeCard = {
-  backend: RuntimeBackendKind;
-  title: string;
-  installed: boolean;
-  version: string | null;
-  pathLabel: string;
-  pathValue: string | null;
-  canUpgrade: boolean;
-  upgrading: boolean;
-  disabledReason?: string;
-};
-
-type UpgradeResultState = {
-  backend: RuntimeBackendKind;
-  result: VllmUpgradeResult | RuntimeUpgradeResult;
-};
+import type { RuntimeCommandPayload, RuntimeUpgradeResult, VllmUpgradeResult } from "@/lib/types";
+import { useMachine } from "@/hooks/use-machine";
+import {
+  createRuntimePanelMachine,
+  getRuntimePanelCards,
+  type RuntimeBackendKind,
+} from "./vllm-runtime-panel-machine";
 
 export function VllmRuntimePanel() {
-  const [vllmRuntime, setVllmRuntime] = useState<VllmRuntimeInfo | null>(null);
-  const [sglangRuntime, setSglangRuntime] = useState<RuntimeBackendInfo | null>(null);
-  const [llamacppRuntime, setLlamacppRuntime] = useState<RuntimeBackendInfo | null>(null);
-  const [cudaRuntime, setCudaRuntime] = useState<RuntimeCudaInfo | null>(null);
-  const [rocmRuntime, setRocmRuntime] = useState<RuntimeRocmInfo | null>(null);
-  const [runtimeConfig, setRuntimeConfig] = useState<VllmRuntimeConfig | null>(null);
-  const [runtimeError, setRuntimeError] = useState<string | null>(null);
-  const [runtimeLoading, setRuntimeLoading] = useState(false);
-  const [runtimeConfigLoading, setRuntimeConfigLoading] = useState(false);
-  const [upgradeResult, setUpgradeResult] = useState<UpgradeResultState | null>(null);
-  const [upgrading, setUpgrading] = useState<RuntimeBackendKind | null>(null);
+  const machineRef = useRef(createRuntimePanelMachine());
+  const { state: runtimeState, dispatch } = useMachine(machineRef.current, undefined);
 
   const loadRuntime = useCallback(async () => {
-    setRuntimeLoading(true);
-    setRuntimeError(null);
+    dispatch({ type: "runtime/load/request" });
 
     try {
-      const [vllm, sglang, llamacpp, cuda, rocm] = await Promise.all([
+      const [vllmRuntime, sglangRuntime, llamacppRuntime, cudaRuntime, rocmRuntime] = await Promise.all([
         api.getVllmRuntime(),
         api.getSglangRuntime(),
         api.getLlamacppRuntime(),
         api.getCudaRuntime(),
         api.getRocmRuntime(),
       ]);
-      setVllmRuntime(vllm);
-      setSglangRuntime(sglang);
-      setLlamacppRuntime(llamacpp);
-      setCudaRuntime(cuda);
-      setRocmRuntime(rocm);
-    } catch (e) {
-      setRuntimeError((e as Error).message);
-    } finally {
-      setRuntimeLoading(false);
+      dispatch({
+        type: "runtime/load/success",
+        payload: {
+          vllmRuntime,
+          sglangRuntime,
+          llamacppRuntime,
+          cudaRuntime,
+          rocmRuntime,
+        },
+      });
+    } catch (error) {
+      dispatch({
+        type: "runtime/load/failure",
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
-  }, []);
+  }, [dispatch]);
 
   const loadRuntimeConfig = useCallback(async () => {
-    setRuntimeConfigLoading(true);
+    dispatch({ type: "runtime/config/load/request" });
+
     try {
-      const config = await api.getVllmRuntimeConfig();
-      setRuntimeConfig(config);
-    } catch (e) {
-      setRuntimeConfig({ config: null, error: (e as Error).message });
-    } finally {
-      setRuntimeConfigLoading(false);
+      const runtimeConfig = await api.getVllmRuntimeConfig();
+      dispatch({ type: "runtime/config/load/success", runtimeConfig });
+    } catch (error) {
+      dispatch({
+        type: "runtime/config/load/failure",
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
-  }, []);
+  }, [dispatch]);
 
   const handleRefresh = useCallback(() => {
     void loadRuntime();
@@ -89,8 +66,7 @@ export function VllmRuntimePanel() {
 
   const triggerUpgrade = useCallback(
     async (backend: RuntimeBackendKind, payload: RuntimeCommandPayload = {}) => {
-      setUpgrading(backend);
-      setUpgradeResult(null);
+      dispatch({ type: "upgrade/request", backend });
 
       try {
         let result: VllmUpgradeResult | RuntimeUpgradeResult;
@@ -114,117 +90,27 @@ export function VllmRuntimePanel() {
             throw new Error(`Unsupported backend: ${backend}`);
         }
 
-        setUpgradeResult({ backend, result });
+        dispatch({ type: "upgrade/success", backend, result });
         await loadRuntime();
         if (backend === "vllm") {
           await loadRuntimeConfig();
         }
-      } catch (e) {
-        setUpgradeResult({
+      } catch (error) {
+        dispatch({
+          type: "upgrade/failure",
           backend,
-          result: {
-            success: false,
-            version: null,
-            output: null,
-            error: (e as Error).message,
-            used_command: null,
-          },
+          error: error instanceof Error ? error.message : String(error),
         });
-      } finally {
-        setUpgrading(null);
       }
     },
-    [loadRuntime, loadRuntimeConfig]
+    [dispatch, loadRuntime, loadRuntimeConfig],
   );
 
   useEffect(() => {
     handleRefresh();
   }, [handleRefresh]);
 
-  const getDisabledReason = (flag: boolean | undefined, message: string): string | undefined =>
-    flag === false ? message : undefined;
-
-  const vllmUpgradeConfigured = vllmRuntime?.upgrade_command_available;
-  const sglangUpgradeConfigured = sglangRuntime?.upgrade_command_available;
-  const llamaUpgradeConfigured = llamacppRuntime?.upgrade_command_available;
-  const cudaUpgradeConfigured = cudaRuntime?.upgrade_command_available;
-  const rocmUpgradeConfigured = rocmRuntime?.upgrade_command_available;
-
-  const vllmCards: RuntimeCard[] = [
-    {
-      backend: "vllm",
-      title: "vLLM Runtime",
-      installed: vllmRuntime?.installed ?? false,
-      version: vllmRuntime?.version ?? null,
-      pathLabel: "Python Runtime",
-      pathValue: vllmRuntime?.python_path ?? "Not detected",
-      canUpgrade: vllmUpgradeConfigured === true,
-      disabledReason: getDisabledReason(
-        vllmUpgradeConfigured,
-        "Set a valid VLLM runtime Python path to enable vLLM upgrades."
-      ),
-      upgrading: upgrading === "vllm",
-    },
-    {
-      backend: "sglang",
-      title: "sglang Runtime",
-      installed: sglangRuntime?.installed ?? false,
-      version: sglangRuntime?.version ?? null,
-      pathLabel: "Python Runtime",
-      pathValue: sglangRuntime?.python_path ?? "Not detected",
-      canUpgrade: sglangUpgradeConfigured === true,
-      disabledReason: getDisabledReason(
-        sglangUpgradeConfigured,
-        "Set a valid SGLang Python path to enable sGLang upgrades."
-      ),
-      upgrading: upgrading === "sglang",
-    },
-    {
-      backend: "llamacpp",
-      title: "llama.cpp Runtime",
-      installed: llamacppRuntime?.installed ?? false,
-      version: llamacppRuntime?.version ?? null,
-      pathLabel: "Binary",
-      pathValue: llamacppRuntime?.binary_path ?? "Not detected",
-      canUpgrade: llamaUpgradeConfigured === true,
-      disabledReason: getDisabledReason(
-        llamaUpgradeConfigured,
-        "Set VLLM_STUDIO_LLAMACPP_UPGRADE_CMD on the controller to enable upgrades."
-      ),
-      upgrading: upgrading === "llamacpp",
-    },
-  ];
-
-  const backendCards: Array<RuntimeCard & { backend: "cuda" | "rocm" }> = [
-    {
-      backend: "cuda",
-      title: "CUDA Runtime",
-      installed: true,
-      version: cudaRuntime?.cuda_version ?? null,
-      pathLabel: "Driver",
-      pathValue: cudaRuntime?.driver_version ?? "Not detected",
-      canUpgrade: cudaUpgradeConfigured === true,
-      disabledReason: getDisabledReason(
-        cudaUpgradeConfigured,
-        "Set VLLM_STUDIO_CUDA_UPGRADE_CMD on the controller to enable upgrades."
-      ),
-      upgrading: upgrading === "cuda",
-    },
-    {
-      backend: "rocm",
-      title: "ROCm Runtime",
-      installed: true,
-      version: rocmRuntime?.rocm_version ?? null,
-      pathLabel: "SMI Tool",
-      pathValue: rocmRuntime?.smi_tool ?? "Not detected",
-      canUpgrade: rocmUpgradeConfigured === true,
-      disabledReason: getDisabledReason(
-        rocmUpgradeConfigured,
-        "Set VLLM_STUDIO_ROCM_UPGRADE_CMD on the controller to enable upgrades."
-      ),
-      upgrading: upgrading === "rocm",
-    },
-  ];
+  const { vllmCards, backendCards } = useMemo(() => getRuntimePanelCards(runtimeState), [runtimeState]);
 
   return (
     <div style={{ padding: "1.5rem" }} className="space-y-6 max-w-3xl">
@@ -237,17 +123,17 @@ export function VllmRuntimePanel() {
         </div>
         <button
           onClick={handleRefresh}
-          disabled={runtimeLoading || runtimeConfigLoading}
+          disabled={runtimeState.runtimeLoading || runtimeState.runtimeConfigLoading}
           className="flex items-center gap-2 px-3 py-2 bg-(--surface) hover:bg-(--surface) border border-(--border) rounded-lg text-sm transition-colors disabled:opacity-50"
         >
-          <RefreshCw className={`w-4 h-4 ${runtimeLoading || runtimeConfigLoading ? "animate-spin" : ""}`} />
+          <RefreshCw className={`w-4 h-4 ${runtimeState.runtimeLoading || runtimeState.runtimeConfigLoading ? "animate-spin" : ""}`} />
           Refresh
         </button>
       </div>
 
-      {runtimeError && (
+      {runtimeState.runtimeError && (
         <div className="p-4 bg-(--err)/10 border border-(--err)/30 rounded-lg text-sm text-(--err)">
-          {runtimeError}
+          {runtimeState.runtimeError}
         </div>
       )}
 
@@ -330,42 +216,42 @@ export function VllmRuntimePanel() {
             onClick={() => {
               void loadRuntimeConfig();
             }}
-            disabled={runtimeConfigLoading}
+            disabled={runtimeState.runtimeConfigLoading}
             className="px-3 py-1.5 bg-(--border) hover:bg-(--surface) rounded-lg text-xs transition-colors disabled:opacity-50"
           >
-            {runtimeConfigLoading ? "Loading..." : "Refresh"}
+            {runtimeState.runtimeConfigLoading ? "Loading..." : "Refresh"}
           </button>
         </div>
-        {runtimeConfig?.error && <div className="text-xs text-(--err)">{runtimeConfig.error}</div>}
+        {runtimeState.runtimeConfig?.error && <div className="text-xs text-(--err)">{runtimeState.runtimeConfig.error}</div>}
         <pre className="max-h-72 overflow-auto text-xs text-(--fg) whitespace-pre-wrap">
-          {runtimeConfig?.config || "No config available."}
+          {runtimeState.runtimeConfig?.config || "No config available."}
         </pre>
       </div>
 
-      {upgradeResult && (
+      {runtimeState.upgradeResult && (
         <div
           className={`p-4 border rounded-lg text-sm ${
-            upgradeResult.result.success
+            runtimeState.upgradeResult.result.success
               ? "bg-(--hl2)/10 border-(--hl2)/30 text-(--hl2)"
               : "bg-(--err)/10 border-(--err)/30 text-(--err)"
           }`}
         >
           <div className="font-medium">
-            {upgradeResult.result.success ? "Upgrade complete" : "Upgrade failed"} (
-            {upgradeResult.backend})
-            {upgradeResult.result.version ? ` (v ${upgradeResult.result.version})` : ""}
+            {runtimeState.upgradeResult.result.success ? "Upgrade complete" : "Upgrade failed"} (
+            {runtimeState.upgradeResult.backend})
+            {runtimeState.upgradeResult.result.version ? ` (v ${runtimeState.upgradeResult.result.version})` : ""}
           </div>
-          {"used_command" in upgradeResult.result && upgradeResult.result.used_command && (
-            <div className="text-xs mt-1 break-all">Command: {upgradeResult.result.used_command}</div>
+          {"used_command" in runtimeState.upgradeResult.result && runtimeState.upgradeResult.result.used_command && (
+            <div className="text-xs mt-1 break-all">Command: {runtimeState.upgradeResult.result.used_command}</div>
           )}
-          {"used_wheel" in upgradeResult.result && upgradeResult.result.used_wheel && (
-            <div className="text-xs mt-1">Wheel: {upgradeResult.result.used_wheel}</div>
+          {"used_wheel" in runtimeState.upgradeResult.result && runtimeState.upgradeResult.result.used_wheel && (
+            <div className="text-xs mt-1">Wheel: {runtimeState.upgradeResult.result.used_wheel}</div>
           )}
-          {upgradeResult.result.error && (
-            <div className="text-xs mt-2 whitespace-pre-wrap text-(--err)">{upgradeResult.result.error}</div>
+          {runtimeState.upgradeResult.result.error && (
+            <div className="text-xs mt-2 whitespace-pre-wrap text-(--err)">{runtimeState.upgradeResult.result.error}</div>
           )}
-          {upgradeResult.result.output && (
-            <pre className="text-xs mt-2 whitespace-pre-wrap text-(--fg)">{upgradeResult.result.output}</pre>
+          {runtimeState.upgradeResult.result.output && (
+            <pre className="text-xs mt-2 whitespace-pre-wrap text-(--fg)">{runtimeState.upgradeResult.result.output}</pre>
           )}
         </div>
       )}

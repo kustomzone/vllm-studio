@@ -3,6 +3,7 @@ import Foundation
 
 extension ChatDetailViewModel {
   func streamTurn(api: ApiClient, userContent: String) async {
+    transition(.streamStarted)
     openAIService.configure(
       apiKey: settings?.apiKey ?? "",
       baseURL: settings?.backendUrl ?? "http://localhost:8080"
@@ -13,6 +14,11 @@ extension ChatDetailViewModel {
     var finalAssistantContent = ""
 
     while true {
+      if Task.isCancelled {
+        transition(.cancel)
+        return
+      }
+
       // Build tools: MCP defs (if enabled) + plan defs (if enabled)
       var toolDefs: [ToolDefinition] = []
       if settings?.mcpEnabled == true { toolDefs.append(contentsOf: tools.map { toolDef(for: $0) }) }
@@ -29,6 +35,7 @@ extension ChatDetailViewModel {
           model: model,
           tools: activeTools
         )
+
         // If streaming returned nothing, fall back to non-streaming
         let hasContent = !result.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let hasReasoning = !result.reasoning.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -40,7 +47,18 @@ extension ChatDetailViewModel {
           )
         }
       } catch {
+        if error is CancellationError || Task.isCancelled {
+          transition(.cancel)
+          return
+        }
         self.error = error.localizedDescription
+        transition(.failure(error.localizedDescription))
+        return
+      }
+
+
+      if Task.isCancelled {
+        transition(.cancel)
         return
       }
 
@@ -68,11 +86,13 @@ extension ChatDetailViewModel {
         toolResults: []
       )
 
-      // No tool calls — done
       if result.toolCalls.isEmpty {
+        transition(.assistantReturnedNoTools)
         finalAssistantContent = result.content
         break
       }
+
+      transition(.assistantReturnedTools)
 
       // Split calls: plan vs MCP
       let planCalls = result.toolCalls.filter { PlanTools.names.contains($0.function.name) }
@@ -103,16 +123,36 @@ extension ChatDetailViewModel {
         }
       }
 
+      if Task.isCancelled {
+        transition(.cancel)
+        return
+      }
+
       rounds += 1
       if rounds >= maxToolRounds {
+        transition(.toolRoundLimitReached)
         finalAssistantContent = result.content
         break
       }
+
+      if Task.isCancelled {
+        transition(.cancel)
+        return
+      }
+      transition(.toolRoundComplete)
     }
 
-    // Update title with final content or fallback to user message
+    if Task.isCancelled {
+      transition(.cancel)
+      return
+    }
+
+    transition(.titleUpdateStarted)
     let titleContent = finalAssistantContent.trimmingCharacters(in: .whitespacesAndNewlines)
     await updateTitle(user: userContent, assistant: titleContent, api: api)
+    if !Task.isCancelled {
+      transition(.titleUpdated)
+    }
   }
 
   private func tokenizePrompt(

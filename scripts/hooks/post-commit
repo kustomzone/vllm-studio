@@ -1,0 +1,34 @@
+#!/bin/bash
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "$REPO_ROOT" ]]; then
+  exit 0
+fi
+
+cd "$REPO_ROOT"
+
+changed_files="$(git diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null || true)"
+if [[ -z "$changed_files" ]]; then
+  changed_files="$(git show --pretty='' --name-only HEAD 2>/dev/null || true)"
+fi
+
+if ! printf '%s\n' "$changed_files" | grep -q '^swift-client/'; then
+  exit 0
+fi
+
+if [[ ! -x "$REPO_ROOT/swift-client/sync-devices.sh" ]]; then
+  echo "post-commit: swift-client/sync-devices.sh is missing or not executable; skipping iOS sync."
+  exit 0
+fi
+
+log_dir="$REPO_ROOT/swift-client/test-output/git-hooks"
+mkdir -p "$log_dir"
+log_file="$log_dir/post-commit-ios-sync-$(date +%Y%m%d-%H%M%S).log"
+
+(
+  cd "$REPO_ROOT/swift-client"
+  ./sync-devices.sh --ios-only --skip-generate
+) >"$log_file" 2>&1 &
+
+echo "post-commit: iOS device sync triggered in background (log: $log_file)"

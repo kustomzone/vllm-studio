@@ -7,7 +7,7 @@ import { PerfProfiler } from "../../../../perf/perf-profiler";
 import { ActivityPanel, BrowserPanel, ComputerPanel, ContextPanel } from "../../../sidebar/chat-side-panel";
 import { ArtifactPreviewPanel } from "../../../../artifacts/artifact-preview-panel";
 import { AgentFilesPanel } from "../../../../agent/agent-files-panel";
-import type { AgentFileEntry, AgentFileVersion, Artifact } from "@/lib/types";
+import type { AgentFileEntry, AgentFileVersion, AgentMachineInfo, Artifact } from "@/lib/types";
 import type { AgentPlan } from "../../../../agent/agent-types";
 import type { ActivityGroup } from "../../../../../types";
 import type { CompactionEvent, ContextStats } from "@/lib/services/context-management";
@@ -50,6 +50,10 @@ export type SidebarContentsProps = {
   selectedAgentFileLoading: boolean;
   onSelectAgentFile: (path: string | null) => void;
   hasSession: boolean;
+
+  machine: AgentMachineInfo | null;
+  machineLoading: boolean;
+  machineError: string | null;
 };
 
 export function buildSidebarContents(props: SidebarContentsProps): SidebarPanelContentMap {
@@ -71,14 +75,24 @@ export function buildSidebarContents(props: SidebarContentsProps): SidebarPanelC
     browser: (
       <div className="h-full flex flex-col">
         <PerfProfiler id={`${prefix}browser-panel`}>
-          <BrowserPanel activityGroups={props.activityGroups} />
+          <BrowserPanel
+            activityGroups={props.activityGroups}
+            machine={props.machine}
+            machineLoading={props.machineLoading}
+            machineError={props.machineError}
+          />
         </PerfProfiler>
       </div>
     ),
     computer: (
       <div className="h-full flex flex-col">
         <PerfProfiler id={`${prefix}computer-panel`}>
-          <ComputerPanel activityGroups={props.activityGroups} />
+          <ComputerPanel
+            activityGroups={props.activityGroups}
+            machine={props.machine}
+            machineLoading={props.machineLoading}
+            machineError={props.machineError}
+          />
         </PerfProfiler>
       </div>
     ),
@@ -114,6 +128,9 @@ export function buildSidebarContents(props: SidebarContentsProps): SidebarPanelC
           fileVersions={props.agentFileVersions}
           onSelectFile={props.onSelectAgentFile}
           hasSession={props.hasSession}
+          machine={props.machine}
+          machineLoading={props.machineLoading}
+          machineError={props.machineError}
         />
       </PerfProfiler>
     ),

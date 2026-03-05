@@ -175,7 +175,7 @@ export const createLifecycleCoordinator = (args: {
     }
 
     const release = await switchLock.acquire();
-    deps.launchState.setLaunchingRecipeId(recipe.id);
+    deps.launchState.markLaunching(recipe.id);
     try {
       const latest = await deps.processManager.findInferenceProcess(deps.config.inference_port);
       if (latest && isRecipeRunning(recipe, latest)) {
@@ -283,7 +283,7 @@ export const createLifecycleCoordinator = (args: {
     } finally {
       release();
       if (deps.launchState.getLaunchingRecipeId() === recipe.id) {
-        deps.launchState.setLaunchingRecipeId(null);
+        deps.launchState.markIdle();
       }
     }
   };
@@ -393,7 +393,7 @@ export const createLifecycleCoordinator = (args: {
     } finally {
       release();
       if (deps.launchState.getLaunchingRecipeId() === recipe.id) {
-        deps.launchState.setLaunchingRecipeId(null);
+        deps.launchState.markIdle();
       }
       const controller = launchCancelControllers.get(recipe.id);
       if (controller === cancelController) {
@@ -416,6 +416,7 @@ export const createLifecycleCoordinator = (args: {
 
     const currentLaunching = deps.launchState.getLaunchingRecipeId();
     if (currentLaunching && currentLaunching !== recipe.id) {
+      deps.launchState.markPreempting(currentLaunching);
       await deps.eventManager.publishLaunchProgress(
         recipe.id,
         "preempting",
@@ -438,7 +439,7 @@ export const createLifecycleCoordinator = (args: {
 
     const cancelController = new AbortController();
     launchCancelControllers.set(recipe.id, cancelController);
-    deps.launchState.setLaunchingRecipeId(recipe.id);
+    deps.launchState.markLaunching(recipe.id);
 
     // Fire-and-forget: run the long launch process in the background.
     // Progress is reported via WebSocket launch_progress events.

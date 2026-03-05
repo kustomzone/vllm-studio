@@ -43,3 +43,25 @@ export interface AgentState {
   tasks?: AgentTask[];
 }
 
+export interface AgentMachineInfo {
+  daytona_enabled: boolean;
+  sandbox?: {
+    id: string;
+  };
+  machine?: {
+    port: number;
+    previewUrl?: string;
+    previewError?: string;
+  };
+  computerUse?: {
+    started?: Record<string, unknown>;
+    status?: Record<string, unknown>;
+  };
+  screenshot?: {
+    imageDataUrl: string;
+    sizeBytes: number | null;
+  };
+  screenshotError?: string;
+  error?: string;
+}
+

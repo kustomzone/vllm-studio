@@ -14,6 +14,7 @@ const createConfig = (overrides: Partial<Config> = {}): Config => ({
   strict_openai_models: false,
   daytona_agent_mode: true,
   agent_fs_local_fallback: false,
+  providers: [],
   ...overrides,
 });
 

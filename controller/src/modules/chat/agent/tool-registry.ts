@@ -5,10 +5,12 @@ import type { AppContext } from "../../../types/context";
 import { buildAgentFsTools } from "./tool-registry-agentfs";
 import { createTextResult } from "./tool-registry-common";
 import { buildDaytonaTools } from "./tool-registry-daytona";
+import { buildLocalTools } from "./tool-registry-local";
 import { buildPlanTools } from "./tool-registry-plan";
 import type { AgentEventType } from "./contracts";
-import { isDaytonaAgentModeEnabled } from "../../../services/daytona/toolbox-client";
 import { isAgentFsEnabled } from "../agent-files/store";
+import { isDaytonaAgentModeEnabled } from "../../../services/daytona/toolbox-client";
+import { wrapToolsWithCircuitBreaker } from "./tool-circuit-breaker";
 
 export interface AgentToolRegistryOptions {
   sessionId: string;
@@ -37,6 +39,8 @@ export const buildAgentTools = async (
 
   if (options.agentMode && daytonaAgentMode) {
     tools.push(...buildDaytonaTools(context, options));
+  } else if (options.agentMode) {
+    tools.push(...buildLocalTools(context, { sessionId: options.sessionId }));
   }
 
   if ((options.agentMode || options.agentFiles) && agentFsEnabled) {
@@ -61,5 +65,5 @@ export const buildAgentTools = async (
     },
   });
 
-  return tools;
+  return wrapToolsWithCircuitBreaker(tools);
 };

@@ -1,8 +1,16 @@
 // CRITICAL
 import Foundation
 
+enum OpenAIChatServicePhase: Equatable {
+  case idle
+  case streaming
+  case ready
+  case failed
+}
+
 @MainActor
 final class OpenAIChatService: ObservableObject {
+  @Published var phase: OpenAIChatServicePhase = .idle
   @Published var isStreaming = false
   @Published var streamStart: Date?
   @Published var streamingContent = ""
@@ -36,15 +44,22 @@ final class OpenAIChatService: ObservableObject {
     let request = try buildRequest(payload)
 
     isStreaming = true
+    phase = .streaming
     streamStart = Date()
     streamingContent = ""
     streamingReasoning = ""
     streamingToolCalls = []
-    defer { isStreaming = false }
+    defer {
+      isStreaming = false
+      phase = .ready
+    }
 
     let (data, response) = try await URLSession.shared.data(for: request)
     if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
       throw StreamError.httpError(http.statusCode, String(data: data, encoding: .utf8) ?? "Unknown error")
+    }
+    if isEffectivelyEmptyPayload(data) {
+      throw StreamError.emptyResponse
     }
 
     let completion = try ApiCodec.decoder.decode(ChatCompletionResponse.self, from: data)
@@ -91,12 +106,16 @@ final class OpenAIChatService: ObservableObject {
     streamingToolCalls = []
     streamingUsage = nil
 
-    defer { isStreaming = false }
+    defer {
+      isStreaming = false
+      if phase != .failed { phase = .ready }
+    }
 
     let (bytes, response) = try await URLSession.shared.bytes(for: request)
 
     if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
       var errorBody = ""
+      phase = .failed
       for try await line in bytes.lines { errorBody += line }
       throw StreamError.httpError(http.statusCode, errorBody)
     }
@@ -104,6 +123,17 @@ final class OpenAIChatService: ObservableObject {
     var parser = SseParser()
     for try await line in bytes.lines {
       rawLines.append(line)
+      if Task.isCancelled {
+        isStreaming = false
+        phase = .idle
+        return StreamResult(
+          content: streamingContent,
+          reasoning: streamingReasoning,
+          toolCalls: finalizeBuffers(toolBuffer),
+          finishReason: nil,
+          usage: latestUsage
+        )
+      }
       let events = parser.ingest(line + "\n")
       for event in events {
         guard event.data != "[DONE]" else { continue }
@@ -176,7 +206,13 @@ final class OpenAIChatService: ObservableObject {
           finishReason: nil, usage: completion.usage
         )
       }
+      let rawTrimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+      if rawTrimmed.isEmpty || rawTrimmed == "{}" || rawTrimmed == "[]" {
+        throw StreamError.emptyResponse
+      }
     }
+
+    phase = .ready
 
     let finalTools = finalizeBuffers(toolBuffer)
     var finalContent: String
@@ -197,6 +233,7 @@ final class OpenAIChatService: ObservableObject {
       finalReasoning = ""
     }
 
+    phase = .ready
     return StreamResult(
       content: finalContent, reasoning: finalReasoning,
       toolCalls: finalTools, finishReason: finishReason,
@@ -235,6 +272,14 @@ final class OpenAIChatService: ObservableObject {
       )
     }
   }
+
+  private func isEffectivelyEmptyPayload(_ data: Data) -> Bool {
+    guard let text = String(data: data, encoding: .utf8) else {
+      return data.isEmpty
+    }
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty || trimmed == "{}" || trimmed == "[]"
+  }
 }
 
 private struct ToolBuffer {
@@ -247,11 +292,16 @@ private struct ToolBuffer {
 enum StreamError: LocalizedError {
   case invalidURL
   case httpError(Int, String)
+  case emptyResponse
 
   var errorDescription: String? {
     switch self {
-    case .invalidURL: return "Invalid backend URL"
-    case .httpError(let code, let body): return "HTTP \(code): \(body.prefix(200))"
+    case .invalidURL:
+      return "Invalid backend URL"
+    case .httpError(let code, let body):
+      return "HTTP \(code): \(body.prefix(200))"
+    case .emptyResponse:
+      return "BYOK Error: LLM returned 200 OK but response body was empty (possible rate limit). If this persists, verify your custom model configuration in settings."
     }
   }
 }

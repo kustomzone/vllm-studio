@@ -117,6 +117,9 @@ function isPrivateUrl(urlString: string): boolean {
 }
 
 function isTrustedPrivateOverride(urlString: string, defaultBackendUrl: string): boolean {
+  // Desktop app (Electron) runs entirely locally — all private IPs are trusted.
+  if (process.env.VLLM_STUDIO_DATA_DIR) return true;
+
   const targetOrigin = normalizeOrigin(urlString);
   if (!targetOrigin) return false;
   const trusted = getTrustedOverrideOrigins(defaultBackendUrl);

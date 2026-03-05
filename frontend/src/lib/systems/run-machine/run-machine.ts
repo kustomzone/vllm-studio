@@ -1,6 +1,11 @@
 // CRITICAL
 import { normalizePlanSteps } from "@/app/chat/_components/agent/agent-types";
 import { extractToolResultText } from "@/lib/systems/tools/tool-tracker";
+import {
+  createStateMachine,
+  type StateMachineContainer,
+  type StateMachineTransition,
+} from "../../../../../shared/src/state-machine";
 import type {
   RunMachineContext,
   RunMachineEffect,
@@ -99,6 +104,33 @@ function withState(state: RunMachineState, patch: Partial<RunMachineState>): Run
   return { ...state, ...patch };
 }
 
+function shouldRefreshAgentFilesForTool(toolName: unknown): boolean {
+  if (typeof toolName !== "string") return false;
+  const normalized = toolName.includes("__") ? toolName.split("__").slice(1).join("__") : toolName;
+  const lower = normalized.trim().toLowerCase();
+  if (!lower) return false;
+  return lower.includes("execute_command") || lower.includes("computer_use");
+}
+
+export function createRunMachine(
+  initialState: RunMachineState = createInitialRunMachineState(),
+): StateMachineContainer<
+  RunMachineState,
+  RunMachineTransitionInput,
+  RunMachineContext,
+  RunMachineEffect
+> {
+  return createStateMachine<
+    RunMachineState,
+    RunMachineTransitionInput,
+    RunMachineContext,
+    RunMachineEffect
+  >({
+    initialState,
+    transition: (state, context, input) => transitionRunMachine(state, context, input),
+  });
+}
+
 export function createInitialRunMachineState(): RunMachineState {
   return {
     phase: "idle",
@@ -108,11 +140,12 @@ export function createInitialRunMachineState(): RunMachineState {
   };
 }
 
-export function transitionRunMachine(
-  state: RunMachineState,
-  context: RunMachineContext,
-  input: RunMachineTransitionInput,
-): RunMachineTransitionResult {
+export const transitionRunMachine: StateMachineTransition<
+  RunMachineState,
+  RunMachineTransitionInput,
+  RunMachineContext,
+  RunMachineEffect
+> = (state, context, input): RunMachineTransitionResult => {
   const { event, now, mapAgentMessageToChatMessage } = input;
   const data = event.data as Record<string, unknown>;
   const { runId, turnIndex, eventSessionId } = parseRunMeta(data);
@@ -172,9 +205,6 @@ export function transitionRunMachine(
       if (mapped) {
         effects.push({ type: "messages/upsert", message: mapped });
       }
-      if (event.event === "message_end") {
-        effects.push({ type: "stream/set-loading", loading: false });
-      }
       return { state: baseState, effects };
     }
 
@@ -225,6 +255,11 @@ export function transitionRunMachine(
         resultText: extractToolResultText(data["result"]),
         isError: data["isError"] === true,
       });
+
+      if (eventSessionId && shouldRefreshAgentFilesForTool(data["toolName"])) {
+        effects.push({ type: "agent-files/list", sessionId: eventSessionId });
+      }
+
       return { state: baseState, effects };
     }
 

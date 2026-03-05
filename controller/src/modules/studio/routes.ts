@@ -429,6 +429,8 @@ export const registerStudioRoutes = (app: Hono, context: AppContext): void => {
     if (index < 0) throw notFound(`Provider "${providerId}" not found`);
 
     const current = context.config.providers[index];
+    if (!current) throw notFound(`Provider "${providerId}" not found`);
+
     const name = typeof body.name === "string" ? body.name.trim() : current.name;
     const baseUrl = typeof body.base_url === "string" ? body.base_url.trim() : current.base_url;
     const apiKey = typeof body.api_key === "string" ? body.api_key.trim() : current.api_key;
