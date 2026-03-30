@@ -66,14 +66,14 @@ describe("kernel unit tests", () => {
     const byId = parts.providers.resolve("phi4");
     expect(byId.kind).toBe("managed");
     if (byId.kind === "managed") {
-      expect(byId.recipe.id).toBe("phi4");
+      expect(String(byId.recipe.id)).toBe("phi4");
       expect(byId.resolvedModel).toBe("phi-4");
     }
 
     const byServed = parts.providers.resolve("phi-4");
     expect(byServed.kind).toBe("managed");
     if (byServed.kind === "managed") {
-      expect(byServed.recipe.id).toBe("phi4");
+      expect(String(byServed.recipe.id)).toBe("phi4");
       expect(byServed.resolvedModel).toBe("phi-4");
     }
   });

@@ -19,6 +19,16 @@ import { ChatRunManager } from "./modules/chat/agent/run-manager";
 import { JobStore } from "./stores/job-store";
 import { JobManager } from "./modules/jobs/job-manager";
 import { DistributedStore } from "./stores/distributed-store";
+import { ControllerKernel } from "./kernel/kernel";
+import { EventBusAdapter } from "./kernel/adapters/event-bus";
+import { RecipeRegistryAdapter } from "./kernel/adapters/recipe-registry";
+import { RuntimeLeaseManagerAdapter } from "./kernel/adapters/runtime-lease-manager";
+import { ProviderRouterAdapter } from "./kernel/adapters/provider-router";
+import { MetricsStoreAdapter } from "./kernel/adapters/metrics-store";
+import { ChatStoreAdapter } from "./kernel/adapters/chat-store";
+import { DownloadStoreAdapter } from "./kernel/adapters/download-store";
+import { JobStoreAdapter } from "./kernel/adapters/job-store";
+import { NodeRegistryAdapter } from "./kernel/adapters/node-registry";
 import { DistributedClusterManager } from "./modules/distributed/cluster-manager";
 
 /**
@@ -89,10 +99,40 @@ export const createAppContext = (): AppContext => {
     distributedStore
   );
 
+  // Wire kernel adapters over existing stores/managers
+  const kernelEvents = new EventBusAdapter(eventManager);
+  const kernelRecipes = new RecipeRegistryAdapter(recipeStore);
+  const kernelRuntime = new RuntimeLeaseManagerAdapter(
+    lifecycleCoordinator,
+    processManager,
+    kernelEvents,
+    config.inference_port,
+  );
+  const kernelProviders = new ProviderRouterAdapter(kernelRecipes);
+  const kernelMetrics = new MetricsStoreAdapter(lifetimeMetricsStore);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- adapter wiring across module boundaries
+  const kernelChats = new ChatStoreAdapter(chatStore as any);
+  const kernelDownloads = new DownloadStoreAdapter(downloadManager as any);
+  const kernelJobs = new JobStoreAdapter(jobManager as any);
+  const kernelCluster = new NodeRegistryAdapter(distributedManager as any);
+
+  const kernel = new ControllerKernel({
+    events: kernelEvents,
+    recipes: kernelRecipes,
+    runtime: kernelRuntime,
+    providers: kernelProviders,
+    chats: kernelChats,
+    metrics: kernelMetrics,
+    downloads: kernelDownloads,
+    jobs: kernelJobs,
+    cluster: kernelCluster,
+  });
+
   return {
     ...baseContext,
     runManager,
     jobManager,
     distributedManager,
+    kernel,
   };
 };

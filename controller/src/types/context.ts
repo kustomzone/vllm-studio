@@ -15,6 +15,7 @@ import type { JobStore } from "../stores/job-store";
 import type { JobManager } from "../modules/jobs/job-manager";
 import type { DistributedStore } from "../stores/distributed-store";
 import type { DistributedClusterManager } from "../modules/distributed/cluster-manager";
+import type { ControllerKernel } from "../kernel/kernel";
 
 /**
  * Application-wide dependency container.
@@ -32,6 +33,8 @@ export interface AppContext {
   runManager: ChatRunManager;
   jobManager: JobManager;
   distributedManager: DistributedClusterManager;
+  /** Kernel layer — available for routes to use alongside existing managers. */
+  kernel: ControllerKernel;
   stores: {
     recipeStore: RecipeStore;
     chatStore: ChatStore;
