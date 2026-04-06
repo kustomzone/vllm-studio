@@ -31,7 +31,6 @@ export const EXTRA_ARG_FIELDS: ExtraArgField[] = [
   { field: "scheduling_policy", key: "scheduling-policy", type: "string" },
   { field: "max_paddings", key: "max-paddings", type: "number" },
   { field: "data_parallel_size", key: "data-parallel-size", type: "number" },
-  { field: "distributed_executor_backend", key: "distributed-executor-backend", type: "string" },
   { field: "enable_expert_parallel", key: "enable-expert-parallel", type: "boolean" },
   { field: "enforce_eager", key: "enforce-eager", type: "boolean" },
   { field: "disable_cuda_graph", key: "disable-cuda-graph", type: "boolean" },
@@ -40,7 +39,11 @@ export const EXTRA_ARG_FIELDS: ExtraArgField[] = [
   { field: "use_v2_block_manager", key: "use-v2-block-manager", type: "boolean" },
   { field: "compilation_config", key: "compilation-config", type: "string" },
   { field: "speculative_model", key: "speculative-model", type: "string" },
-  { field: "speculative_model_quantization", key: "speculative-model-quantization", type: "string" },
+  {
+    field: "speculative_model_quantization",
+    key: "speculative-model-quantization",
+    type: "string",
+  },
   { field: "num_speculative_tokens", key: "num-speculative-tokens", type: "number" },
   {
     field: "speculative_draft_tensor_parallel_size",
@@ -48,7 +51,11 @@ export const EXTRA_ARG_FIELDS: ExtraArgField[] = [
     type: "number",
   },
   { field: "speculative_max_model_len", key: "speculative-max-model-len", type: "number" },
-  { field: "speculative_disable_mqa_scorer", key: "speculative-disable-mqa-scorer", type: "boolean" },
+  {
+    field: "speculative_disable_mqa_scorer",
+    key: "speculative-disable-mqa-scorer",
+    type: "boolean",
+  },
   {
     field: "spec_decoding_acceptance_method",
     key: "spec-decoding-acceptance-method",
@@ -86,7 +93,11 @@ export const EXTRA_ARG_FIELDS: ExtraArgField[] = [
   { field: "disable_log_stats", key: "disable-log-stats", type: "boolean" },
   { field: "max_log_len", key: "max-log-len", type: "number" },
   { field: "uvicorn_log_level", key: "uvicorn-log-level", type: "string" },
-  { field: "disable_frontend_multiprocessing", key: "disable-frontend-multiprocessing", type: "boolean" },
+  {
+    field: "disable_frontend_multiprocessing",
+    key: "disable-frontend-multiprocessing",
+    type: "boolean",
+  },
   { field: "enable_request_id_headers", key: "enable-request-id-headers", type: "boolean" },
   { field: "disable_fastapi_docs", key: "disable-fastapi-docs", type: "boolean" },
   { field: "return_tokens_as_token_ids", key: "return-tokens-as-token-ids", type: "boolean" },
@@ -121,4 +132,3 @@ export const EXTRA_ARG_FIELDS: ExtraArgField[] = [
     aliases: ["ROCR_VISIBLE_DEVICES", "rocr_visible_devices"],
   },
 ];
-

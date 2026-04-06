@@ -13,7 +13,6 @@ REMOTE_URL=https://your-domain.com
 
 # API Keys
 VLLM_STUDIO_DAYTONA_API_KEY=xxx
-APP_STORE_CONNECT_API_KEY=xxx    # For TestFlight uploads
 ```
 
 Access these in scripts via environment variables or load them from `.env.local` in your deployment scripts.
@@ -21,10 +20,12 @@ Access these in scripts via environment variables or load them from `.env.local`
 ## Deployment Targets
 
 ### Production — Remote GPU Server
+
 - **Deploy**: `./scripts/deploy-remote.sh` (or `controller` / `frontend` / `status`)
 - Controller (bun :8080) and frontend (next :3000) run natively; postgres + litellm in Docker
 
 ### Staging — Local Docker (macOS)
+
 - **Image**: `vllm-studio-frontend`
 - **Container**: `vllm-studio-staging`
 - **URL**: `http://localhost:3000`
@@ -46,8 +47,6 @@ After finishing a feature, follow this checklist:
 5. **Verify remote**: check production URLs (see `.env.local` for REMOTE_HOST)
 6. **Desktop Electron update (REQUIRED - ALWAYS DO THIS)**: `cd frontend && npm run desktop:dist`
 7. **Update installed Desktop app** (REQUIRED - ALWAYS DO THIS): See [Installed Desktop App Update](#installed-desktop-app-update-required) section below
-8. **iOS device sync** (required when Swift client changed): `cd swift-client && ./sync-devices.sh --ios-only`
-9. **TestFlight upload** (for release candidates): `cd swift-client && bundle install && bundle exec fastlane beta` (requires App Store Connect API key env vars)
 
 ### Installed Desktop App Update (Required)
 
@@ -58,13 +57,16 @@ There must be **one canonical installed app only**:
 - Canonical bundle id: `org.vllm.studio.desktop`
 - Legacy duplicate to remove if present: `~/Applications/vllm-studio-mac.app`
 
-After `desktop:dist`, update the installed app bundle in place:
+After `desktop:dist`, replace the installed app bundle cleanly. Do not layer a new app bundle on top
+of the old one with plain `ditto`; stale sealed resources will invalidate the code signature.
 
 ```bash
 # Apple Silicon
+rm -rf "/Applications/vLLM Studio.app"
 ditto "frontend/dist-desktop/mac-arm64/vLLM Studio.app" "/Applications/vLLM Studio.app"
 
 # Intel fallback
+rm -rf "/Applications/vLLM Studio.app"
 # ditto "frontend/dist-desktop/mac/vLLM Studio.app" "/Applications/vLLM Studio.app"
 ```
 
@@ -102,6 +104,7 @@ find /Applications "$HOME/Applications" -maxdepth 1 -type d -iname "*v*llm*studi
 - After cleanup, restart the controller to clear cached errors.
 
 ## Notes
+
 - Remote server specs: AMD EPYC, 8x RTX 3090, CUDA 12.8 (see `.env.local` for host)
 - rsync/scp fail due to remote shell output; deploy script uses tar+ssh pipe as workaround
 - Remote `next build` may fail (turbopack + redis permissions); the deploy script builds locally and ships `.next/`

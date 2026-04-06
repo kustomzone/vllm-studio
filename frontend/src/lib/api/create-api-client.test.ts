@@ -8,12 +8,12 @@ describe("createApiClient", () => {
     expect(typeof api.launch).toBe("function");
     expect(typeof api.evict).toBe("function");
     expect(typeof api.getLogs).toBe("function");
-    expect(typeof api.listDistributedNodes).toBe("function");
-    expect(typeof api.setDistributedAllocation).toBe("function");
 
     expect("switchModel" in api).toBe(false);
     expect("evictModel" in api).toBe(false);
     expect("getLogContent" in api).toBe(false);
     expect("exportRecipes" in api).toBe(false);
+    expect("listDistributedNodes" in api).toBe(false);
+    expect("setDistributedAllocation" in api).toBe(false);
   });
 });

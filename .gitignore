@@ -60,8 +60,6 @@ frontend/playwright-report/
 frontend/test-results/
 frontend/test-output/
 controller/test-output/
-swift-client/test-output/
-swift-client/.build/
 reports/
 
 # Local proofs / scratch

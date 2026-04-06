@@ -38,7 +38,7 @@ Controller publishes EventManager events
 
 ## Persistence path
 
-- `controller.db` (shared): recipes, downloads, metrics, jobs, distributed nodes
+- `controller.db` (shared): recipes, downloads, metrics, jobs
 - `chats.db` (chat-specific): sessions, messages, runs, run events, tool executions, agent file versions
 - file persistence: `data/studio-settings.json`, log files, model directories
 - LiteLLM analytics source: Postgres (`LiteLLM_SpendLogs`) with SQLite/chat fallbacks
@@ -102,13 +102,10 @@ stateDiagram-v2
     RouteEvent --> ControllerDomain
     RouteEvent --> RecipeDomain
     RouteEvent --> RuntimeDomain
-    RouteEvent --> DistributedDomain
-
     ChatDomain --> Listening
     ControllerDomain --> Listening
     RecipeDomain --> Listening
     RuntimeDomain --> Listening
-    DistributedDomain --> Listening
 
     Listening --> PollFallback : stale/no events
     PollFallback --> Listening : recovered

@@ -91,7 +91,6 @@ def make_criteria(
         "frontend/README.md",
         "cli/README.md",
         "desktop/README.md",
-        "swift-client/README.md",
         "shared/README.md",
     }
     module_docs_present = len(module_docs.intersection(doc_files))

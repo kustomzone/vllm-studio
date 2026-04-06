@@ -38,12 +38,11 @@ export const CONTROLLER_EVENTS = {
   RUNTIME_CUDA_UPGRADED: "runtime_cuda_upgraded",
   RUNTIME_ROCM_UPGRADED: "runtime_rocm_upgraded",
   JOB_UPDATED: "job_updated",
-  DISTRIBUTED_NODE_UPDATED: "distributed_node_updated",
-  DISTRIBUTED_TOPOLOGY_UPDATED: "distributed_topology_updated",
   LOG: "log",
 } as const;
 
-export type ControllerEventType = (typeof CONTROLLER_EVENTS)[keyof typeof CONTROLLER_EVENTS];
+export type ControllerEventType =
+  (typeof CONTROLLER_EVENTS)[keyof typeof CONTROLLER_EVENTS];
 
 export const CONTROLLER_STREAM_EVENT_TYPES = [
   CONTROLLER_EVENTS.STATUS,
@@ -84,21 +83,22 @@ export const CONTROLLER_STREAM_EVENT_TYPES = [
   CONTROLLER_EVENTS.RUNTIME_CUDA_UPGRADED,
   CONTROLLER_EVENTS.RUNTIME_ROCM_UPGRADED,
   CONTROLLER_EVENTS.JOB_UPDATED,
-  CONTROLLER_EVENTS.DISTRIBUTED_NODE_UPDATED,
-  CONTROLLER_EVENTS.DISTRIBUTED_TOPOLOGY_UPDATED,
 ] as const;
 
-export type ControllerStreamEventType = (typeof CONTROLLER_STREAM_EVENT_TYPES)[number];
+export type ControllerStreamEventType =
+  (typeof CONTROLLER_STREAM_EVENT_TYPES)[number];
 
 export type ControllerEventDomain =
   | "chat"
   | "recipe"
   | "runtime"
   | "controller"
-  | "distributed"
   | "mcp";
 
-const CONTROLLER_EVENT_DOMAIN_MAP: Record<ControllerStreamEventType, ControllerEventDomain> = {
+const CONTROLLER_EVENT_DOMAIN_MAP: Record<
+  ControllerStreamEventType,
+  ControllerEventDomain
+> = {
   [CONTROLLER_EVENTS.STATUS]: "controller",
   [CONTROLLER_EVENTS.GPU]: "controller",
   [CONTROLLER_EVENTS.METRICS]: "controller",
@@ -137,8 +137,6 @@ const CONTROLLER_EVENT_DOMAIN_MAP: Record<ControllerStreamEventType, ControllerE
   [CONTROLLER_EVENTS.RUNTIME_CUDA_UPGRADED]: "runtime",
   [CONTROLLER_EVENTS.RUNTIME_ROCM_UPGRADED]: "runtime",
   [CONTROLLER_EVENTS.JOB_UPDATED]: "controller",
-  [CONTROLLER_EVENTS.DISTRIBUTED_NODE_UPDATED]: "distributed",
-  [CONTROLLER_EVENTS.DISTRIBUTED_TOPOLOGY_UPDATED]: "distributed",
 };
 
 export const CONTROLLER_BROWSER_EVENT_CHANNEL = {
@@ -146,22 +144,25 @@ export const CONTROLLER_BROWSER_EVENT_CHANNEL = {
   recipe: "vllm:recipe-event",
   runtime: "vllm:runtime-event",
   controller: "vllm:controller-event",
-  distributed: "vllm:distributed-event",
   mcp: "vllm:controller-event",
 } as const;
 
 export type ControllerBrowserEventChannel =
   (typeof CONTROLLER_BROWSER_EVENT_CHANNEL)[ControllerEventDomain];
 
-const CONTROLLER_STREAM_EVENT_SET = new Set<string>(CONTROLLER_STREAM_EVENT_TYPES);
+const CONTROLLER_STREAM_EVENT_SET = new Set<string>(
+  CONTROLLER_STREAM_EVENT_TYPES,
+);
 
 export const isControllerStreamEventType = (
-  eventType: string
+  eventType: string,
 ): eventType is ControllerStreamEventType => {
   return CONTROLLER_STREAM_EVENT_SET.has(eventType);
 };
 
-export const getControllerEventDomain = (eventType: string): ControllerEventDomain | null => {
+export const getControllerEventDomain = (
+  eventType: string,
+): ControllerEventDomain | null => {
   if (!isControllerStreamEventType(eventType)) {
     return null;
   }
@@ -169,7 +170,7 @@ export const getControllerEventDomain = (eventType: string): ControllerEventDoma
 };
 
 export const getBrowserEventChannelForControllerEvent = (
-  eventType: string
+  eventType: string,
 ): ControllerBrowserEventChannel | null => {
   const domain = getControllerEventDomain(eventType);
   if (!domain) {

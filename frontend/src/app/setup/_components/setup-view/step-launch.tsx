@@ -31,7 +31,7 @@ export function StepLaunch({
           <div>Backend: vLLM</div>
           <div>dtype: auto</div>
           <div>KV cache dtype: auto</div>
-          <div>Tooling changes are left for the Hermes guide in Get Started.</div>
+          <div>Advanced parser and tooling changes can be reviewed in Recipes after launch.</div>
         </div>
         {createdRecipeId && (
           <div className="text-xs text-(--dim)">

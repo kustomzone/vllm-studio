@@ -16,7 +16,7 @@ This release consolidates major repo changes currently in the tree, including:
 ## Docs
 
 - Overview: docs/README.md
-- Setup and deployment: setup/README.md
+- Setup and deployment: docs/operations.md
 - Environment variables: docs/environment.md
 
 ## Repository layout
@@ -24,7 +24,6 @@ This release consolidates major repo changes currently in the tree, including:
 - `controller/`: Bun/Hono backend, orchestration, chat runtime, lifecycle, metrics
 - `frontend/`: Next.js app, chat UI, proxy endpoints, client state
 - `cli/`: Bun CLI for controller access
-- `swift-client/`: iOS/macOS client (XcodeGen)
 - `shared/`: shared types/contracts
 - `config/`: runtime and integration configs
 - `docs/`: documentation index and environment notes
@@ -81,7 +80,7 @@ curl -I http://localhost:3000
 
 ## Setup guide
 
-See `setup/README.md` for complete setup, deployment, and verification instructions.
+See `docs/operations.md` for setup, deployment, and verification instructions.
 
 ## Branching and release workflow
 

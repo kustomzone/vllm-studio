@@ -41,7 +41,9 @@ export function RecipeModalTabResources({
 
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs font-medium text-(--dim) mb-2">Tensor Parallel (TP)</label>
+            <label className="block text-xs font-medium text-(--dim) mb-2">
+              Tensor Parallel (TP)
+            </label>
             <input
               type="number"
               min={1}
@@ -57,7 +59,9 @@ export function RecipeModalTabResources({
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-(--dim) mb-2">Pipeline Parallel (PP)</label>
+            <label className="block text-xs font-medium text-(--dim) mb-2">
+              Pipeline Parallel (PP)
+            </label>
             <input
               type="number"
               min={1}
@@ -87,37 +91,16 @@ export function RecipeModalTabResources({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-(--dim) mb-2">Distributed Executor</label>
-            <select
-              value={recipe.distributed_executor_backend || ""}
-              onChange={(e) =>
-                onChange({
-                  ...recipe,
-                  distributed_executor_backend: e.target.value
-                    ? (e.target.value as "ray" | "mp")
-                    : undefined,
-                })
-              }
-              className="w-full px-3 py-2 bg-(--bg) border border-(--border) rounded-lg text-sm focus:outline-none focus:border-(--accent)"
-            >
-              <option value="">Default</option>
-              <option value="ray">Ray</option>
-              <option value="mp">MP (Multiprocessing)</option>
-            </select>
-          </div>
-          <div className="flex items-center pt-6">
-            <label className="flex items-center gap-2 text-sm text-(--dim) cursor-pointer hover:text-(--fg) transition-colors">
-              <input
-                type="checkbox"
-                checked={recipe.enable_expert_parallel || false}
-                onChange={(e) => onChange({ ...recipe, enable_expert_parallel: e.target.checked })}
-                className="rounded border-(--border) bg-(--bg) w-4 h-4"
-              />
-              Expert Parallel (MoE)
-            </label>
-          </div>
+        <div className="flex items-center">
+          <label className="flex items-center gap-2 text-sm text-(--dim) cursor-pointer hover:text-(--fg) transition-colors">
+            <input
+              type="checkbox"
+              checked={recipe.enable_expert_parallel || false}
+              onChange={(e) => onChange({ ...recipe, enable_expert_parallel: e.target.checked })}
+              className="rounded border-(--border) bg-(--bg) w-4 h-4"
+            />
+            Expert Parallel (MoE)
+          </label>
         </div>
       </div>
 
@@ -129,7 +112,9 @@ export function RecipeModalTabResources({
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-(--dim) mb-2">GPU Memory Utilization</label>
+          <label className="block text-xs font-medium text-(--dim) mb-2">
+            GPU Memory Utilization
+          </label>
           <div className="flex items-center gap-3">
             <input
               type="range"
@@ -158,7 +143,8 @@ export function RecipeModalTabResources({
                 ...recipe,
                 visible_devices: e.target.value || undefined,
                 cuda_visible_devices: undefined,
-              })}
+              })
+            }
             placeholder="0,1,2,3 or all"
             className="w-full px-3 py-2 bg-(--bg) border border-(--border) rounded-lg text-sm focus:outline-none focus:border-(--accent)"
           />
@@ -178,7 +164,9 @@ export function RecipeModalTabResources({
             <input
               type="number"
               value={recipe.swap_space || ""}
-              onChange={(e) => onChange({ ...recipe, swap_space: Number(e.target.value) || undefined })}
+              onChange={(e) =>
+                onChange({ ...recipe, swap_space: Number(e.target.value) || undefined })
+              }
               placeholder="0"
               className="w-full px-3 py-2 bg-(--bg) border border-(--border) rounded-lg text-sm focus:outline-none focus:border-(--accent)"
             />
@@ -196,12 +184,17 @@ export function RecipeModalTabResources({
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-(--dim) mb-2">GPU Blocks Override</label>
+            <label className="block text-xs font-medium text-(--dim) mb-2">
+              GPU Blocks Override
+            </label>
             <input
               type="number"
               value={recipe.num_gpu_blocks_override || ""}
               onChange={(e) =>
-                onChange({ ...recipe, num_gpu_blocks_override: Number(e.target.value) || undefined })
+                onChange({
+                  ...recipe,
+                  num_gpu_blocks_override: Number(e.target.value) || undefined,
+                })
               }
               placeholder="Auto"
               className="w-full px-3 py-2 bg-(--bg) border border-(--border) rounded-lg text-sm focus:outline-none focus:border-(--accent)"

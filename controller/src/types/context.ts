@@ -13,8 +13,6 @@ import type { LifetimeMetricsStore, PeakMetricsStore } from "../modules/monitori
 import type { RecipeStore } from "../modules/lifecycle/recipes/recipe-store";
 import type { JobStore } from "../stores/job-store";
 import type { JobManager } from "../modules/jobs/job-manager";
-import type { DistributedStore } from "../stores/distributed-store";
-import type { DistributedClusterManager } from "../modules/distributed/cluster-manager";
 
 /**
  * Application-wide dependency container.
@@ -31,7 +29,6 @@ export interface AppContext {
   downloadManager: DownloadManager;
   runManager: ChatRunManager;
   jobManager: JobManager;
-  distributedManager: DistributedClusterManager;
   stores: {
     recipeStore: RecipeStore;
     chatStore: ChatStore;
@@ -39,6 +36,5 @@ export interface AppContext {
     peakMetricsStore: PeakMetricsStore;
     lifetimeMetricsStore: LifetimeMetricsStore;
     jobStore: JobStore;
-    distributedStore: DistributedStore;
   };
 }

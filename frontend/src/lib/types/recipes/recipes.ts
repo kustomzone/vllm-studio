@@ -39,7 +39,6 @@ export interface RecipeStored {
   host: string;
   port: number;
   served_model_name: string | null;
-  target_node_id: string | null;
   python_path: string | null;
   extra_args: Record<string, unknown>;
   max_thinking_tokens: number | null;
@@ -68,7 +67,6 @@ export interface RecipeEditor {
   host?: string;
   port?: number;
   served_model_name?: string | null;
-  target_node_id?: string | null;
   api_key?: string;
 
   // Model loading
@@ -91,7 +89,6 @@ export interface RecipeEditor {
   pipeline_parallel_size?: number;
   pp?: number;
   data_parallel_size?: number;
-  distributed_executor_backend?: "ray" | "mp";
   enable_expert_parallel?: boolean;
 
   // Memory & KV Cache

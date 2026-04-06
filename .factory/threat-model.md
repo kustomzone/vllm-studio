@@ -10,26 +10,25 @@
 
 ### Architecture Description
 
-This is a local-first AI orchestration platform that lets users run and manage LLM/STT/TTS backends, chat with agent tooling, download models, inspect runtime health, and manage distributed node allocations. The system is built primarily with Bun + Hono (controller), Next.js (frontend), and SQLite/Postgres storage. The main components are:
+This is a local-first AI orchestration platform that lets users run and manage LLM/STT/TTS backends, chat with agent tooling, download models, and inspect runtime health. The system is built primarily with Bun + Hono (controller), Next.js (frontend), and SQLite/Postgres storage. The main components are:
 
-1. **Controller API (`controller/src`)** - The control plane and proxy runtime exposing lifecycle, chat, model, audio, downloads, monitoring, jobs, and distributed APIs.
+1. **Controller API (`controller/src`)** - The control plane and proxy runtime exposing lifecycle, chat, model, audio, downloads, monitoring, and jobs APIs.
 2. **Frontend API/UI (`frontend/src`)** - Browser-facing Next.js app and API routes that proxy/forward requests and store per-user API settings.
 3. **External Runtime Services** - Inference backends (vLLM/sglang/llama.cpp/exllamav3), LiteLLM, Hugging Face, and Daytona sandbox/toolbox APIs.
 
 ### Key Components
 
-| Component | Purpose | Security Criticality | Attack Surface |
-| --- | --- | --- | --- |
-| Controller (`controller/src/http/app.ts`) | Main API and orchestration engine | HIGH | HTTP routes under `/v1/*`, `/chats/*`, `/studio/*`, `/runtime/*`, `/distributed/*`, `/logs/*` |
-| Frontend proxy routes (`frontend/src/app/api/proxy/[...path]/route.ts`) | Forwards browser traffic to backend | HIGH | Header/cookie URL override, auth forwarding, SSE proxy |
-| Chat + Agent runtime (`controller/src/modules/chat`) | Stores chat state, executes agent runs/tools | HIGH | `/chats/:sessionId/*`, tool execution, file operations |
-| Agent filesystem + Daytona (`controller/src/modules/chat/agent-files-routes.ts`, `services/daytona/toolbox-client.ts`) | Read/write/move/delete files in per-session workspace | HIGH | Path parameters, sandbox lifecycle endpoints |
-| Lifecycle/process manager (`controller/src/modules/lifecycle`) | Spawns and kills model runtime processes | HIGH | Recipe create/update, launch/evict, runtime upgrade commands |
-| Downloads (`controller/src/modules/downloads`) | Pulls model artifacts from Hugging Face | MEDIUM | User-supplied model IDs/patterns/path fragments, long-running network fetch |
-| Monitoring/log streams (`controller/src/modules/monitoring`) | Streams logs/events/metrics/usage | MEDIUM | SSE streams, log session IDs, service status endpoints |
-| Studio settings/model file ops (`controller/src/modules/studio/routes.ts`) | Persists config, moves/deletes model files | HIGH | Filesystem paths and mutating endpoints |
-| Distributed control plane (`controller/src/modules/distributed`) | Registers nodes and layer allocations | MEDIUM | Node registration, heartbeats, allocation changes |
-| CLI (`cli/src`) | Local terminal client to controller | LOW | Reads and invokes controller endpoints |
+| Component                                                                                                              | Purpose                                               | Security Criticality | Attack Surface                                                              |
+| ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | -------------------- | --------------------------------------------------------------------------- |
+| Controller (`controller/src/http/app.ts`)                                                                              | Main API and orchestration engine                     | HIGH                 | HTTP routes under `/v1/*`, `/chats/*`, `/studio/*`, `/runtime/*`, `/logs/*` |
+| Frontend proxy routes (`frontend/src/app/api/proxy/[...path]/route.ts`)                                                | Forwards browser traffic to backend                   | HIGH                 | Header/cookie URL override, auth forwarding, SSE proxy                      |
+| Chat + Agent runtime (`controller/src/modules/chat`)                                                                   | Stores chat state, executes agent runs/tools          | HIGH                 | `/chats/:sessionId/*`, tool execution, file operations                      |
+| Agent filesystem + Daytona (`controller/src/modules/chat/agent-files-routes.ts`, `services/daytona/toolbox-client.ts`) | Read/write/move/delete files in per-session workspace | HIGH                 | Path parameters, sandbox lifecycle endpoints                                |
+| Lifecycle/process manager (`controller/src/modules/lifecycle`)                                                         | Spawns and kills model runtime processes              | HIGH                 | Recipe create/update, launch/evict, runtime upgrade commands                |
+| Downloads (`controller/src/modules/downloads`)                                                                         | Pulls model artifacts from Hugging Face               | MEDIUM               | User-supplied model IDs/patterns/path fragments, long-running network fetch |
+| Monitoring/log streams (`controller/src/modules/monitoring`)                                                           | Streams logs/events/metrics/usage                     | MEDIUM               | SSE streams, log session IDs, service status endpoints                      |
+| Studio settings/model file ops (`controller/src/modules/studio/routes.ts`)                                             | Persists config, moves/deletes model files            | HIGH                 | Filesystem paths and mutating endpoints                                     |
+| CLI (`cli/src`)                                                                                                        | Local terminal client to controller                   | LOW                  | Reads and invokes controller endpoints                                      |
 
 ### Data Flow
 
@@ -49,7 +48,7 @@ The system has **3 trust zones**:
 
 2. **Authenticated Zone** - Intended authenticated use, but no mandatory server-side auth middleware is currently enforced
    - Assumes: Callers may present API keys but requests are not universally gated
-   - Entry Points: Chat, downloads, lifecycle, studio, distributed, runtime mutation endpoints
+   - Entry Points: Chat, downloads, lifecycle, studio, and runtime mutation endpoints
 
 3. **Internal Zone** - Controller internals and service-to-service calls
    - Assumes: Local process/service access is more trusted but still handles untrusted upstream content
@@ -57,7 +56,7 @@ The system has **3 trust zones**:
 
 ### Authentication & Authorization
 
-Authentication is largely optional and route-specific. There is no global controller middleware enforcing API key/session authorization in `controller/src/http/app.ts`; CORS allows all origins (`origin: "*"`). The frontend proxy may forward Authorization headers or configured API keys, but this is not equivalent to controller-side authorization enforcement. Authorization checks for object ownership/role boundaries are generally absent for mutable resources (chat sessions, files, recipes, runtime upgrades, distributed state).
+Authentication is largely optional and route-specific. There is no global controller middleware enforcing API key/session authorization in `controller/src/http/app.ts`; CORS allows all origins (`origin: "*"`). The frontend proxy may forward Authorization headers or configured API keys, but this is not equivalent to controller-side authorization enforcement. Authorization checks for object ownership/role boundaries are generally absent for mutable resources (chat sessions, files, recipes, and runtime upgrades).
 
 **Critical Security Controls:**
 
@@ -98,11 +97,6 @@ Authentication is largely optional and route-specific. There is no global contro
   - **Validation:** Source constrained to `models_dir`; move allows caller-chosen target root
   - **Risk:** Destructive operations; possible arbitrary write outside models root via target root
 
-- `POST /distributed/nodes/register`, `POST /distributed/nodes/:nodeId/heartbeat`, allocation endpoints
-  - **Input:** Node metadata/metrics/allocation bounds
-  - **Validation:** shape checks and some regex/range checks
-  - **Risk:** Cluster state poisoning, topology manipulation, spoofed node identity
-
 - `GET /logs/:sessionId`, `DELETE /logs/:sessionId`, `GET /logs/:sessionId/stream`, `GET /events`
   - **Input:** Session IDs and stream subscriptions
   - **Validation:** `sanitizeLogSessionId`
@@ -138,7 +132,7 @@ The system accepts user input from:
 
 1. Browser JSON/form-data requests into controller and frontend API routes.
 2. Path/query/header/cookie parameters (including backend URL overrides and auth headers).
-3. Persisted config/settings and runtime recipe/job/distributed payloads.
+3. Persisted config/settings and runtime recipe/job payloads.
 4. External service responses (Hugging Face model metadata, Daytona toolbox/API responses).
 
 ---
@@ -164,7 +158,7 @@ The system accepts user input from:
 #### Business-Critical Data
 
 - **Model artifacts and filesystem state** - Under `models_dir`, plus temporary audio/transcode files.
-- **Operational control state** - Recipes, job records, distributed allocations, runtime status/logs/events.
+- **Operational control state** - Recipes, job records, runtime status/logs/events.
 
 ---
 
@@ -180,12 +174,12 @@ Threats are mapped to concrete routes/components in this repository and prioriti
 
 #### Threat: Unauthenticated control-plane spoofing
 
-**Scenario:** An attacker on reachable network impersonates a legitimate operator and invokes lifecycle/studio/runtime/distributed mutation endpoints.
+**Scenario:** An attacker on reachable network impersonates a legitimate operator and invokes lifecycle/studio/runtime mutation endpoints.
 
 **Vulnerable Components:**
 
 - `controller/src/http/app.ts` (no global auth middleware)
-- Mutating route modules (`lifecycle-routes.ts`, `runtime-routes.ts`, `studio/routes.ts`, `distributed/routes.ts`, `downloads/routes.ts`)
+- Mutating route modules (`lifecycle-routes.ts`, `runtime-routes.ts`, `studio/routes.ts`, `downloads/routes.ts`)
 
 **Attack Vector:**
 
@@ -195,11 +189,14 @@ Threats are mapped to concrete routes/components in this repository and prioriti
 4. Gain operational control / service disruption.
 
 **Code Pattern to Look For:**
+
 ```ts
 // VULNERABLE: route exposed with no authentication/authorization middleware.
 const app = new Hono();
 app.use("*", cors({ origin: "*" }));
-app.post("/runtime/vllm/upgrade", async (ctx) => { /* ... */ });
+app.post("/runtime/vllm/upgrade", async (ctx) => {
+  /* ... */
+});
 
 // SAFE: explicit auth guard before sensitive routes.
 app.use("/runtime/*", requireApiKeyAuth);
@@ -237,10 +234,12 @@ app.post("/runtime/vllm/upgrade", upgradeHandler);
 4. Modify host filesystem layout and potentially poison other paths.
 
 **Code Pattern to Look For:**
+
 ```ts
 // VULNERABLE: validates source containment but trusts destination root.
 const resolvedTargetRoot = resolve(targetRoot);
-if (!existsSync(resolvedTargetRoot)) mkdirSync(resolvedTargetRoot, { recursive: true });
+if (!existsSync(resolvedTargetRoot))
+  mkdirSync(resolvedTargetRoot, { recursive: true });
 const target = resolve(resolvedTargetRoot, basename(resolvedSource));
 
 // SAFE: enforce both source and destination under approved base.
@@ -257,23 +256,6 @@ if (!resolvedTargetRoot.startsWith(`${allowedRoot}${sep}`)) {
 **Gaps:**
 
 - Destination root not constrained to approved subtree.
-
-**Severity:** HIGH | **Likelihood:** HIGH
-
-#### Threat: Distributed allocation state tampering
-
-**Scenario:** Any caller can alter model layer allocations and node heartbeats.
-
-**Vulnerable Components:**
-
-- `controller/src/modules/distributed/routes.ts`
-
-**Attack Vector:**
-
-1. Register spoofed node IDs.
-2. Send forged heartbeats/metrics.
-3. Overwrite allocations with malicious ranges.
-4. Corrupt scheduling/topology and disrupt inference cluster.
 
 **Severity:** HIGH | **Likelihood:** HIGH
 
@@ -297,17 +279,22 @@ if (!resolvedTargetRoot.startsWith(`${allowedRoot}${sep}`)) {
 3. No user identity/trace signature to tie action to principal.
 
 **Code Pattern to Look For:**
+
 ```ts
 // VULNERABLE: audit event lacks actor identity.
-await eventManager.publish(new Event("MODEL_SWITCH", { status: "started", to_recipe_id: recipe.id }));
+await eventManager.publish(
+  new Event("MODEL_SWITCH", { status: "started", to_recipe_id: recipe.id }),
+);
 
 // SAFE: include authenticated principal + immutable request correlation id.
-await eventManager.publish(new Event("MODEL_SWITCH", {
-  actor_id: auth.subject,
-  actor_type: "api_key",
-  request_id,
-  to_recipe_id: recipe.id
-}));
+await eventManager.publish(
+  new Event("MODEL_SWITCH", {
+    actor_id: auth.subject,
+    actor_type: "api_key",
+    request_id,
+    to_recipe_id: recipe.id,
+  }),
+);
 ```
 
 **Existing Mitigations:**
@@ -340,6 +327,7 @@ await eventManager.publish(new Event("MODEL_SWITCH", {
 4. Exfiltrate credentials and request payloads.
 
 **Code Pattern to Look For:**
+
 ```ts
 // VULNERABLE: accepts arbitrary https/http override and forwards auth.
 const overrideUrl = normalizeBackendUrl(request.headers.get("x-backend-url"));
@@ -348,7 +336,8 @@ else if (API_KEY) headers["Authorization"] = `Bearer ${API_KEY}`;
 await fetch(targetUrl, { headers });
 
 // SAFE: allowlist approved backend origins before forwarding credentials.
-if (!ALLOWED_BACKENDS.has(new URL(targetUrl).origin)) throw new Error("blocked backend override");
+if (!ALLOWED_BACKENDS.has(new URL(targetUrl).origin))
+  throw new Error("blocked backend override");
 ```
 
 **Existing Mitigations:**
@@ -446,13 +435,17 @@ if (!ALLOWED_BACKENDS.has(new URL(targetUrl).origin)) throw new Error("blocked b
 4. Pivot to host modifications or persistence.
 
 **Code Pattern to Look For:**
+
 ```ts
 // VULNERABLE: untrusted command accepted from request body.
 const command = typeof body?.command === "string" ? body.command : undefined;
 const result = runPlatformUpgrade("cuda", { command, args });
 
 // SAFE: ignore user-supplied command; only execute fixed allowlisted commands.
-const result = runPlatformUpgrade("cuda", { command: undefined, args: undefined });
+const result = runPlatformUpgrade("cuda", {
+  command: undefined,
+  args: undefined,
+});
 ```
 
 **Existing Mitigations:**
@@ -488,7 +481,9 @@ Use these patterns to quickly scan PRs and hot paths in this repository.
 
 ```ts
 // VULNERABLE: dynamic SQL interpolation from user input.
-const rows = db.query(`SELECT * FROM chat_sessions WHERE id = '${sessionId}'`).all();
+const rows = db
+  .query(`SELECT * FROM chat_sessions WHERE id = '${sessionId}'`)
+  .all();
 
 // SAFE: parameterized query (current repo commonly does this).
 const row = db.query("SELECT * FROM chat_sessions WHERE id = ?").get(sessionId);
@@ -512,7 +507,9 @@ const command = body.command;
 runCommand(command, body.args ?? []);
 
 // SAFE: fixed command map + strict allowlist.
-const allowed = { sglang: ["python3", ["-m", "pip", "install", "--upgrade", "sglang"]] };
+const allowed = {
+  sglang: ["python3", ["-m", "pip", "install", "--upgrade", "sglang"]],
+};
 const [cmd, args] = allowed[target];
 runCommand(cmd, args);
 ```
@@ -545,7 +542,9 @@ app.post("/runtime/vllm/upgrade", upgradeHandler);
 
 ```ts
 // VULNERABLE: direct object/session access by id with no ownership check.
-app.get("/chats/:sessionId", (ctx) => chatStore.getSession(ctx.req.param("sessionId")));
+app.get("/chats/:sessionId", (ctx) =>
+  chatStore.getSession(ctx.req.param("sessionId")),
+);
 
 // SAFE: verify caller authorization for the resource.
 const session = chatStore.getSession(sessionId);
@@ -558,13 +557,13 @@ if (!canAccessSession(auth.subject, session)) throw forbidden();
 
 ### Automated Testing
 
-| Tool | Purpose | Frequency |
-| --- | --- | --- |
-| `eslint` + typecheck | Unsafe patterns + correctness baseline | Every commit |
-| Unit tests (`bun test` / `vitest`) | Regressions in route behavior | Every commit |
-| Custom security grep checks | Detect command/path/auth anti-patterns | Every commit |
-| Dependency audit (`npm audit`/equivalent) | Known vulnerable packages | Daily/CI |
-| Secret scanning | Token/key leakage in repo | Every commit |
+| Tool                                      | Purpose                                | Frequency    |
+| ----------------------------------------- | -------------------------------------- | ------------ |
+| `eslint` + typecheck                      | Unsafe patterns + correctness baseline | Every commit |
+| Unit tests (`bun test` / `vitest`)        | Regressions in route behavior          | Every commit |
+| Custom security grep checks               | Detect command/path/auth anti-patterns | Every commit |
+| Dependency audit (`npm audit`/equivalent) | Known vulnerable packages              | Daily/CI     |
+| Secret scanning                           | Token/key leakage in repo              | Every commit |
 
 ### Manual Security Reviews
 

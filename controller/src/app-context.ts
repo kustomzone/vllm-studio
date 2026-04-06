@@ -18,8 +18,6 @@ import { RecipeStore } from "./modules/lifecycle/recipes/recipe-store";
 import { ChatRunManager } from "./modules/chat/agent/run-manager";
 import { JobStore } from "./stores/job-store";
 import { JobManager } from "./modules/jobs/job-manager";
-import { DistributedStore } from "./stores/distributed-store";
-import { DistributedClusterManager } from "./modules/distributed/cluster-manager";
 
 /**
  * Create the application dependency container.
@@ -37,7 +35,6 @@ export const createAppContext = (): AppContext => {
   const peakMetricsStore = new PeakMetricsStore(dbPath);
   const lifetimeMetricsStore = new LifetimeMetricsStore(dbPath);
   const jobStore = new JobStore(dbPath);
-  const distributedStore = new DistributedStore(dbPath);
   const eventManager = createEventManager();
   const logger = createLogger(resolveLogLevel("info"), {
     filePath: primaryLogPathFor(config.data_dir, "controller"),
@@ -78,21 +75,15 @@ export const createAppContext = (): AppContext => {
       peakMetricsStore,
       lifetimeMetricsStore,
       jobStore,
-      distributedStore,
     },
-  } as Omit<AppContext, "runManager" | "jobManager" | "distributedManager">;
+  } as Omit<AppContext, "runManager" | "jobManager">;
 
   runManager = new ChatRunManager(baseContext as AppContext);
   const jobManager = new JobManager(baseContext as AppContext, jobStore);
-  const distributedManager = new DistributedClusterManager(
-    baseContext as AppContext,
-    distributedStore
-  );
 
   return {
     ...baseContext,
     runManager,
     jobManager,
-    distributedManager,
   };
 };

@@ -14,16 +14,13 @@ import {
 describe("controller event routing", () => {
   it("routes known controller events to browser channels", () => {
     expect(resolveControllerEventChannel(CONTROLLER_EVENTS.STATUS)).toBe(
-      CONTROLLER_BROWSER_EVENT_CHANNEL.controller
+      CONTROLLER_BROWSER_EVENT_CHANNEL.controller,
     );
     expect(resolveControllerEventChannel(CONTROLLER_EVENTS.RECIPE_CREATED)).toBe(
-      CONTROLLER_BROWSER_EVENT_CHANNEL.recipe
+      CONTROLLER_BROWSER_EVENT_CHANNEL.recipe,
     );
     expect(resolveControllerEventChannel(CONTROLLER_EVENTS.CHAT_SESSION_UPDATED)).toBe(
-      CONTROLLER_BROWSER_EVENT_CHANNEL.chat
-    );
-    expect(resolveControllerEventChannel(CONTROLLER_EVENTS.DISTRIBUTED_NODE_UPDATED)).toBe(
-      CONTROLLER_BROWSER_EVENT_CHANNEL.distributed
+      CONTROLLER_BROWSER_EVENT_CHANNEL.chat,
     );
   });
 

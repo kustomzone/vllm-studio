@@ -13,9 +13,11 @@ import { registerAllProxyRoutes } from "../modules/proxy/routes";
 import { registerStudioRoutes } from "../modules/studio/routes";
 import { registerAudioRoutes } from "../modules/audio/routes";
 import { registerJobsRoutes } from "../modules/jobs/routes";
-import { registerDistributedRoutes } from "../modules/distributed/routes";
 import { createOpenApiSpec } from "./openapi-spec";
-import { createMutatingAuthMiddleware, createMutatingRateLimitMiddleware } from "./security-middleware";
+import {
+  createMutatingAuthMiddleware,
+  createMutatingRateLimitMiddleware,
+} from "./security-middleware";
 
 /**
  * Create the Hono application.
@@ -32,7 +34,12 @@ export const createApp = (context: AppContext): Hono => {
       origin: (origin) => (allowedCorsOrigins.includes(origin) ? origin : null),
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowHeaders: ["Authorization", "Content-Type", "X-API-Key"],
-      exposeHeaders: ["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "Retry-After"],
+      exposeHeaders: [
+        "X-RateLimit-Limit",
+        "X-RateLimit-Remaining",
+        "X-RateLimit-Reset",
+        "Retry-After",
+      ],
       maxAge: 600,
     })
   );
@@ -57,7 +64,6 @@ export const createApp = (context: AppContext): Hono => {
   registerAllMonitoringRoutes(app, context);
   registerAudioRoutes(app, context);
   registerJobsRoutes(app, context, context.jobManager);
-  registerDistributedRoutes(app, context.distributedManager);
   registerAllProxyRoutes(app, context);
 
   // OpenAPI documentation endpoints
