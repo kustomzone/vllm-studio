@@ -12,7 +12,6 @@ REMOTE_PATH=/home/user/project   # Deploy path
 REMOTE_URL=https://your-domain.com
 
 # API Keys
-VLLM_STUDIO_DAYTONA_API_KEY=xxx
 ```
 
 Access these in scripts via environment variables or load them from `.env.local` in your deployment scripts.
@@ -91,17 +90,10 @@ find /Applications "$HOME/Applications" -maxdepth 1 -type d -iname "*v*llm*studi
 /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "/Applications/vLLM Studio.app/Contents/Info.plist"
 ```
 
-## Agent File System (Daytona)
+## Agent File System
 
-- File writing/reading in chat uses **Daytona sandboxes** (cloud filesystem)
-- Config: `VLLM_STUDIO_DAYTONA_API_KEY`, `VLLM_STUDIO_DAYTONA_AGENT_MODE=true` in `.env`
-- **Disk limit**: Daytona free tier has 30GiB total. Old stopped sandboxes accumulate and block new file operations with 403 errors.
-- **If file writing breaks**: List and delete old sandboxes:
-  ```
-  curl -s -H "Authorization: Bearer $API_KEY" "https://app.daytona.io/api/sandbox"
-  curl -X DELETE -H "Authorization: Bearer $API_KEY" "https://app.daytona.io/api/sandbox/$SANDBOX_ID"
-  ```
-- After cleanup, restart the controller to clear cached errors.
+- File writing/reading in chat is local-only and stored under `data/agentfs`
+- If file operations break, inspect the local data directory and restart the controller before debugging frontend state
 
 ## Notes
 

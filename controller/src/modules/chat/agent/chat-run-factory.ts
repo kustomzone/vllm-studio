@@ -13,7 +13,6 @@ import { persistAssistantMessage, extractToolResultText } from "./run-manager-pe
 import { createRunPublisher, createSseStream } from "./run-manager-sse";
 import { AGENT_RUN_EVENT_TYPES, type AgentEventType } from "./contracts";
 import { createMessageCleaner } from "./run-manager-utf8";
-import { DAYTONA_PROVIDER } from "../../../services/provider-routing";
 import { resolveModel, resolveApiKey } from "./run-manager-model-resolver";
 import type { ChatRunOptions, ChatRunStream } from "./run-manager-types";
 import { mapToolCallsToMessage, parseToolServer } from "./run-manager-utils";
@@ -50,9 +49,6 @@ export async function createChatRun(
   const storedModel = modelSelection.storedModel;
   const provider = modelSelection.provider;
   const apiKey = resolveApiKey(context, provider);
-  if (provider === DAYTONA_PROVIDER && apiKey === "none") {
-    throw new Error("Missing Daytona provider credentials");
-  }
 
   const systemPrompt = buildSystemPrompt(session, options.systemPrompt, options.agentMode ?? false);
   const thinkingLevel = options.thinkingLevel ?? (options.deepResearch ? "high" : "off");

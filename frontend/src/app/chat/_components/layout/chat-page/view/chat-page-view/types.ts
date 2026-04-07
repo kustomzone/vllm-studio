@@ -6,7 +6,6 @@ import type { SidebarTab } from "../../../sidebar/unified-sidebar";
 import type {
   AgentFileEntry,
   AgentFileVersion,
-  AgentMachineInfo,
   Artifact,
   ChatMessage,
   SessionUsage,
@@ -70,10 +69,6 @@ export interface ChatPageViewProps {
   onSelectAgentFile: (path: string | null) => void;
   hasSession: boolean;
   onOpenAgentFile: (path: string) => void;
-
-  machine: AgentMachineInfo | null;
-  machineLoading: boolean;
-  machineError: string | null;
 
   // Messages + list refs
   messages: ChatMessage[];

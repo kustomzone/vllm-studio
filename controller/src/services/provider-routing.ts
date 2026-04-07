@@ -1,9 +1,7 @@
 // CRITICAL
 import type { ProviderConfig } from "../config/persisted-config";
 
-export const DAYTONA_PROVIDER = "daytona";
 export const DEFAULT_CHAT_PROVIDER = "openai";
-const DEFAULT_DAYTONA_API_URL = "https://app.daytona.io/api";
 
 export const WELL_KNOWN_PROVIDERS: Record<string, { name: string; baseUrl: string }> = {
   openai: { name: "OpenAI", baseUrl: "https://api.openai.com" },
@@ -21,8 +19,6 @@ export interface ProviderRouteConfig {
 }
 
 export interface ControllerProviderRoutingConfig {
-  daytonaApiUrl?: string | undefined;
-  daytonaApiKey?: string | undefined;
   providers?: ProviderConfig[];
 }
 
@@ -53,25 +49,6 @@ export const parseProviderModel = (rawModel: string): ParsedProviderModel => {
 export const normalizeModelForRequest = (provider: string, modelId: string): string =>
   provider === DEFAULT_CHAT_PROVIDER ? modelId : `${provider}/${modelId}`;
 
-export const resolveDaytonaProviderConfig = (
-  config: ControllerProviderRoutingConfig = {}
-): ProviderRouteConfig | null => {
-  const baseUrl =
-    resolveEnvValue(config.daytonaApiUrl) ??
-    resolveEnvValue(process.env["VLLM_STUDIO_DAYTONA_API_URL"]) ??
-    DEFAULT_DAYTONA_API_URL;
-
-  const apiKey =
-    resolveEnvValue(config.daytonaApiKey) ??
-    resolveEnvValue(process.env["VLLM_STUDIO_DAYTONA_API_KEY"]);
-
-  if (!apiKey) {
-    return null;
-  }
-
-  return { baseUrl, apiKey };
-};
-
 export const resolveConfiguredProviderConfig = (
   providerId: string,
   providers: ProviderConfig[] = []
@@ -87,8 +64,5 @@ export const resolveProviderConfig = (
   provider: string,
   config: ControllerProviderRoutingConfig = {}
 ): ProviderRouteConfig | null => {
-  if (provider === DAYTONA_PROVIDER) {
-    return resolveDaytonaProviderConfig(config);
-  }
   return resolveConfiguredProviderConfig(provider, config.providers);
 };

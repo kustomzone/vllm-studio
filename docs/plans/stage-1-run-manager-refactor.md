@@ -292,7 +292,7 @@ This ordering is preserved because:
 ## Test Preservation
 
 - **No existing unit tests** directly test `ChatRunManager` (verified by grep for `run-manager|ChatRunManager` in `*.test.ts`).
-- Existing tests (`store.test.ts`, `tool-registry.test.ts`, `daytona-agentfs.test.ts`) don't import from `run-manager.ts`.
+- Existing tests (`store.test.ts`, `tool-registry.test.ts`) don't import from `run-manager.ts`.
 - The refactor does not modify `agent-event-handler.ts`, `run-manager-persistence.ts`, or `run-manager-sse.ts` — their test surface is unaffected.
 - After refactor, the extracted pure functions (`resolveModel`, `resolveApiKey`, `isMockInferenceEnabled`, `parseToolServer`, `mapToolCallsToMessage`, `createMessageCleaner`) become individually testable.
 

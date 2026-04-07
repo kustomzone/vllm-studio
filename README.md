@@ -9,9 +9,9 @@ This release consolidates major repo changes currently in the tree, including:
 - OpenAI proxy activation policy controls for `load_if_idle` and `switch_on_request`
 - lifecycle-aware run aborts when model eviction happens
 - SSE run stream termination fixes across backend and frontend
-- Daytona toolbox reliability hardening (route fallback, quota cleanup retry, alias-safe command parsing)
+- local-only chat/runtime cleanup and controller simplification
 - dashboard launch-state cleanup improvements
-- expanded controller/daytona test coverage for run termination and toolbox behavior
+- reduced chat/controller indirection and removed dead remote-runtime branches
 
 ## Docs
 

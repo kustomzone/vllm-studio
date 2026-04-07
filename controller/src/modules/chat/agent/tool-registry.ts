@@ -4,12 +4,9 @@ import type { TSchema } from "@sinclair/typebox";
 import type { AppContext } from "../../../types/context";
 import { buildAgentFsTools } from "./tool-registry-agentfs";
 import { createTextResult } from "./tool-registry-common";
-import { buildDaytonaTools } from "./tool-registry-daytona";
 import { buildLocalTools } from "./tool-registry-local";
 import { buildPlanTools } from "./tool-registry-plan";
 import type { AgentEventType } from "./contracts";
-import { isAgentFsEnabled } from "../agent-files/store";
-import { isDaytonaAgentModeEnabled } from "../../../services/daytona/toolbox-client";
 import { wrapToolsWithCircuitBreaker } from "./tool-circuit-breaker";
 
 export interface AgentToolRegistryOptions {
@@ -30,20 +27,16 @@ export const buildAgentTools = async (
   options: AgentToolRegistryOptions
 ): Promise<AgentTool[]> => {
   const tools: AgentTool[] = [];
-  const daytonaAgentMode = isDaytonaAgentModeEnabled(context.config);
-  const agentFsEnabled = isAgentFsEnabled(context.config);
 
   if (options.agentMode) {
     tools.push(...buildPlanTools(context, options));
   }
 
-  if (options.agentMode && daytonaAgentMode) {
-    tools.push(...buildDaytonaTools(context, options));
-  } else if (options.agentMode) {
+  if (options.agentMode) {
     tools.push(...buildLocalTools(context, { sessionId: options.sessionId }));
   }
 
-  if ((options.agentMode || options.agentFiles) && agentFsEnabled) {
+  if (options.agentMode || options.agentFiles) {
     tools.push(...buildAgentFsTools(context, options));
   }
 

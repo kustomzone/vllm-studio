@@ -23,8 +23,6 @@ function createContext(apiKey?: string): AppContext {
       db_path: "/tmp/controller.db",
       models_dir: "/tmp/models",
       strict_openai_models: false,
-      daytona_agent_mode: false,
-      agent_fs_local_fallback: false,
       cors_origins: ["http://localhost:3000"],
       ...(apiKey ? { api_key: apiKey } : {}),
     },

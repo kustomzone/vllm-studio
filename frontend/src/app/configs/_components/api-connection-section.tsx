@@ -2,73 +2,31 @@
 import { Activity, Check, Eye, EyeOff, Link, Loader2, X } from "lucide-react";
 import type { ApiConnectionSettings, ConnectionStatus } from "../hooks/use-configs";
 
-type AgentFsBackendMode =
-  | "daytona_only"
-  | "daytona_with_local_fallback"
-  | "local_only"
-  | "disabled";
-
-const resolveAgentFsBackendMode = (
-  apiSettings: ApiConnectionSettings,
-): AgentFsBackendMode => {
-  if (apiSettings.daytonaAgentMode && apiSettings.agentFsLocalFallback) {
-    return "daytona_with_local_fallback";
-  }
-  if (apiSettings.daytonaAgentMode) {
-    return "daytona_only";
-  }
-  if (apiSettings.agentFsLocalFallback) {
-    return "local_only";
-  }
-  return "disabled";
-};
-
-const applyAgentFsBackendMode = (
-  apiSettings: ApiConnectionSettings,
-  mode: AgentFsBackendMode,
-): ApiConnectionSettings => {
-  if (mode === "daytona_with_local_fallback") {
-    return { ...apiSettings, daytonaAgentMode: true, agentFsLocalFallback: true };
-  }
-  if (mode === "daytona_only") {
-    return { ...apiSettings, daytonaAgentMode: true, agentFsLocalFallback: false };
-  }
-  if (mode === "local_only") {
-    return { ...apiSettings, daytonaAgentMode: false, agentFsLocalFallback: true };
-  }
-  return { ...apiSettings, daytonaAgentMode: false, agentFsLocalFallback: false };
-};
-
 export function ApiConnectionSection({
   apiSettingsLoading,
   apiSettings,
   showApiKey,
-  showDaytonaApiKey,
   testing,
   saving,
   connectionStatus,
   statusMessage,
   onApiSettingsChange,
   onToggleApiKey,
-  onToggleDaytonaApiKey,
   onTestConnection,
   onSave,
 }: {
   apiSettingsLoading: boolean;
   apiSettings: ApiConnectionSettings;
   showApiKey: boolean;
-  showDaytonaApiKey: boolean;
   testing: boolean;
   saving: boolean;
   connectionStatus: ConnectionStatus;
   statusMessage: string;
   onApiSettingsChange: (nextSettings: ApiConnectionSettings) => void;
   onToggleApiKey: () => void;
-  onToggleDaytonaApiKey: () => void;
   onTestConnection: () => void;
   onSave: () => void;
 }) {
-  const agentFsBackendMode = resolveAgentFsBackendMode(apiSettings);
   return (
     <div className="mb-6 sm:mb-8">
       <div className="text-xs text-(--dim) uppercase tracking-wider mb-3">API Connection</div>
@@ -109,78 +67,6 @@ export function ApiConnectionSection({
               placeholder="whisper-large-v3-turbo"
               onChange={(voiceModel) => onApiSettingsChange({ ...apiSettings, voiceModel })}
             />
-
-            <div className="h-px bg-(--border)/70" />
-
-            <div className="space-y-1">
-              <h3 className="text-xs font-semibold tracking-wide text-(--fg)">
-                Daytona Agent Runtime
-              </h3>
-              <p className="text-[11px] text-(--dim)">
-                Configure Daytona sandbox access for agent file and tool execution.
-              </p>
-            </div>
-
-            <ApiField
-              label="Daytona API URL"
-              value={apiSettings.daytonaApiUrl}
-              placeholder="https://app.daytona.io/api"
-              onChange={(daytonaApiUrl) => onApiSettingsChange({ ...apiSettings, daytonaApiUrl })}
-            />
-
-            <ApiKeyField
-              label="Daytona API Key"
-              apiKey={apiSettings.daytonaApiKey}
-              hasApiKey={apiSettings.hasDaytonaApiKey}
-              showApiKey={showDaytonaApiKey}
-              onToggle={onToggleDaytonaApiKey}
-              onChange={(daytonaApiKey) => onApiSettingsChange({ ...apiSettings, daytonaApiKey })}
-              placeholderWhenUnset="Optional"
-            />
-
-            <ApiField
-              label="Daytona Proxy URL"
-              value={apiSettings.daytonaProxyUrl}
-              placeholder="https://app.daytona.io/api"
-              onChange={(daytonaProxyUrl) =>
-                onApiSettingsChange({ ...apiSettings, daytonaProxyUrl })
-              }
-            />
-
-            <ApiField
-              label="Daytona Sandbox ID"
-              value={apiSettings.daytonaSandboxId}
-              placeholder="Optional fixed sandbox id"
-              onChange={(daytonaSandboxId) =>
-                onApiSettingsChange({ ...apiSettings, daytonaSandboxId })
-              }
-            />
-
-            <div>
-              <label className="block text-xs text-(--dim) mb-1.5">Agent filesystem backend</label>
-              <select
-                value={agentFsBackendMode}
-                onChange={(event) =>
-                  onApiSettingsChange(
-                    applyAgentFsBackendMode(
-                      apiSettings,
-                      event.target.value as AgentFsBackendMode,
-                    ),
-                  )
-                }
-                className="w-full px-3 py-2 bg-(--surface) border border-(--border) rounded-lg text-sm text-(--fg) focus:outline-none focus:border-(--hl1)"
-              >
-                <option value="daytona_only">Daytona only</option>
-                <option value="daytona_with_local_fallback">
-                  Daytona + local fallback
-                </option>
-                <option value="local_only">Local only</option>
-                <option value="disabled">Disabled</option>
-              </select>
-              <p className="mt-1 text-[11px] text-(--dim)">
-                Choose where agent file operations run. Recommended: Daytona + local fallback.
-              </p>
-            </div>
 
             <div className="flex items-center justify-between pt-2">
               <div className="flex items-center gap-2">

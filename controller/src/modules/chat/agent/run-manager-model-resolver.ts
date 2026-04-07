@@ -1,6 +1,5 @@
 import type { AppContext } from "../../../types/context";
 import {
-  DAYTONA_PROVIDER,
   DEFAULT_CHAT_PROVIDER,
   parseProviderModel,
   resolveProviderConfig,
@@ -81,14 +80,6 @@ export async function resolveModel(
 }
 
 export function resolveApiKey(context: AppContext, provider = DEFAULT_CHAT_PROVIDER): string {
-  if (provider === DAYTONA_PROVIDER) {
-    const providerConfig = resolveProviderConfig(provider, {
-      daytonaApiUrl: context.config.daytona_api_url,
-      daytonaApiKey: context.config.daytona_api_key,
-    });
-    return providerConfig?.apiKey ?? "none";
-  }
-
   const configuredProvider = resolveProviderConfig(provider, {
     providers: context.config.providers,
   });

@@ -80,7 +80,7 @@ describe("run-status", () => {
     expect(value).toBe("created file: notes/quantization-plan.md");
   });
 
-  it("formats daytona execute_command tool calls in one line with command target", () => {
+  it("formats execute_command tool calls in one line with command target", () => {
     const value = buildRunStatusText({
       isLoading: true,
       streamStalled: false,

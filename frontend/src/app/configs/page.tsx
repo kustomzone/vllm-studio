@@ -36,7 +36,6 @@ export default function ConfigsPage() {
       apiSettings={configs.apiSettings}
       apiSettingsLoading={configs.apiSettingsLoading}
       showApiKey={configs.showApiKey}
-      showDaytonaApiKey={configs.showDaytonaApiKey}
       saving={configs.saving}
       testing={configs.testing}
       connectionStatus={configs.connectionStatus}
@@ -46,7 +45,6 @@ export default function ConfigsPage() {
       onReload={configs.loadConfig}
       onApiSettingsChange={configs.setApiSettings}
       onToggleApiKey={() => configs.setShowApiKey(!configs.showApiKey)}
-      onToggleDaytonaApiKey={() => configs.setShowDaytonaApiKey(!configs.showDaytonaApiKey)}
       onTestConnection={configs.testConnection}
       onSaveSettings={configs.saveApiSettings}
     />

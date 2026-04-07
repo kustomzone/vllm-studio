@@ -7,7 +7,6 @@ import type { AppContext } from "../../types/context";
 import type { ProcessInfo, Recipe } from "../lifecycle/types";
 import { buildInferenceUrl } from "../../services/inference/inference-client";
 import {
-  DAYTONA_PROVIDER,
   DEFAULT_CHAT_PROVIDER,
   parseProviderModel,
   resolveProviderConfig,
@@ -136,8 +135,6 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
     const providerRouting =
       requestProvider !== DEFAULT_CHAT_PROVIDER
         ? resolveProviderConfig(requestProvider, {
-            daytonaApiUrl: context.config.daytona_api_url,
-            daytonaApiKey: context.config.daytona_api_key,
             providers: context.config.providers,
           })
         : null;
@@ -154,10 +151,6 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
       context.config.strict_openai_models
     ) {
       throw notFound(`Model not managed: ${requestedModel}`);
-    }
-
-    if (!providerRouting && requestProvider === DAYTONA_PROVIDER) {
-      throw new HttpStatus(400, "Missing Daytona provider credentials");
     }
 
     if (matchedRecipe) {

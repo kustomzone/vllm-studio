@@ -4,7 +4,6 @@ import type { ChatMessage } from "@/lib/types";
 import type { ChatPageViewProps } from "@/app/chat/_components/layout/chat-page/view/chat-page-view/types";
 import type {
   AgentFilesService,
-  AgentMachineService,
   ChatPageStore,
   ChatRunEvent,
   ChatSessionsService,
@@ -21,7 +20,6 @@ export interface UseChatPageControllerTailArgs {
   sessions: ChatSessionsService;
   tools: ChatToolsService;
   agentFiles: AgentFilesService;
-  agentMachine: AgentMachineService;
   router: RouterLike;
   sessionFromUrl: string | null;
 
@@ -39,6 +37,7 @@ export interface UseChatPageControllerTailArgs {
   setStreamError: (next: string | null) => void;
   setIsLoading: (next: boolean) => void;
   setStreamStalled: (next: boolean) => void;
+  setUsageOpen: (open: boolean) => void;
 
   clearPlan: () => void;
   lastUserInputRef: MutableRefObject<string>;
@@ -76,4 +75,3 @@ export interface UseChatPageControllerTailArgs {
   messagesContainerRef: MessagesContainerRef;
   messagesEndRef: MessagesEndRef;
 }
-

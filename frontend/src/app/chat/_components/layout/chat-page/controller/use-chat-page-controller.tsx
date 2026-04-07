@@ -1,9 +1,10 @@
 // CRITICAL
 "use client";
 
-import { useRef, useCallback, useMemo, useState } from "react";
+import { useRef, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import * as Hooks from "../../../../hooks";
+import { useRunMachine } from "@/lib/systems/run-machine";
 import type { SidebarTab } from "../../sidebar/unified-sidebar";
 import { buildAgentModeSystemPrompt } from "../../../../utils/agent-system-prompt";
 import { getLastSessionId, setLastSessionId } from "./last-session-id";
@@ -12,8 +13,7 @@ import { useChatPageEvents } from "./use-chat-page-events";
 import { useChatPageStore } from "./internal/use-chat-page-store";
 import { useThinkingSnippet } from "./internal/use-thinking-snippet";
 import { useChatPageLifecycle } from "./internal/use-chat-page-lifecycle";
-import { useChatPageServices } from "./internal/use-chat-page-services";
-import { useChatPageContext } from "./internal/use-chat-page-context";
+import { useChatTitleGenerator } from "./internal/use-chat-title-generator";
 import { useChatPageControllerTail } from "./internal/use-chat-page-controller-tail";
 
 export function useChatPageController(): ChatPageViewProps {
@@ -47,27 +47,49 @@ export function useChatPageController(): ChatPageViewProps {
   // Track the last user input for title generation
   const lastUserInputRef = useRef<string>("");
 
-  const {
-    agentFiles: agentFilesService,
-    agentMachine,
-    agentState,
-    sessions,
-    tools,
-    usage,
-    sessionIdRef,
-    messageMapping,
-    toolResults,
-    generateTitle,
-    handleRunEvent,
-  } = useChatPageServices({
-    store,
+  const agentFilesService = Hooks.useAgentFiles();
+  const agentState = Hooks.useAgentState();
+  const sessions = Hooks.useChatSessions();
+  const tools = Hooks.useChatTools();
+  const usage = Hooks.useChatUsage();
+  const sessionIdRef = useRef<string | null>(sessions.currentSessionId);
+
+  useEffect(() => {
+    sessionIdRef.current = sessions.currentSessionId;
+  }, [sessions.currentSessionId]);
+
+  const messageMapping = Hooks.useChatMessageMapping({ setMessages });
+  const toolResults = Hooks.useChatToolResults({
     setMessages,
+    isToolPart: messageMapping.isToolPart,
+    updateToolResultsMap: store.updateToolResultsMap,
+  });
+
+  const generateTitle = useChatTitleGenerator({
+    selectedModel: store.selectedModel || "",
+    setCurrentSessionTitle: sessions.setCurrentSessionTitle,
+    updateSessions: store.updateSessions,
+  });
+
+  const { handleRunEvent } = useRunMachine({
+    currentSessionId: sessions.currentSessionId,
+    currentSessionTitle: sessions.currentSessionTitle,
     activeRunIdRef,
     lastEventTimeRef,
     runCompletedRef,
     setStreamStalled,
     setIsLoading,
     setStreamError,
+    setAgentPlan: store.setAgentPlan,
+    generateTitle,
+    recordToolExecutionMetadata: toolResults.recordToolExecutionMetadata,
+    recordToolResult: toolResults.recordToolResult,
+    updateExecutingTools: store.updateExecutingTools,
+    mapAgentMessageToChatMessage: messageMapping.mapAgentMessageToChatMessage,
+    upsertMessage: messageMapping.upsertMessage,
+    loadAgentFiles: agentFilesService.loadAgentFiles,
+    readAgentFile: agentFilesService.readAgentFile,
+    moveAgentFileVersions: agentFilesService.moveAgentFileVersions,
   });
 
   const { hydrateAgentState, persistAgentState, buildAgentState } = agentState;
@@ -89,8 +111,6 @@ export function useChatPageController(): ChatPageViewProps {
 
   // Derived state from messages
   const activityPanelVisible = sidebarOpen && sidebarTab === "activity";
-  const activityDataVisible =
-    sidebarOpen && (sidebarTab === "activity" || sidebarTab === "browser" || sidebarTab === "computer");
   const contextPanelVisible = sidebarOpen && sidebarTab === "context";
 
   const { thinkingActive, thinkingState, activityGroups } = Hooks.useChatDerived({
@@ -98,7 +118,7 @@ export function useChatPageController(): ChatPageViewProps {
     isLoading,
     executingTools: tools.executingTools,
     toolResultsMap: tools.toolResultsMap,
-    enableActivityGroups: activityDataVisible,
+    enableActivityGroups: activityPanelVisible,
   });
 
   const activityCount = useMemo(() => {
@@ -118,28 +138,59 @@ export function useChatPageController(): ChatPageViewProps {
     messages,
   });
 
-  const {
-    messagesContainerRef,
-    messagesEndRef,
-    handleScroll,
-    sessionArtifacts,
-    artifactsByMessage,
-    activeArtifact,
-    context,
-    compaction,
-  } = useChatPageContext({
-    store,
-    sessions,
-    tools,
-    agentFiles: agentFilesService,
-    agentState,
-    messageMapping,
-    messages,
+  Hooks.useAvailableModels({
+    selectedModel: store.selectedModel,
+    setSelectedModel: store.setSelectedModel,
+    setAvailableModels: store.setAvailableModels,
+    customChatModels: store.customChatModels,
+  });
+
+  const { messagesContainerRef, messagesEndRef, handleScroll } = Hooks.useChatScroll({
     isLoading,
-    setMessages,
+    messageCount: messages.length,
+  });
+
+  const { sessionArtifacts, artifactsByMessage, activeArtifact, clearArtifactsCache } =
+    Hooks.useChatArtifacts({
+      messages,
+      artifactsEnabled: store.artifactsEnabled,
+      currentSessionId: sessions.currentSessionId,
+      activeArtifactId: store.activeArtifactId,
+      setActiveArtifactId: store.setActiveArtifactId,
+    });
+
+  const context = Hooks.useChatContext({
+    messages,
+    selectedModel: store.selectedModel,
+    availableModels: store.availableModels,
     effectiveSystemPrompt,
     contextPanelVisible,
+    getToolDefinitions: tools.getToolDefinitions,
+    isToolPart: messageMapping.isToolPart,
+  });
+
+  const compaction = Hooks.useChatCompaction({
+    currentSessionId: sessions.currentSessionId,
+    currentSessionTitle: sessions.currentSessionTitle,
+    selectedModel: store.selectedModel,
+    effectiveSystemPrompt,
+    messages,
+    isLoading,
+    maxContext: context.maxContext,
+    contextStats: context.contextStats,
+    contextConfig: context.contextConfig,
+    contextMessages: context.contextMessages,
+    calculateMessageTokens: context.calculateMessageTokens,
+    mapStoredMessages: messageMapping.mapStoredMessages,
+    buildContextContent: context.buildContextContent,
+    updateSessions: store.updateSessions,
+    setCurrentSessionId: sessions.setCurrentSessionId,
+    setCurrentSessionTitle: sessions.setCurrentSessionTitle,
+    setMessages,
+    hydrateAgentState: agentState.hydrateAgentState,
+    loadAgentFiles: agentFilesService.loadAgentFiles,
     sessionIdRef,
+    clearArtifactsCache,
   });
 
   const { contextStats, contextUsageLabel, contextBreakdown, formatTokenCount } = context;
@@ -180,17 +231,11 @@ export function useChatPageController(): ChatPageViewProps {
     [store, sessions.currentSessionId, usage],
   );
 
-  const storeWithUsageRefresh = useMemo(
-    () => ({ ...store, setUsageOpen: setUsageOpenWithRefresh }),
-    [store, setUsageOpenWithRefresh],
-  );
-
   return useChatPageControllerTail({
-    store: storeWithUsageRefresh,
+    store,
     sessions,
     tools,
     agentFiles: agentFilesService,
-    agentMachine,
     router,
     sessionFromUrl,
     sidebarOpen,
@@ -205,6 +250,7 @@ export function useChatPageController(): ChatPageViewProps {
     setStreamError,
     setIsLoading,
     setStreamStalled,
+    setUsageOpen: setUsageOpenWithRefresh,
     clearPlan,
     lastUserInputRef,
     generateTitle,

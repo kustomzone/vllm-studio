@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppStore } from "@/store";
 import { deriveMessageContent } from "@/app/chat/_components/messages/chat-message-item/use-message-derived";
 import type { ChatPageViewProps } from "../../view/chat-page-view/types";
-import { buildChatPageViewProps } from "./build-chat-page-view-props";
 import { useChatExportActions } from "./actions/use-chat-export-actions";
 import { useChatRunActions } from "./actions/use-chat-run-actions";
 import { useChatUiActions } from "./actions/use-chat-ui-actions";
@@ -101,7 +100,6 @@ export function useChatPageControllerTail({
   sessions,
   tools,
   agentFiles,
-  agentMachine,
   router,
   sessionFromUrl,
   sidebarOpen,
@@ -116,6 +114,7 @@ export function useChatPageControllerTail({
   setStreamError,
   setIsLoading,
   setStreamStalled,
+  setUsageOpen,
   clearPlan,
   lastUserInputRef,
   generateTitle,
@@ -156,37 +155,6 @@ export function useChatPageControllerTail({
 
   const hasSession = Boolean(sessionFromUrl || sessions.currentSessionId);
   const showEmptyState = messages.length === 0 && !isLoading && !streamError;
-  const { loadMachine, clearMachine } = agentMachine;
-
-  useEffect(() => {
-    if (!hasSession) {
-      clearMachine();
-      return;
-    }
-
-    const sessionId = sessionFromUrl || sessions.currentSessionId;
-    if (!sessionId) {
-      clearMachine();
-      return;
-    }
-
-    if (sidebarTab !== "browser" && sidebarTab !== "computer" && sidebarTab !== "files") {
-      return;
-    }
-
-    void loadMachine(sessionId, {
-      port: 6080,
-      expiresInSeconds: 3600,
-      includeScreenshot: sidebarTab === "computer" || sidebarTab === "files",
-    });
-  }, [
-    clearMachine,
-    hasSession,
-    loadMachine,
-    sessionFromUrl,
-    sessions.currentSessionId,
-    sidebarTab,
-  ]);
 
   const releasePlaybackResources = useCallback(() => {
     if (audioRef.current) {
@@ -432,70 +400,81 @@ export function useChatPageControllerTail({
     store.setActiveArtifactId(null);
   };
 
-  return buildChatPageViewProps({
-    store,
-    ui: {
-      sidebarOpen,
-      setSidebarOpen,
-      sidebarTab,
-      setSidebarTab: handleSetSidebarTab,
-      handleScroll,
-      messagesContainerRef,
-      messagesEndRef,
-      toolBelt,
-    },
-    derived: {
-      activityGroups,
-      activityCount,
-      thinkingActive,
-      isLoading,
-      streamError,
-      streamStalled,
-      runStatusLine: thinkingSnippet,
-      showEmptyState,
-    },
-    context: {
-      contextStats,
-      contextBreakdown,
-      contextUsageLabel,
-      compactionHistory,
-      compacting,
-      compactionError,
-      formatTokenCount,
-      runManualCompaction,
-      canManualCompact,
-    },
-    artifacts: {
-      sessionArtifacts,
-      artifactsByMessage,
-      activeArtifact,
-      onCloseArtifactModal: handleCloseArtifactModal,
-    },
-    agentFiles: {
-      agentFiles: agentFiles.agentFiles,
-      agentFileVersions: agentFiles.agentFileVersions,
-      selectedAgentFilePath: agentFiles.selectedAgentFilePath,
-      selectedAgentFileContent: agentFiles.selectedAgentFileContent,
-      selectedAgentFileLoading: agentFiles.selectedAgentFileLoading,
-      onSelectAgentFile: handleSelectAgentFile,
-      onOpenAgentFile: handleOpenAgentFile,
-    },
-    machine: {
-      machine: agentMachine.machine,
-      machineLoading: agentMachine.machineLoading,
-      machineError: agentMachine.machineError,
-    },
-    chat: {
-      hasSession,
-      messages,
-      onForkMessage: handleForkMessage,
-      onReprompt,
-      onListenMessage,
-      listeningMessageId,
-      listeningPending,
-      openActivityPanel,
-      openContextPanel,
-    },
-    exportActions: { onExportJson, onExportMarkdown },
-  });
+  return {
+    sidebarOpen,
+    setSidebarOpen,
+    sidebarTab,
+    setSidebarTab: handleSetSidebarTab,
+    sidebarWidth: store.sidebarWidth,
+    setSidebarWidth: store.setSidebarWidth,
+
+    activityGroups,
+    activityCount,
+    agentPlan: store.agentPlan,
+    thinkingActive,
+    isLoading,
+    streamError,
+    streamStalled,
+    runStatusLine: thinkingSnippet,
+    contextStats,
+    contextBreakdown,
+    contextUsageLabel,
+    compactionHistory,
+    compacting,
+    compactionError,
+    formatTokenCount,
+    runManualCompaction,
+    canManualCompact,
+
+    artifactsEnabled: store.artifactsEnabled,
+    sessionArtifacts,
+    artifactsByMessage,
+    activeArtifact,
+    onCloseArtifactModal: handleCloseArtifactModal,
+
+    agentFiles: agentFiles.agentFiles,
+    agentFileVersions: agentFiles.agentFileVersions,
+    selectedAgentFilePath: agentFiles.selectedAgentFilePath,
+    selectedAgentFileContent: agentFiles.selectedAgentFileContent,
+    selectedAgentFileLoading: agentFiles.selectedAgentFileLoading,
+    onSelectAgentFile: handleSelectAgentFile,
+    hasSession,
+    onOpenAgentFile: handleOpenAgentFile,
+
+    messages,
+    selectedModel: store.selectedModel,
+    showEmptyState,
+    onForkMessage: handleForkMessage,
+    onReprompt,
+    onListenMessage,
+    listeningMessageId,
+    listeningPending,
+    openActivityPanel,
+    openContextPanel,
+
+    handleScroll,
+    messagesContainerRef,
+    messagesEndRef,
+    toolBelt,
+
+    settingsOpen: store.settingsOpen,
+    setSettingsOpen: store.setSettingsOpen,
+    usageOpen: store.usageOpen,
+    setUsageOpen,
+    exportOpen: store.exportOpen,
+    setExportOpen: store.setExportOpen,
+
+    systemPrompt: store.systemPrompt,
+    setSystemPrompt: store.setSystemPrompt,
+    setSelectedModel: store.setSelectedModel,
+    availableModels: store.availableModels,
+    customChatModels: store.customChatModels,
+    onAddCustomChatModel: store.addCustomChatModel,
+    onRemoveCustomChatModel: store.removeCustomChatModel,
+    deepResearch: store.deepResearch,
+    setDeepResearch: store.setDeepResearch,
+    sessionUsage: store.sessionUsage,
+    onExportJson,
+    onExportMarkdown,
+  };
 }

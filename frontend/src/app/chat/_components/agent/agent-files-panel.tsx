@@ -2,8 +2,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ExternalLink, FileText, Folder, Monitor, Terminal } from "lucide-react";
-import type { AgentFileEntry, AgentFileVersion, AgentMachineInfo } from "@/lib/types";
+import { FileText, Folder, Terminal } from "lucide-react";
+import type { AgentFileEntry, AgentFileVersion } from "@/lib/types";
 import type { AgentPlan } from "./agent-types";
 import { AgentFileContentViewer } from "./agent-file-content-viewer";
 import {
@@ -21,9 +21,6 @@ interface AgentFilesPanelProps {
   selectedFileLoading: boolean;
   onSelectFile: (path: string | null) => void;
   hasSession: boolean;
-  machine: AgentMachineInfo | null;
-  machineLoading: boolean;
-  machineError: string | null;
 }
 
 const EMPTY_VERSIONS: AgentFileVersion[] = [];
@@ -77,14 +74,9 @@ export function AgentFilesPanel({
   selectedFileLoading,
   onSelectFile,
   hasSession,
-  machine,
-  machineLoading,
-  machineError,
 }: AgentFilesPanelProps) {
   const hasFiles = files.length > 0;
   const hasSelectedFile = selectedFilePath !== null;
-  const remotePreviewUrl = machine?.machine?.previewUrl ?? null;
-  const remoteScreenshot = machine?.screenshot?.imageDataUrl ?? null;
   const versionsForSelected = selectedFilePath ? (fileVersions[selectedFilePath] ?? EMPTY_VERSIONS) : EMPTY_VERSIONS;
   const [pane, setPane] = useState<"open" | "browse">(hasSelectedFile ? "open" : "browse");
   const effectivePane: "open" | "browse" = hasSelectedFile ? pane : "browse";
@@ -144,33 +136,7 @@ export function AgentFilesPanel({
         </button>
       </div>
 
-      <div className="px-2.5 py-2 border-b border-(--border) flex items-center gap-2 text-[11px] text-(--dim)">
-        <Monitor className="h-3.5 w-3.5 text-(--hl2)" />
-        <span className="truncate">
-          {machineLoading
-            ? "Connecting remote computer…"
-            : machineError || machine?.machine?.previewError || (remotePreviewUrl ? "Remote computer connected" : "Remote computer unavailable")}
-        </span>
-        {remotePreviewUrl ? (
-          <a
-            href={remotePreviewUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ml-auto p-1 rounded-md hover:bg-(--fg)/[0.06] text-(--dim) hover:text-(--fg)"
-            title="Open remote desktop in new tab"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </a>
-        ) : null}
-      </div>
-
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-        {remoteScreenshot ? (
-          <div className="h-36 border-b border-(--border) bg-black/25 overflow-hidden shrink-0">
-            <img src={remoteScreenshot} alt="Remote computer" className="w-full h-full object-cover" />
-          </div>
-        ) : null}
-
         <div className="flex-1 min-h-0">
           {effectivePane === "browse" ? (
             <AgentFilesTree files={files} selectedFilePath={selectedFilePath} onSelectFile={handleSelect} />

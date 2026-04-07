@@ -2,7 +2,6 @@
 "use client";
 
 export { useAgentFiles } from "./agent/use-agent-files";
-export { useAgentMachine } from "./agent/use-agent-machine";
 export { useAgentState } from "./agent/use-agent-state";
 export { useAvailableModels } from "./run/use-available-models";
 export { useChatArtifacts } from "./chat/use-chat-artifacts";
@@ -17,4 +16,3 @@ export { useChatToolResults } from "./chat/use-chat-tool-results";
 export { useChatTools } from "./chat/use-chat-tools";
 export { useChatUsage } from "./chat/use-chat-usage";
 export { useRafThrottle } from "./ui/use-raf-throttle";
-export { useRunEventHandler } from "./run/use-run-event-handler";

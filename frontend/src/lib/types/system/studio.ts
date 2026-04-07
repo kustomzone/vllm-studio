@@ -10,21 +10,9 @@ export interface StudioSettings {
   config_path: string;
   persisted: {
     models_dir?: string;
-    daytona_api_url?: string;
-    daytona_proxy_url?: string;
-    daytona_sandbox_id?: string;
-    daytona_agent_mode?: boolean;
-    agent_fs_local_fallback?: boolean;
-    daytona_api_key_configured?: boolean;
   };
   effective: {
     models_dir: string;
-    daytona_api_url: string | null;
-    daytona_proxy_url: string | null;
-    daytona_sandbox_id: string | null;
-    daytona_agent_mode: boolean;
-    agent_fs_local_fallback: boolean;
-    daytona_api_key_configured: boolean;
   };
 }
 

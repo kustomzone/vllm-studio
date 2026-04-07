@@ -12,12 +12,6 @@ export interface ProviderConfig {
 
 export interface PersistedConfig {
   models_dir?: string;
-  daytona_api_url?: string;
-  daytona_api_key?: string;
-  daytona_proxy_url?: string;
-  daytona_sandbox_id?: string;
-  daytona_agent_mode?: boolean;
-  agent_fs_local_fallback?: boolean;
   providers?: ProviderConfig[];
 }
 

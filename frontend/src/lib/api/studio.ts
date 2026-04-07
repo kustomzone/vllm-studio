@@ -31,12 +31,6 @@ export function createStudioApi(core: ApiCore) {
 
     updateStudioSettings: (payload: {
       models_dir?: string | null;
-      daytona_api_url?: string | null;
-      daytona_api_key?: string | null;
-      daytona_proxy_url?: string | null;
-      daytona_sandbox_id?: string | null;
-      daytona_agent_mode?: boolean | null;
-      agent_fs_local_fallback?: boolean | null;
     }): Promise<StudioSettings & { success: boolean }> =>
       core.request("/studio/settings", {
         method: "POST",
