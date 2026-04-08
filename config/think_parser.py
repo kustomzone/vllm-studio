@@ -1,4 +1,4 @@
-"""
+""" 
 LiteLLM custom callback: extract <think>...</think> from content into reasoning_content.
 
 Works for any model that emits reasoning inside <think> tags (MiniMax-M2.5, etc.)
@@ -6,7 +6,7 @@ when the inference backend does not natively separate reasoning_content.
 """
 
 import re
-from typing import Any, AsyncGenerator
+from typing import AsyncGenerator, Iterable, Protocol, cast
 
 from litellm.integrations.custom_logger import CustomLogger
 from litellm.types.utils import ModelResponse, ModelResponseStream
@@ -14,6 +14,32 @@ from litellm.types.utils import ModelResponse, ModelResponseStream
 _THINK_RE = re.compile(r"<think>([\s\S]*?)</think>", re.IGNORECASE)
 _OPEN = "<think>"
 _CLOSE = "</think>"
+
+
+class _MessageWithThinking(Protocol):
+    content: str
+    reasoning_content: str
+
+
+class _ChoiceWithMessage(Protocol):
+    message: _MessageWithThinking | None
+
+
+class _ChoiceWithChoices(Protocol):
+    choices: Iterable[_ChoiceWithMessage]
+
+
+class _DeltaWithThinking(Protocol):
+    content: str | None
+    reasoning_content: str | None
+
+
+class _ChoiceWithDelta(Protocol):
+    delta: _DeltaWithThinking | None
+
+
+class _StreamChunk(Protocol):
+    choices: Iterable[_ChoiceWithDelta] | None
 
 
 def _extract_think_blocks(text: str) -> tuple[str, str]:
@@ -59,13 +85,13 @@ class ThinkBlockParser(CustomLogger):
     # ---- non-streaming ----
     async def async_post_call_success_hook(
         self,
-        data: dict,
-        user_api_key_dict: Any,
-        response: Any,
-    ) -> Any:
+        data: dict[str, object],
+        user_api_key_dict: dict[str, object],
+        response: ModelResponse,
+    ) -> ModelResponse:
         if not isinstance(response, ModelResponse):
             return response
-        for choice in getattr(response, "choices", []):
+        for choice in cast(_ChoiceWithChoices, response).choices:
             msg = getattr(choice, "message", None)
             if not msg:
                 continue
@@ -84,14 +110,15 @@ class ThinkBlockParser(CustomLogger):
     # ---- streaming ----
     async def async_post_call_streaming_iterator_hook(
         self,
-        user_api_key_dict: Any,
-        response: Any,
-        request_data: dict,
+        user_api_key_dict: dict[str, object],
+        response: AsyncGenerator[ModelResponseStream, None],
+        request_data: dict[str, object],
     ) -> AsyncGenerator[ModelResponseStream, None]:
         in_think = False
 
         async for chunk in response:
-            choices = getattr(chunk, "choices", None)
+            chunk_like = cast(_StreamChunk, chunk)
+            choices = chunk_like.choices
             if not choices:
                 yield chunk
                 continue
