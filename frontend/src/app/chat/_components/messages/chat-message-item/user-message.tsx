@@ -18,7 +18,6 @@ export function UserMessage({
   canActOnContent,
   onCopy,
   onExport,
-  actionButtonClassName,
 }: {
   messageId: string;
   textContent: string;
@@ -27,7 +26,6 @@ export function UserMessage({
   canActOnContent: boolean;
   onCopy: () => void;
   onExport: () => void;
-  actionButtonClassName: string;
 }) {
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
   const hasImages = images && images.length > 0;
@@ -36,35 +34,14 @@ export function UserMessage({
     setExpandedImage((prev) => (prev === url ? null : url));
   }, []);
 
-  const imageGrid = hasImages ? (
-    <div className={`flex flex-wrap gap-1.5 ${textContent ? "mb-1.5" : ""}`}>
-      {images.map((img, i) => (
-        <button
-          key={i}
-          onClick={() => handleImageClick(img.url)}
-          className="relative rounded-lg overflow-hidden border border-white/10 hover:border-white/25 transition-colors cursor-pointer"
-        >
-          <Image
-            src={img.url}
-            alt={img.name ?? `Image ${i + 1}`}
-            width={120}
-            height={120}
-            className="w-auto h-auto max-w-[120px] max-h-[120px] object-cover"
-            unoptimized
-          />
-        </button>
-      ))}
-    </div>
-  ) : null;
-
   return (
     <div id={`message-${messageId}`} className="group">
       {/* Expanded image overlay */}
       {expandedImage && (
-        <div className="flex justify-end mb-2">
+        <div className="mb-3">
           <button
             onClick={() => setExpandedImage(null)}
-            className="relative rounded-xl overflow-hidden border border-(--border) cursor-pointer"
+            className="rounded-2xl overflow-hidden border border-(--border) cursor-pointer"
           >
             <Image
               src={expandedImage}
@@ -78,45 +55,57 @@ export function UserMessage({
         </div>
       )}
 
-      {/* Mobile */}
-      <div className="md:hidden flex justify-end">
-        <div className="max-w-[85%] rounded-2xl border border-white/10 bg-white/10 px-3 py-2">
-          {imageGrid}
-          {textContent && (
-            <div className="text-[15px] leading-relaxed text-(--fg) whitespace-pre-wrap break-words">
-              {textContent}
-            </div>
-          )}
-          {!textContent && !hasImages && (
-            <div className="text-[15px] leading-relaxed text-(--fg) whitespace-pre-wrap break-words" />
-          )}
-        </div>
-      </div>
-
-      {/* Desktop */}
-      <div className="hidden md:flex justify-end">
-        <div className="ml-auto max-w-[62%] rounded-xl border border-(--border) bg-(--surface)/70 px-3 py-2">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-(--dim)">You</div>
-            <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button onClick={onCopy} disabled={!canActOnContent} className={actionButtonClassName} title="Copy">
-                {copied ? (
-                  <Icons.Check className="h-3.5 w-3.5 text-(--hl2)" />
-                ) : (
-                  <Icons.Copy className="h-3.5 w-3.5 text-(--dim)" />
-                )}
+      {/* Clean separator-style message */}
+      <div className="pt-4 pb-3 border-b border-(--border)/40">
+        {hasImages && (
+          <div className={`flex flex-wrap gap-2 ${textContent ? "mb-2" : ""}`}>
+            {images.map((img, i) => (
+              <button
+                key={i}
+                onClick={() => handleImageClick(img.url)}
+                className="rounded-xl overflow-hidden border border-(--border) hover:border-(--dim)/30 transition-colors cursor-pointer"
+              >
+                <Image
+                  src={img.url}
+                  alt={img.name ?? `Image ${i + 1}`}
+                  width={120}
+                  height={120}
+                  className="w-auto h-auto max-w-[120px] max-h-[120px] object-cover"
+                  unoptimized
+                />
               </button>
-              <button onClick={onExport} disabled={!canActOnContent} className={actionButtonClassName} title="Export">
-                <Icons.Download className="h-3.5 w-3.5 text-(--dim)" />
-              </button>
-            </div>
+            ))}
           </div>
-          {imageGrid}
-          {textContent && (
-            <div className="text-[15px] leading-relaxed text-(--fg) whitespace-pre-wrap break-words">
-              {textContent}
-            </div>
-          )}
+        )}
+
+        {textContent && (
+          <p className="text-[15px] leading-[1.7] text-(--dim) whitespace-pre-wrap break-words">
+            {textContent}
+          </p>
+        )}
+
+        {/* Ghost actions on hover */}
+        <div className="flex items-center gap-0.5 mt-1.5 h-5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          <button
+            onClick={onCopy}
+            disabled={!canActOnContent}
+            className="p-1 rounded-md hover:bg-(--surface) transition-colors disabled:opacity-30"
+            title="Copy"
+          >
+            {copied ? (
+              <Icons.Check className="h-3 w-3 text-(--hl2)" />
+            ) : (
+              <Icons.Copy className="h-3 w-3 text-(--dim)/40" />
+            )}
+          </button>
+          <button
+            onClick={onExport}
+            disabled={!canActOnContent}
+            className="p-1 rounded-md hover:bg-(--surface) transition-colors disabled:opacity-30"
+            title="Export"
+          >
+            <Icons.Download className="h-3 w-3 text-(--dim)/40" />
+          </button>
         </div>
       </div>
     </div>

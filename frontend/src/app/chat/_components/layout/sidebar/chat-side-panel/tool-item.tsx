@@ -6,113 +6,75 @@ import { memo, useCallback, useMemo, useState } from "react";
 import type { ActivityItem } from "@/app/chat/types";
 import { safeJsonStringify } from "@/lib/safe-json";
 
-interface ToolItemProps {
-  item: ActivityItem;
-}
+const OUTPUT_LIMIT = 700;
 
-const OUTPUT_PREVIEW_LIMIT = 700;
-
-function getToolDisplayName(name?: string) {
+function displayName(name?: string) {
   if (!name) return "Tool";
-  const cleanName = name.includes("__") ? name.split("__").slice(1).join("__") : name;
-  return cleanName
+  const clean = name.includes("__") ? name.split("__").slice(1).join("__") : name;
+  return clean
     .replace(/_/g, " ")
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(" ");
 }
 
-function formatToolOutput(output?: unknown): string {
+function formatOutput(output?: unknown): string {
   if (output == null) return "";
   if (typeof output === "string") return output;
   return safeJsonStringify(output, "");
 }
 
-function getChipToneClasses(state?: ActivityItem["state"]) {
-  if (state === "error") {
-    return {
-      chip: "bg-(--err)/10 text-(--err)",
-      dot: "bg-(--err)",
-      detail: "text-(--err)/85 bg-(--err)/[0.04]",
-    };
-  }
-  if (state === "running") {
-    return {
-      chip: "bg-(--accent)/10 text-(--accent)",
-      dot: "bg-(--accent) animate-pulse",
-      detail: "text-(--fg)/80 bg-(--accent)/[0.04]",
-    };
-  }
-  if (state === "complete") {
-    return {
-      chip: "bg-(--fg)/[0.06] text-(--fg)/80",
-      dot: "bg-(--fg)/50",
-      detail: "text-(--fg)/75 bg-(--fg)/[0.03]",
-    };
-  }
-  return {
-    chip: "bg-(--fg)/[0.05] text-(--dim)",
-    dot: "bg-(--dim)/50",
-    detail: "text-(--fg)/70 bg-(--fg)/[0.03]",
-  };
+function toneClasses(state?: ActivityItem["state"]) {
+  if (state === "error") return { chip: "bg-(--err)/8 text-(--err)", dot: "bg-(--err)" };
+  if (state === "running") return { chip: "bg-(--accent)/8 text-(--accent)", dot: "bg-(--accent) animate-pulse" };
+  if (state === "complete") return { chip: "bg-(--fg)/[0.04] text-(--fg)/70", dot: "bg-(--fg)/40" };
+  return { chip: "bg-(--fg)/[0.03] text-(--dim)", dot: "bg-(--dim)/40" };
 }
 
 export const ToolItem = memo(
-  function ToolItem({ item }: ToolItemProps) {
+  function ToolItem({ item }: { item: ActivityItem }) {
     const [expanded, setExpanded] = useState(false);
     const hasDetails = item.input != null || item.output != null;
+    const toggle = useCallback(() => { if (hasDetails) setExpanded((p) => !p); }, [hasDetails]);
 
-    const toggleExpanded = useCallback(() => {
-      if (!hasDetails) return;
-      setExpanded((prev) => !prev);
-    }, [hasDetails]);
-
-    const toolName = useMemo(() => getToolDisplayName(item.toolName), [item.toolName]);
-    const outputText = useMemo(
-      () => (expanded ? formatToolOutput(item.output) : ""),
-      [expanded, item.output],
-    );
-    const tone = useMemo(() => getChipToneClasses(item.state), [item.state]);
+    const name = useMemo(() => displayName(item.toolName), [item.toolName]);
+    const output = useMemo(() => (expanded ? formatOutput(item.output) : ""), [expanded, item.output]);
+    const tone = useMemo(() => toneClasses(item.state), [item.state]);
 
     return (
-      <div className="flex flex-col items-start gap-1.5">
+      <div className="flex flex-col items-start gap-1 px-1">
         <button
-          onClick={toggleExpanded}
+          onClick={toggle}
           disabled={!hasDetails}
-          className={`inline-flex max-w-full items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-medium leading-4 transition-colors ${tone.chip} ${
+          className={`inline-flex max-w-full items-center gap-1.5 rounded-lg px-2 py-0.5 text-[10px] font-medium leading-4 transition-colors ${tone.chip} ${
             hasDetails ? "cursor-pointer hover:brightness-110" : "cursor-default"
           }`}
         >
-          <span className={`inline-flex h-1 w-1 shrink-0 rounded-full ${tone.dot}`} />
-          <span className="truncate max-w-[200px]">{toolName}</span>
+          <span className={`h-1 w-1 shrink-0 rounded-full ${tone.dot}`} />
+          <span className="truncate max-w-[180px]">{name}</span>
           {hasDetails && (
-            <ChevronRight
-              className={`h-3 w-3 shrink-0 opacity-70 transition-transform ${expanded ? "rotate-90" : ""}`}
-            />
+            <ChevronRight className={`h-2.5 w-2.5 shrink-0 opacity-60 transition-transform ${expanded ? "rotate-90" : ""}`} />
           )}
         </button>
 
         {expanded && hasDetails && (
-          <div
-            className={`ml-2 w-[calc(100%-0.5rem)] rounded-md px-2.5 py-2 space-y-2 ${tone.detail}`}
-          >
+          <div className="ml-2 w-[calc(100%-0.5rem)] rounded-lg px-2.5 py-2 space-y-1.5 bg-(--fg)/[0.02]">
             {item.input != null && (
               <div>
-                <span className="text-[10px] uppercase tracking-wide text-(--dim)">Input</span>
-                <pre className="mt-1 max-h-28 overflow-x-auto overflow-y-auto whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed">
+                <span className="text-[9px] uppercase tracking-wide text-(--dim)/50">Input</span>
+                <pre className="mt-0.5 max-h-24 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed text-(--fg)/70">
                   {String(safeJsonStringify(item.input, ""))}
                 </pre>
               </div>
             )}
-            {outputText && (
+            {output && (
               <div>
-                <span className="text-[10px] uppercase tracking-wide text-(--dim)">
+                <span className="text-[9px] uppercase tracking-wide text-(--dim)/50">
                   {item.state === "error" ? "Error" : "Output"}
                 </span>
-                <pre className="mt-1 max-h-44 overflow-x-auto overflow-y-auto whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed">
-                  {outputText.slice(0, OUTPUT_PREVIEW_LIMIT)}
-                  {outputText.length > OUTPUT_PREVIEW_LIMIT ? "..." : ""}
+                <pre className="mt-0.5 max-h-36 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed text-(--fg)/70">
+                  {output.slice(0, OUTPUT_LIMIT)}{output.length > OUTPUT_LIMIT ? "..." : ""}
                 </pre>
               </div>
             )}
@@ -121,18 +83,9 @@ export const ToolItem = memo(
       </div>
     );
   },
-  function areToolItemPropsEqual(prev, next) {
-    const a = prev.item;
-    const b = next.item;
-    return (
-      a.id === b.id &&
-      a.type === b.type &&
-      a.toolName === b.toolName &&
-      a.state === b.state &&
-      a.isActive === b.isActive &&
-      a.content === b.content &&
-      a.input === b.input &&
-      a.output === b.output
-    );
+  (prev, next) => {
+    const a = prev.item, b = next.item;
+    return a.id === b.id && a.state === b.state && a.isActive === b.isActive &&
+      a.content === b.content && a.input === b.input && a.output === b.output;
   },
 );

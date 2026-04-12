@@ -18,7 +18,6 @@ import {
 } from "@/lib/mermaid";
 import { useAppStore } from "@/store";
 
-// Shared thinking parser exports
 export { thinkingParser };
 export type { ThinkingResult };
 export function splitThinking(content: string): ThinkingResult {
@@ -32,19 +31,12 @@ interface MessageRendererProps {
   isStreaming?: boolean;
 }
 
-function StreamingCursor({ color = "var(--fg)" }: { color?: string }) {
+function StreamingCursor() {
   return (
     <motion.span
-      className="inline-block w-0.5 h-4 ml-0.5 rounded-sm"
-      style={{ backgroundColor: color }}
-      animate={{
-        opacity: [1, 0],
-      }}
-      transition={{
-        duration: 0.8,
-        repeat: Infinity,
-        ease: "easeInOut",
-      }}
+      className="inline-block w-[2px] h-[1.1em] ml-0.5 rounded-full bg-(--fg)/60 align-text-bottom"
+      animate={{ opacity: [1, 0] }}
+      transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut" }}
     />
   );
 }
@@ -52,59 +44,43 @@ function StreamingCursor({ color = "var(--fg)" }: { color?: string }) {
 const MermaidDiagram = memo(function MermaidDiagram({ code }: { code: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const id = useId().replace(/:/g, "_");
-  const mermaidState = useAppStore((state) => state.mermaidState[id] ?? EMPTY_MERMAID_STATE);
-  const setMermaidState = useAppStore((state) => state.setMermaidState);
-  const deleteMermaidState = useAppStore((state) => state.deleteMermaidState);
+  const mermaidState = useAppStore((s) => s.mermaidState[id] ?? EMPTY_MERMAID_STATE);
+  const setMermaidState = useAppStore((s) => s.setMermaidState);
+  const deleteMermaidState = useAppStore((s) => s.deleteMermaidState);
   const { svg, error } = mermaidState;
-  const renderSeqRef = useRef(0);
+  const seqRef = useRef(0);
 
   useEffect(() => {
-    const renderDiagram = async () => {
+    const render = async () => {
       if (!code.trim()) return;
-
-      const seq = ++renderSeqRef.current;
+      const seq = ++seqRef.current;
 
       if (!looksLikeMermaidDiagram(code)) {
-        setMermaidState(
-          id,
-          "",
-          "Not a valid Mermaid diagram (missing diagram header like `graph TD` or `sequenceDiagram`).",
-        );
+        setMermaidState(id, "", "Not a valid Mermaid diagram.");
         return;
       }
 
       try {
         const mermaid = await getMermaid();
-        if (!mermaid) {
-          setMermaidState(id, "", "Failed to load mermaid library");
-          return;
-        }
-        const sanitized = sanitizeMermaidCode(code);
-        const { svg } = await mermaid.render(`mermaid_${id}_${seq}`, sanitized);
-        if (seq !== renderSeqRef.current) return;
+        if (!mermaid) { setMermaidState(id, "", "Failed to load mermaid"); return; }
+        const { svg } = await mermaid.render(`mermaid_${id}_${seq}`, sanitizeMermaidCode(code));
+        if (seq !== seqRef.current) return;
         setMermaidState(id, svg, null);
       } catch (e) {
-        if (seq !== renderSeqRef.current) return;
+        if (seq !== seqRef.current) return;
         setMermaidState(id, "", summarizeMermaidError(e));
       }
     };
-
-    const handle = window.setTimeout(() => {
-      renderDiagram();
-    }, 250);
-    return () => {
-      window.clearTimeout(handle);
-      deleteMermaidState(id);
-    };
+    const t = setTimeout(render, 250);
+    return () => { clearTimeout(t); deleteMermaidState(id); };
   }, [code, deleteMermaidState, id, setMermaidState]);
 
   if (error) {
     return (
-      <div className="my-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 max-w-full overflow-hidden">
-        <div className="flex items-center gap-2 text-red-300 text-xs leading-5">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span className="font-medium shrink-0">Diagram preview unavailable</span>
-          <span className="min-w-0 truncate text-red-200/90">{error}</span>
+      <div className="my-3 rounded-xl border border-(--err)/20 bg-(--err)/5 px-3 py-2">
+        <div className="flex items-center gap-2 text-(--err) text-xs">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{error}</span>
         </div>
       </div>
     );
@@ -113,28 +89,26 @@ const MermaidDiagram = memo(function MermaidDiagram({ code }: { code: string }) 
   return (
     <div
       ref={containerRef}
-      className="my-3 p-4 rounded-lg border border-(--border) bg-(--surface) overflow-x-auto"
+      className="my-3 p-4 rounded-xl border border-(--border) bg-(--surface) overflow-x-auto"
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );
 });
 
-interface CodeBlockProps {
+const CodeBlock = memo(function CodeBlock({
+  segment,
+  isStreaming,
+}: {
   segment: MarkdownSegment;
   isStreaming?: boolean;
-}
-
-const CodeBlock = memo(function CodeBlock({ segment, isStreaming }: CodeBlockProps) {
+}) {
   const lang = segment.language || "";
 
-  // Handle mermaid diagrams
   if (lang === "mermaid") {
     if (isStreaming) {
       return (
-        <div className="my-3 p-4 rounded-lg border border-(--border) bg-(--surface) animate-in fade-in">
-          <div className="text-xs text-(--dim) mb-2">
-            Mermaid preview renders after streaming completes.
-          </div>
+        <div className="my-3 p-4 rounded-xl border border-(--border) bg-(--surface)">
+          <div className="text-xs text-(--dim) mb-2">Mermaid preview renders after streaming.</div>
           <pre className="text-xs text-(--dim) overflow-x-auto">{segment.content}</pre>
         </div>
       );
@@ -142,7 +116,6 @@ const CodeBlock = memo(function CodeBlock({ segment, isStreaming }: CodeBlockPro
     return <MermaidDiagram code={segment.content} />;
   }
 
-  // Use enhanced code block for everything else
   return (
     <EnhancedCodeBlock language={lang} isStreaming={isStreaming}>
       {segment.content}
@@ -150,11 +123,7 @@ const CodeBlock = memo(function CodeBlock({ segment, isStreaming }: CodeBlockPro
   );
 });
 
-interface MarkdownBlockProps {
-  html: string;
-}
-
-const MarkdownBlock = memo(function MarkdownBlock({ html }: MarkdownBlockProps) {
+const MarkdownBlock = memo(function MarkdownBlock({ html }: { html: string }) {
   return <div className="chat-markdown" dangerouslySetInnerHTML={{ __html: html }} />;
 });
 
@@ -163,65 +132,42 @@ function MessageRendererBase({ content, isStreaming }: MessageRendererProps) {
 
   const parsed = useMemo(() => {
     if (isStreaming) return null;
-    return parse(content, {
-      isStreaming: false,
-      extractArtifacts: false,
-    });
+    return parse(content, { isStreaming: false, extractArtifacts: false });
   }, [parse, content, isStreaming]);
 
   const mainContent = parsed?.thinking.mainContent ?? content;
   const segments = parsed?.segments ?? [];
-  const thinkingContent = parsed?.thinking.thinkingContent ?? null;
+
   const renderedMarkdown = useMemo(() => {
     if (isStreaming) return [];
-    return segments.map((segment) =>
-      segment.type === "code" ? null : renderMarkdown(segment.content),
-    );
+    return segments.map((s) => (s.type === "code" ? null : renderMarkdown(s.content)));
   }, [isStreaming, segments, renderMarkdown]);
 
   return (
-    <div className="message-content min-w-0 break-words overflow-hidden max-w-full group relative text-inherit">
-      {/* Main content */}
+    <div className="message-content min-w-0 break-words overflow-hidden max-w-full text-inherit">
       {mainContent && (
         <div style={{ color: "var(--fg)" }}>
           {isStreaming ? (
-            (() => {
-              const isCodeLike =
-                mainContent.includes("```") ||
-                mainContent.includes("<artifact") ||
-                mainContent.includes("</artifact>");
-              return (
-                <div
-                  className={`whitespace-pre-wrap break-words ${
-                    isCodeLike ? "font-mono text-[13px]" : "text-[15px] leading-relaxed"
-                  }`}
-                >
-                  {mainContent}
-                </div>
-              );
-            })()
+            <div className="whitespace-pre-wrap break-words text-[15px] leading-[1.7]">
+              {mainContent}
+            </div>
           ) : (
-            segments.map((segment, index) => {
-              if (segment.type === "code") {
-                return (
-                  <CodeBlock key={`code-${index}`} segment={segment} isStreaming={isStreaming} />
-                );
-              }
-
-              const html = renderedMarkdown[index] ?? "";
-              return <MarkdownBlock key={`md-${index}`} html={html} />;
-            })
+            segments.map((segment, i) =>
+              segment.type === "code" ? (
+                <CodeBlock key={`code-${i}`} segment={segment} isStreaming={isStreaming} />
+              ) : (
+                <MarkdownBlock key={`md-${i}`} html={renderedMarkdown[i] ?? ""} />
+              ),
+            )
           )}
         </div>
       )}
-
       {mainContent && isStreaming && <StreamingCursor />}
     </div>
   );
 }
 
-function areMessageRendererPropsEqual(prev: MessageRendererProps, next: MessageRendererProps): boolean {
-  return prev.content === next.content && prev.isStreaming === next.isStreaming;
-}
-
-export const MessageRenderer = memo(MessageRendererBase, areMessageRendererPropsEqual);
+export const MessageRenderer = memo(
+  MessageRendererBase,
+  (prev, next) => prev.content === next.content && prev.isStreaming === next.isStreaming,
+);

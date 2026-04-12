@@ -33,8 +33,6 @@ interface ChatMessageItemProps {
   }) => void;
 }
 
-type MessageMetadata = ChatMessageMetadata;
-
 function ChatMessageItemBase({
   message,
   isStreaming,
@@ -51,19 +49,16 @@ function ChatMessageItemBase({
   onOpenContext,
 }: ChatMessageItemProps) {
   const messageId = message.id;
-  const messageRole = message.role;
-  const messageMetadata = message.metadata as MessageMetadata | undefined;
-  const isUser = messageRole === "user";
-  const runId = (messageMetadata as { runId?: string } | undefined)?.runId ?? null;
-  const runDurationSeconds = useAppStore((state) =>
-    runId ? state.runDurationsByRunId[runId] : undefined,
-  );
-  const copied = useAppStore((state) => state.copiedMessageId === messageId);
-  const setCopiedMessageId = useAppStore((state) => state.setCopiedMessageId);
-  const setActiveArtifactId = useAppStore((state) => state.setActiveArtifactId);
+  const isUser = message.role === "user";
+  const metadata = message.metadata as ChatMessageMetadata | undefined;
+  const runId = (metadata as { runId?: string } | undefined)?.runId ?? null;
+  const runDuration = useAppStore((s) => (runId ? s.runDurationsByRunId[runId] : undefined));
+  const copied = useAppStore((s) => s.copiedMessageId === messageId);
+  const setCopiedMessageId = useAppStore((s) => s.setCopiedMessageId);
+  const setActiveArtifactId = useAppStore((s) => s.setActiveArtifactId);
 
   const { textContent } = useMessageDerived({
-    role: messageRole,
+    role: message.role,
     parts: message.parts,
   });
 
@@ -75,63 +70,49 @@ function ChatMessageItemBase({
     return imgs.length > 0 ? imgs : undefined;
   }, [isUser, message.parts]);
 
-  const { displayModel, totalTokens } = useMemo(() => {
-    const usage = messageMetadata?.usage;
-    const totalTokens =
-      usage?.totalTokens ??
-      (usage?.inputTokens != null || usage?.outputTokens != null
-        ? (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0)
-        : undefined);
+  const displayModel = useMemo(() => {
+    const label = metadata?.model ?? selectedModel ?? "";
+    return label.split("/").pop() || label;
+  }, [metadata?.model, selectedModel]);
 
-    const modelLabel = messageMetadata?.model ?? selectedModel ?? "Assistant";
-    const displayModel = modelLabel.split("/").pop() || modelLabel;
-    return { displayModel, totalTokens };
-  }, [messageMetadata, selectedModel]);
-
-  const fullModelId = useMemo(() => {
-    return (messageMetadata?.model ?? selectedModel ?? "Assistant").trim();
-  }, [messageMetadata?.model, selectedModel]);
+  const totalTokens = useMemo(() => {
+    const u = metadata?.usage;
+    const sum = (u?.inputTokens ?? 0) + (u?.outputTokens ?? 0);
+    return u?.totalTokens ?? (sum > 0 ? sum : undefined);
+  }, [metadata?.usage]);
 
   const durationLabel = useMemo(() => {
-    if (typeof runDurationSeconds !== "number" || runDurationSeconds <= 0) return null;
-    const mins = Math.floor(runDurationSeconds / 60);
-    const secs = runDurationSeconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  }, [runDurationSeconds]);
+    if (typeof runDuration !== "number" || runDuration <= 0) return null;
+    const m = Math.floor(runDuration / 60);
+    const s = runDuration % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  }, [runDuration]);
 
-  const canActOnContent = textContent.trim().length > 0;
+  const canAct = textContent.trim().length > 0;
 
   const handleCopy = useCallback(async () => {
-    if (!canActOnContent) return;
+    if (!canAct) return;
     try {
       await navigator.clipboard.writeText(textContent);
       setCopiedMessageId(messageId);
-      window.setTimeout(() => {
-        const current = useAppStore.getState().copiedMessageId;
-        if (current === messageId) {
-          setCopiedMessageId(null);
-        }
+      setTimeout(() => {
+        if (useAppStore.getState().copiedMessageId === messageId) setCopiedMessageId(null);
       }, 2000);
-    } catch (err) {
-      console.error("Failed to copy message:", err);
-    }
-  }, [canActOnContent, messageId, setCopiedMessageId, textContent]);
+    } catch {}
+  }, [canAct, messageId, setCopiedMessageId, textContent]);
 
-  const handleExport = () => {
-    if (!canActOnContent) return;
+  const handleExport = useCallback(() => {
+    if (!canAct) return;
     onExport({
-      messageId: message.id,
+      messageId,
       role: isUser ? "user" : "assistant",
       content: textContent,
       model: isUser ? undefined : displayModel,
       totalTokens: isUser ? undefined : totalTokens,
     });
-  };
+  }, [canAct, displayModel, isUser, messageId, onExport, textContent, totalTokens]);
 
-  const actionButtonClassName =
-    "p-1 rounded hover:bg-(--accent) transition-colors disabled:opacity-40";
-
-  // User message rendering - simple on mobile, card on desktop
+  // ── User ──
   if (isUser) {
     return (
       <UserMessage
@@ -139,122 +120,120 @@ function ChatMessageItemBase({
         textContent={textContent}
         images={imageParts}
         copied={copied}
-        canActOnContent={canActOnContent || !!imageParts}
+        canActOnContent={canAct || !!imageParts}
         onCopy={handleCopy}
         onExport={handleExport}
-        actionButtonClassName={actionButtonClassName}
       />
     );
   }
 
+  // ── Assistant ──
   return (
-    <div id={`message-${message.id}`} className="flex flex-col group">
-      <div className="max-w-full">
-        <div className="flex items-center gap-2 mb-1">
-          <span
-            className="md:hidden text-[10px] font-mono text-(--dim) truncate max-w-[70vw]"
-            title={fullModelId}
+    <div id={`message-${messageId}`} className="group py-2">
+      {/* Content first — the only thing that matters */}
+      {textContent ? (
+        <PerfProfiler id={`message-renderer:${messageId}`}>
+          <MessageRenderer content={textContent} isStreaming={isStreaming} />
+        </PerfProfiler>
+      ) : null}
+
+      {/* Artifacts */}
+      {artifactsEnabled && artifacts && artifacts.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {artifacts.map((a) => (
+            <MiniArtifactCard
+              key={a.id}
+              artifact={a}
+              onClick={() => setActiveArtifactId(a.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Ghost metadata — visible on hover only */}
+      <div className="flex items-center gap-2 mt-1.5 h-5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+        {displayModel && (
+          <span className="text-[10px] text-(--dim)/50 font-mono truncate max-w-[140px]">
+            {displayModel}
+          </span>
+        )}
+        {durationLabel && (
+          <span className="text-[10px] text-(--dim)/40 font-mono tabular-nums">
+            {durationLabel}
+          </span>
+        )}
+        {totalTokens != null && totalTokens > 0 && (
+          <span className="hidden md:inline text-[10px] text-(--dim)/40 font-mono">
+            {totalTokens.toLocaleString()}t
+          </span>
+        )}
+        {contextUsageLabel && (
+          <button
+            onClick={onOpenContext}
+            className="hidden md:inline text-[10px] text-(--dim)/40 font-mono hover:text-(--dim) transition-colors cursor-pointer"
           >
-            {fullModelId}
-          </span>
-          <span className="hidden md:inline text-[10px] uppercase tracking-wider text-(--dim) md:tracking-[0.2em] md:text-(--dim) truncate max-w-[180px]">
-            {displayModel || "Assistant"}
-          </span>
-          <span
-            className="text-[10px] text-(--dim) font-mono tabular-nums min-w-[2.5rem]"
-            title={durationLabel ? "Turn runtime" : undefined}
-          >
-            {durationLabel ?? ""}
-          </span>
-          {totalTokens != null && totalTokens > 0 && (
-            <span className="hidden md:inline text-[10px] text-(--dim) font-mono">
-              {totalTokens.toLocaleString()} tok
-            </span>
-          )}
-          {contextUsageLabel && (
+            ctx {contextUsageLabel}
+          </button>
+        )}
+
+        {/* Actions */}
+        <div className="hidden md:flex ml-auto items-center gap-0.5">
+          {onReprompt && (
             <button
-              onClick={onOpenContext}
-              className="hidden md:inline text-[10px] text-(--dim) font-mono hover:text-(--dim) transition-colors cursor-pointer"
+              onClick={() => onReprompt(messageId)}
+              disabled={isStreaming}
+              className="p-1 rounded-md hover:bg-(--surface) transition-colors disabled:opacity-30"
+              title="Reprompt"
             >
-              ctx {contextUsageLabel}
+              <Icons.RotateCcw className="h-3 w-3 text-(--dim)/40" />
             </button>
           )}
-          <div className="hidden md:flex ml-auto items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {onReprompt && (
-              <button
-                onClick={() => onReprompt(messageId)}
-                disabled={isStreaming}
-                className={actionButtonClassName}
-                title="Reprompt"
-              >
-                <Icons.RotateCcw className="h-3.5 w-3.5 text-(--dim)" />
-              </button>
-            )}
-            {onFork && (
-              <button
-                onClick={() => onFork(messageId)}
-                className={actionButtonClassName}
-                title="Fork"
-              >
-                <Icons.GitBranch className="h-3.5 w-3.5 text-(--dim)" />
-              </button>
-            )}
-            {onListen && (
-              <button
-                onClick={() => onListen(messageId)}
-                disabled={!canActOnContent && !isListening}
-                className={actionButtonClassName}
-                title={isListening ? "Stop" : "Listen"}
-              >
-                {isListenPending ? (
-                  <Icons.Loader2 className="h-3.5 w-3.5 text-(--hl1) animate-spin" />
-                ) : isListening ? (
-                  <Icons.StopCircle className="h-3.5 w-3.5 text-(--hl1)" />
-                ) : (
-                  <Icons.Volume2 className="h-3.5 w-3.5 text-(--dim)" />
-                )}
-              </button>
-            )}
+          {onFork && (
             <button
-              onClick={handleCopy}
-              disabled={!canActOnContent}
-              className={actionButtonClassName}
-              title="Copy"
+              onClick={() => onFork(messageId)}
+              className="p-1 rounded-md hover:bg-(--surface) transition-colors"
+              title="Fork"
             >
-              {copied ? (
-                <Icons.Check className="h-3.5 w-3.5 text-(--hl2)" />
+              <Icons.GitBranch className="h-3 w-3 text-(--dim)/40" />
+            </button>
+          )}
+          {onListen && (
+            <button
+              onClick={() => onListen(messageId)}
+              disabled={!canAct && !isListening}
+              className="p-1 rounded-md hover:bg-(--surface) transition-colors disabled:opacity-30"
+              title={isListening ? "Stop" : "Listen"}
+            >
+              {isListenPending ? (
+                <Icons.Loader2 className="h-3 w-3 text-(--hl1) animate-spin" />
+              ) : isListening ? (
+                <Icons.StopCircle className="h-3 w-3 text-(--hl1)" />
               ) : (
-                <Icons.Copy className="h-3.5 w-3.5 text-(--dim)" />
+                <Icons.Volume2 className="h-3 w-3 text-(--dim)/40" />
               )}
             </button>
-            <button
-              onClick={handleExport}
-              disabled={!canActOnContent}
-              className={actionButtonClassName}
-              title="Export"
-            >
-              <Icons.Download className="h-3.5 w-3.5 text-(--dim)" />
-            </button>
-          </div>
+          )}
+          <button
+            onClick={handleCopy}
+            disabled={!canAct}
+            className="p-1 rounded-md hover:bg-(--surface) transition-colors disabled:opacity-30"
+            title="Copy"
+          >
+            {copied ? (
+              <Icons.Check className="h-3 w-3 text-(--hl2)" />
+            ) : (
+              <Icons.Copy className="h-3 w-3 text-(--dim)/40" />
+            )}
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={!canAct}
+            className="p-1 rounded-md hover:bg-(--surface) transition-colors disabled:opacity-30"
+            title="Export"
+          >
+            <Icons.Download className="h-3 w-3 text-(--dim)/40" />
+          </button>
         </div>
-
-        {textContent ? (
-          <PerfProfiler id={`message-renderer:${message.id}`}>
-            <MessageRenderer content={textContent} isStreaming={isStreaming} />
-          </PerfProfiler>
-        ) : null}
-
-        {artifactsEnabled && artifacts && artifacts.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {artifacts.map((artifact) => (
-              <MiniArtifactCard
-                key={artifact.id}
-                artifact={artifact}
-                onClick={() => setActiveArtifactId(artifact.id)}
-              />
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
