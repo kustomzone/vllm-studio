@@ -13,7 +13,7 @@ import { Virtuoso } from "react-virtuoso";
 import { ChatMessageItem } from "./chat-message-item";
 import { PerfProfiler } from "../perf/perf-profiler";
 import type { AgentFileEntry, Artifact, ChatMessage } from "@/lib/types";
-import { filterVisibleMessages, hasNonEmptyText } from "./chat-message-list/visible-messages";
+import { filterVisibleMessages } from "./chat-message-list/visible-messages";
 
 interface ChatMessageListProps {
   messages: ChatMessage[];
@@ -160,29 +160,32 @@ export function ChatMessageList({
     ],
   );
 
-  const lastVisible = visibleMessages[visibleMessages.length - 1];
-  const showThinking =
-    isLoading && !(lastVisible?.role === "assistant" && hasNonEmptyText(lastVisible));
-
+  // Footer is always a fixed-height block while loading — no conditional show/hide that
+  // would shift layout. The dots and status text fade in/out with opacity only.
   const Footer = useCallback(
     () => (
-      <div className="pt-1">
-        {showThinking && (
-          <div className="flex items-center gap-2.5 py-2">
-            <div className="typing-dots">
-              <span />
-              <span />
-              <span />
-            </div>
-            {runStatusLine?.trim() && (
-              <span className="text-[11px] text-(--dim)/50 font-mono">{runStatusLine.trim()}</span>
-            )}
+      <div className="pt-1 pb-2">
+        <div
+          className="flex items-center gap-2.5 overflow-hidden transition-all duration-200 ease-out"
+          style={{ maxHeight: isLoading ? "2rem" : "0px", opacity: isLoading ? 1 : 0 }}
+        >
+          <div className="typing-dots shrink-0">
+            <span />
+            <span />
+            <span />
           </div>
-        )}
+          {/* Status text: opacity transition only, never changes height */}
+          <span
+            className="text-[11px] text-(--dim)/50 font-mono truncate transition-opacity duration-200"
+            style={{ opacity: runStatusLine?.trim() ? 1 : 0 }}
+          >
+            {runStatusLine?.trim() || "\u00a0"}
+          </span>
+        </div>
         <div ref={messagesEndRef} />
       </div>
     ),
-    [isLoading, messagesEndRef, runStatusLine, showThinking],
+    [isLoading, messagesEndRef, runStatusLine],
   );
 
   const components = useMemo(() => ({ List: VirtuosoList, Footer }), [Footer]);
