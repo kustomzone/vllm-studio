@@ -33,7 +33,7 @@ export function AgentPlanDrawer({ plan, onClear }: AgentPlanDrawerProps) {
   const currentIndex = steps.findIndex((s) => s.status !== "done");
 
   return (
-    <div className="border-b border-(--border) bg-(--bg) overflow-hidden rounded-t-3xl">
+    <div className="border-b border-(--border) bg-(--bg) overflow-hidden rounded-t-xl">
       {/* Header */}
       <button
         onClick={() => setCollapsed(!collapsed)}

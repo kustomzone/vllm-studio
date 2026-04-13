@@ -47,7 +47,11 @@ export class ChatStore {
   public listSessions(): Array<ChatSessionListItem> {
     const rows = this.db
       .query(
-        "SELECT id, title, model, parent_id, created_at, updated_at FROM chat_sessions ORDER BY updated_at DESC"
+        `SELECT cs.id, cs.title, cs.model, cs.parent_id, cs.created_at, cs.updated_at,
+          (SELECT substr(cm.content, 1, 120) FROM chat_messages cm
+           WHERE cm.session_id = cs.id AND cm.role = 'user'
+           ORDER BY cm.created_at ASC LIMIT 1) AS first_user_message
+         FROM chat_sessions cs ORDER BY cs.updated_at DESC`
       )
       .all() as Array<Record<string, unknown>>;
     return rows.map((row) => ({ ...row }) as ChatSessionListItem);
