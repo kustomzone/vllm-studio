@@ -19,6 +19,7 @@ function generateTitle(userMessage: string, assistantMessage: string): string {
 
   const cleanText = (text: string) =>
     text
+      .replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, " ")
       .replace(/```[\s\S]*?```/g, " ")
       .replace(/<artifact[\s\S]*?<\/artifact>/g, " ")
       .replace(/\[[^\]]*\]/g, " ")

@@ -170,26 +170,18 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
       }
     }
 
-    const toolsPayload = Array.isArray(parsed["tools"]) ? parsed["tools"] : [];
-    const hasTools = toolsPayload.length > 0;
-    const useDirectInference = isStreaming && hasTools && !providerRouting;
     const upstreamUrl =
       providerRouting && requestedModel
         ? `${providerRouting.baseUrl.replace(/\/+$/, "")}/v1/chat/completions`
-        : useDirectInference
-          ? buildInferenceUrl(context, "/v1/chat/completions")
-          : "http://localhost:4100/v1/chat/completions";
-    const masterKey = process.env["LITELLM_MASTER_KEY"] ?? "sk-master";
+        : buildInferenceUrl(context, "/v1/chat/completions");
     const inferenceKey = process.env["INFERENCE_API_KEY"] ?? "";
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...(providerRouting
         ? { Authorization: `Bearer ${providerRouting.apiKey}` }
-        : useDirectInference
-          ? inferenceKey
-            ? { Authorization: `Bearer ${inferenceKey}` }
-            : {}
-          : { Authorization: `Bearer ${masterKey}` }),
+        : inferenceKey
+          ? { Authorization: `Bearer ${inferenceKey}` }
+          : {}),
     };
     const finalBody = bodyChanged
       ? new TextEncoder().encode(JSON.stringify(parsed)).buffer
@@ -248,9 +240,7 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
       throw serviceUnavailable(
         providerRouting
           ? `${requestProvider} backend unavailable`
-          : useDirectInference
-            ? "Inference backend unavailable"
-            : "LiteLLM backend unavailable"
+          : "Inference backend unavailable"
       );
     }
 

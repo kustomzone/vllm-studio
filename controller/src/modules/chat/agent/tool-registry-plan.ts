@@ -47,9 +47,11 @@ const normalizePlanSteps = (tasks: unknown): Array<Record<string, unknown>> => {
     const titleCandidate =
       record["title"] ??
       record["name"] ??
+      record["text"] ??
       record["step"] ??
       record["task"] ??
-      record["description"];
+      record["description"] ??
+      record["content"];
     const title = typeof titleCandidate === "string" ? titleCandidate.trim() : "";
     if (!title) continue;
     steps.push({

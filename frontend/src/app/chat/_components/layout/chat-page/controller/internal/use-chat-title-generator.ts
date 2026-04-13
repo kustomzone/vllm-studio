@@ -20,7 +20,9 @@ export function useChatTitleGenerator({
   return useCallback(
     async (sessionId: string, userContent: string, assistantContent: string) => {
       const applyTitle = async (title: string) => {
-        const trimmed = title?.trim();
+        let trimmed = title?.trim() ?? "";
+        trimmed = trimmed.replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, "").trim();
+        trimmed = trimmed.replace(/<\/?think(?:ing)?[^>]*>/gi, "").trim();
         if (!trimmed || trimmed === "New Chat") return null;
 
         // Avoid overwriting an already-titled session (e.g. if run_end triggers later).
