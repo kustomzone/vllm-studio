@@ -261,4 +261,124 @@ describe("tool-call-core", () => {
     expect(delta.reasoning).toBe("classified");
     expect(delta.reasoning.toLowerCase()).not.toContain("<think");
   });
+
+  it("handles stray close tag without prior open in streaming", async () => {
+    const encoder = new TextEncoder();
+    const closeTag = String.raw`</think` + ">";
+    const payload = `data: {"choices":[{"delta":{"content":"hidden reasoning${closeTag} visible"}}]}\n\n`;
+    const source = new ReadableStream<Uint8Array>({
+      start(controller): void {
+        controller.enqueue(encoder.encode(payload));
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      },
+    });
+    const stream = createToolCallStream(source.getReader());
+    const output = await collectStream(stream);
+    const events = parseSseDataLines(output);
+    const delta = collectDeltaText(events);
+    expect(delta.content).toBe(" visible");
+    expect(delta.reasoning).toBe("hidden reasoning");
+    expect(delta.content.toLowerCase()).not.toContain("</think");
+    expect(delta.reasoning.toLowerCase()).not.toContain("</think");
+  });
+
+  it("does not inject tool calls from reasoning content", async () => {
+    const encoder = new TextEncoder();
+    const toolCallXml = `❌<function=calc><arguments>{"x":1}</arguments>❌`;
+    const source = new ReadableStream<Uint8Array>({
+      start(controller): void {
+        controller.enqueue(
+          encoder.encode(
+            `data: {"choices":[{"delta":{"content":"result is 42"}}]}\n\n`
+          )
+        );
+        controller.enqueue(
+          encoder.encode(
+            `data: {"choices":[{"delta":{"reasoning_content":"let me use ${toolCallXml}"}}]}\n\n`
+          )
+        );
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      },
+    });
+    const stream = createToolCallStream(source.getReader());
+    const output = await collectStream(stream);
+    expect(output).not.toContain('"tool_calls"');
+    expect(output).toContain("result is 42");
+  });
+
+  it("handles unclosed think tag at stream end", async () => {
+    const encoder = new TextEncoder();
+    const openTag = String.raw`<think` + ">";
+    const source = new ReadableStream<Uint8Array>({
+      start(controller): void {
+        controller.enqueue(
+          encoder.encode(
+            `data: {"choices":[{"delta":{"content":"visible ${openTag}"}}]}\n\n`
+          )
+        );
+        controller.enqueue(
+          encoder.encode(
+            'data: {"choices":[{"delta":{"content":"\\nreasoning text"}}]}\n\n'
+          )
+        );
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      },
+    });
+    const stream = createToolCallStream(source.getReader());
+    const output = await collectStream(stream);
+    const events = parseSseDataLines(output);
+    const delta = collectDeltaText(events);
+    expect(delta.content).toBe("visible ");
+    expect(delta.reasoning).toContain("reasoning text");
+    expect(delta.content.toLowerCase()).not.toContain("<think");
+  });
+
+  it("handles thinking tag split across many tiny deltas", async () => {
+    const encoder = new TextEncoder();
+    const parts = ["<", "t", "h", "i", "n", "k", ">secret<", "/", "t", "h", "i", "n", "k", ">"];
+    const source = new ReadableStream<Uint8Array>({
+      start(controller): void {
+        for (const part of parts) {
+          controller.enqueue(
+            encoder.encode(
+              `data: {"choices":[{"delta":{"content":"${part}"}}]}\n\n`
+            )
+          );
+        }
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      },
+    });
+    const stream = createToolCallStream(source.getReader());
+    const output = await collectStream(stream);
+    const events = parseSseDataLines(output);
+    const delta = collectDeltaText(events);
+    expect(delta.content).toBe("");
+    expect(delta.reasoning).toBe("secret");
+  });
+
+  it("handles close tag in separate delta from any open tag", async () => {
+    const encoder = new TextEncoder();
+    const closeTag = String.raw`</think` + ">";
+    const source = new ReadableStream<Uint8Array>({
+      start(controller): void {
+        controller.enqueue(
+          encoder.encode(
+            `data: {"choices":[{"delta":{"content":"secret text${closeTag} after"}}]}\n\n`
+          )
+        );
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      },
+    });
+    const stream = createToolCallStream(source.getReader());
+    const output = await collectStream(stream);
+    const events = parseSseDataLines(output);
+    const delta = collectDeltaText(events);
+    expect(delta.content).toBe(" after");
+    expect(delta.reasoning).toBe("secret text");
+  });
 });

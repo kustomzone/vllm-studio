@@ -379,6 +379,7 @@ export const createToolCallStream = (
   let buffer = "";
   let pendingEventLines: string[] = [];
   let contentBuffer = "";
+  let visibleContentBuffer = "";
   let toolCallsFound = false;
   let usageTracked = false;
   let thinkCarry = "";
@@ -466,6 +467,15 @@ export const createToolCallStream = (
           continue;
         }
         if (thinkTag?.kind === "close") {
+          // Stray close tag without a prior open: treat text before it as
+          // reasoning (matches non-streaming extractThinkBlocks behavior).
+          if (!inThink) {
+            const before = contentOut.trim();
+            if (before) {
+              reasoningOut += contentOut;
+              contentOut = "";
+            }
+          }
           inThink = false;
           index += thinkTag.length;
           continue;
@@ -568,14 +578,17 @@ export const createToolCallStream = (
       const content = typeof delta["content"] === "string" ? String(delta["content"]) : "";
       const reasoning =
         typeof delta["reasoning_content"] === "string" ? String(delta["reasoning_content"]) : "";
-      if (content) contentBuffer += content;
+      if (content) {
+        contentBuffer += content;
+        visibleContentBuffer += content;
+      }
       if (reasoning) contentBuffer += reasoning;
     }
   };
 
   const maybeInjectToolCalls = (controller: ReadableStreamDefaultController<Uint8Array>): void => {
-    if (toolCallsFound || !contentBuffer) return;
-    const parsed = parseToolCallsFromContent(contentBuffer);
+    if (toolCallsFound || !visibleContentBuffer) return;
+    const parsed = parseToolCallsFromContent(visibleContentBuffer);
     if (parsed.length > 0) {
       enqueueLine(controller, buildToolCallChunk(parsed));
       toolCallsFound = true;

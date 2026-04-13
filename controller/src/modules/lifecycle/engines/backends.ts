@@ -210,19 +210,37 @@ export const appendExtraArguments = (
 export const buildVllmCommand = (recipe: Recipe): string[] => {
   const pythonPath = getVllmPythonPath(recipe);
   let command: string[];
+  let usesServe = false;
   if (pythonPath) {
     const vllmBin = join(dirname(pythonPath), "vllm");
     if (existsSync(vllmBin)) {
       command = [vllmBin, "serve"];
+      usesServe = true;
     } else {
-      command = [pythonPath, "-m", "vllm.entrypoints.openai.api_server"];
+      // Prefer system vllm binary over python -m entrypoint when available,
+      // because `vllm serve` accepts model as positional arg while
+      // `python -m vllm.entrypoints.openai.api_server` requires --model.
+      const systemVllm = resolveBinary("vllm");
+      if (systemVllm) {
+        command = [systemVllm, "serve"];
+        usesServe = true;
+      } else {
+        command = [pythonPath, "-m", "vllm.entrypoints.openai.api_server"];
+      }
     }
   } else {
     const resolvedVllm = resolveBinary("vllm");
     command = [resolvedVllm ?? "vllm", "serve"];
+    usesServe = true;
   }
 
-  command.push(recipe.model_path, "--host", recipe.host, "--port", String(recipe.port));
+  // `vllm serve` accepts model as positional arg; api_server requires --model flag
+  if (usesServe) {
+    command.push(recipe.model_path);
+  } else {
+    command.push("--model", recipe.model_path);
+  }
+  command.push("--host", recipe.host, "--port", String(recipe.port));
 
   if (recipe.served_model_name) {
     command.push("--served-model-name", recipe.served_model_name);

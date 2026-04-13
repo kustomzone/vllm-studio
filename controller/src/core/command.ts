@@ -1,6 +1,6 @@
 // CRITICAL
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 export type CommandResult = {
@@ -32,12 +32,21 @@ export const runCommand = (
   }
 };
 
+const isExecutableFile = (filePath: string): boolean => {
+  try {
+    const stats = statSync(filePath);
+    return stats.isFile();
+  } catch {
+    return false;
+  }
+};
+
 export const resolveBinary = (binaryName: string): string | null => {
   if (!binaryName) return null;
 
   if (binaryName.includes("/")) {
     const resolved = resolve(binaryName);
-    return existsSync(resolved) ? resolved : null;
+    return isExecutableFile(resolved) ? resolved : null;
   }
 
   const searchPaths: string[] = [];
@@ -68,7 +77,7 @@ export const resolveBinary = (binaryName: string): string | null => {
 
   for (const entry of searchPaths) {
     const candidate = join(entry, binaryName);
-    if (existsSync(candidate)) return candidate;
+    if (isExecutableFile(candidate)) return candidate;
   }
 
   return null;

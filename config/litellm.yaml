@@ -88,6 +88,32 @@ model_list:
       supports_response_schema: true
       supports_reasoning: true
 
+  # MiniMax-M2.7 (AWQ 4-bit, tool parser: minimax-m2, reasoning parser: minimax)
+  - model_name: "MiniMax-M2.7"
+    litellm_params:
+      model: "openai/minimax-m2.7"
+      api_base: "http://host.docker.internal:8000/v1"
+      api_key: "${INFERENCE_API_KEY:-sk-placeholder}"
+      stream_timeout: 600
+      timeout: 600
+      supports_function_calling: true
+      supports_vision: true
+      supports_response_schema: true
+      supports_reasoning: true
+
+  # Alias: common lowercase / hyphenated spelling -> canonical vLLM served model name
+  - model_name: "minimax-m2.7"
+    litellm_params:
+      model: "openai/minimax-m2.7"
+      api_base: "http://host.docker.internal:8000/v1"
+      api_key: "${INFERENCE_API_KEY:-sk-placeholder}"
+      stream_timeout: 600
+      timeout: 600
+      supports_function_calling: true
+      supports_vision: true
+      supports_response_schema: true
+      supports_reasoning: true
+
   # MiroThinker-v1.5-235B-AWQ-4bit - Based on Qwen3-235B-A22B-Thinking-2507
   # Uses deepseek_r1 reasoning parser (not qwen3) and MCP-style tool calls
   - model_name: "MiroThinker-v1.5-235B-AWQ-4bit"
