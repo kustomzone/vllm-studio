@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type SidebarTab = "computer" | "activity" | "browser" | "context" | "artifacts" | "files";
+export type SidebarTab = "computer" | "activity" | "context" | "artifacts";
 export type SidebarPanelVariant = "desktop" | "mobile";
 
 export type SidebarPanelContentMap = Partial<Record<SidebarTab, ReactNode>>;

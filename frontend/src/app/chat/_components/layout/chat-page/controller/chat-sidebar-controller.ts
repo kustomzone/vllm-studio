@@ -117,7 +117,7 @@ export function useChatSidebarController({
   const handleOpenAgentFile = useCallback(
     (path: string) => {
       setSidebarOpen(true);
-      setSidebarTab("files");
+      setSidebarTab("computer");
       selectAgentFile(path, sessionFromUrl || currentSessionId);
     },
     [currentSessionId, selectAgentFile, sessionFromUrl, setSidebarOpen, setSidebarTab],
