@@ -25,7 +25,7 @@ function StepIcon({ status }: { status: AgentPlanStep["status"] }) {
 }
 
 export function AgentPlanDrawer({ plan, onClear }: AgentPlanDrawerProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   const { steps } = plan;
   const doneCount = steps.filter((s) => s.status === "done").length;
@@ -33,7 +33,7 @@ export function AgentPlanDrawer({ plan, onClear }: AgentPlanDrawerProps) {
   const currentIndex = steps.findIndex((s) => s.status !== "done");
 
   return (
-    <div className="border-b border-(--border) bg-(--bg) overflow-hidden rounded-t-xl">
+    <div className="border-b border-(--border) bg-(--surface) overflow-hidden rounded-t-xl">
       {/* Header */}
       <button
         onClick={() => setCollapsed(!collapsed)}

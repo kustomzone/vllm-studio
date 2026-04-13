@@ -16,19 +16,27 @@ const SIDEBAR_PANEL_DEFINITIONS: readonly SidebarPanelDefinition[] = [
     },
   },
   {
-    id: "context",
-    label: "Context",
+    id: "browser",
+    label: "Browser",
     orderByVariant: {
       desktop: 1,
       mobile: 1,
     },
   },
   {
+    id: "context",
+    label: "Context",
+    orderByVariant: {
+      desktop: 2,
+      mobile: 2,
+    },
+  },
+  {
     id: "artifacts",
     label: "Preview",
     orderByVariant: {
-      desktop: 2,
-      mobile: 3,
+      desktop: 3,
+      mobile: 4,
     },
     isVisible: ({ hasArtifacts }) => hasArtifacts,
   },
@@ -36,8 +44,8 @@ const SIDEBAR_PANEL_DEFINITIONS: readonly SidebarPanelDefinition[] = [
     id: "files",
     label: "Files",
     orderByVariant: {
-      desktop: 3,
-      mobile: 2,
+      desktop: 4,
+      mobile: 3,
     },
   },
 ] as const;

@@ -50,8 +50,7 @@ const CategorySection = memo(function CategorySection({
         className="w-full flex items-center gap-1.5 px-1 py-0.5 hover:bg-(--fg)/[0.02] transition-colors rounded"
       >
         <span
-          className={`h-1.5 w-1.5 shrink-0 rounded-full ${isActive ? "animate-pulse" : ""}`}
-          style={{ background: config.color }}
+          className={`h-1.5 w-1.5 shrink-0 rounded-full bg-(--dim)/40 ${isActive ? "animate-pulse" : ""}`}
         />
         <span className="text-[10px] font-medium text-(--fg)/70 flex-1 text-left">
           {config.label}

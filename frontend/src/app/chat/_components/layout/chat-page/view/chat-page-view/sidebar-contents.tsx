@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import type { SidebarPanelContentMap } from "../../../sidebar/unified-sidebar/types";
 import { PerfProfiler } from "../../../../perf/perf-profiler";
 import { ActivityPanel, ContextPanel } from "../../../sidebar/chat-side-panel";
+import { BrowserPanel } from "../../../sidebar/chat-side-panel/browser-panel";
 import { ArtifactPreviewPanel } from "../../../../artifacts/artifact-preview-panel";
 import { AgentFilesPanel } from "../../../../agent/agent-files-panel";
 import type { AgentFileEntry, AgentFileVersion, Artifact } from "@/lib/types";
@@ -56,6 +57,7 @@ export function buildSidebarContents(props: SidebarContentsProps): SidebarPanelC
   const prefix = props.variant === "mobile" ? "mobile-" : "";
 
   return {
+    browser: <BrowserPanel activityGroups={props.activityGroups} isLoading={props.isLoading} />,
     activity: (
       <div className="h-full flex flex-col">
         <PerfProfiler id={`${prefix}activity-panel`}>

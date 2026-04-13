@@ -25,36 +25,43 @@ function formatOutput(output?: unknown): string {
   return safeJsonStringify(output, "");
 }
 
-function toneClasses(state?: ActivityItem["state"]) {
-  if (state === "error") return { chip: "bg-(--err)/8 text-(--err)", dot: "bg-(--err)" };
-  if (state === "running") return { chip: "bg-(--accent)/8 text-(--accent)", dot: "bg-(--accent) animate-pulse" };
-  if (state === "complete") return { chip: "bg-(--fg)/[0.04] text-(--fg)/70", dot: "bg-(--fg)/40" };
-  return { chip: "bg-(--fg)/[0.03] text-(--dim)", dot: "bg-(--dim)/40" };
+function dotClass(state?: ActivityItem["state"]) {
+  if (state === "error") return "bg-(--err)";
+  if (state === "running") return "bg-(--accent) animate-pulse";
+  if (state === "complete") return "bg-(--fg)/30";
+  return "bg-(--dim)/30";
 }
 
 export const ToolItem = memo(
   function ToolItem({ item }: { item: ActivityItem }) {
     const [expanded, setExpanded] = useState(false);
     const hasDetails = item.input != null || item.output != null;
-    const toggle = useCallback(() => { if (hasDetails) setExpanded((p) => !p); }, [hasDetails]);
+    const toggle = useCallback(() => {
+      if (hasDetails) setExpanded((p) => !p);
+    }, [hasDetails]);
 
     const name = useMemo(() => displayName(item.toolName), [item.toolName]);
-    const output = useMemo(() => (expanded ? formatOutput(item.output) : ""), [expanded, item.output]);
-    const tone = useMemo(() => toneClasses(item.state), [item.state]);
+    const output = useMemo(
+      () => (expanded ? formatOutput(item.output) : ""),
+      [expanded, item.output],
+    );
+    const dot = useMemo(() => dotClass(item.state), [item.state]);
 
     return (
       <div className="flex flex-col items-start gap-1 px-1">
         <button
           onClick={toggle}
           disabled={!hasDetails}
-          className={`inline-flex max-w-full items-center gap-1.5 rounded-lg px-2 py-0.5 text-[10px] font-medium leading-4 transition-colors ${tone.chip} ${
-            hasDetails ? "cursor-pointer hover:brightness-110" : "cursor-default"
+          className={`inline-flex max-w-full items-center gap-1.5 py-0.5 text-[10px] leading-4 transition-colors text-(--dim) ${
+            hasDetails ? "cursor-pointer hover:text-(--fg)" : "cursor-default"
           }`}
         >
-          <span className={`h-1 w-1 shrink-0 rounded-full ${tone.dot}`} />
+          <span className={`h-1 w-1 shrink-0 rounded-full ${dot}`} />
           <span className="truncate max-w-[180px]">{name}</span>
           {hasDetails && (
-            <ChevronRight className={`h-2.5 w-2.5 shrink-0 opacity-60 transition-transform ${expanded ? "rotate-90" : ""}`} />
+            <ChevronRight
+              className={`h-2.5 w-2.5 shrink-0 opacity-60 transition-transform ${expanded ? "rotate-90" : ""}`}
+            />
           )}
         </button>
 
@@ -74,7 +81,8 @@ export const ToolItem = memo(
                   {item.state === "error" ? "Error" : "Output"}
                 </span>
                 <pre className="mt-0.5 max-h-36 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed text-(--fg)/70">
-                  {output.slice(0, OUTPUT_LIMIT)}{output.length > OUTPUT_LIMIT ? "..." : ""}
+                  {output.slice(0, OUTPUT_LIMIT)}
+                  {output.length > OUTPUT_LIMIT ? "..." : ""}
                 </pre>
               </div>
             )}
@@ -84,8 +92,15 @@ export const ToolItem = memo(
     );
   },
   (prev, next) => {
-    const a = prev.item, b = next.item;
-    return a.id === b.id && a.state === b.state && a.isActive === b.isActive &&
-      a.content === b.content && a.input === b.input && a.output === b.output;
+    const a = prev.item,
+      b = next.item;
+    return (
+      a.id === b.id &&
+      a.state === b.state &&
+      a.isActive === b.isActive &&
+      a.content === b.content &&
+      a.input === b.input &&
+      a.output === b.output
+    );
   },
 );

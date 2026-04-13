@@ -42,7 +42,7 @@ export interface ToolBeltToolbarProps {
 
 export const ToolBeltToolbar = memo(function ToolBeltToolbar(props: ToolBeltToolbarProps) {
   return (
-    <div className="px-2 py-1.5 border-t border-(--border)/30">
+    <div className="px-2 py-1.5">
       <ToolBeltToolbarDesktop {...props} />
       <ToolBeltToolbarMobile {...props} />
     </div>
