@@ -125,6 +125,8 @@ export function useChatPageControllerTail({
   lastEventTimeRef,
   sessionIdRef,
   activityPanelVisible,
+  currentToolCall,
+  runToolCalls,
   thinkingActive,
   activityGroups,
   activityCount,
@@ -408,6 +410,8 @@ export function useChatPageControllerTail({
     sidebarWidth: store.sidebarWidth,
     setSidebarWidth: store.setSidebarWidth,
 
+    currentToolCall,
+    runToolCalls,
     activityGroups,
     activityCount,
     agentPlan: store.agentPlan,

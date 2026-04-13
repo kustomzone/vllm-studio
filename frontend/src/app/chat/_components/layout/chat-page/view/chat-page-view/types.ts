@@ -13,9 +13,13 @@ import type {
 import type { AgentPlan } from "../../../../agent/agent-types";
 import type { ActivityGroup, ModelOption } from "../../../../../types";
 import type { CompactionEvent, ContextStats } from "@/lib/services/context-management";
+import type { CurrentToolCall } from "@/app/chat/hooks/chat/use-current-tool-call";
 import type { DeepResearchConfig } from "@/lib/types";
 
 export interface ChatPageViewProps {
+  currentToolCall: CurrentToolCall | null;
+  runToolCalls: CurrentToolCall[];
+
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   sidebarTab: SidebarTab;

@@ -109,6 +109,20 @@ export function useChatPageController(): ChatPageViewProps {
     updateMessages: store.updateMessages,
   });
 
+  // Computer viewport hooks
+  const currentToolCall = Hooks.useCurrentToolCall({
+    messages,
+    isLoading,
+    executingTools: tools.executingTools,
+    toolResultsMap: tools.toolResultsMap,
+  });
+
+  const runToolCalls = Hooks.useRunToolCalls({
+    messages,
+    executingTools: tools.executingTools,
+    toolResultsMap: tools.toolResultsMap,
+  });
+
   // Derived state from messages
   const activityPanelVisible = sidebarOpen && sidebarTab === "activity";
   const contextPanelVisible = sidebarOpen && sidebarTab === "context";
@@ -261,6 +275,8 @@ export function useChatPageController(): ChatPageViewProps {
     lastEventTimeRef,
     sessionIdRef,
     activityPanelVisible,
+    currentToolCall,
+    runToolCalls,
     thinkingActive,
     activityGroups,
     activityCount,

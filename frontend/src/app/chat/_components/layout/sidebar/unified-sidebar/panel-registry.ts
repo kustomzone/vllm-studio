@@ -8,35 +8,43 @@ import type {
 
 const SIDEBAR_PANEL_DEFINITIONS: readonly SidebarPanelDefinition[] = [
   {
-    id: "activity",
-    label: "Activity",
+    id: "computer",
+    label: "Computer",
     orderByVariant: {
       desktop: 0,
       mobile: 0,
     },
   },
   {
-    id: "browser",
-    label: "Browser",
+    id: "activity",
+    label: "Activity",
     orderByVariant: {
       desktop: 1,
       mobile: 1,
     },
   },
   {
-    id: "context",
-    label: "Context",
+    id: "browser",
+    label: "Browser",
     orderByVariant: {
       desktop: 2,
       mobile: 2,
     },
   },
   {
+    id: "context",
+    label: "Context",
+    orderByVariant: {
+      desktop: 3,
+      mobile: 3,
+    },
+  },
+  {
     id: "artifacts",
     label: "Preview",
     orderByVariant: {
-      desktop: 3,
-      mobile: 4,
+      desktop: 4,
+      mobile: 5,
     },
     isVisible: ({ hasArtifacts }) => hasArtifacts,
   },
@@ -44,8 +52,8 @@ const SIDEBAR_PANEL_DEFINITIONS: readonly SidebarPanelDefinition[] = [
     id: "files",
     label: "Files",
     orderByVariant: {
-      desktop: 4,
-      mobile: 3,
+      desktop: 5,
+      mobile: 4,
     },
   },
 ] as const;

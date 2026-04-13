@@ -4,6 +4,7 @@
 import type { AgentFileEntry, AgentFileVersion, Artifact } from "@/lib/types";
 import type { AgentPlan } from "../../../../agent/agent-types";
 import type { ActivityGroup } from "../../../../../types";
+import type { CurrentToolCall } from "@/app/chat/hooks/chat/use-current-tool-call";
 import type { CompactionEvent, ContextStats } from "@/lib/services/context-management";
 import { buildSidebarContents, type SidebarContentsVariant } from "./sidebar-contents";
 
@@ -12,6 +13,9 @@ export type ChatPageSidebarInputs = {
   agentPlan: AgentPlan | null;
   isLoading: boolean;
   runStatusLine: string;
+
+  currentToolCall: CurrentToolCall | null;
+  runToolCalls: CurrentToolCall[];
 
   contextStats?: Omit<
     ContextStats,
@@ -54,6 +58,8 @@ export function buildSidebarContentsFromPageProps(
     agentPlan: props.agentPlan,
     isLoading: props.isLoading,
     runStatusLine: props.runStatusLine,
+    currentToolCall: props.currentToolCall,
+    runToolCalls: props.runToolCalls,
     contextStats: props.contextStats,
     contextBreakdown: props.contextBreakdown,
     compactionHistory: props.compactionHistory,

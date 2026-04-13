@@ -4,32 +4,17 @@
 import type { Artifact, ChatMessage } from "@/lib/types";
 import { isToolCallOnlyText } from "@/app/chat/hooks/chat/use-chat-message-mapping/helpers";
 
-function isToolOnlyMessage(message: ChatMessage): boolean {
+function hasToolParts(message: ChatMessage): boolean {
   if (message.role !== "assistant") return false;
-
-  let hasToolParts = false;
   for (const part of message.parts) {
-    if (part.type === "text") {
-      const text = (part as { text?: unknown }).text;
-      if (typeof text === "string") {
-        if (isToolCallOnlyText(text)) return false;
-        if (text.trim().length > 0) return false;
-      }
-      continue;
-    }
-    if (part.type === "dynamic-tool") {
-      hasToolParts = true;
-      continue;
-    }
-    if (
-      typeof part.type === "string" &&
-      (part.type.startsWith("tool-") || part.type === "tool-call")
-    ) {
-      hasToolParts = true;
-    }
+    if (part.type === "dynamic-tool") return true;
+    if (typeof part.type === "string" && part.type.startsWith("tool-")) return true;
   }
+  return false;
+}
 
-  return hasToolParts;
+function hasReasoningParts(message: ChatMessage): boolean {
+  return message.parts.some((p) => p.type === "reasoning");
 }
 
 export function hasNonEmptyText(message: ChatMessage): boolean {
@@ -77,15 +62,16 @@ export function filterVisibleMessages({
     // This prevents intermediate tool-call turns from adding and removing height in the chat.
     if (currentRunStart >= 0 && idx >= currentRunStart) {
       if (m.id !== lastRawMessageId) return false;
-      // Also hide the streaming message itself if it has no text yet (tool call in flight) —
-      // the footer typing indicator handles that state.
-      return hasNonEmptyText(m);
+      // Show the streaming message if it has text, tool parts, or reasoning
+      return hasNonEmptyText(m) || hasToolParts(m) || hasReasoningParts(m);
     }
 
-    // Completed messages: standard filtering.
-    if (isToolOnlyMessage(m)) return false;
+    // Completed messages: show if they have text, tools, reasoning, or artifacts.
+    if (hasNonEmptyText(m)) return true;
+    if (hasToolParts(m)) return true;
+    if (hasReasoningParts(m)) return true;
     const hasArtifacts = Boolean(artifactsByMessage?.get(m.id)?.length);
-    if (!hasArtifacts && !hasNonEmptyText(m)) return false;
-    return true;
+    if (hasArtifacts) return true;
+    return false;
   });
 }
