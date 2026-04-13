@@ -8,7 +8,6 @@ const PHRASE_CYCLE_SECONDS = 2;
 
 export const THINKING_PHRASES = [
   "Cooking up the cleanest answer...",
-  "Bumbling around edge cases...",
   "Connecting the dots...",
   "Vibe-checking the final plan...",
   "Sharpening the response...",

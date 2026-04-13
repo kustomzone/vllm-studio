@@ -62,8 +62,9 @@ export function filterVisibleMessages({
     // This prevents intermediate tool-call turns from adding and removing height in the chat.
     if (currentRunStart >= 0 && idx >= currentRunStart) {
       if (m.id !== lastRawMessageId) return false;
-      // Show the streaming message if it has text, tool parts, or reasoning
-      return hasNonEmptyText(m) || hasToolParts(m) || hasReasoningParts(m);
+      // Show the streaming message if it has visible content.
+      // Tool-only messages during streaming are handled by the Computer viewport sidebar.
+      return hasNonEmptyText(m);
     }
 
     // Completed messages: show if they have text, tools, reasoning, or artifacts.

@@ -100,7 +100,7 @@ export function useChatSidebarController({
 
     hadActivityRef.current = true;
     setSidebarOpen(true);
-    setSidebarTab("activity");
+    setSidebarTab("computer");
     autoOpenedActivityRef.current = true;
   }, [currentSessionId, hasActivity, sessionFromUrl, sidebarOpen, setSidebarOpen, setSidebarTab]);
 

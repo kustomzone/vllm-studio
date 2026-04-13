@@ -64,8 +64,9 @@ function ChatMessageItemBase({
     parts: message.parts,
   });
 
-  const executingTools = useAppStore((s) => s.executingTools);
-  const toolResultsMap = useAppStore((s) => s.toolResultsMap);
+  // For streaming messages, subscribe reactively; for completed ones, snapshot is enough
+  const liveExecutingTools = useAppStore((s) => s.executingTools);
+  const liveToolResultsMap = useAppStore((s) => s.toolResultsMap);
 
   const imageParts = useMemo(() => {
     if (!isUser) return undefined;
@@ -163,9 +164,9 @@ function ChatMessageItemBase({
               <ToolCallRow
                 key={id}
                 part={tp}
-                isExecuting={executingTools.has(id)}
-                hasResult={toolResultsMap.has(id)}
-                isError={toolResultsMap.get(id)?.isError === true}
+                isExecuting={liveExecutingTools.has(id)}
+                hasResult={liveToolResultsMap.has(id)}
+                isError={liveToolResultsMap.get(id)?.isError === true}
               />
             );
           })}

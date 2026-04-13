@@ -38,7 +38,7 @@ function resolveAction(tc: CurrentToolCall): "read" | "write" | "edit" {
 }
 
 const BADGE: Record<string, { label: string; cls: string }> = {
-  read: { label: "Reading", cls: "bg-(--blue)/10 text-(--blue) border border-(--blue)/15" },
+  read: { label: "Reading", cls: "bg-(--accent)/10 text-(--accent) border border-(--accent)/15" },
   write: { label: "Creating", cls: "bg-(--hl2)/10 text-(--hl2) border border-(--hl2)/15" },
   edit: { label: "Editing", cls: "bg-(--accent)/10 text-(--accent) border border-(--accent)/15" },
 };

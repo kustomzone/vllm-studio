@@ -1,7 +1,7 @@
 // CRITICAL
 "use client";
 
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Monitor, Terminal, FileText, Globe, Search, ListChecks, PenLine, Loader2 } from "lucide-react";
 import type { CurrentToolCall } from "@/app/chat/hooks/chat/use-current-tool-call";
 import { formatToolDisplayName } from "@/app/chat/hooks/chat/use-current-tool-call";
@@ -52,7 +52,7 @@ export const ComputerViewport = memo(function ComputerViewport({
 
   // Auto-clear focus when a new tool starts running
   const runningId = currentToolCall?.state === "running" ? currentToolCall.toolCallId : null;
-  useMemo(() => { if (runningId) setFocusedId(null); }, [runningId]);
+  useEffect(() => { if (runningId) setFocusedId(null); }, [runningId]);
 
   const view = resolveView(displayed);
   const handleTab = useCallback((id: string) => setFocusedId(prev => prev === id ? null : id), []);

@@ -38,7 +38,7 @@ export function useChatPageController(): ChatPageViewProps {
   const [streamError, setStreamError] = useState<string | null>(null);
   const [streamStalled, setStreamStalled] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("activity");
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("computer");
   const activeRunIdRef = useRef<string | null>(null);
   const runAbortControllerRef = useRef<AbortController | null>(null);
   const runCompletedRef = useRef(false);

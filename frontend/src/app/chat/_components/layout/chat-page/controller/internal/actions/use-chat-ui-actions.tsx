@@ -90,7 +90,7 @@ export function useChatUiActions({
 
   const handleOpenResults = useCallback(() => {
     setSidebarOpen(true);
-    handleSetSidebarTab(store.resultsLastTab ?? "activity");
+    handleSetSidebarTab(store.resultsLastTab ?? "computer");
   }, [handleSetSidebarTab, setSidebarOpen, store.resultsLastTab]);
 
   const toolBelt = useChatToolBelt({

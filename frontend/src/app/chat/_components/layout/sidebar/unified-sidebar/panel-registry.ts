@@ -95,5 +95,5 @@ export function resolveSidebarActiveTab(
   activeTab: SidebarPanelInstance["id"],
   panels: readonly SidebarPanelInstance[],
 ): SidebarPanelInstance["id"] {
-  return panels.some((panel) => panel.id === activeTab) ? activeTab : (panels[0]?.id ?? "activity");
+  return panels.some((panel) => panel.id === activeTab) ? activeTab : (panels[0]?.id ?? "computer");
 }
