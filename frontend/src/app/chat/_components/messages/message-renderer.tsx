@@ -151,9 +151,7 @@ function MessageRendererBase({ content, isStreaming }: MessageRendererProps) {
       {mainContent && (
         <div style={{ color: "var(--fg)" }}>
           {isStreaming ? (
-            <div className="whitespace-pre-wrap break-words text-[14px] leading-[1.65]">
-              {mainContent}
-            </div>
+            <div className="chat-markdown whitespace-pre-wrap break-words">{mainContent}</div>
           ) : (
             segments.map((segment, i) =>
               segment.type === "code" ? (

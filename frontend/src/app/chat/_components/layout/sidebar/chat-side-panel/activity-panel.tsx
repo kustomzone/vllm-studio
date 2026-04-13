@@ -1,10 +1,10 @@
 // CRITICAL
 "use client";
 
-import { Globe, FolderTree, Terminal, Brain, ChevronRight, Loader2 } from "lucide-react";
-import { memo, useCallback, useMemo, useState, type ReactNode } from "react";
+import { ChevronRight, Loader2 } from "lucide-react";
+import { memo, useCallback, useMemo, useState } from "react";
 import type { ActivityGroup, ActivityItem } from "@/app/chat/types";
-import { categorize, type ToolCategory } from "./tool-categorization";
+import { categorize } from "./tool-categorization";
 import { ThinkingItem } from "./thinking-item";
 import { ToolItem } from "./tool-item";
 
@@ -16,17 +16,17 @@ export interface ActivityPanelProps {
 }
 
 /* ── Category config ── */
-const CATEGORY_CONFIG: Record<string, { icon: typeof Globe; label: string; color: string }> = {
-  web: { icon: Globe, label: "Browser", color: "var(--accent)" },
-  file: { icon: FolderTree, label: "File System", color: "var(--hl2)" },
-  search: { icon: FolderTree, label: "Search", color: "var(--hl1)" },
-  code: { icon: Terminal, label: "Terminal", color: "var(--hl3)" },
-  plan: { icon: Brain, label: "Planning", color: "var(--hl2)" },
-  thinking: { icon: Brain, label: "Reasoning", color: "var(--dim)" },
-  other: { icon: Terminal, label: "Tools", color: "var(--dim)" },
+const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
+  web: { label: "Browser", color: "var(--accent)" },
+  file: { label: "File System", color: "var(--hl2)" },
+  search: { label: "Search", color: "var(--hl1)" },
+  code: { label: "Terminal", color: "var(--hl3)" },
+  plan: { label: "Planning", color: "var(--hl2)" },
+  thinking: { label: "Reasoning", color: "var(--dim)" },
+  other: { label: "Tools", color: "var(--dim)" },
 };
 
-/* ── Live category section ── */
+/* ── Category section — dot-style, no borders ── */
 interface CategorySectionProps {
   category: string;
   items: ActivityItem[];
@@ -39,51 +39,39 @@ const CategorySection = memo(function CategorySection({
   isActive,
 }: CategorySectionProps) {
   const [collapsed, setCollapsed] = useState(false);
-  const config = CATEGORY_CONFIG[category] ?? CATEGORY_CONFIG.other;
-  const Icon = config.icon;
+  const config = CATEGORY_LABELS[category] ?? CATEGORY_LABELS.other;
   const activeItems = items.filter((i) => i.state === "running");
   const toggle = useCallback(() => setCollapsed((p) => !p), []);
 
   return (
-    <div className="rounded-lg border border-(--border)/30 overflow-hidden">
+    <div>
       <button
         onClick={toggle}
-        className="w-full flex items-center gap-2 px-2.5 py-1.5 hover:bg-(--fg)/[0.03] transition-colors"
+        className="w-full flex items-center gap-1.5 px-1 py-0.5 hover:bg-(--fg)/[0.02] transition-colors rounded"
       >
-        <div
-          className="flex items-center justify-center w-5 h-5 rounded"
-          style={{ background: `color-mix(in srgb, ${config.color} 12%, transparent)` }}
-        >
-          {isActive ? (
-            <Loader2 className="h-3 w-3 animate-spin" style={{ color: config.color }} />
-          ) : (
-            <Icon className="h-3 w-3" style={{ color: config.color }} />
-          )}
-        </div>
-        <span className="text-[11px] font-medium text-(--fg) flex-1 text-left">{config.label}</span>
-        <span className="text-[10px] text-(--dim) font-mono tabular-nums">{items.length}</span>
+        <span
+          className={`h-1.5 w-1.5 shrink-0 rounded-full ${isActive ? "animate-pulse" : ""}`}
+          style={{ background: config.color }}
+        />
+        <span className="text-[10px] font-medium text-(--fg)/70 flex-1 text-left">
+          {config.label}
+        </span>
+        <span className="text-[9px] text-(--dim)/50 font-mono tabular-nums">{items.length}</span>
         <ChevronRight
-          className={`h-3 w-3 text-(--dim)/50 transition-transform duration-150 ${
+          className={`h-2.5 w-2.5 text-(--dim)/40 transition-transform duration-150 ${
             !collapsed ? "rotate-90" : ""
           }`}
         />
       </button>
 
       {!collapsed && (
-        <div className="px-2 pb-1.5 space-y-0.5">
-          {/* Active item highlight */}
+        <div className="ml-2 pl-2 border-l border-(--border)/20 space-y-0.5 mt-0.5">
           {isActive && activeItems.length > 0 && (
-            <div
-              className="px-2 py-1 rounded-md text-[10px] font-mono"
-              style={{
-                background: `color-mix(in srgb, ${config.color} 6%, transparent)`,
-                color: config.color,
-              }}
-            >
+            <p className="text-[10px] font-mono py-0.5 px-1" style={{ color: config.color }}>
               {activeItems[0].toolName
-                ? `Running: ${activeItems[0].toolName.split("__").pop()?.replace(/_/g, " ")}`
-                : "Running…"}
-            </div>
+                ? activeItems[0].toolName.split("__").pop()?.replace(/_/g, " ")
+                : "running…"}
+            </p>
           )}
           {items.map((item) =>
             item.type === "thinking" ? (
@@ -114,15 +102,12 @@ const CategorizedTurnGroup = memo(function CategorizedTurnGroup({
     if (!group.isLatest) setCollapsed((p) => !p);
   }, [group.isLatest]);
 
-  // Group items by category
   const categorized = useMemo(() => {
     const cats = new Map<string, ActivityItem[]>();
-    // Thinking items first
     const thinkingItems = group.items.filter((i) => i.type === "thinking");
     if (thinkingItems.length > 0) {
       cats.set("thinking", thinkingItems);
     }
-    // Tool calls by category
     for (const item of group.items) {
       if (item.type === "thinking") continue;
       const cat = categorize(item.toolName);
@@ -166,7 +151,7 @@ const CategorizedTurnGroup = memo(function CategorizedTurnGroup({
       </button>
 
       {!isCollapsed && (
-        <div className="space-y-1.5 pb-2">
+        <div className="space-y-1 pb-2">
           {Array.from(categorized.entries()).map(([cat, items]) => {
             const hasActiveItem = items.some(
               (i) => i.state === "running" || (i.type === "thinking" && i.isActive),
@@ -191,10 +176,7 @@ export function ActivityPanel({
   if (activityGroups.length === 0) {
     return (
       <div className="h-full flex items-center justify-center px-5">
-        <div className="text-center">
-          <Brain className="h-5 w-5 text-(--dim)/30 mx-auto mb-2" />
-          <p className="text-[12px] text-(--dim)/50">No activity yet</p>
-        </div>
+        <p className="text-[11px] text-(--dim)/40">No activity yet</p>
       </div>
     );
   }
@@ -205,15 +187,13 @@ export function ActivityPanel({
 
   return (
     <div className="h-full flex flex-col">
-      {/* Status line */}
       {isLoading && runStatusLine?.trim() && (
         <div className="px-3 pt-2.5 flex items-center gap-2">
-          <Loader2 className="h-3 w-3 text-(--accent) animate-spin shrink-0" />
+          <span className="h-1.5 w-1.5 rounded-full bg-(--accent) animate-pulse shrink-0" />
           <p className="text-[11px] text-(--fg)/70 truncate font-mono">{runStatusLine}</p>
         </div>
       )}
 
-      {/* Plan progress */}
       {totalSteps > 0 && (
         <div className="px-3 pt-2.5 pb-2">
           <div className="flex items-center justify-between gap-3 mb-1.5">
@@ -234,7 +214,6 @@ export function ActivityPanel({
         </div>
       )}
 
-      {/* Categorized turn groups */}
       <div className="flex-1 overflow-y-auto">
         <div className="px-2.5 py-2 space-y-2">
           {activityGroups.map((group) => (
