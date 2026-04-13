@@ -186,12 +186,14 @@ export function ActivityPanel({
 
   return (
     <div className="h-full flex flex-col">
-      {isLoading && runStatusLine?.trim() && (
-        <div className="px-3 pt-2.5 flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-(--accent) animate-pulse shrink-0" />
-          <p className="text-[11px] text-(--fg)/70 truncate font-mono">{runStatusLine}</p>
-        </div>
-      )}
+      <div
+        className={`px-3 pt-2.5 pb-0.5 flex items-center gap-2 transition-opacity duration-200 ${
+          isLoading && runStatusLine?.trim() ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-(--accent) animate-pulse shrink-0" />
+        <p className="text-[11px] text-(--fg)/70 truncate font-mono">{runStatusLine ?? ""}</p>
+      </div>
 
       {totalSteps > 0 && (
         <div className="px-3 pt-2.5 pb-2">
