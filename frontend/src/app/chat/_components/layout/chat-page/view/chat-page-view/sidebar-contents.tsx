@@ -4,9 +4,10 @@
 import type { ReactNode } from "react";
 import type { SidebarPanelContentMap } from "../../../sidebar/unified-sidebar/types";
 import { PerfProfiler } from "../../../../perf/perf-profiler";
+import { ActivityPanel, ContextPanel } from "../../../sidebar/chat-side-panel";
+import { BrowserPanel } from "../../../sidebar/chat-side-panel/browser-panel";
 import { ArtifactPreviewPanel } from "../../../../artifacts/artifact-preview-panel";
-import { ComputerViewport } from "../../../../computer-viewport";
-import type { CurrentToolCall } from "@/app/chat/hooks/chat/use-current-tool-call";
+import { AgentFilesPanel } from "../../../../agent/agent-files-panel";
 import type { AgentFileEntry, AgentFileVersion, Artifact } from "@/lib/types";
 import type { AgentPlan } from "../../../../agent/agent-types";
 import type { ActivityGroup } from "../../../../../types";
@@ -41,9 +42,6 @@ export type SidebarContentsProps = {
   runManualCompaction: () => void;
   canManualCompact: boolean;
 
-  currentToolCall: CurrentToolCall | null;
-  runToolCalls: CurrentToolCall[];
-
   sessionArtifacts: Artifact[];
 
   agentFiles: AgentFileEntry[];
@@ -59,19 +57,52 @@ export function buildSidebarContents(props: SidebarContentsProps): SidebarPanelC
   const prefix = props.variant === "mobile" ? "mobile-" : "";
 
   return {
-    computer: (
-      <PerfProfiler id={`${prefix}computer-viewport`}>
-        <ComputerViewport
-          currentToolCall={props.currentToolCall}
-          runToolCalls={props.runToolCalls}
-          isLoading={props.isLoading}
-          runStatusLine={props.runStatusLine}
-        />
-      </PerfProfiler>
+    browser: <BrowserPanel activityGroups={props.activityGroups} isLoading={props.isLoading} />,
+    activity: (
+      <div className="h-full flex flex-col">
+        <PerfProfiler id={`${prefix}activity-panel`}>
+          <ActivityPanel
+            activityGroups={props.activityGroups}
+            agentPlan={props.agentPlan}
+            isLoading={props.isLoading}
+            runStatusLine={props.runStatusLine}
+          />
+        </PerfProfiler>
+      </div>
+    ),
+    context: (
+      <div className="p-4 overflow-y-auto h-full">
+        <PerfProfiler id={`${prefix}context-panel`}>
+          <ContextPanel
+            stats={props.contextStats}
+            breakdown={props.contextBreakdown}
+            compactionHistory={props.compactionHistory}
+            compacting={props.compacting}
+            compactionError={props.compactionError}
+            formatTokenCount={props.formatTokenCount}
+            onCompact={props.runManualCompaction}
+            canCompact={props.canManualCompact}
+          />
+        </PerfProfiler>
+      </div>
     ),
     artifacts: (
       <PerfProfiler id={`${prefix}artifact-preview-panel`}>
         <ArtifactPreviewPanel artifacts={props.sessionArtifacts} />
+      </PerfProfiler>
+    ),
+    files: (
+      <PerfProfiler id={`${prefix}agent-files-panel`}>
+        <AgentFilesPanel
+          files={props.agentFiles}
+          plan={props.agentPlan}
+          selectedFilePath={props.selectedAgentFilePath}
+          selectedFileContent={props.selectedAgentFileContent}
+          selectedFileLoading={props.selectedAgentFileLoading}
+          fileVersions={props.agentFileVersions}
+          onSelectFile={props.onSelectAgentFile}
+          hasSession={props.hasSession}
+        />
       </PerfProfiler>
     ),
   };

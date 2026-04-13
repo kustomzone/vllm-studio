@@ -77,13 +77,13 @@ export function filterVisibleMessages({
     // This prevents intermediate tool-call turns from adding and removing height in the chat.
     if (currentRunStart >= 0 && idx >= currentRunStart) {
       if (m.id !== lastRawMessageId) return false;
-      // Show the streaming message if it has text or tool parts (rendered as inline rows).
-      return hasNonEmptyText(m) || isToolOnlyMessage(m);
+      // Also hide the streaming message itself if it has no text yet (tool call in flight) —
+      // the footer typing indicator handles that state.
+      return hasNonEmptyText(m);
     }
 
-    // Completed messages: show tool-only messages (rendered as inline tool call rows).
-    // Only hide messages that have absolutely no content and no tool parts.
-    if (isToolOnlyMessage(m)) return true;
+    // Completed messages: standard filtering.
+    if (isToolOnlyMessage(m)) return false;
     const hasArtifacts = Boolean(artifactsByMessage?.get(m.id)?.length);
     if (!hasArtifacts && !hasNonEmptyText(m)) return false;
     return true;

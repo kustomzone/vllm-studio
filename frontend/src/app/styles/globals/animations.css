@@ -185,18 +185,6 @@
   animation: chat-splash-spin 12s linear infinite;
 }
 
-/* Cursor blink for computer viewport */
-@keyframes blink {
-  0%, 50% { opacity: 0.7; }
-  51%, 100% { opacity: 0; }
-}
-
-/* Status dot pulse for computer viewport */
-@keyframes status-pulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
-}
-
 .chat-splash-orb::after {
   content: "";
   position: absolute;

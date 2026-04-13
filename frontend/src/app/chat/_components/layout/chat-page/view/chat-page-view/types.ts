@@ -13,7 +13,6 @@ import type {
 import type { AgentPlan } from "../../../../agent/agent-types";
 import type { ActivityGroup, ModelOption } from "../../../../../types";
 import type { CompactionEvent, ContextStats } from "@/lib/services/context-management";
-import type { CurrentToolCall } from "@/app/chat/hooks/chat/use-current-tool-call";
 import type { DeepResearchConfig } from "@/lib/types";
 
 export interface ChatPageViewProps {
@@ -23,10 +22,6 @@ export interface ChatPageViewProps {
   setSidebarTab: (tab: SidebarTab) => void;
   sidebarWidth: number;
   setSidebarWidth: (width: number) => void;
-
-  // Computer viewport
-  currentToolCall: CurrentToolCall | null;
-  runToolCalls: CurrentToolCall[];
 
   // Activity + context
   activityGroups: ActivityGroup[];

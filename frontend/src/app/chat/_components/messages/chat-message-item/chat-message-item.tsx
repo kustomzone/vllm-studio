@@ -7,25 +7,9 @@ import * as Icons from "../../icons";
 import { MessageRenderer } from "../message-renderer";
 import { MiniArtifactCard } from "../../artifacts/mini-artifact-card";
 import { PerfProfiler } from "../../perf/perf-profiler";
-import { ThinkingBlock } from "./thinking-block";
-import { ToolCallRow } from "./tool-call-row";
-import type { Artifact, ChatMessage, ChatMessageMetadata, ChatMessagePart } from "@/lib/types";
+import type { Artifact, ChatMessage, ChatMessageMetadata } from "@/lib/types";
 import { useMessageDerived } from "./use-message-derived";
 import { UserMessage } from "./user-message";
-
-type ToolPart = ChatMessagePart & {
-  toolCallId: string;
-  toolName?: string;
-  input?: unknown;
-  state?: string;
-  output?: unknown;
-};
-
-function isToolPart(part: ChatMessagePart): part is ToolPart {
-  if (typeof part.type !== "string") return false;
-  if (part.type === "dynamic-tool") return "toolCallId" in part;
-  return part.type.startsWith("tool-") && "toolCallId" in part;
-}
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -72,8 +56,6 @@ function ChatMessageItemBase({
   const copied = useAppStore((s) => s.copiedMessageId === messageId);
   const setCopiedMessageId = useAppStore((s) => s.setCopiedMessageId);
   const setActiveArtifactId = useAppStore((s) => s.setActiveArtifactId);
-  const executingTools = useAppStore((s) => s.executingTools);
-  const toolResultsMap = useAppStore((s) => s.toolResultsMap);
 
   const { textContent } = useMessageDerived({
     role: message.role,
@@ -145,47 +127,14 @@ function ChatMessageItemBase({
     );
   }
 
-  // ── Derived: thinking + tool parts ──
-  const { thinkingContent } = useMessageDerived({ role: message.role, parts: message.parts });
-
-  const toolParts = useMemo(
-    () => message.parts.filter(isToolPart),
-    [message.parts],
-  );
-
   // ── Assistant ──
   return (
     <div id={`message-${messageId}`} className="group py-1.5">
-      {/* Thinking block */}
-      {thinkingContent && (
-        <ThinkingBlock content={thinkingContent} isActive={isStreaming && !textContent} />
-      )}
-
       {textContent ? (
         <PerfProfiler id={`message-renderer:${messageId}`}>
           <MessageRenderer content={textContent} isStreaming={isStreaming} />
         </PerfProfiler>
       ) : null}
-
-      {/* Inline tool call rows */}
-      {toolParts.length > 0 && (
-        <div className="mt-1.5 space-y-px">
-          {toolParts.map((part) => {
-            const tcId = String(part.toolCallId);
-            const executing = executingTools?.has(tcId) ?? false;
-            const result = toolResultsMap?.get(tcId);
-            return (
-              <ToolCallRow
-                key={tcId}
-                part={part}
-                isExecuting={executing}
-                hasResult={!!result}
-                isError={!!result?.isError}
-              />
-            );
-          })}
-        </div>
-      )}
 
       {artifactsEnabled && artifacts && artifacts.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
