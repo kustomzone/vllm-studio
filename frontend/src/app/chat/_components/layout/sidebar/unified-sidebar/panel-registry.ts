@@ -13,19 +13,9 @@ const SIDEBAR_PANEL_DEFINITIONS: readonly SidebarPanelDefinition[] = [
     orderByVariant: { desktop: 0, mobile: 0 },
   },
   {
-    id: "activity",
-    label: "Activity",
-    orderByVariant: { desktop: 1, mobile: 1 },
-  },
-  {
-    id: "workspace",
-    label: "Workspace",
-    orderByVariant: { desktop: 2, mobile: 2 },
-  },
-  {
     id: "artifacts",
     label: "Preview",
-    orderByVariant: { desktop: 3, mobile: 3 },
+    orderByVariant: { desktop: 1, mobile: 1 },
     isVisible: ({ hasArtifacts }) => hasArtifacts,
   },
 ] as const;

@@ -4,8 +4,6 @@
 import type { ReactNode } from "react";
 import type { SidebarPanelContentMap } from "../../../sidebar/unified-sidebar/types";
 import { PerfProfiler } from "../../../../perf/perf-profiler";
-import { ActivityPanel } from "../../../sidebar/chat-side-panel";
-import { WorkspacePanel } from "../../../sidebar/chat-side-panel/workspace-panel";
 import { ArtifactPreviewPanel } from "../../../../artifacts/artifact-preview-panel";
 import { ComputerViewport } from "../../../../computer-viewport";
 import type { CurrentToolCall } from "@/app/chat/hooks/chat/use-current-tool-call";
@@ -68,34 +66,6 @@ export function buildSidebarContents(props: SidebarContentsProps): SidebarPanelC
           runToolCalls={props.runToolCalls}
           isLoading={props.isLoading}
           runStatusLine={props.runStatusLine}
-        />
-      </PerfProfiler>
-    ),
-    activity: (
-      <div className="h-full flex flex-col">
-        <PerfProfiler id={`${prefix}activity-panel`}>
-          <ActivityPanel
-            activityGroups={props.activityGroups}
-            agentPlan={props.agentPlan}
-            isLoading={props.isLoading}
-            runStatusLine={props.runStatusLine}
-          />
-        </PerfProfiler>
-      </div>
-    ),
-    workspace: (
-      <PerfProfiler id={`${prefix}workspace-panel`}>
-        <WorkspacePanel
-          activityGroups={props.activityGroups}
-          isLoading={props.isLoading}
-          agentFiles={props.agentFiles}
-          agentFileVersions={props.agentFileVersions}
-          selectedFilePath={props.selectedAgentFilePath}
-          onSelectFile={props.onSelectAgentFile}
-          agentPlan={props.agentPlan}
-          contextStats={props.contextStats ?? null}
-          contextBreakdown={props.contextBreakdown ?? null}
-          formatTokenCount={props.formatTokenCount}
         />
       </PerfProfiler>
     ),
