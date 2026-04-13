@@ -146,12 +146,19 @@ function MessageRendererBase({ content, isStreaming }: MessageRendererProps) {
     return segments.map((s) => (s.type === "code" ? null : renderMarkdown(s.content)));
   }, [isStreaming, segments, renderMarkdown]);
 
+  // During streaming, do a lightweight markdown render so spacing matches the
+  // final parsed output — avoids the layout jump when streaming ends.
+  const streamingHtml = useMemo(() => {
+    if (!isStreaming || !mainContent) return "";
+    return renderMarkdown(mainContent);
+  }, [isStreaming, mainContent, renderMarkdown]);
+
   return (
     <div className="message-content min-w-0 break-words overflow-hidden max-w-full text-inherit">
       {mainContent && (
         <div style={{ color: "var(--fg)" }}>
           {isStreaming ? (
-            <div className="chat-markdown whitespace-pre-wrap break-words">{mainContent}</div>
+            <div className="chat-markdown" dangerouslySetInnerHTML={{ __html: streamingHtml }} />
           ) : (
             segments.map((segment, i) =>
               segment.type === "code" ? (

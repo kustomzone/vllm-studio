@@ -197,6 +197,9 @@ export function ChatMessageList({
           itemContent={renderItem}
           components={components}
           computeItemKey={itemKey}
+          initialTopMostItemIndex={items.length > 0 ? items.length - 1 : 0}
+          alignToBottom
+          followOutput="smooth"
         />
       </PerfProfiler>
     </div>

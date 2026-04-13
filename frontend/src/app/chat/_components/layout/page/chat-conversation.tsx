@@ -76,29 +76,26 @@ function ChatConversationBase({
             </div>
           </div>
         ) : (
-          <div className="min-h-full flex flex-col">
-            <div className="flex-1" />
-            <ChatMessageList
-              messages={messages}
-              isLoading={isLoading}
-              artifactsEnabled={artifactsEnabled}
-              artifactsByMessage={artifactsByMessage}
-              selectedModel={selectedModel}
-              contextUsageLabel={contextUsageLabel}
-              agentFiles={agentFiles}
-              selectedAgentFilePath={selectedAgentFilePath}
-              onOpenAgentFile={onOpenAgentFile}
-              scrollParent={scrollParent}
-              messagesEndRef={messagesEndRef}
-              onFork={onFork}
-              onReprompt={onReprompt}
-              onListen={onListen}
-              listeningMessageId={listeningMessageId}
-              listeningPending={listeningPending}
-              onOpenContext={onOpenContext}
-              runStatusLine={runStatusLine}
-            />
-          </div>
+          <ChatMessageList
+            messages={messages}
+            isLoading={isLoading}
+            artifactsEnabled={artifactsEnabled}
+            artifactsByMessage={artifactsByMessage}
+            selectedModel={selectedModel}
+            contextUsageLabel={contextUsageLabel}
+            agentFiles={agentFiles}
+            selectedAgentFilePath={selectedAgentFilePath}
+            onOpenAgentFile={onOpenAgentFile}
+            scrollParent={scrollParent}
+            messagesEndRef={messagesEndRef}
+            onFork={onFork}
+            onReprompt={onReprompt}
+            onListen={onListen}
+            listeningMessageId={listeningMessageId}
+            listeningPending={listeningPending}
+            onOpenContext={onOpenContext}
+            runStatusLine={runStatusLine}
+          />
         )}
       </div>
     </div>
