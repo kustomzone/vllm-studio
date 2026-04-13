@@ -85,7 +85,9 @@ export function ToolBeltToolbarDesktop({
   callModeEnabled,
   onCallModeToggle,
 }: Props) {
-  const hasActiveFeatures = Boolean(toolsEnabled || artifactsEnabled || deepResearchEnabled || hasSystemPrompt);
+  const hasActiveFeatures = Boolean(
+    toolsEnabled || artifactsEnabled || deepResearchEnabled || hasSystemPrompt,
+  );
 
   return (
     <div className="hidden md:flex items-center justify-between">
@@ -212,7 +214,7 @@ export function ToolBeltToolbarDesktop({
             value={selectedModel || ""}
             onChange={(e) => onModelChange(e.target.value)}
             disabled={disabled || isLoading}
-            className="max-w-[180px] px-2 py-1 font-sans text-xs bg-transparent border border-(--border) rounded-lg text-(--dim) focus:outline-none focus:border-(--accent)/40 disabled:opacity-50 truncate appearance-none cursor-pointer hover:text-(--fg) hover:border-(--fg)/20 transition-colors:ease-in:200ms"
+            className="max-w-[180px] px-2.5 py-1 font-mono text-[11px] bg-(--surface) border border-(--border)/60 rounded-lg text-(--dim) focus:outline-none focus:border-(--accent)/50 focus:text-(--fg) disabled:opacity-50 truncate appearance-none cursor-pointer hover:text-(--fg) hover:border-(--border) transition-all"
             title={selectedModel || "Select model"}
           >
             {(() => {

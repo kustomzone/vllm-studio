@@ -178,8 +178,8 @@ export function ToolBelt({
   const canSend = value.trim().length > 0 || attachments.length > 0;
 
   return (
-    <div ref={rootRef} className="px-2 md:px-3 pb-1">
-      <div className="w-full max-w-none md:max-w-3xl md:mx-auto px-0 md:px-0">
+    <div ref={rootRef} className="px-3 md:px-4">
+      <div className="w-full max-w-none md:max-w-3xl md:mx-auto">
         <AttachmentsPreview
           attachments={attachments}
           onRemove={removeAttachment}
@@ -208,13 +208,19 @@ export function ToolBelt({
         />
 
         <div
-          className={`relative flex flex-col bg-(--surface) rounded-xl transition-colors border border-(--border)/60 ${
-            isDragOver ? "ring-2 ring-(--accent)/30" : ""
-          } ${isLoading ? "ring-1 ring-blue-500/30" : ""}`}
+          className={`relative flex flex-col bg-(--surface) rounded-xl transition-all border ${
+            isDragOver
+              ? "border-(--accent)/60 ring-2 ring-(--accent)/20"
+              : isLoading
+                ? "border-(--border) ring-1 ring-(--accent)/15"
+                : "border-(--border)/70 hover:border-(--border)"
+          }`}
           style={{
             boxShadow: isDragOver
-              ? "0 0 0 1px var(--accent), 0 4px 16px rgba(0,0,0,0.2)"
-              : "0 2px 12px rgba(0,0,0,0.15)",
+              ? "0 0 0 1px var(--accent), 0 4px 20px rgba(0,0,0,0.25)"
+              : isLoading
+                ? "0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent), 0 2px 8px rgba(0,0,0,0.1)"
+                : "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)",
           }}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -241,8 +247,8 @@ export function ToolBelt({
             }
             disabled={isDisabled}
             rows={1}
-            className="w-full px-3 py-2.5 md:px-4 md:py-2.5 bg-transparent text-[14px] md:text-sm resize-none focus:outline-none disabled:opacity-50 placeholder:text-(--dim)/60 overflow-y-hidden min-h-[40px] md:min-h-[40px]"
-            style={{ fontSize: "16px", lineHeight: "1.5" }}
+            className="w-full px-3.5 py-3 md:px-4 md:py-3 bg-transparent text-sm resize-none focus:outline-none disabled:opacity-50 placeholder:text-(--dim)/50 overflow-y-hidden min-h-[44px] md:min-h-[44px]"
+            style={{ fontSize: "14px", lineHeight: "1.55" }}
           />
 
           <input
