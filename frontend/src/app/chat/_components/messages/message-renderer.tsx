@@ -5,10 +5,7 @@ import { memo, useEffect, useRef, useId, useMemo } from "react";
 import { motion } from "framer-motion";
 import { AlertCircle } from "lucide-react";
 import { EnhancedCodeBlock } from "../code/enhanced-code-block";
-import {
-  useMessageParsing,
-  thinkingParser,
-} from "@/lib/services/message-parsing";
+import { useMessageParsing, thinkingParser } from "@/lib/services/message-parsing";
 import type { MarkdownSegment, ThinkingResult } from "@/lib/services/message-parsing";
 import {
   getMermaid,
@@ -62,7 +59,10 @@ const MermaidDiagram = memo(function MermaidDiagram({ code }: { code: string }) 
 
       try {
         const mermaid = await getMermaid();
-        if (!mermaid) { setMermaidState(id, "", "Failed to load mermaid"); return; }
+        if (!mermaid) {
+          setMermaidState(id, "", "Failed to load mermaid");
+          return;
+        }
         const { svg } = await mermaid.render(`mermaid_${id}_${seq}`, sanitizeMermaidCode(code));
         if (seq !== seqRef.current) return;
         setMermaidState(id, svg, null);
@@ -72,7 +72,10 @@ const MermaidDiagram = memo(function MermaidDiagram({ code }: { code: string }) 
       }
     };
     const t = setTimeout(render, 250);
-    return () => { clearTimeout(t); deleteMermaidState(id); };
+    return () => {
+      clearTimeout(t);
+      deleteMermaidState(id);
+    };
   }, [code, deleteMermaidState, id, setMermaidState]);
 
   if (error) {
@@ -148,7 +151,7 @@ function MessageRendererBase({ content, isStreaming }: MessageRendererProps) {
       {mainContent && (
         <div style={{ color: "var(--fg)" }}>
           {isStreaming ? (
-            <div className="whitespace-pre-wrap break-words text-[15px] leading-[1.7]">
+            <div className="whitespace-pre-wrap break-words text-[14px] leading-[1.65]">
               {mainContent}
             </div>
           ) : (

@@ -129,54 +129,46 @@ function ChatMessageItemBase({
 
   // ── Assistant ──
   return (
-    <div id={`message-${messageId}`} className="group py-2">
-      {/* Content first — the only thing that matters */}
+    <div id={`message-${messageId}`} className="group py-1.5">
       {textContent ? (
         <PerfProfiler id={`message-renderer:${messageId}`}>
           <MessageRenderer content={textContent} isStreaming={isStreaming} />
         </PerfProfiler>
       ) : null}
 
-      {/* Artifacts */}
       {artifactsEnabled && artifacts && artifacts.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-2 flex flex-wrap gap-2">
           {artifacts.map((a) => (
-            <MiniArtifactCard
-              key={a.id}
-              artifact={a}
-              onClick={() => setActiveArtifactId(a.id)}
-            />
+            <MiniArtifactCard key={a.id} artifact={a} onClick={() => setActiveArtifactId(a.id)} />
           ))}
         </div>
       )}
 
-      {/* Ghost metadata — visible on hover only */}
-      <div className="flex items-center gap-2 mt-1.5 h-5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+      <div className="flex items-center gap-2 mt-1 h-4 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
         {displayModel && (
-          <span className="text-[10px] text-(--dim)/50 font-mono truncate max-w-[140px]">
+          <span className="text-[10px] text-(--dim)/40 font-mono truncate max-w-[140px]">
             {displayModel}
           </span>
         )}
         {durationLabel && (
-          <span className="text-[10px] text-(--dim)/40 font-mono tabular-nums">
+          <span className="text-[10px] text-(--dim)/35 font-mono tabular-nums">
             {durationLabel}
           </span>
         )}
         {totalTokens != null && totalTokens > 0 && (
-          <span className="hidden md:inline text-[10px] text-(--dim)/40 font-mono">
+          <span className="hidden md:inline text-[10px] text-(--dim)/35 font-mono">
             {totalTokens.toLocaleString()}t
           </span>
         )}
         {contextUsageLabel && (
           <button
             onClick={onOpenContext}
-            className="hidden md:inline text-[10px] text-(--dim)/40 font-mono hover:text-(--dim) transition-colors cursor-pointer"
+            className="hidden md:inline text-[10px] text-(--dim)/35 font-mono hover:text-(--dim) transition-colors cursor-pointer"
           >
             ctx {contextUsageLabel}
           </button>
         )}
 
-        {/* Actions */}
         <div className="hidden md:flex ml-auto items-center gap-0.5">
           {onReprompt && (
             <button

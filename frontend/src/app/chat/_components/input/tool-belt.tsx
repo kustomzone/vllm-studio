@@ -178,8 +178,8 @@ export function ToolBelt({
   const canSend = value.trim().length > 0 || attachments.length > 0;
 
   return (
-    <div ref={rootRef} className="px-2 md:px-3 pb-0">
-      <div className="w-full max-w-none md:max-w-4xl md:mx-auto px-0 md:px-0">
+    <div ref={rootRef} className="px-2 md:px-3 pb-1">
+      <div className="w-full max-w-none md:max-w-3xl md:mx-auto px-0 md:px-0">
         <AttachmentsPreview
           attachments={attachments}
           onRemove={removeAttachment}
@@ -208,20 +208,20 @@ export function ToolBelt({
         />
 
         <div
-          className={`relative flex flex-col bg-(--surface) rounded-3xl transition-colors border border-(--border) ${
+          className={`relative flex flex-col bg-(--surface) rounded-xl transition-colors border border-(--border)/60 ${
             isDragOver ? "ring-2 ring-(--accent)/30" : ""
           } ${isLoading ? "ring-1 ring-blue-500/30" : ""}`}
           style={{
             boxShadow: isDragOver
-              ? "0 0 0 1px var(--accent), 0 8px 32px rgba(0,0,0,0.3)"
-              : "0 4px 24px rgba(0,0,0,0.2)",
+              ? "0 0 0 1px var(--accent), 0 4px 16px rgba(0,0,0,0.2)"
+              : "0 2px 12px rgba(0,0,0,0.15)",
           }}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
           {isDragOver && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-3xl bg-(--accent)/10 pointer-events-none">
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-(--accent)/10 pointer-events-none">
               <span className="text-sm font-medium text-(--accent)">Drop files here</span>
             </div>
           )}
@@ -241,7 +241,7 @@ export function ToolBelt({
             }
             disabled={isDisabled}
             rows={1}
-            className="w-full px-3 py-2.5 md:px-4 md:py-3 bg-transparent text-[15px] md:text-sm resize-none focus:outline-none disabled:opacity-50 placeholder:text-(--dim) overflow-y-hidden min-h-[44px] md:min-h-[44px]"
+            className="w-full px-3 py-2.5 md:px-4 md:py-2.5 bg-transparent text-[14px] md:text-sm resize-none focus:outline-none disabled:opacity-50 placeholder:text-(--dim)/60 overflow-y-hidden min-h-[40px] md:min-h-[40px]"
             style={{ fontSize: "16px", lineHeight: "1.5" }}
           />
 

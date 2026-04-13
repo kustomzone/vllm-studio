@@ -76,7 +76,8 @@ function ChatConversationBase({
             </div>
           </div>
         ) : (
-          <div className="min-h-full flex flex-col justify-end">
+          <div className="min-h-full flex flex-col">
+            <div className="flex-1" />
             <ChatMessageList
               messages={messages}
               isLoading={isLoading}

@@ -43,7 +43,7 @@ interface VirtuosoItem {
 
 const VirtuosoList = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={`flex flex-col gap-0 ${className ?? ""}`} {...props} />
+    <div ref={ref} className={`flex flex-col ${className ?? ""}`} {...props} />
   ),
 );
 VirtuosoList.displayName = "VirtuosoList";
@@ -68,7 +68,13 @@ export function ChatMessageList({
   const lastRawId = messages[messages.length - 1]?.id;
 
   const visibleMessages = useMemo(
-    () => filterVisibleMessages({ messages, isLoading, lastRawMessageId: lastRawId, artifactsByMessage }),
+    () =>
+      filterVisibleMessages({
+        messages,
+        isLoading,
+        lastRawMessageId: lastRawId,
+        artifactsByMessage,
+      }),
     [artifactsByMessage, isLoading, lastRawId, messages],
   );
 
@@ -122,9 +128,7 @@ export function ChatMessageList({
         key={item.message.id}
         message={item.message}
         isStreaming={
-          isLoading &&
-          item.idx === visibleMessages.length - 1 &&
-          item.message.role === "assistant"
+          isLoading && item.idx === visibleMessages.length - 1 && item.message.role === "assistant"
         }
         artifactsEnabled={artifactsEnabled}
         artifacts={artifactsByMessage?.get(item.message.id)}
@@ -140,36 +144,52 @@ export function ChatMessageList({
       />
     ),
     [
-      artifactsByMessage, artifactsEnabled, contextUsageLabel, handleExport,
-      isLoading, onFork, onListen, onOpenContext, onReprompt, selectedModel,
-      listeningMessageId, listeningPending, visibleMessages.length,
+      artifactsByMessage,
+      artifactsEnabled,
+      contextUsageLabel,
+      handleExport,
+      isLoading,
+      onFork,
+      onListen,
+      onOpenContext,
+      onReprompt,
+      selectedModel,
+      listeningMessageId,
+      listeningPending,
+      visibleMessages.length,
     ],
   );
 
   const lastVisible = visibleMessages[visibleMessages.length - 1];
-  const showThinking = isLoading && !(lastVisible?.role === "assistant" && hasNonEmptyText(lastVisible));
+  const showThinking =
+    isLoading && !(lastVisible?.role === "assistant" && hasNonEmptyText(lastVisible));
 
-  const Footer = useCallback(() => (
-    <div className="pt-2">
-      {showThinking && (
-        <div className="flex items-center gap-3 py-3">
-          <div className="typing-dots">
-            <span /><span /><span />
+  const Footer = useCallback(
+    () => (
+      <div className="pt-1">
+        {showThinking && (
+          <div className="flex items-center gap-2.5 py-2">
+            <div className="typing-dots">
+              <span />
+              <span />
+              <span />
+            </div>
+            {runStatusLine?.trim() && (
+              <span className="text-[11px] text-(--dim)/50 font-mono">{runStatusLine.trim()}</span>
+            )}
           </div>
-          {runStatusLine?.trim() && (
-            <span className="text-xs text-(--dim)/60">{runStatusLine.trim()}</span>
-          )}
-        </div>
-      )}
-      <div ref={messagesEndRef} />
-    </div>
-  ), [isLoading, messagesEndRef, runStatusLine, showThinking]);
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+    ),
+    [isLoading, messagesEndRef, runStatusLine, showThinking],
+  );
 
   const components = useMemo(() => ({ List: VirtuosoList, Footer }), [Footer]);
   const itemKey = useCallback((_i: number, item: VirtuosoItem) => item.message.id, []);
 
   return (
-    <div className="px-4 md:px-8 py-4 max-w-3xl mx-auto w-full">
+    <div className="px-4 md:px-6 py-3 max-w-3xl mx-auto w-full">
       <PerfProfiler id="chat-message-list">
         <Virtuoso
           customScrollParent={scrollParent ?? undefined}
