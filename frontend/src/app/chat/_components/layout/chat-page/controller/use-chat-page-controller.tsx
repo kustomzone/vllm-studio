@@ -38,7 +38,7 @@ export function useChatPageController(): ChatPageViewProps {
   const [streamError, setStreamError] = useState<string | null>(null);
   const [streamStalled, setStreamStalled] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("activity");
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("computer");
   const activeRunIdRef = useRef<string | null>(null);
   const runAbortControllerRef = useRef<AbortController | null>(null);
   const runCompletedRef = useRef(false);
@@ -111,7 +111,20 @@ export function useChatPageController(): ChatPageViewProps {
 
   // Derived state from messages
   const activityPanelVisible = sidebarOpen && sidebarTab === "activity";
-  const contextPanelVisible = sidebarOpen && sidebarTab === "context";
+  const contextPanelVisible = sidebarOpen && sidebarTab === "workspace";
+
+  const currentToolCall = Hooks.useCurrentToolCall({
+    messages,
+    isLoading,
+    executingTools: tools.executingTools,
+    toolResultsMap: tools.toolResultsMap,
+  });
+
+  const runToolCalls = Hooks.useRunToolCalls({
+    messages,
+    executingTools: tools.executingTools,
+    toolResultsMap: tools.toolResultsMap,
+  });
 
   const { thinkingActive, thinkingState, activityGroups } = Hooks.useChatDerived({
     messages,
@@ -261,6 +274,8 @@ export function useChatPageController(): ChatPageViewProps {
     lastEventTimeRef,
     sessionIdRef,
     activityPanelVisible,
+    currentToolCall,
+    runToolCalls,
     thinkingActive,
     activityGroups,
     activityCount,

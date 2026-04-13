@@ -115,6 +115,8 @@ export function useChatPageControllerTail({
   setIsLoading,
   setStreamStalled,
   setUsageOpen,
+  currentToolCall,
+  runToolCalls,
   clearPlan,
   lastUserInputRef,
   generateTitle,
@@ -408,6 +410,8 @@ export function useChatPageControllerTail({
     sidebarWidth: store.sidebarWidth,
     setSidebarWidth: store.setSidebarWidth,
 
+    currentToolCall,
+    runToolCalls,
     activityGroups,
     activityCount,
     agentPlan: store.agentPlan,

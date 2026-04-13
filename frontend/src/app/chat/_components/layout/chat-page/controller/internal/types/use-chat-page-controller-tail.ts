@@ -51,6 +51,8 @@ export interface UseChatPageControllerTailArgs {
   sessionIdRef: SessionIdRef;
 
   activityPanelVisible: boolean;
+  currentToolCall: ChatPageViewProps["currentToolCall"];
+  runToolCalls: ChatPageViewProps["runToolCalls"];
   thinkingActive: boolean;
   activityGroups: ChatPageViewProps["activityGroups"];
   activityCount: number;

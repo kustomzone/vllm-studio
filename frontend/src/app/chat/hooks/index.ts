@@ -15,4 +15,5 @@ export { useChatScroll } from "./chat/use-chat-scroll";
 export { useChatToolResults } from "./chat/use-chat-tool-results";
 export { useChatTools } from "./chat/use-chat-tools";
 export { useChatUsage } from "./chat/use-chat-usage";
+export { useCurrentToolCall, useRunToolCalls } from "./chat/use-current-tool-call";
 export { useRafThrottle } from "./ui/use-raf-throttle";

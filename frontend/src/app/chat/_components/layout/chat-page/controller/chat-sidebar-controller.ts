@@ -100,24 +100,24 @@ export function useChatSidebarController({
 
     hadActivityRef.current = true;
     setSidebarOpen(true);
-    setSidebarTab("activity");
+    setSidebarTab("computer");
     autoOpenedActivityRef.current = true;
   }, [currentSessionId, hasActivity, sessionFromUrl, sidebarOpen, setSidebarOpen, setSidebarTab]);
 
   const openActivityPanel = useCallback(() => {
     setSidebarOpen(true);
-    setSidebarTab("activity");
+    setSidebarTab("computer");
   }, [setSidebarOpen, setSidebarTab]);
 
   const openContextPanel = useCallback(() => {
     setSidebarOpen(true);
-    setSidebarTab("context");
+    setSidebarTab("workspace");
   }, [setSidebarOpen, setSidebarTab]);
 
   const handleOpenAgentFile = useCallback(
     (path: string) => {
       setSidebarOpen(true);
-      setSidebarTab("files");
+      setSidebarTab("workspace");
       selectAgentFile(path, sessionFromUrl || currentSessionId);
     },
     [currentSessionId, selectAgentFile, sessionFromUrl, setSidebarOpen, setSidebarTab],
