@@ -7,16 +7,12 @@ import { ChatSidebar } from "./chat-sidebar";
 import { ChatConversation } from "./chat-conversation";
 import { ChatWelcome } from "./chat-welcome";
 import { ComputerView } from "./computer/computer-view";
-import { FilesPanel } from "./files-panel";
 import { ChatSettingsModal } from "./modals/chat-settings-modal";
-
-type RightPanel = "computer" | "files";
 
 export function ChatLayout() {
   const ctrl = useChatController();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [rightPanel, setRightPanel] = useState<RightPanel>("computer");
 
   const toggleSidebar = useCallback(() => setSidebarOpen((p) => !p), []);
 
@@ -34,7 +30,7 @@ export function ChatLayout() {
         />
       )}
 
-      {/* Main chat pane — ACTIVITY */}
+      {/* Main chat pane */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
         {/* Top bar */}
         <div className="h-12 px-4 flex items-center justify-between border-b border-(--border)/20 shrink-0 bg-(--bg)">
@@ -67,30 +63,14 @@ export function ChatLayout() {
         )}
       </div>
 
-      {/* Right pane — toggleable Computer / Files */}
-      <div className="hidden md:flex w-[380px] shrink-0 flex-col min-h-0 bg-(--bg) border-l border-(--border)/20">
-        {/* Panel tabs */}
-        <div className="h-10 px-2 flex items-center gap-1 border-b border-(--border)/20 shrink-0">
-          <PanelTab active={rightPanel === "computer"} onClick={() => setRightPanel("computer")}>
-            Computer
-          </PanelTab>
-          <PanelTab active={rightPanel === "files"} onClick={() => setRightPanel("files")}>
-            Files
-          </PanelTab>
-        </div>
-
-        {/* Panel content — stable container, no layout shift */}
-        <div className="flex-1 min-h-0 overflow-hidden">
-          {rightPanel === "computer" ? (
-            <ComputerView
-              currentToolCall={ctrl.currentToolCall}
-              runToolCalls={ctrl.runToolCalls}
-              isLoading={ctrl.isLoading}
-            />
-          ) : (
-            <FilesPanel sessionId={ctrl.currentSessionId} />
-          )}
-        </div>
+      {/* Right pane — Computer (browser + preview + files) */}
+      <div className="hidden md:flex w-[420px] shrink-0 flex-col min-h-0 bg-(--bg) border-l border-(--border)/20">
+        <ComputerView
+          currentToolCall={ctrl.currentToolCall}
+          runToolCalls={ctrl.runToolCalls}
+          isLoading={ctrl.isLoading}
+          sessionId={ctrl.currentSessionId}
+        />
       </div>
 
       {/* Settings modal */}
@@ -109,18 +89,5 @@ export function ChatLayout() {
         onDeepResearchChange={ctrl.setDeepResearch}
       />
     </div>
-  );
-}
-
-function PanelTab({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-        active ? "bg-(--surface) text-(--fg)" : "text-(--dim) hover:text-(--fg)"
-      }`}
-    >
-      {children}
-    </button>
   );
 }
