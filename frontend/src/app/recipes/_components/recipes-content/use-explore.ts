@@ -49,7 +49,7 @@ export function useExplore() {
         const params = new URLSearchParams();
         if (search) params.set("search", search);
         params.set("filter", "text-generation");
-        params.set("sort", "downloads");
+        params.set("sort", "modified");
         params.set("limit", String(PAGE_SIZE));
         params.set("full", "false");
         params.set("offset", String(append ? page * PAGE_SIZE : 0));
@@ -115,8 +115,10 @@ export function useExplore() {
       }
     }
 
-    // Add HuggingFace search results
+    // Add HuggingFace search results (only last 3 months)
+    const threeMonthsAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
     for (const model of models) {
+      if (model.lastModified && new Date(model.lastModified).getTime() < threeMonthsAgo) continue;
       const key = normalizeModelId(model.modelId) || model.modelId.toLowerCase();
       const existing = groups.get(key);
       if (existing) {
@@ -144,7 +146,7 @@ export function useExplore() {
     });
   }, [models, recommendations, maxVramGb]);
 
-  // Sort groups: recommendations first (by min_vram_gb ascending), then by total downloads
+  // Sort groups: recommendations first (by min_vram_gb ascending), then by recency × popularity
   const sortedGroups = useMemo(() => {
     const recIds = new Set(recommendations.map((r) => normalizeModelId(r.id) || r.id.toLowerCase()));
     return [...groupedModels].sort((a, b) => {
@@ -152,6 +154,7 @@ export function useExplore() {
       const bIsRec = recIds.has(b.key);
       if (aIsRec && !bIsRec) return -1;
       if (!aIsRec && bIsRec) return 1;
+      // For non-recommendations: sort by downloads (most popular first)
       return b.totalDownloads - a.totalDownloads;
     });
   }, [groupedModels, recommendations]);

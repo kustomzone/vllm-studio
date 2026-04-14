@@ -228,7 +228,7 @@ export function ExploreTab() {
         </div>
         {maxVramGb > 0 && (
           <span className="text-xs px-2.5 py-1.5 rounded-md bg-(--surface) border border-(--border) text-(--dim)">
-            {Math.round(maxVramGb)} GB VRAM
+            {Math.round(maxVramGb)} GB pooled VRAM
           </span>
         )}
         <button onClick={refresh} className="p-2 hover:bg-(--surface) rounded-lg text-(--dim) hover:text-(--fg)" title="Refresh">
