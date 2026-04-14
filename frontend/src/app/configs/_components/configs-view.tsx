@@ -14,6 +14,7 @@ import { NoBackendState } from "./no-backend-state";
 import { ServiceTopology } from "./service-topology";
 import { AppearanceSettings } from "./appearance-settings";
 import { ProvidersSection } from "./providers-section";
+import { EnginesSection } from "./engines-section";
 
 interface ConfigsViewProps {
   data: ConfigData | null;
@@ -98,6 +99,12 @@ export function ConfigsView({
           {activeTab === "providers" && (
             <section>
               <ProvidersSection />
+            </section>
+          )}
+
+          {activeTab === "engines" && (
+            <section>
+              <EnginesSection />
             </section>
           )}
 

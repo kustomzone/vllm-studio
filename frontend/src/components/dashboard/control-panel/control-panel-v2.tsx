@@ -41,9 +41,6 @@ export function ControlPanel(props: DashboardLayoutProps) {
         onNewRecipe={props.onNewRecipe}
         onViewAll={props.onViewAll}
         currentRecipeId={currentRecipe?.id}
-        runtimeSummary={props.runtimeSummary}
-        services={props.services}
-        lease={props.lease}
       />
 
       {/* Logs */}

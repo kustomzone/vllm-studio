@@ -10,7 +10,7 @@ interface LogSectionProps {
 export function LogSection({ logs }: LogSectionProps) {
   return (
     <SectionCard label="Logs" icon="file-text">
-      <div className="bg-(--bg) rounded-lg h-72 overflow-auto border border-(--border)/15">
+      <div className="bg-(--bg) rounded-lg h-72 overflow-auto">
         {logs.length > 0 ? (
           <div className="p-4 font-mono text-[11px] leading-relaxed space-y-0">
             {logs.map((line, i) => {
@@ -25,17 +25,17 @@ export function LogSection({ logs }: LogSectionProps) {
               return (
                 <div key={i} className="flex gap-3 min-w-0">
                   {ts && (
-                    <span className="text-(--dim)/20 shrink-0 w-28 truncate">{ts}</span>
+                    <span className="text-(--dim)/60 shrink-0 w-28 truncate">{ts}</span>
                   )}
                   <span
                     className={`break-all ${
                       isError
-                        ? "text-(--err)/80"
+                        ? "text-(--err)"
                         : isWarning
-                          ? "text-(--hl3)/70"
+                          ? "text-(--hl3)"
                           : isInfo
-                            ? "text-(--fg)/50"
-                            : "text-(--dim)/40"
+                            ? "text-(--fg)/70"
+                            : "text-(--dim)"
                     }`}
                   >
                     {msg}
@@ -46,7 +46,7 @@ export function LogSection({ logs }: LogSectionProps) {
           </div>
         ) : (
           <div className="h-full flex items-center justify-center">
-            <span className="text-xs text-(--dim)/20">No output</span>
+            <span className="text-xs text-(--dim)">No output</span>
           </div>
         )}
       </div>

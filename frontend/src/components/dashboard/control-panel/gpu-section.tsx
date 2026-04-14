@@ -30,43 +30,88 @@ export function GpuSection({ metrics, gpus }: GpuSectionProps) {
 
   return (
     <SectionCard label="GPU" icon="cpu">
-      {/* Summary row */}
-      <div className="flex flex-wrap gap-4 mb-5">
-        <SummaryStat label="Units" value={`${gpus.length}`} />
-        <SummaryStat label="Avg Util" value={`${totalUtil.toFixed(0)}%`} />
-        <SummaryStat label="VRAM" value={`${totalMemUsed.toFixed(1)} / ${totalMemMax.toFixed(0)} GB`} />
-        <SummaryStat label="Power" value={`${Math.round(totalPower)}W`} />
-        {genTps > 0 && <SummaryStat label="Gen" value={`${genTps.toFixed(1)} tok/s`} highlight />}
-        {prefillTps > 0 && <SummaryStat label="Prefill" value={`${prefillTps.toFixed(1)} tok/s`} />}
-        {kvCache > 0 && <SummaryStat label="KV Cache" value={`${kvCache}%`} />}
+      {/* Charts row: utilization bars + memory donut */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        {/* Utilization bars */}
+        <div className="lg:col-span-2">
+          <div className="text-[11px] uppercase tracking-[0.1em] font-medium text-(--dim) mb-3">Utilization</div>
+          <div className="space-y-2">
+            {gpus.map((gpu) => {
+              const util = gpu.utilization_pct ?? gpu.utilization ?? 0;
+              return (
+                <div key={gpu.id ?? gpu.index} className="flex items-center gap-3">
+                  <span className="text-xs font-mono text-(--fg) w-32 truncate" title={gpu.name}>
+                    {gpu.name}
+                  </span>
+                  <div className="flex-1 h-5 bg-(--bg) rounded overflow-hidden">
+                    <div
+                      className={`h-full rounded transition-all duration-500 ${utilColor(util)}`}
+                      style={{ width: `${Math.max(util, 1)}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-mono tabular-nums text-(--fg) w-10 text-right">{util}%</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Memory donut */}
+        <div className="flex flex-col items-center justify-center">
+          <svg viewBox="0 0 120 120" className="w-32 h-32">
+            {/* Background ring */}
+            <circle cx="60" cy="60" r="48" fill="none" stroke="var(--bg)" strokeWidth="10" />
+            {/* Used arc */}
+            <circle
+              cx="60" cy="60" r="48" fill="none"
+              stroke="var(--hl2)" strokeWidth="10"
+              strokeDasharray={`${memPct * 3.01} ${301 - memPct * 3.01}`}
+              strokeDashoffset="75.3"
+              strokeLinecap="round"
+              className="transition-all duration-700"
+            />
+            {/* Center text */}
+            <text x="60" y="54" textAnchor="middle" className="fill-(--fg) text-lg font-mono" fontSize="18">
+              {memPct.toFixed(0)}%
+            </text>
+            <text x="60" y="72" textAnchor="middle" className="fill-(--dim) text-[10px]" fontSize="10">
+              VRAM
+            </text>
+          </svg>
+          <span className="text-xs font-mono text-(--dim) mt-1">
+            {totalMemUsed.toFixed(1)} / {totalMemMax.toFixed(0)} GB
+          </span>
+        </div>
       </div>
 
-      {/* Memory bar */}
-      {memPct > 0 && (
+      {/* Throughput sparkline area */}
+      {(genTps > 0 || prefillTps > 0) && (
         <div className="mb-5">
-          <div className="flex justify-between text-[10px] text-(--dim)/50 mb-1">
-            <span>Memory</span>
-            <span>{memPct.toFixed(0)}%</span>
-          </div>
-          <div className="h-1.5 bg-(--border)/20 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-(--hl2) rounded-full transition-all duration-700"
-              style={{ width: `${memPct}%` }}
-            />
+          <div className="text-[11px] uppercase tracking-[0.1em] font-medium text-(--dim) mb-3">Throughput</div>
+          <div className="flex flex-wrap gap-4">
+            {genTps > 0 && (
+              <MetricGauge label="Generation" value={genTps} unit="tok/s" peak={firstPositive(metrics?.session_peak_generation, metrics?.peak_generation_tps)} highlight />
+            )}
+            {prefillTps > 0 && (
+              <MetricGauge label="Prefill" value={prefillTps} unit="tok/s" peak={firstPositive(metrics?.session_peak_prefill, metrics?.peak_prefill_tps)} />
+            )}
+            {kvCache > 0 && (
+              <MetricGauge label="KV Cache" value={kvCache} unit="%" peak={100} />
+            )}
           </div>
         </div>
       )}
 
-      {/* GPU table */}
+      {/* GPU detail table */}
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-(--border)/20">
-              <th className="text-left py-2 pr-3 text-[10px] uppercase tracking-wider text-(--dim)/40 font-medium">Unit</th>
-              <th className="text-left py-2 pr-3 text-[10px] uppercase tracking-wider text-(--dim)/40 font-medium">Util</th>
-              <th className="text-left py-2 pr-3 text-[10px] uppercase tracking-wider text-(--dim)/40 font-medium">VRAM</th>
-              <th className="text-left py-2 pr-3 text-[10px] uppercase tracking-wider text-(--dim)/40 font-medium">Temp</th>
-              <th className="text-right py-2 text-[10px] uppercase tracking-wider text-(--dim)/40 font-medium">Power</th>
+            <tr>
+              <th className="text-left py-2 pr-3 text-[10px] uppercase tracking-wider text-(--dim) font-medium">GPU</th>
+              <th className="text-left py-2 pr-3 text-[10px] uppercase tracking-wider text-(--dim) font-medium">Util</th>
+              <th className="text-left py-2 pr-3 text-[10px] uppercase tracking-wider text-(--dim) font-medium">VRAM</th>
+              <th className="text-left py-2 pr-3 text-[10px] uppercase tracking-wider text-(--dim) font-medium">Temp</th>
+              <th className="text-right py-2 text-[10px] uppercase tracking-wider text-(--dim) font-medium">Power</th>
             </tr>
           </thead>
           <tbody>
@@ -83,38 +128,58 @@ export function GpuSection({ metrics, gpus }: GpuSectionProps) {
 function GpuRow({ gpu }: { gpu: GPU }) {
   const memUsed = gpu.memory_used_mb != null ? toGBFromMB(gpu.memory_used_mb) : toGB(gpu.memory_used);
   const memTotal = gpu.memory_total_mb != null ? toGBFromMB(gpu.memory_total_mb) : toGB(gpu.memory_total);
-  const memPct = memTotal > 0 ? Math.min((memUsed / memTotal) * 100, 100) : 0;
   const temp = gpu.temp_c ?? gpu.temperature ?? 0;
   const util = gpu.utilization_pct ?? gpu.utilization ?? 0;
   const power = gpu.power_draw || 0;
-
-  const tempColor = temp > 80 ? "text-(--err)" : temp > 65 ? "text-(--hl3)" : "text-(--dim)/50";
+  const tempColor = temp > 80 ? "text-(--err)" : temp > 65 ? "text-(--hl3)" : "text-(--dim)";
 
   return (
-    <tr className="border-b border-(--border)/10 last:border-0">
-      <td className="py-2 pr-3 font-mono text-(--dim)/60">#{gpu.id ?? gpu.index}</td>
-      <td className="py-2 pr-3">
-        <div className="flex items-center gap-2">
-          <div className="w-16 h-1 bg-(--border)/15 rounded-full overflow-hidden">
-            <div className="h-full bg-(--fg)/30 rounded-full transition-all" style={{ width: `${util}%` }} />
-          </div>
-          <span className="font-mono text-(--dim)/50 tabular-nums">{util}%</span>
-        </div>
+    <tr>
+      <td className="py-2 pr-3 font-mono text-(--fg)" title={gpu.name}>
+        {gpu.name.length > 24 ? `…${gpu.name.slice(-22)}` : gpu.name}
       </td>
-      <td className="py-2 pr-3 font-mono text-(--dim)/50 tabular-nums">{memUsed.toFixed(1)}/{memTotal.toFixed(0)}G</td>
+      <td className="py-2 pr-3 font-mono text-(--fg) tabular-nums">{util}%</td>
+      <td className="py-2 pr-3 font-mono text-(--dim) tabular-nums">{memUsed.toFixed(1)}/{memTotal.toFixed(0)}G</td>
       <td className={`py-2 pr-3 font-mono tabular-nums ${tempColor}`}>{temp > 0 ? `${temp}°` : "—"}</td>
-      <td className="py-2 text-right font-mono text-(--dim)/40 tabular-nums">{power > 0 ? `${Math.round(power)}W` : "—"}</td>
+      <td className="py-2 text-right font-mono text-(--dim) tabular-nums">{power > 0 ? `${Math.round(power)}W` : "—"}</td>
     </tr>
   );
 }
 
-function SummaryStat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+function MetricGauge({ label, value, unit, peak, highlight }: {
+  label: string; value: number; unit: string; peak?: number; highlight?: boolean;
+}) {
+  const pct = peak && peak > 0 ? Math.min((value / peak) * 100, 100) : 0;
   return (
-    <div className="flex items-baseline gap-1.5">
-      <span className="text-[10px] text-(--dim)/40">{label}</span>
-      <span className={`text-sm font-mono tabular-nums ${highlight ? "text-(--hl2)" : "text-(--fg)"}`}>{value}</span>
+    <div className="flex-1 min-w-[140px]">
+      <div className="flex items-baseline justify-between mb-1">
+        <span className="text-[10px] text-(--dim)">{label}</span>
+        <span className="text-xs font-mono tabular-nums text-(--dim)">{peak ? `peak ${peak.toFixed(1)}` : ""}</span>
+      </div>
+      <div className="flex items-baseline gap-1.5 mb-2">
+        <span className={`text-xl font-mono tabular-nums ${highlight ? "text-(--hl2)" : "text-(--fg)"}`}>
+          {value.toFixed(1)}
+        </span>
+        <span className="text-[10px] text-(--dim)">{unit}</span>
+      </div>
+      {/* Progress bar toward peak */}
+      {peak && peak > 0 && (
+        <div className="h-1 bg-(--bg) rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${highlight ? "bg-(--hl2)" : "bg-(--fg)/40"}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
     </div>
   );
+}
+
+function utilColor(pct: number): string {
+  if (pct >= 90) return "bg-(--err)";
+  if (pct >= 70) return "bg-(--hl3)";
+  if (pct >= 40) return "bg-(--hl2)";
+  return "bg-(--hl1)/60";
 }
 
 function firstPositive(...values: Array<number | null | undefined>): number {

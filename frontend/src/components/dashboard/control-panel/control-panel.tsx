@@ -13,8 +13,8 @@ export function ControlPanel(props: DashboardLayoutProps) {
   const { currentProcess, currentRecipe, metrics, gpus, recipes, logs } = props;
 
   return (
-    <div className="space-y-8">
-      {/* Status Line - Clean header */}
+    <div className="space-y-10">
+      {/* Status header */}
       <StatusLine
         currentProcess={currentProcess}
         currentRecipe={currentRecipe}
@@ -30,20 +30,16 @@ export function ControlPanel(props: DashboardLayoutProps) {
         onStop={props.onStop}
       />
 
-      {/* Metric Bar - Horizontal strip */}
+      {/* Geometric metric strip — only when a model is running */}
       {currentProcess && (
         <MetricBar metrics={metrics} gpus={gpus} currentProcess={currentProcess} logs={logs} />
       )}
 
-      {/* Two Column Layout */}
-      <div className="grid lg:grid-cols-2 gap-8 min-w-0 items-start">
-        {/* Left - GPU List */}
-        <div className="min-w-0 flex flex-col">
-          <GpuList gpus={gpus} />
-        </div>
+      {/* Two-column layout */}
+      <div className="grid lg:grid-cols-2 gap-12 min-w-0 items-start">
+        <GpuList gpus={gpus} />
 
-        {/* Right - Recipes + Runtimes */}
-        <div className="min-w-0 flex flex-col gap-8 overflow-hidden">
+        <div className="flex flex-col gap-10 min-w-0">
           <RecipeList
             recipes={recipes}
             launching={props.launching}
@@ -60,7 +56,7 @@ export function ControlPanel(props: DashboardLayoutProps) {
         </div>
       </div>
 
-      {/* Bottom - Logs */}
+      {/* Logs */}
       <LogStream logs={logs} />
     </div>
   );

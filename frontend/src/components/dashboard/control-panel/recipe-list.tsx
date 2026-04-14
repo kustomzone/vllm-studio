@@ -25,36 +25,39 @@ export function RecipeList({
 
   const visibleRecipes = useMemo(() => {
     const q = filter.toLowerCase();
-    if (!q) return recipes.slice(0, 8);
-    return recipes.filter(r => 
-      r.name.toLowerCase().includes(q) ||
-      r.id.toLowerCase().includes(q)
-    ).slice(0, 8);
+    if (!q) return recipes.slice(0, 10);
+    return recipes
+      .filter((r) => r.name.toLowerCase().includes(q) || r.id.toLowerCase().includes(q))
+      .slice(0, 10);
   }, [recipes, filter]);
 
   return (
-    <div className="min-w-0 overflow-x-hidden flex flex-col flex-1">
-      <div className="flex items-center justify-between mb-4">
-        <div className="text-xs uppercase tracking-widest text-foreground/40">Recipes</div>
-        <button 
+    <div>
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-[10px] uppercase tracking-[0.16em] text-(--dim)/50 font-mono">Recipes</span>
+        <div className="flex-1 h-px bg-(--border)/20" />
+        <button
           onClick={onNewRecipe}
-          className="text-xs text-foreground/30 hover:text-foreground/60 transition-colors"
+          className="text-[10px] font-mono text-(--dim)/40 hover:text-(--fg)/60 transition-colors"
         >
-          [+ new]
+          + new
         </button>
       </div>
 
       {/* Filter */}
-      <input
-        type="text"
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-        placeholder="filter..."
-        className="w-full mb-3 px-2 py-1 bg-transparent border border-foreground/10 text-sm placeholder:text-foreground/20 focus:outline-none focus:border-foreground/30"
-      />
+      <div className="relative mb-3">
+        <input
+          type="text"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="filter recipes..."
+          className="w-full py-1.5 pr-3 pl-3 bg-(--fg)/[0.03] border-0 border-b border-(--border)/20 text-[11px] font-mono placeholder:text-(--dim)/25 text-(--fg)/70 focus:outline-none focus:border-(--border)/40 transition-colors"
+        />
+      </div>
 
       {/* List */}
-      <div className="border border-foreground/10 flex-1 overflow-y-auto">
+      <div>
         {visibleRecipes.map((recipe) => (
           <RecipeItem
             key={recipe.id}
@@ -65,14 +68,18 @@ export function RecipeList({
             onClick={() => onLaunch(recipe.id)}
           />
         ))}
+
+        {visibleRecipes.length === 0 && (
+          <p className="text-[11px] text-(--dim)/30 font-mono py-3">no matches</p>
+        )}
       </div>
 
-      {recipes.length > 8 && !filter && (
+      {recipes.length > 10 && !filter && (
         <button
           onClick={onViewAll}
-          className="w-full mt-2 text-xs text-foreground/30 hover:text-foreground/50 transition-colors text-left"
+          className="mt-2 text-[10px] font-mono text-(--dim)/30 hover:text-(--dim)/50 transition-colors"
         >
-          view all {recipes.length} -
+          {recipes.length - 10} more →
         </button>
       )}
     </div>
@@ -84,7 +91,7 @@ function RecipeItem({
   isRunning,
   isCurrent,
   disabled,
-  onClick
+  onClick,
 }: {
   recipe: RecipeWithStatus;
   isRunning: boolean;
@@ -96,21 +103,37 @@ function RecipeItem({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`w-full text-left px-3 py-2 border-b border-foreground/5 last:border-0 transition-colors overflow-hidden ${
-        isCurrent
-          ? "bg-(--hl2)/10 text-(--hl2)"
-          : "hover:bg-foreground/[0.02]"
-      } ${disabled && !isRunning ? "opacity-30 cursor-not-allowed" : ""}`}
+      className={`w-full text-left py-2 pr-2 flex items-center gap-3 border-t border-(--border)/[0.07] first:border-t-0 transition-colors group ${
+        disabled && !isRunning ? "opacity-30 cursor-not-allowed" : "cursor-pointer"
+      }`}
     >
-      <div className="flex items-center justify-between min-w-0 gap-2">
-        <span className="text-sm truncate flex-1 min-w-0">{recipe.name}</span>
-        <span className="text-xs text-foreground/30 font-mono shrink-0">
+      {/* Left accent line */}
+      <div
+        className={`w-0.5 h-4 shrink-0 transition-colors ${
+          isCurrent
+            ? "bg-(--hl2)"
+            : isRunning
+              ? "bg-(--hl2)/40"
+              : "bg-(--border)/20 group-hover:bg-(--border)/50"
+        }`}
+      />
+
+      <span
+        className={`text-[11px] font-mono truncate flex-1 ${
+          isCurrent ? "text-(--hl2)" : "text-(--fg)/60 group-hover:text-(--fg)/80"
+        } transition-colors`}
+      >
+        {recipe.name}
+      </span>
+
+      <div className="flex items-center gap-2 shrink-0">
+        {isRunning && (
+          <span className="h-1.5 w-1.5 rounded-full bg-(--hl2) animate-pulse" />
+        )}
+        <span className="text-[9px] font-mono text-(--dim)/30">
           tp{recipe.tp || recipe.tensor_parallel_size}
         </span>
       </div>
-      {isRunning && (
-        <div className="text-[10px] text-(--hl2)/60 mt-0.5">running</div>
-      )}
     </button>
   );
 }

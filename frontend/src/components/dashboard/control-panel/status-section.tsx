@@ -56,20 +56,20 @@ export function StatusSection({
         <div>
           <div className="flex items-center gap-2 mb-2">
             <StatusDot running={isRunning} />
-            <span className="text-xs text-(--dim)/60">
+            <span className="text-xs text-(--dim)">
               {isRunning ? "Active" : "Standby"}
             </span>
             {!isConnected && (
               <Badge variant="error">offline</Badge>
             )}
-            {backend && <Badge variant="default">{backend}</Badge>}
-            {platformKind && <Badge variant="default">{platformKind}</Badge>}
+            {backend && <Badge>{backend}</Badge>}
+            {platformKind && <Badge>{platformKind}</Badge>}
           </div>
           <h2 className="text-xl font-semibold text-(--fg) leading-tight">
             {modelName || "No Model Loaded"}
           </h2>
           {inferencePort && (
-            <span className="text-xs font-mono text-(--dim)/40 mt-1 block">:{inferencePort}</span>
+            <span className="text-xs font-mono text-(--dim) mt-1 block">:{inferencePort}</span>
           )}
         </div>
 
@@ -90,7 +90,7 @@ export function StatusSection({
 
       {/* Stat pills */}
       {isRunning && (
-        <div className="flex flex-wrap gap-3 mt-5 pt-5 border-t border-(--border)/30">
+        <div className="flex flex-wrap gap-3 mt-5 pt-5 border-t border-(--border)/40">
           {genTps > 0 && <StatPill label="Generation" value={`${genTps.toFixed(1)}`} unit="tok/s" highlight />}
           {prefillTps > 0 && <StatPill label="Prefill" value={`${prefillTps.toFixed(1)}`} unit="tok/s" />}
           {sessionInput > 0 && <StatPill label="Prompt" value={fmt(sessionInput)} unit="tokens" />}
@@ -116,11 +116,11 @@ export function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-(--border)/40 bg-(--surface)/30 overflow-hidden">
-      {/* Section header */}
-      <div className="px-5 py-3 border-b border-(--border)/20 flex items-center gap-2 bg-(--surface)/50">
-        {icon && <span className="text-sm text-(--dim)/50">{icon}</span>}
-        <span className="text-[11px] uppercase tracking-[0.14em] font-medium text-(--dim)/50">
+    <div className="rounded-xl bg-(--surface) overflow-hidden">
+      {/* Section header — no inner border */}
+      <div className="px-5 py-3 flex items-center gap-2">
+        {icon && <span className="text-sm text-(--dim)">{icon}</span>}
+        <span className="text-[11px] uppercase tracking-[0.14em] font-medium text-(--dim)">
           {label}
         </span>
       </div>
@@ -132,17 +132,16 @@ export function SectionCard({
 
 function StatusDot({ running }: { running: boolean }) {
   return (
-    <span className={`h-2 w-2 rounded-full ${running ? "bg-(--hl2) animate-pulse" : "bg-(--dim)/25"}`} />
+    <span className={`h-2 w-2 rounded-full ${running ? "bg-(--hl2) animate-pulse" : "bg-(--dim)/60"}`} />
   );
 }
 
-function Badge({ variant, children }: { variant: "default" | "error"; children: React.ReactNode }) {
-  const cls =
-    variant === "error"
-      ? "bg-(--err)/10 text-(--err) border-(--err)/20"
-      : "bg-(--dim)/8 text-(--dim)/60 border-(--border)/30";
+function Badge({ variant, children }: { variant?: "error"; children: React.ReactNode }) {
+  const cls = variant === "error"
+    ? "bg-(--err)/15 text-(--err)"
+    : "bg-(--fg)/8 text-(--dim)";
   return (
-    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${cls}`}>
+    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${cls}`}>
       {children}
     </span>
   );
@@ -163,10 +162,10 @@ function ActionBtn({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
+      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
         danger
-          ? "border-(--err)/30 text-(--err) hover:bg-(--err)/10"
-          : "border-(--border)/40 text-(--dim)/70 hover:bg-(--surface) hover:text-(--fg)"
+          ? "text-(--err) hover:bg-(--err)/10"
+          : "text-(--dim) hover:bg-(--fg)/5 hover:text-(--fg)"
       }`}
     >
       {label}
@@ -186,12 +185,12 @@ function StatPill({
   highlight?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-(--bg) border border-(--border)/20">
-      <span className="text-[10px] text-(--dim)/50">{label}</span>
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-(--bg)">
+      <span className="text-[10px] text-(--dim)">{label}</span>
       <span className={`text-sm font-mono tabular-nums ${highlight ? "text-(--hl2)" : "text-(--fg)"}`}>
         {value}
       </span>
-      <span className="text-[10px] text-(--dim)/40">{unit}</span>
+      <span className="text-[10px] text-(--dim)">{unit}</span>
     </div>
   );
 }
