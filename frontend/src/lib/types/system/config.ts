@@ -24,8 +24,9 @@ export interface SystemConfig {
 export interface EnvironmentInfo {
   controller_url: string;
   inference_url: string;
-  litellm_url: string;
   frontend_url: string;
+  /** @deprecated No longer served. */
+  litellm_url?: string;
 }
 
 export interface RuntimeBackendInfo {

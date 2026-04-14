@@ -38,7 +38,7 @@ export function useChatPageController(): ChatPageViewProps {
   const [streamError, setStreamError] = useState<string | null>(null);
   const [streamStalled, setStreamStalled] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("computer");
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("activity");
   const activeRunIdRef = useRef<string | null>(null);
   const runAbortControllerRef = useRef<AbortController | null>(null);
   const runCompletedRef = useRef(false);
@@ -208,8 +208,14 @@ export function useChatPageController(): ChatPageViewProps {
   });
 
   const { contextStats, contextUsageLabel, contextBreakdown, formatTokenCount } = context;
-  const { compactionHistory, compacting, compactionError, runManualCompaction, canManualCompact, resetCompaction } =
-    compaction;
+  const {
+    compactionHistory,
+    compacting,
+    compactionError,
+    runManualCompaction,
+    canManualCompact,
+    resetCompaction,
+  } = compaction;
 
   useChatPageLifecycle({
     store,

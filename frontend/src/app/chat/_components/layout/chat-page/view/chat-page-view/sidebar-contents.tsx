@@ -1,13 +1,10 @@
 // CRITICAL
 "use client";
 
-import type { ReactNode } from "react";
 import type { SidebarPanelContentMap } from "../../../sidebar/unified-sidebar/types";
 import { PerfProfiler } from "../../../../perf/perf-profiler";
 import { ActivityPanel, ContextPanel } from "../../../sidebar/chat-side-panel";
-import { BrowserPanel } from "../../../sidebar/chat-side-panel/browser-panel";
 import { ArtifactPreviewPanel } from "../../../../artifacts/artifact-preview-panel";
-import { AgentFilesPanel } from "../../../../agent/agent-files-panel";
 import { ComputerViewport } from "../../../../computer-viewport";
 import type { CurrentToolCall } from "@/app/chat/hooks/chat/use-current-tool-call";
 import type { AgentFileEntry, AgentFileVersion, Artifact } from "@/lib/types";
@@ -62,17 +59,6 @@ export function buildSidebarContents(props: SidebarContentsProps): SidebarPanelC
   const prefix = props.variant === "mobile" ? "mobile-" : "";
 
   return {
-    computer: (
-      <PerfProfiler id={`${prefix}computer-viewport`}>
-        <ComputerViewport
-          currentToolCall={props.currentToolCall}
-          runToolCalls={props.runToolCalls}
-          isLoading={props.isLoading}
-          runStatusLine={props.runStatusLine}
-        />
-      </PerfProfiler>
-    ),
-    browser: <BrowserPanel activityGroups={props.activityGroups} isLoading={props.isLoading} />,
     activity: (
       <div className="h-full flex flex-col">
         <PerfProfiler id={`${prefix}activity-panel`}>
@@ -84,6 +70,24 @@ export function buildSidebarContents(props: SidebarContentsProps): SidebarPanelC
           />
         </PerfProfiler>
       </div>
+    ),
+    computer: (
+      <PerfProfiler id={`${prefix}computer-viewport`}>
+        <ComputerViewport
+          currentToolCall={props.currentToolCall}
+          runToolCalls={props.runToolCalls}
+          isLoading={props.isLoading}
+          runStatusLine={props.runStatusLine}
+          activityGroups={props.activityGroups}
+          agentFiles={props.agentFiles}
+          agentFileVersions={props.agentFileVersions}
+          selectedFilePath={props.selectedAgentFilePath}
+          selectedFileContent={props.selectedAgentFileContent}
+          selectedFileLoading={props.selectedAgentFileLoading}
+          onSelectFile={props.onSelectAgentFile}
+          hasSession={props.hasSession}
+        />
+      </PerfProfiler>
     ),
     context: (
       <div className="p-4 overflow-y-auto h-full">
@@ -104,20 +108,6 @@ export function buildSidebarContents(props: SidebarContentsProps): SidebarPanelC
     artifacts: (
       <PerfProfiler id={`${prefix}artifact-preview-panel`}>
         <ArtifactPreviewPanel artifacts={props.sessionArtifacts} />
-      </PerfProfiler>
-    ),
-    files: (
-      <PerfProfiler id={`${prefix}agent-files-panel`}>
-        <AgentFilesPanel
-          files={props.agentFiles}
-          plan={props.agentPlan}
-          selectedFilePath={props.selectedAgentFilePath}
-          selectedFileContent={props.selectedAgentFileContent}
-          selectedFileLoading={props.selectedAgentFileLoading}
-          fileVersions={props.agentFileVersions}
-          onSelectFile={props.onSelectAgentFile}
-          hasSession={props.hasSession}
-        />
       </PerfProfiler>
     ),
   };

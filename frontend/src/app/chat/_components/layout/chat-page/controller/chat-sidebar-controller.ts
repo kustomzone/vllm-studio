@@ -100,7 +100,7 @@ export function useChatSidebarController({
 
     hadActivityRef.current = true;
     setSidebarOpen(true);
-    setSidebarTab("computer");
+    setSidebarTab("activity");
     autoOpenedActivityRef.current = true;
   }, [currentSessionId, hasActivity, sessionFromUrl, sidebarOpen, setSidebarOpen, setSidebarTab]);
 
@@ -117,7 +117,7 @@ export function useChatSidebarController({
   const handleOpenAgentFile = useCallback(
     (path: string) => {
       setSidebarOpen(true);
-      setSidebarTab("files");
+      setSidebarTab("computer");
       selectAgentFile(path, sessionFromUrl || currentSessionId);
     },
     [currentSessionId, selectAgentFile, sessionFromUrl, setSidebarOpen, setSidebarTab],
