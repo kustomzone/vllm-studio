@@ -64,10 +64,11 @@ export function GpuSection({ metrics, gpus }: GpuSectionProps) {
             {/* Used arc */}
             <circle
               cx="60" cy="60" r="48" fill="none"
-              stroke="var(--hl2)" strokeWidth="10"
+              stroke="var(--fg)" strokeWidth="10"
               strokeDasharray={`${memPct * 3.01} ${301 - memPct * 3.01}`}
               strokeDashoffset="75.3"
               strokeLinecap="round"
+              style={{ opacity: 0.5 }}
               className="transition-all duration-700"
             />
             {/* Center text */}
@@ -131,7 +132,7 @@ function GpuRow({ gpu }: { gpu: GPU }) {
   const temp = gpu.temp_c ?? gpu.temperature ?? 0;
   const util = gpu.utilization_pct ?? gpu.utilization ?? 0;
   const power = gpu.power_draw || 0;
-  const tempColor = temp > 80 ? "text-(--err)" : temp > 65 ? "text-(--hl3)" : "text-(--dim)";
+  const tempColor = temp > 80 ? "text-(--fg)" : temp > 65 ? "text-(--dim)" : "text-(--dim)";
 
   return (
     <tr>
@@ -157,7 +158,7 @@ function MetricGauge({ label, value, unit, peak, highlight }: {
         <span className="text-xs font-mono tabular-nums text-(--dim)">{peak ? `peak ${peak.toFixed(1)}` : ""}</span>
       </div>
       <div className="flex items-baseline gap-1.5 mb-2">
-        <span className={`text-xl font-mono tabular-nums ${highlight ? "text-(--hl2)" : "text-(--fg)"}`}>
+        <span className={`text-xl font-mono tabular-nums ${highlight ? "text-(--fg)" : "text-(--fg)"}`}>
           {value.toFixed(1)}
         </span>
         <span className="text-[10px] text-(--dim)">{unit}</span>
@@ -166,7 +167,7 @@ function MetricGauge({ label, value, unit, peak, highlight }: {
       {peak && peak > 0 && (
         <div className="h-1 bg-(--bg) rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all duration-500 ${highlight ? "bg-(--hl2)" : "bg-(--fg)/40"}`}
+            className={`h-full rounded-full transition-all duration-500 ${highlight ? "bg-(--fg)/50" : "bg-(--fg)/30"}`}
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -176,10 +177,10 @@ function MetricGauge({ label, value, unit, peak, highlight }: {
 }
 
 function utilColor(pct: number): string {
-  if (pct >= 90) return "bg-(--err)";
-  if (pct >= 70) return "bg-(--hl3)";
-  if (pct >= 40) return "bg-(--hl2)";
-  return "bg-(--hl1)/60";
+  if (pct >= 90) return "bg-(--fg)/80";
+  if (pct >= 70) return "bg-(--fg)/60";
+  if (pct >= 40) return "bg-(--fg)/40";
+  return "bg-(--fg)/20";
 }
 
 function firstPositive(...values: Array<number | null | undefined>): number {

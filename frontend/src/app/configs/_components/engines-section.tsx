@@ -21,7 +21,7 @@ export function EnginesSection() {
               return (
                 <div key={key} className="px-4 py-3 rounded-xl bg-(--surface)">
                   <div className="text-xs text-(--dim) mb-1">{key}</div>
-                  <div className={`text-sm font-mono ${b.installed ? "text-(--hl2)" : "text-(--dim)/50"}`}>
+                  <div className={`text-sm font-mono ${b.installed ? "text-(--fg)" : "text-(--dim)/50"}`}>
                     {b.installed ? (b.version ?? "installed") : "not installed"}
                   </div>
                 </div>
@@ -38,7 +38,7 @@ export function EnginesSection() {
         <div>
           <h3 className="text-[11px] uppercase tracking-[0.12em] font-medium text-(--dim) mb-3">GPU Monitoring</h3>
           <div className="px-4 py-3 rounded-xl bg-(--surface)">
-            <span className={`text-sm font-mono ${gpuMon.available ? "text-(--hl2)" : "text-(--err)"}`}>
+            <span className={`text-sm font-mono ${gpuMon.available ? "text-(--fg)" : "text-(--dim)/50"}`}>
               {gpuMon.available ? (gpuMon.tool ?? "available") : "unavailable"}
             </span>
           </div>
@@ -59,9 +59,9 @@ export function EnginesSection() {
                 <span
                   className={
                     svc.status === "running"
-                      ? "text-(--hl2)"
+                      ? "text-(--fg)"
                       : svc.status === "error"
-                        ? "text-(--err)"
+                        ? "text-(--fg)/70"
                         : "text-(--dim)"
                   }
                 >
@@ -78,7 +78,7 @@ export function EnginesSection() {
         <div>
           <h3 className="text-[11px] uppercase tracking-[0.12em] font-medium text-(--dim) mb-3">GPU Lease</h3>
           <div className="px-4 py-3 rounded-xl bg-(--surface)">
-            <span className="text-sm font-mono text-(--hl1)">{lease.holder}</span>
+            <span className="text-sm font-mono text-(--fg)">{lease.holder}</span>
           </div>
         </div>
       )}

@@ -30,9 +30,9 @@ export function LogSection({ logs }: LogSectionProps) {
                   <span
                     className={`break-all ${
                       isError
-                        ? "text-(--err)"
+                        ? "text-(--fg)"
                         : isWarning
-                          ? "text-(--hl3)"
+                          ? "text-(--fg)/70"
                           : isInfo
                             ? "text-(--fg)/70"
                             : "text-(--dim)"

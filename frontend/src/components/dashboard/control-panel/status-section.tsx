@@ -132,13 +132,13 @@ export function SectionCard({
 
 function StatusDot({ running }: { running: boolean }) {
   return (
-    <span className={`h-2 w-2 rounded-full ${running ? "bg-(--hl2)" : "bg-(--dim)/60"}`} />
+    <span className={`h-2 w-2 rounded-full ${running ? "bg-(--fg)" : "bg-(--dim)/60"}`} />
   );
 }
 
 function Badge({ variant, children }: { variant?: "error"; children: React.ReactNode }) {
   const cls = variant === "error"
-    ? "bg-(--err)/15 text-(--err)"
+    ? "bg-(--fg)/10 text-(--fg)"
     : "bg-(--fg)/8 text-(--dim)";
   return (
     <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${cls}`}>
@@ -164,7 +164,7 @@ function ActionBtn({
       disabled={disabled}
       className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
         danger
-          ? "text-(--err) hover:bg-(--err)/10"
+          ? "text-(--fg)/70 hover:bg-(--fg)/10"
           : "text-(--dim) hover:bg-(--fg)/5 hover:text-(--fg)"
       }`}
     >
@@ -187,7 +187,7 @@ function StatPill({
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-(--bg)">
       <span className="text-[10px] text-(--dim)">{label}</span>
-      <span className={`text-sm font-mono tabular-nums ${highlight ? "text-(--hl2)" : "text-(--fg)"}`}>
+      <span className={`text-sm font-mono tabular-nums ${highlight ? "text-(--fg)" : "text-(--fg)"}`}>
         {value}
       </span>
       <span className="text-[10px] text-(--dim)">{unit}</span>

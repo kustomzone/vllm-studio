@@ -41,11 +41,11 @@ export function ModelsSection({
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter models..."
-          className="flex-1 py-1.5 px-3 bg-(--bg) rounded-lg text-xs font-mono placeholder:text-(--dim)/60 text-(--fg) focus:outline-none focus:ring-1 focus:ring-(--hl1)/40 transition-colors"
+          className="flex-1 py-1.5 px-3 bg-(--bg) rounded-lg text-xs font-mono placeholder:text-(--dim)/60 text-(--fg) focus:outline-none focus:ring-1 focus:ring-(--fg)/20 transition-colors"
         />
         <button
           onClick={onNewRecipe}
-          className="text-[11px] font-mono text-(--dim) hover:text-(--hl2) transition-colors px-2"
+          className="text-[11px] font-mono text-(--dim) hover:text-(--fg) transition-colors px-2"
         >
           + new
         </button>
@@ -97,20 +97,20 @@ function ModelCard({
       disabled={disabled}
       className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors group ${
         isCurrent
-          ? "bg-(--hl2)/10"
+          ? "bg-(--fg)/8"
           : "hover:bg-(--fg)/5"
       } ${disabled && !isRunning ? "opacity-30 cursor-not-allowed" : "cursor-pointer"}`}
     >
       {/* Left accent */}
       <div
         className={`w-0.5 h-4 shrink-0 rounded-full ${
-          isCurrent ? "bg-(--hl2)" : isRunning ? "bg-(--hl2)/60" : "bg-(--dim)/40 group-hover:bg-(--fg)/40"
+          isCurrent ? "bg-(--fg)" : isRunning ? "bg-(--fg)/60" : "bg-(--dim)/40 group-hover:bg-(--fg)/40"
         }`}
       />
 
       <span
         className={`text-xs font-mono truncate flex-1 ${
-          isCurrent ? "text-(--hl2)" : "text-(--fg) group-hover:text-(--fg)"
+          isCurrent ? "text-(--fg)" : "text-(--fg) group-hover:text-(--fg)"
         } transition-colors`}
       >
         {recipe.name}
@@ -118,7 +118,7 @@ function ModelCard({
 
       {/* Right side metadata */}
       <div className="flex items-center gap-2 shrink-0">
-        {isRunning && <span className="h-1.5 w-1.5 rounded-full bg-(--hl2) animate-pulse" />}
+        {isRunning && <span className="h-1.5 w-1.5 rounded-full bg-(--fg) animate-pulse" />}
         <span className="text-[10px] font-mono text-(--dim)">
           tp{recipe.tp || recipe.tensor_parallel_size}
         </span>
