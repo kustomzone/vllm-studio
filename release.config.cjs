@@ -1,5 +1,6 @@
 /**
- * Monorepo: no root npm package to publish. GitHub releases + changelog only.
+ * Monorepo, protected `main`: no npm publish, no direct commits to main.
+ * Creates Git tag + GitHub Release only (release notes from commits).
  * @type {import("semantic-release").GlobalConfig}
  */
 module.exports = {
@@ -7,20 +8,6 @@ module.exports = {
   plugins: [
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
-    [
-      "@semantic-release/changelog",
-      {
-        changelogFile: "CHANGELOG.md",
-      },
-    ],
-    [
-      "@semantic-release/git",
-      {
-        assets: ["CHANGELOG.md"],
-        message:
-          "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}",
-      },
-    ],
     "@semantic-release/github",
   ],
 };

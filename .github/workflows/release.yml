@@ -26,7 +26,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # Root monorepo has no package.json; release.config.cjs disables @semantic-release/npm.
+      # release.config.cjs: GitHub Release + tags only (protected main, no root npm package).
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -35,7 +35,5 @@ jobs:
             -p semantic-release@24 \
             -p @semantic-release/commit-analyzer \
             -p @semantic-release/release-notes-generator \
-            -p @semantic-release/changelog \
-            -p @semantic-release/git \
             -p @semantic-release/github \
             semantic-release

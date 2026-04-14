@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [v1.17.0] - 2026-04-14
+
+### Added
+- Computer sidebar **Browser** tab (embedded `http(s)` preview, URL allow-list) and richer **Files** previews (Markdown, HTML, JSON/code).
+- `browser_open_url` streams sync the Browser tab URL; agent system prompt notes the behavior.
+
+### Fixed
+- GitHub **Release** workflow: semantic-release no longer requires a root `package.json` or pushes commits to protected `main` (tag + GitHub Release only).
+
 ## [v1.13.0] - 2026-03-02
 
 ### Added
