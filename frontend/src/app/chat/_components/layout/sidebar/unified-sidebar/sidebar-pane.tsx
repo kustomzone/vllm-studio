@@ -1,7 +1,7 @@
 // CRITICAL
 "use client";
 
-import { GripVertical, PanelRightClose } from "lucide-react";
+import { GripVertical, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildSidebarPanelInstances, resolveSidebarActiveTab, resolveSidebarPanelContent } from "./panel-registry";
 import type { SidebarPaneProps, SidebarTab } from "./types";
@@ -119,7 +119,20 @@ export function SidebarPane({
     [onSetActiveTab, resolvedActiveTab],
   );
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    return (
+      <div className="hidden md:flex shrink-0 h-full w-10 flex-col items-center border-l border-(--border)/40 bg-(--surface)/40 pt-2">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="p-2 rounded-lg hover:bg-(--fg)/[0.08] text-(--dim) hover:text-(--fg) transition-colors"
+          title="Open sidebar"
+        >
+          <PanelRightOpen className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>

@@ -4,9 +4,19 @@
 import { useCallback } from "react";
 import api from "@/lib/api";
 import type { AgentFileEntry } from "@/lib/types";
+import { useAppStore } from "@/store";
 import { prefetchDependencies as prefetchDependenciesImpl, getExtension } from "./use-agent-files/prefetch-dependencies";
 import { resolveAgentFilesSessionId } from "./use-agent-files/resolve-session-id";
 import { useAgentFilesStore } from "./use-agent-files/use-agent-files-store";
+
+/** Join listing prefix (from `agentFilesBrowsePath`) with an entry name for API paths. */
+export function joinAgentBrowsePath(browsePath: string, name: string): string {
+  const b = browsePath.replace(/^\/+/, "").replace(/\/+$/, "");
+  const n = name.replace(/^\/+/, "").replace(/\/+$/, "");
+  if (!b) return n;
+  if (!n) return b;
+  return `${b}/${n}`;
+}
 
 export function useAgentFiles() {
   const {
@@ -14,6 +24,7 @@ export function useAgentFiles() {
     agentFiles,
     agentFilesLoading,
     setAgentFiles,
+    setAgentFilesBrowsePath,
     setAgentFilesLoading,
     selectedAgentFilePath,
     selectedAgentFileContent,
@@ -53,6 +64,7 @@ export function useAgentFiles() {
       const sessionId = resolveSessionId(options?.sessionId);
       if (!sessionId) {
         setAgentFiles([]);
+        setAgentFilesBrowsePath("");
         setAgentFilesLoading(false);
         return [];
       }
@@ -63,18 +75,26 @@ export function useAgentFiles() {
           recursive: options?.recursive,
         });
         const files = Array.isArray(data.files) ? data.files : [];
+        const listed =
+          typeof data.path === "string"
+            ? data.path
+            : typeof options?.path === "string"
+              ? options.path
+              : "";
         setAgentFiles(files);
+        setAgentFilesBrowsePath(listed);
         return files;
       } catch (err) {
         // Log error for debugging
         console.error("[loadAgentFiles] Error:", err);
         setAgentFiles([]);
+        setAgentFilesBrowsePath("");
         return [];
       } finally {
         setAgentFilesLoading(false);
       }
     },
-    [currentSessionId, setAgentFiles, setAgentFilesLoading],
+    [currentSessionId, setAgentFiles, setAgentFilesBrowsePath, setAgentFilesLoading],
   );
 
   const readAgentFile = useCallback(
@@ -152,6 +172,7 @@ export function useAgentFiles() {
   );
 
   const clearAgentFiles = useCallback(() => {
+    useAppStore.getState().setComputerBrowserUrl("");
     if (agentFiles.length === 0) {
       if (!agentFilesLoading && selectedAgentFilePath === null && selectedAgentFileContent === null) {
         if (Object.keys(agentFileVersions).length === 0) {
@@ -161,6 +182,8 @@ export function useAgentFiles() {
     } else {
       setAgentFiles([]);
     }
+
+    setAgentFilesBrowsePath("");
 
     if (agentFilesLoading) {
       setAgentFilesLoading(false);
@@ -181,6 +204,7 @@ export function useAgentFiles() {
     selectedAgentFilePath,
     selectedAgentFileContent,
     setAgentFiles,
+    setAgentFilesBrowsePath,
     setAgentFilesLoading,
     setSelectedAgentFilePath,
     setSelectedAgentFileContent,
@@ -206,26 +230,58 @@ export function useAgentFiles() {
         return;
       }
 
-      // Set path immediately for UI feedback
+      const browsePath = useAppStore.getState().agentFilesBrowsePath ?? "";
+      const fullPath = joinAgentBrowsePath(browsePath, path);
+      const entry = useAppStore.getState().agentFiles.find((e) => e.name === path);
+
+      if (entry?.type === "dir") {
+        setSelectedAgentFilePath(null);
+        setSelectedAgentFileContent(null);
+        setSelectedAgentFileLoading(true);
+        try {
+          await loadAgentFiles({ sessionId, path: fullPath, recursive: false });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.error("[selectAgentFile] Error listing folder:", err);
+          useAppStore.getState().pushToast({
+            kind: "error",
+            title: "Could not open folder",
+            message,
+            dedupeKey: `agent-file-dir:${sessionId}:${fullPath}`,
+          });
+        } finally {
+          setSelectedAgentFileLoading(false);
+        }
+        return;
+      }
+
+      // Set path immediately for UI feedback (basename matches list row)
       setSelectedAgentFilePath(path);
       setSelectedAgentFileLoading(true);
 
       try {
-        const data = await api.readAgentFileWithVersions(sessionId, path);
+        const data = await api.readAgentFileWithVersions(sessionId, fullPath);
         setSelectedAgentFileContent(data.content);
         if (typeof data.content === "string") {
           if (Array.isArray(data.versions) && data.versions.length > 0) {
-            hydrateAgentFileVersions(path, data.versions);
+            hydrateAgentFileVersions(fullPath, data.versions);
           } else {
-            addAgentFileVersion(path, data.content);
+            addAgentFileVersion(fullPath, data.content);
           }
           const ext = getExtension(path);
           if (ext === "html" || ext === "htm") {
-            void prefetchDependencies(path, data.content, sessionId);
+            void prefetchDependencies(fullPath, data.content, sessionId);
           }
         }
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
         console.error("[selectAgentFile] Error reading file:", err);
+        useAppStore.getState().pushToast({
+          kind: "error",
+          title: "Could not load file",
+          message,
+          dedupeKey: `agent-file-read:${sessionId}:${fullPath}`,
+        });
         setSelectedAgentFileContent(null);
       } finally {
         setSelectedAgentFileLoading(false);
@@ -233,6 +289,7 @@ export function useAgentFiles() {
     },
     [
       currentSessionId,
+      loadAgentFiles,
       setSelectedAgentFilePath,
       setSelectedAgentFileContent,
       setSelectedAgentFileLoading,

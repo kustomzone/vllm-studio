@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef } from "react";
-import type { ChatRunStreamEvent } from "@/lib/api";
+import api, { type ChatRunStreamEvent } from "@/lib/api";
 import { pushStreamErrorToast } from "@/app/chat/_components/layout/chat-page/controller/internal/use-stream-error-toast";
 import { applyRunMachineEffects, type RunMachineEffectRuntime } from "./run-effects";
 import { createInitialRunMachineState, transitionRunMachine } from "./run-machine";
@@ -15,6 +15,7 @@ export function useRunMachine(args: UseRunEventHandlerArgs) {
     currentSessionId,
     currentSessionTitle,
     activeRunIdRef,
+    runAbortControllerRef,
     lastEventTimeRef,
     runCompletedRef,
     setStreamStalled,
@@ -59,22 +60,45 @@ export function useRunMachine(args: UseRunEventHandlerArgs) {
       moveAgentFileVersions,
       generateTitle,
       pushStreamErrorToast,
+      abortAgentRunAfterToolError: ({ toolName, resultText }) => {
+        if (!useAppStore.getState().agentMode) return;
+        const snippet = resultText.trim().slice(0, 240);
+        const msg = snippet
+          ? `Tool "${toolName}" failed — stopping the run. ${snippet}`
+          : `Tool "${toolName}" failed — stopping the run.`;
+        setStreamError(msg);
+        pushStreamErrorToast(msg, {
+          activeRunId: activeRunIdRef.current,
+          lastEventTime: lastEventTimeRef.current,
+        });
+        runAbortControllerRef.current?.abort();
+        const sid = currentSessionId;
+        const rid = activeRunIdRef.current;
+        if (sid && rid) {
+          void api.abortChatRun(sid, rid).catch(() => {});
+        }
+      },
+      setComputerBrowserUrl: (url: string) => {
+        useAppStore.getState().setComputerBrowserUrl(url);
+      },
     }),
     [
       activeRunIdRef,
+      currentSessionId,
       generateTitle,
       lastAssistantContentRef,
+      lastEventTimeRef,
       setStreamStalled,
       loadAgentFiles,
       moveAgentFileVersions,
       readAgentFile,
       recordToolExecutionMetadata,
       recordToolResult,
+      runAbortControllerRef,
       runCompletedRef,
       setAgentPlan,
       setIsLoading,
       setStreamError,
-      setStreamStalled,
       updateExecutingTools,
       upsertMessage,
     ],

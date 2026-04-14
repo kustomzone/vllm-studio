@@ -1,6 +1,7 @@
 // CRITICAL
 import type { StateCreator } from "zustand";
 import type { AgentFileVersion } from "@/lib/types";
+import { sanitizeEmbeddedBrowserUrl } from "@/lib/sanitize-embedded-browser-url";
 import type { ChatSlice } from "../chat-slice-types";
 
 type Set = Parameters<StateCreator<ChatSlice, [], [], ChatSlice>>[0];
@@ -10,6 +11,7 @@ export function createAgentActions(set: Set) {
     setAgentMode: (enabled: boolean) => set({ agentMode: enabled }),
     setAgentPlan: (plan: ChatSlice["agentPlan"]) => set({ agentPlan: plan }),
     setAgentFiles: (files: ChatSlice["agentFiles"]) => set({ agentFiles: files }),
+    setAgentFilesBrowsePath: (agentFilesBrowsePath: string) => set({ agentFilesBrowsePath }),
     setAgentFilesLoading: (loading: boolean) => set({ agentFilesLoading: loading }),
     setSelectedAgentFilePath: (path: string | null) => set({ selectedAgentFilePath: path }),
     setSelectedAgentFileContent: (content: string | null) => set({ selectedAgentFileContent: content }),
@@ -66,6 +68,15 @@ export function createAgentActions(set: Set) {
         return { agentFileVersions: next };
       }),
     clearAgentFileVersions: () => set({ agentFileVersions: {} }),
+    setComputerBrowserUrl: (raw: string) => {
+      const trimmed = raw.trim();
+      if (!trimmed) {
+        set({ computerBrowserUrl: "" });
+        return;
+      }
+      const safe = sanitizeEmbeddedBrowserUrl(trimmed);
+      if (safe) set({ computerBrowserUrl: safe });
+    },
     setSidebarWidth: (width: number) => set({ sidebarWidth: width }),
     setResultsLastTab: (tab: ChatSlice["resultsLastTab"]) => set({ resultsLastTab: tab }),
     setMobilePlanChipHidden: (hidden: boolean) => set({ mobilePlanChipHidden: hidden }),

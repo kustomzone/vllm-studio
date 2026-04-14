@@ -20,6 +20,7 @@ export function useChatSessions() {
     setMessages,
     setAgentPlan,
     setAgentFiles,
+    setAgentFilesBrowsePath,
   } = useAppStore(
     useShallow((state) => ({
       sessions: state.sessions,
@@ -34,6 +35,7 @@ export function useChatSessions() {
       setMessages: state.setMessages,
       setAgentPlan: state.setAgentPlan,
       setAgentFiles: state.setAgentFiles,
+      setAgentFilesBrowsePath: state.setAgentFilesBrowsePath,
     })),
   );
   const activeSessionRef = useRef<string | null>(null);
@@ -57,7 +59,15 @@ export function useChatSessions() {
     setMessages([]);
     setAgentPlan(null);
     setAgentFiles([]);
-  }, [setCurrentSessionId, setCurrentSessionTitle, setMessages, setAgentPlan, setAgentFiles]);
+    setAgentFilesBrowsePath("");
+  }, [
+    setCurrentSessionId,
+    setCurrentSessionTitle,
+    setMessages,
+    setAgentPlan,
+    setAgentFiles,
+    setAgentFilesBrowsePath,
+  ]);
 
   const loadSession = useCallback(
     async (sessionId: string) => {
@@ -67,6 +77,7 @@ export function useChatSessions() {
       // Optimistically set session id and title from the cached session list
       // so the UI updates instantly while the full session loads.
       setCurrentSessionId(sessionId);
+      setAgentFilesBrowsePath("");
       const cached = sessions.find((s) => s.id === sessionId);
       if (cached?.title) {
         setCurrentSessionTitle(cached.title);
@@ -87,7 +98,15 @@ export function useChatSessions() {
         return null;
       }
     },
-    [currentSessionId, sessions, setCurrentSessionId, setCurrentSessionTitle, startNewSession, updateSessions],
+    [
+      currentSessionId,
+      sessions,
+      setCurrentSessionId,
+      setCurrentSessionTitle,
+      setAgentFilesBrowsePath,
+      startNewSession,
+      updateSessions,
+    ],
   );
 
   const createSession = useCallback(
@@ -105,6 +124,7 @@ export function useChatSessions() {
         });
         setCurrentSessionId(session.id);
         setCurrentSessionTitle(session.title);
+        setAgentFilesBrowsePath("");
         activeSessionRef.current = session.id;
         return session;
       } catch (err) {
@@ -112,7 +132,7 @@ export function useChatSessions() {
         return null;
       }
     },
-    [setCurrentSessionId, setCurrentSessionTitle, updateSessions],
+    [setCurrentSessionId, setCurrentSessionTitle, setAgentFilesBrowsePath, updateSessions],
   );
 
   const updateSessionTitle = useCallback(

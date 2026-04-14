@@ -1,11 +1,23 @@
 // CRITICAL
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
 import api, { type ChatRunStreamEvent } from "@/lib/api";
 import type { ToolResult } from "@/lib/types";
 import { pushStreamErrorToast } from "./controller/internal/use-stream-error-toast";
+
+export type AgentFinalReplyIssueKind =
+  | "turn_gap_no_run_end"
+  | "stream_closed_without_run_end"
+  | "run_end_without_visible_reply";
+
+export type AgentFinalReplyGuard = {
+  isAgentMode: () => boolean;
+  currentRunHasFinalAssistantText: () => boolean;
+  onMissingFinalAssistant: (kind: AgentFinalReplyIssueKind) => void;
+  abortServerRun: () => Promise<void>;
+};
 
 export interface ChatRunStreamPayload {
   content: string;
@@ -32,6 +44,10 @@ export interface UseChatRunStreamArgs {
   setExecutingTools: (value: Set<string>) => void;
   setToolResultsMap: (value: Map<string, ToolResult>) => void;
   handleRunEvent: (event: ChatRunStreamEvent) => void;
+  /** When set, agent-mode runs must end with visible assistant text or we surface an error and abort. */
+  agentFinalReplyGuardRef?: MutableRefObject<AgentFinalReplyGuard | null>;
+  /** Set true in handleStop before aborting so we do not treat user stop as a missing final reply. */
+  userStoppedStreamRef?: MutableRefObject<boolean>;
 }
 
 export function useChatRunStream({
@@ -46,7 +62,12 @@ export function useChatRunStream({
   setExecutingTools,
   setToolResultsMap,
   handleRunEvent,
+  agentFinalReplyGuardRef,
+  userStoppedStreamRef,
 }: UseChatRunStreamArgs) {
+  const sawRunEndRef = useRef(false);
+  const incompleteHandledRef = useRef(false);
+
   useEffect(() => {
     return () => {
       runAbortControllerRef.current?.abort();
@@ -67,6 +88,9 @@ export function useChatRunStream({
       const abortController = new AbortController();
       runAbortControllerRef.current = abortController;
       runCompletedRef.current = false;
+      sawRunEndRef.current = false;
+      incompleteHandledRef.current = false;
+      if (userStoppedStreamRef) userStoppedStreamRef.current = false;
       lastEventTimeRef.current = Date.now();
       setIsLoading(true);
       setStreamError(null);
@@ -110,11 +134,20 @@ export function useChatRunStream({
         if (abortController.signal.aborted || runCompletedRef.current) return;
         runEndGraceTimer = setTimeout(() => {
           if (!abortController.signal.aborted && !runCompletedRef.current) {
-            // The turn already finished so the user has their response.
-            // Silently close the stream — run_end is a cleanup signal,
-            // not something the user needs to know about.
             console.warn("[stream] turn_end seen without run_end — closing stream");
             runCompletedRef.current = true;
+            const guard = agentFinalReplyGuardRef?.current;
+            const userStopped = userStoppedStreamRef?.current === true;
+            if (
+              guard?.isAgentMode() &&
+              !userStopped &&
+              !guard.currentRunHasFinalAssistantText() &&
+              !incompleteHandledRef.current
+            ) {
+              incompleteHandledRef.current = true;
+              void guard.abortServerRun();
+              guard.onMissingFinalAssistant("turn_gap_no_run_end");
+            }
             abortController.abort();
           }
         }, RUN_END_GRACE_MS);
@@ -154,10 +187,29 @@ export function useChatRunStream({
           handleRunEvent(event);
 
           if (event.event === "run_end") {
+            sawRunEndRef.current = true;
             runCompletedRef.current = true;
             clearRunEndGraceTimer();
             abortController.abort();
             break;
+          }
+        }
+
+        const guard = agentFinalReplyGuardRef?.current;
+        const userStopped = userStoppedStreamRef?.current === true;
+        if (guard?.isAgentMode() && !userStopped) {
+          if (sawRunEndRef.current) {
+            if (
+              !guard.currentRunHasFinalAssistantText() &&
+              !incompleteHandledRef.current
+            ) {
+              incompleteHandledRef.current = true;
+              guard.onMissingFinalAssistant("run_end_without_visible_reply");
+            }
+          } else if (!guard.currentRunHasFinalAssistantText() && !incompleteHandledRef.current) {
+            incompleteHandledRef.current = true;
+            void guard.abortServerRun();
+            guard.onMissingFinalAssistant("stream_closed_without_run_end");
           }
         }
 
@@ -199,15 +251,19 @@ export function useChatRunStream({
     },
     [
       activeRunIdRef,
+      agentFinalReplyGuardRef,
       handleRunEvent,
+      incompleteHandledRef,
       lastEventTimeRef,
       runAbortControllerRef,
       runCompletedRef,
+      sawRunEndRef,
       setExecutingTools,
       setIsLoading,
       setStreamError,
       setStreamStalled,
       setToolResultsMap,
+      userStoppedStreamRef,
     ],
   );
 

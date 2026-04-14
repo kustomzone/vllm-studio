@@ -45,6 +45,8 @@ export interface HuggingFaceModel {
   pipeline_tag?: string;
   library_name?: string;
   lastModified?: string;
+  /** Hugging Face repo creation time (when returned by the API). */
+  createdAt?: string;
   author?: string;
   private: boolean;
 }

@@ -40,10 +40,10 @@ export const TodoView = memo(function TodoView({ toolCall }: { toolCall: Current
   const steps = useMemo(() => parse(toolCall), [toolCall]);
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex items-center gap-2 border-b border-(--border)/30 px-4 py-2.5 shrink-0">
-        <span className="text-[13px] font-semibold text-(--fg)">Agent&apos;s Computer</span>
+      <div className="flex shrink-0 items-center gap-2 border-b border-(--border)/30 px-4 py-2">
+        <span className="text-[10px] font-mono uppercase tracking-wider text-(--dim)/50">plan</span>
       </div>
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1 scrollbar-thin">
+      <div className="flex-1 space-y-1 overflow-y-auto px-4 py-3 scrollbar-thin">
         {steps.length > 0 ? steps.map((step, i) => (
           <div key={i} className="flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-(--fg)/[0.015]">
             <div className={`w-4 h-4 rounded shrink-0 mt-0.5 flex items-center justify-center border-[1.5px] transition-all ${

@@ -45,6 +45,8 @@ export type ChatPageSidebarInputs = {
   selectedAgentFileContent: string | null;
   selectedAgentFileLoading: boolean;
   onSelectAgentFile: (path: string | null) => void;
+  computerBrowserUrl: string;
+  setComputerBrowserUrl: (url: string) => void;
   hasSession: boolean;
 };
 
@@ -75,6 +77,8 @@ export function buildSidebarContentsFromPageProps(
     selectedAgentFileContent: props.selectedAgentFileContent,
     selectedAgentFileLoading: props.selectedAgentFileLoading,
     onSelectAgentFile: props.onSelectAgentFile,
+    computerBrowserUrl: props.computerBrowserUrl,
+    setComputerBrowserUrl: props.setComputerBrowserUrl,
     hasSession: props.hasSession,
   });
 }

@@ -68,6 +68,11 @@ export const ChatPageView = memo(function ChatPageView(props: ChatPageViewProps)
             <ChatConversation
               messages={props.messages}
               isLoading={props.isLoading}
+              streamError={props.streamError}
+              onDismissStreamError={props.onDismissStreamError}
+              agentMode={props.agentMode}
+              executingToolsSize={props.executingToolsSize}
+              onOpenComputerPanel={props.onOpenComputerPanel}
               artifactsEnabled={props.artifactsEnabled}
               artifactsByMessage={props.artifactsByMessage}
               selectedModel={props.selectedModel}

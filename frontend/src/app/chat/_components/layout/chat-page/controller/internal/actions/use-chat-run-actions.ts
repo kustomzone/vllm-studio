@@ -1,12 +1,19 @@
 // CRITICAL
 "use client";
 
-import { useCallback, type MutableRefObject } from "react";
+import { useCallback, useLayoutEffect, useRef, type MutableRefObject } from "react";
 import api from "@/lib/api";
 import type { ChatMessage, ChatSession, ToolResult } from "@/lib/types";
 import type { ChatRunStreamEvent } from "@/lib/api";
-import { useChatRunStream } from "../../../chat-run-stream";
+import {
+  useChatRunStream,
+  type AgentFinalReplyGuard,
+  type AgentFinalReplyIssueKind,
+} from "../../../chat-run-stream";
+import { currentRunAfterLastUserHasAssistantText } from "@/app/chat/_components/messages/chat-message-list/visible-messages";
+import { useAppStore } from "@/store";
 import { useChatSendUserMessage } from "../../../chat-send-user-message";
+import { pushStreamErrorToast } from "../use-stream-error-toast";
 import type { Attachment } from "@/app/chat/types";
 import type {
   AgentFilesService,
@@ -67,6 +74,37 @@ export function useChatRunActions({
   handleRunEvent,
   router,
 }: UseChatRunActionsArgs) {
+  const userStoppedStreamRef = useRef(false);
+  const agentFinalReplyGuardRef = useRef<AgentFinalReplyGuard | null>(null);
+  useLayoutEffect(() => {
+    agentFinalReplyGuardRef.current = {
+      isAgentMode: () => useAppStore.getState().agentMode,
+      currentRunHasFinalAssistantText: () =>
+        currentRunAfterLastUserHasAssistantText(useAppStore.getState().messages),
+      onMissingFinalAssistant: (kind: AgentFinalReplyIssueKind) => {
+        const copy: Record<AgentFinalReplyIssueKind, string> = {
+          turn_gap_no_run_end:
+            "The assistant did not produce a final reply before the stream stalled. Open Computer in the sidebar for tool output and files, then retry.",
+          stream_closed_without_run_end:
+            "The connection closed before the run finished and no final assistant message was received. Open Computer for tool output and files, then retry.",
+          run_end_without_visible_reply:
+            "The run ended without a visible assistant answer. Open Computer for tool results, or try again.",
+        };
+        const msg = copy[kind];
+        setStreamError(msg);
+        pushStreamErrorToast(msg, {
+          activeRunId: activeRunIdRef.current,
+          lastEventTime: lastEventTimeRef.current,
+        });
+      },
+      abortServerRun: async () => {
+        const sid = sessionIdRef.current;
+        const rid = activeRunIdRef.current;
+        if (sid && rid) await api.abortChatRun(sid, rid).catch(() => {});
+      },
+    };
+  }, [setStreamError]);
+
   const { startRunStream } = useChatRunStream({
     activeRunIdRef,
     runAbortControllerRef,
@@ -79,6 +117,8 @@ export function useChatRunActions({
     setExecutingTools,
     setToolResultsMap,
     handleRunEvent,
+    agentFinalReplyGuardRef,
+    userStoppedStreamRef,
   });
 
   const { sendUserMessage } = useChatSendUserMessage({
@@ -160,6 +200,7 @@ export function useChatRunActions({
   );
 
   const handleStop = useCallback(async () => {
+    userStoppedStreamRef.current = true;
     runAbortControllerRef.current?.abort();
     const runId = activeRunIdRef.current;
     if (runId && sessions.currentSessionId) {

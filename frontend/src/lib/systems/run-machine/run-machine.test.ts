@@ -84,6 +84,40 @@ describe("run-machine", () => {
     expect(ended.effects.some((effect) => effect.type === "tools/end")).toBe(true);
   });
 
+  it("emits abort-after-tool-error when tool_execution_end has isError", () => {
+    const state = {
+      ...createInitialRunMachineState(),
+      phase: "active" as const,
+      activeRunId: "run-1",
+    };
+
+    const machine = createRunMachine(state);
+    const next = machine.dispatch(
+      {
+        event: {
+          event: "tool_execution_end",
+          data: {
+            run_id: "run-1",
+            session_id: "session-1",
+            toolCallId: "tc-err",
+            toolName: "read_file",
+            result: { text: "ENOENT" },
+            isError: true,
+          },
+        },
+        now: 105,
+        mapAgentMessageToChatMessage: () => null,
+      },
+      makeContext(),
+    );
+
+    expect(next.effects).toContainEqual({
+      type: "run/abort-after-tool-error",
+      toolName: "read_file",
+      resultText: "ENOENT",
+    });
+  });
+
   it("refreshes agent files after command tools complete", () => {
     const state = {
       ...createInitialRunMachineState(),

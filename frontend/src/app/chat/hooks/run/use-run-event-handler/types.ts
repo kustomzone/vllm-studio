@@ -12,6 +12,7 @@ export type UseRunEventHandlerArgs = {
   currentSessionTitle: string;
 
   activeRunIdRef: MutableRefObject<string | null>;
+  runAbortControllerRef: MutableRefObject<AbortController | null>;
   lastEventTimeRef: MutableRefObject<number>;
   runCompletedRef: MutableRefObject<boolean>;
 

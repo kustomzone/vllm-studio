@@ -67,7 +67,9 @@ export type RunMachineEffect =
       message: string;
       activeRunId: string | null;
       lastEventTime: number;
-    };
+    }
+  | { type: "run/abort-after-tool-error"; toolName: string; resultText: string }
+  | { type: "computer-browser/set-url"; url: string };
 
 export interface RunMachineTransitionResult {
   state: RunMachineState;

@@ -88,11 +88,15 @@ export interface ChatState {
   agentMode: boolean;
   agentPlan: AgentPlan | null;
   agentFiles: AgentFileEntry[];
+  /** Directory prefix for the current `agentFiles` listing (from list API / navigation). */
+  agentFilesBrowsePath: string;
   agentFilesLoading: boolean;
   selectedAgentFilePath: string | null;
   selectedAgentFileContent: string | null;
   selectedAgentFileLoading: boolean;
   agentFileVersions: Record<string, AgentFileVersion[]>;
+  /** URL for the Computer → Browser tab (embedded iframe); synced from browser_open_url. */
+  computerBrowserUrl: string;
   sidebarWidth: number;
   resultsLastTab: SidebarTab | null;
   mobilePlanChipHidden: boolean;
@@ -212,6 +216,7 @@ export interface ChatActions {
   setAgentMode: (enabled: boolean) => void;
   setAgentPlan: (plan: AgentPlan | null) => void;
   setAgentFiles: (files: AgentFileEntry[]) => void;
+  setAgentFilesBrowsePath: (path: string) => void;
   setAgentFilesLoading: (loading: boolean) => void;
   setSelectedAgentFilePath: (path: string | null) => void;
   setSelectedAgentFileContent: (content: string | null) => void;
@@ -220,6 +225,7 @@ export interface ChatActions {
   hydrateAgentFileVersions: (path: string, versions: AgentFileVersion[]) => void;
   moveAgentFileVersions: (from: string, to: string) => void;
   clearAgentFileVersions: () => void;
+  setComputerBrowserUrl: (url: string) => void;
   setSidebarWidth: (width: number) => void;
   setResultsLastTab: (tab: SidebarTab | null) => void;
   setMobilePlanChipHidden: (hidden: boolean) => void;

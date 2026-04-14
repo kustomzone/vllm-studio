@@ -21,6 +21,8 @@ import { TerminalView } from "./terminal-view";
 import { FileView } from "./file-view";
 import { BrowserView } from "./browser-view";
 import { TodoView } from "./todo-view";
+import { ComputerEmbeddedBrowser } from "./computer-embedded-browser";
+import { AgentFilePreview } from "./agent-file-preview";
 
 type ViewType = "terminal" | "file" | "browser" | "todo" | "idle";
 
@@ -64,6 +66,8 @@ export interface ComputerViewportProps {
   selectedFileContent?: string | null;
   selectedFileLoading?: boolean;
   onSelectFile?: (path: string | null) => void;
+  computerBrowserUrl?: string;
+  onComputerBrowserUrlChange?: (url: string) => void;
   hasSession?: boolean;
 }
 
@@ -72,16 +76,18 @@ export const ComputerViewport = memo(function ComputerViewport({
   runToolCalls,
   isLoading,
   runStatusLine,
-  activityGroups,
+  activityGroups: _activityGroups,
   agentFiles,
   selectedFilePath,
   selectedFileContent,
   selectedFileLoading,
   onSelectFile,
+  computerBrowserUrl = "",
+  onComputerBrowserUrlChange,
   hasSession,
 }: ComputerViewportProps) {
   const [focusedId, setFocusedId] = useState<string | null>(null);
-  const [subView, setSubView] = useState<"tools" | "files">("tools");
+  const [subView, setSubView] = useState<"tools" | "files" | "browser">("tools");
 
   const runningId = currentToolCall?.state === "running" ? currentToolCall.toolCallId : null;
   const effectiveFocusedId = runningId ? null : focusedId;
@@ -100,48 +106,15 @@ export const ComputerViewport = memo(function ComputerViewport({
     [],
   );
 
-  const breadcrumb = displayed?.target
-    ? displayed.target.length > 60
-      ? `...${displayed.target.slice(-57)}`
-      : displayed.target
-    : "";
-
   const fileCount = agentFiles?.length ?? 0;
 
   return (
     <div className="flex flex-1 flex-col bg-(--bg) min-w-0 overflow-hidden h-full">
-      {/* Header */}
-      <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-(--border)/40 shrink-0">
-        <div className="w-5 h-5 rounded-[5px] bg-(--surface) border border-(--border) flex items-center justify-center shrink-0">
-          <Monitor className="w-3 h-3 text-(--fg)/60" />
-        </div>
-        <span className="text-[13px] font-semibold text-(--fg)">Agent&apos;s Computer</span>
-        <div className="flex items-center gap-1.5 ml-2">
-          <div
-            className={`w-[5px] h-[5px] rounded-full shrink-0 ${
-              isLoading
-                ? runningId
-                  ? "bg-(--accent) animate-pulse"
-                  : "bg-(--hl2) animate-pulse-soft"
-                : "bg-(--dim)/40"
-            }`}
-          />
-          <span className="text-[10px] font-mono text-(--dim) truncate max-w-[200px]">
-            {isLoading ? runStatusLine || "Working..." : "Idle"}
-          </span>
-        </div>
-        {breadcrumb && subView === "tools" && (
-          <div className="ml-auto font-mono text-[10px] text-(--dim)/50 truncate max-w-[250px]">
-            <span className="opacity-40 mr-1">&rsaquo;</span>
-            {breadcrumb}
-          </div>
-        )}
-      </div>
-
-      {/* Sub-view toggle: Tools / Files */}
-      <div className="flex items-center border-b border-(--border)/40 shrink-0">
-        <div className="flex items-center gap-0 px-2">
+      {/* Top: workspace mode only (tool runs live inside Tools) */}
+      <div className="flex shrink-0 border-b border-(--border)/40">
+        <div className="flex gap-0 px-2">
           <button
+            type="button"
             onClick={() => setSubView("tools")}
             className={`flex items-center gap-1.5 px-2.5 py-[7px] text-[11px] whitespace-nowrap border-b-2 transition-all cursor-pointer ${
               subView === "tools"
@@ -153,6 +126,7 @@ export const ComputerViewport = memo(function ComputerViewport({
             <span>Tools</span>
           </button>
           <button
+            type="button"
             onClick={() => setSubView("files")}
             className={`flex items-center gap-1.5 px-2.5 py-[7px] text-[11px] whitespace-nowrap border-b-2 transition-all cursor-pointer ${
               subView === "files"
@@ -163,58 +137,82 @@ export const ComputerViewport = memo(function ComputerViewport({
             <FolderTree className="w-3 h-3 opacity-50" />
             <span>Files{fileCount > 0 ? ` (${fileCount})` : ""}</span>
           </button>
+          <button
+            type="button"
+            onClick={() => setSubView("browser")}
+            className={`flex items-center gap-1.5 px-2.5 py-[7px] text-[11px] whitespace-nowrap border-b-2 transition-all cursor-pointer ${
+              subView === "browser"
+                ? "text-(--fg) border-(--accent)"
+                : "text-(--dim) border-transparent hover:text-(--fg)"
+            }`}
+          >
+            <Globe className="w-3 h-3 opacity-50" />
+            <span>Browser</span>
+          </button>
         </div>
-
-        {/* Tool call tabs (only in tools sub-view) */}
-        {subView === "tools" && runToolCalls.length > 0 && (
-          <div className="flex items-center gap-1 ml-1 overflow-x-auto scrollbar-hide">
-            <div className="w-px h-4 bg-(--border)/30 mx-1" />
-            {runToolCalls.map((tc) => {
-              const Icon = CAT_ICON[tc.category] ?? Terminal;
-              const active =
-                focusedId === tc.toolCallId ||
-                (!focusedId && tc.toolCallId === currentToolCall?.toolCallId);
-              const spinning = tc.state === "running";
-              return (
-                <button
-                  key={tc.toolCallId}
-                  onClick={() => handleTab(tc.toolCallId)}
-                  className={`flex items-center gap-1.5 px-2 py-[7px] text-[10px] whitespace-nowrap shrink-0 border-b-2 transition-all cursor-pointer ${
-                    active
-                      ? "text-(--fg) border-(--accent)"
-                      : "text-(--dim) border-transparent hover:text-(--fg)"
-                  }`}
-                >
-                  {spinning ? (
-                    <Loader2 className="w-2.5 h-2.5 text-(--accent) animate-spin shrink-0" />
-                  ) : (
-                    <Icon className="w-3 h-3 opacity-50 shrink-0" />
-                  )}
-                  <span className="max-w-[100px] truncate">
-                    {formatToolDisplayName(tc.toolName)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
       </div>
 
-      {/* Viewport */}
-      <div className="flex-1 overflow-hidden flex flex-col">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {subView === "tools" && (
-          <>
-            {view === "terminal" && displayed && <TerminalView toolCall={displayed} />}
-            {view === "file" && displayed && <FileView toolCall={displayed} />}
-            {view === "browser" && displayed && <BrowserView toolCall={displayed} />}
-            {view === "todo" && displayed && <TodoView toolCall={displayed} />}
-            {view === "idle" && (
-              <div className="flex flex-1 flex-col items-center justify-center gap-3 opacity-15">
-                <Monitor className="w-8 h-8 text-(--dim)" strokeWidth={1.5} />
-                <p className="font-mono text-[11px] text-(--dim)">Waiting for activity...</p>
-              </div>
-            )}
-          </>
+          <div className="flex min-h-0 flex-1 flex-row overflow-hidden">
+            {runToolCalls.length > 0 ? (
+              <aside
+                className="flex w-[min(11rem,38%)] shrink-0 flex-col border-r border-(--border)/40 bg-(--surface)/35"
+                aria-label="Tool runs"
+              >
+                <div className="border-b border-(--border)/30 px-2 py-1.5 text-[10px] font-mono uppercase tracking-wide text-(--dim)/55">
+                  Runs
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto py-1 scrollbar-thin">
+                  {runToolCalls.map((tc) => {
+                    const Icon = CAT_ICON[tc.category] ?? Terminal;
+                    const active =
+                      focusedId === tc.toolCallId ||
+                      (!focusedId && tc.toolCallId === currentToolCall?.toolCallId);
+                    const spinning = tc.state === "running";
+                    return (
+                      <button
+                        type="button"
+                        key={tc.toolCallId}
+                        onClick={() => handleTab(tc.toolCallId)}
+                        className={`flex w-full items-start gap-2 border-l-2 px-2 py-2 text-left text-[11px] transition-colors ${
+                          active
+                            ? "border-(--accent) bg-(--accent)/8 text-(--fg)"
+                            : "border-transparent text-(--dim) hover:bg-(--fg)/[0.04] hover:text-(--fg)"
+                        }`}
+                      >
+                        {spinning ? (
+                          <Loader2 className="mt-0.5 h-3 w-3 shrink-0 text-(--accent) animate-spin" />
+                        ) : (
+                          <Icon className="mt-0.5 h-3 w-3 shrink-0 opacity-50" />
+                        )}
+                        <span className="min-w-0 flex-1 break-words leading-snug">
+                          {formatToolDisplayName(tc.toolName)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {isLoading ? (
+                  <div className="shrink-0 border-t border-(--border)/30 px-2 py-1.5 text-[10px] leading-snug text-(--dim)">
+                    {runStatusLine?.trim() || "Working…"}
+                  </div>
+                ) : null}
+              </aside>
+            ) : null}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+              {view === "terminal" && displayed && <TerminalView toolCall={displayed} />}
+              {view === "file" && displayed && <FileView toolCall={displayed} />}
+              {view === "browser" && displayed && <BrowserView toolCall={displayed} />}
+              {view === "todo" && displayed && <TodoView toolCall={displayed} />}
+              {view === "idle" && (
+                <div className="flex flex-1 flex-col items-center justify-center gap-3 opacity-15">
+                  <Monitor className="h-8 w-8 text-(--dim)" strokeWidth={1.5} />
+                  <p className="font-mono text-[11px] text-(--dim)">Waiting for activity...</p>
+                </div>
+              )}
+            </div>
+          </div>
         )}
         {subView === "files" && (
           <ComputerFilesView
@@ -224,6 +222,12 @@ export const ComputerViewport = memo(function ComputerViewport({
             selectedFileLoading={selectedFileLoading ?? false}
             onSelectFile={onSelectFile}
             hasSession={hasSession ?? false}
+          />
+        )}
+        {subView === "browser" && (
+          <ComputerEmbeddedBrowser
+            url={computerBrowserUrl}
+            onUrlChange={(next) => onComputerBrowserUrlChange?.(next)}
           />
         )}
       </div>
@@ -278,6 +282,7 @@ const ComputerFilesView = memo(function ComputerFilesView({
           return (
             <button
               key={path}
+              type="button"
               onClick={() => onSelectFile?.(active ? null : path)}
               className={`w-full flex items-center gap-2 px-4 py-1.5 text-left transition-colors ${
                 active
@@ -285,7 +290,11 @@ const ComputerFilesView = memo(function ComputerFilesView({
                   : "text-(--dim) hover:bg-(--fg)/[0.03] hover:text-(--fg)"
               }`}
             >
-              <FileText className="w-3 h-3 opacity-50 shrink-0" />
+              {entry.type === "dir" ? (
+                <FolderTree className="h-3 w-3 shrink-0 opacity-50" />
+              ) : (
+                <FileText className="h-3 w-3 shrink-0 opacity-50" />
+              )}
               <span className="text-[11px] font-mono truncate">{path}</span>
             </button>
           );
@@ -293,25 +302,12 @@ const ComputerFilesView = memo(function ComputerFilesView({
       </div>
       {/* File content */}
       {selectedFilePath && (
-        <div className="flex-1 overflow-y-auto font-mono text-[12px] leading-[1.8] scrollbar-thin">
-          {selectedFileLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="w-4 h-4 text-(--dim) animate-spin" />
-            </div>
-          ) : selectedFileContent ? (
-            selectedFileContent.split("\n").map((line, i) => (
-              <div key={i} className="flex min-h-[21px] hover:bg-(--fg)/[0.015]">
-                <span className="w-12 text-right pr-4 text-(--dim)/25 select-none shrink-0">
-                  {i + 1}
-                </span>
-                <span className="flex-1 whitespace-pre pr-4 text-(--fg)/85">{line}</span>
-              </div>
-            ))
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <span className="text-[11px] font-mono text-(--dim)/30">no content</span>
-            </div>
-          )}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-thin">
+          <AgentFilePreview
+            path={selectedFilePath}
+            content={selectedFileContent}
+            loading={selectedFileLoading}
+          />
         </div>
       )}
     </div>

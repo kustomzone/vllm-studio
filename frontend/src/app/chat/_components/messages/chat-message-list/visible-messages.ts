@@ -4,19 +4,6 @@
 import type { Artifact, ChatMessage } from "@/lib/types";
 import { isToolCallOnlyText } from "@/app/chat/hooks/chat/use-chat-message-mapping/helpers";
 
-function hasToolParts(message: ChatMessage): boolean {
-  if (message.role !== "assistant") return false;
-  for (const part of message.parts) {
-    if (part.type === "dynamic-tool") return true;
-    if (typeof part.type === "string" && part.type.startsWith("tool-")) return true;
-  }
-  return false;
-}
-
-function hasReasoningParts(message: ChatMessage): boolean {
-  return message.parts.some((p) => p.type === "reasoning");
-}
-
 export function hasNonEmptyText(message: ChatMessage): boolean {
   for (const part of message.parts ?? []) {
     if (!part || typeof part !== "object") continue;
@@ -25,6 +12,23 @@ export function hasNonEmptyText(message: ChatMessage): boolean {
     const text = (part as { text?: unknown }).text;
     if (typeof text === "string" && !isToolCallOnlyText(text) && text.trim().length > 0)
       return true;
+  }
+  return false;
+}
+
+/** True if any assistant message after the last user turn has visible (non-tool-only) text. */
+export function currentRunAfterLastUserHasAssistantText(messages: ChatMessage[]): boolean {
+  let lastUserIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === "user") {
+      lastUserIdx = i;
+      break;
+    }
+  }
+  if (lastUserIdx < 0) return false;
+  for (let j = lastUserIdx + 1; j < messages.length; j++) {
+    const m = messages[j];
+    if (m?.role === "assistant" && hasNonEmptyText(m)) return true;
   }
   return false;
 }
@@ -67,10 +71,9 @@ export function filterVisibleMessages({
       return hasNonEmptyText(m);
     }
 
-    // Completed messages: show if they have text, tools, reasoning, or artifacts.
+    // Completed messages: main thread is user-visible text (and artifacts). Tool + reasoning
+    // steps stay in Activity / Computer — listing them here duplicated noise and hurt scrolling UX.
     if (hasNonEmptyText(m)) return true;
-    if (hasToolParts(m)) return true;
-    if (hasReasoningParts(m)) return true;
     const hasArtifacts = Boolean(artifactsByMessage?.get(m.id)?.length);
     if (hasArtifacts) return true;
     return false;

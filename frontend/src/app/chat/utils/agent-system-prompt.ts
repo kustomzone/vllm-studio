@@ -26,7 +26,7 @@ export function buildAgentModeSystemPrompt(plan: AgentPlan | null): string {
   lines.push("- move_file({ from, to })");
   lines.push("- execute_command({ command, cwd?, timeout? })");
   lines.push("- computer_use({ command, cwd?, timeout? })");
-  lines.push("- browser_open_url({ url })");
+  lines.push("- browser_open_url({ url }) — loads url in the user's Computer sidebar → Browser tab (embedded frame).");
   lines.push("  - execute_command also accepts { cmd } as a command alias.");
   lines.push("  - computer_use also accepts { cmd } as a command alias.");
   lines.push("  - timeout is seconds.");

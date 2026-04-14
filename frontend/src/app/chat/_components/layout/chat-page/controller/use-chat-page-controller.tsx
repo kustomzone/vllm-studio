@@ -75,6 +75,7 @@ export function useChatPageController(): ChatPageViewProps {
     currentSessionId: sessions.currentSessionId,
     currentSessionTitle: sessions.currentSessionTitle,
     activeRunIdRef,
+    runAbortControllerRef,
     lastEventTimeRef,
     runCompletedRef,
     setStreamStalled,

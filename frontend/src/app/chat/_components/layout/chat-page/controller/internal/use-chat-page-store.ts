@@ -48,6 +48,9 @@ export function useChatPageStore() {
       agentPlan: state.agentPlan,
       setAgentPlan: state.setAgentPlan,
 
+      computerBrowserUrl: state.computerBrowserUrl,
+      setComputerBrowserUrl: state.setComputerBrowserUrl,
+
       sidebarWidth: state.sidebarWidth,
       setSidebarWidth: state.setSidebarWidth,
 

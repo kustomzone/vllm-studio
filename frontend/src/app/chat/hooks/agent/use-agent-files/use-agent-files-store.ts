@@ -8,8 +8,10 @@ export function useAgentFilesStore() {
     useShallow((state) => ({
       currentSessionId: state.currentSessionId,
       agentFiles: state.agentFiles,
+      agentFilesBrowsePath: state.agentFilesBrowsePath,
       agentFilesLoading: state.agentFilesLoading,
       setAgentFiles: state.setAgentFiles,
+      setAgentFilesBrowsePath: state.setAgentFilesBrowsePath,
       setAgentFilesLoading: state.setAgentFilesLoading,
       selectedAgentFilePath: state.selectedAgentFilePath,
       selectedAgentFileContent: state.selectedAgentFileContent,

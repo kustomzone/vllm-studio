@@ -3,7 +3,7 @@ import { chmod, readFile, writeFile, mkdir, unlink } from "fs/promises";
 import { accessSync, constants, existsSync } from "fs";
 import { homedir, tmpdir } from "node:os";
 import path from "path";
-import { resolveSettingsDefaultBackendUrl } from "./backend-config";
+import { resolveExplicitEnvBackendUrl, resolveSettingsDefaultBackendUrl } from "./backend-config";
 
 export interface ApiSettings {
   backendUrl: string;
@@ -72,9 +72,12 @@ export async function getApiSettings(): Promise<ApiSettings> {
     if (existsSync(settingsFile)) {
       const content = await readFile(settingsFile, "utf-8");
       const saved = JSON.parse(content) as Partial<ApiSettings>;
+      const envBackend = resolveExplicitEnvBackendUrl();
+      // Explicit env wins over disk so `BACKEND_URL=… npm run dev` is not shadowed by an old localhost entry.
+      const backendUrl = envBackend || saved.backendUrl || DEFAULT_SETTINGS.backendUrl;
       // Merge with defaults (env vars still take precedence if settings file has empty values)
       return {
-        backendUrl: saved.backendUrl || DEFAULT_SETTINGS.backendUrl,
+        backendUrl,
         apiKey: saved.apiKey || DEFAULT_SETTINGS.apiKey,
         voiceUrl: saved.voiceUrl || DEFAULT_SETTINGS.voiceUrl,
         voiceModel: saved.voiceModel || DEFAULT_SETTINGS.voiceModel,

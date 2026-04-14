@@ -11,7 +11,7 @@ export function ControlPanel(props: DashboardLayoutProps) {
   const { currentProcess, currentRecipe, metrics, gpus, recipes, logs } = props;
 
   return (
-    <div className="space-y-8 max-w-5xl">
+    <div className="mx-auto w-full max-w-5xl space-y-8">
       {/* Status — always visible */}
       <StatusSection
         currentProcess={currentProcess}

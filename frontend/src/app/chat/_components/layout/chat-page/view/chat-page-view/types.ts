@@ -34,6 +34,7 @@ export interface ChatPageViewProps {
   thinkingActive: boolean;
   isLoading: boolean;
   streamError: string | null;
+  onDismissStreamError: () => void;
   streamStalled: boolean;
   runStatusLine: string;
   contextStats?: Omit<
@@ -71,6 +72,9 @@ export interface ChatPageViewProps {
   selectedAgentFileContent: string | null;
   selectedAgentFileLoading: boolean;
   onSelectAgentFile: (path: string | null) => void;
+  /** Embedded Computer browser (iframe); model can set via browser_open_url. */
+  computerBrowserUrl: string;
+  setComputerBrowserUrl: (url: string) => void;
   hasSession: boolean;
   onOpenAgentFile: (path: string) => void;
 
@@ -85,6 +89,10 @@ export interface ChatPageViewProps {
   listeningPending: boolean;
   openActivityPanel: () => void;
   openContextPanel: () => void;
+  /** Agent mode: open sidebar to Computer (files + tool output). */
+  onOpenComputerPanel: () => void;
+  agentMode: boolean;
+  executingToolsSize: number;
   handleScroll: () => void;
   messagesContainerRef: RefObject<HTMLDivElement | null>;
   messagesEndRef: RefObject<HTMLDivElement | null>;

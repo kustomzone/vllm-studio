@@ -43,7 +43,7 @@ interface VirtuosoItem {
 
 const VirtuosoList = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={`flex flex-col min-h-full ${className ?? ""}`} {...props} />
+    <div ref={ref} className={`flex flex-col ${className ?? ""}`} {...props} />
   ),
 );
 VirtuosoList.displayName = "VirtuosoList";
@@ -190,10 +190,10 @@ export function ChatMessageList({
   const itemKey = useCallback((_i: number, item: VirtuosoItem) => item.message.id, []);
 
   return (
-    <div className="px-4 md:px-6 py-3 max-w-3xl mx-auto w-full h-full">
+    <div className="mx-auto w-full max-w-3xl px-4 py-3 md:px-6">
       <PerfProfiler id="chat-message-list">
         <Virtuoso
-          className="h-full"
+          className="w-full"
           customScrollParent={scrollParent ?? undefined}
           data={items}
           itemContent={renderItem}

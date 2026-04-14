@@ -52,6 +52,8 @@ export type SidebarContentsProps = {
   selectedAgentFileContent: string | null;
   selectedAgentFileLoading: boolean;
   onSelectAgentFile: (path: string | null) => void;
+  computerBrowserUrl: string;
+  setComputerBrowserUrl: (url: string) => void;
   hasSession: boolean;
 };
 
@@ -85,6 +87,8 @@ export function buildSidebarContents(props: SidebarContentsProps): SidebarPanelC
           selectedFileContent={props.selectedAgentFileContent}
           selectedFileLoading={props.selectedAgentFileLoading}
           onSelectFile={props.onSelectAgentFile}
+          computerBrowserUrl={props.computerBrowserUrl}
+          onComputerBrowserUrlChange={props.setComputerBrowserUrl}
           hasSession={props.hasSession}
         />
       </PerfProfiler>

@@ -32,6 +32,11 @@ export interface RunMachineEffectRuntime {
   ) => Promise<string | null>;
 
   pushStreamErrorToast: (message: string, context: { activeRunId: string | null; lastEventTime: number }) => void;
+
+  /** Stops the SSE client + server run when a tool returns isError (agent mode). */
+  abortAgentRunAfterToolError?: (detail: { toolName: string; resultText: string }) => void;
+
+  setComputerBrowserUrl?: (url: string) => void;
 }
 
 export function applyRunMachineEffects(
@@ -141,6 +146,17 @@ export function applyRunMachineEffects(
           activeRunId: effect.activeRunId,
           lastEventTime: effect.lastEventTime,
         });
+        break;
+      }
+      case "run/abort-after-tool-error": {
+        runtime.abortAgentRunAfterToolError?.({
+          toolName: effect.toolName,
+          resultText: effect.resultText,
+        });
+        break;
+      }
+      case "computer-browser/set-url": {
+        runtime.setComputerBrowserUrl?.(effect.url);
         break;
       }
       default:

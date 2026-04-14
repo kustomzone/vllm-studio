@@ -12,6 +12,21 @@ const pickFirstNonEmpty = (...values: Array<string | undefined>): string | undef
 };
 
 /**
+ * Backend URL from process env only (no localhost fallback).
+ * Lets `BACKEND_URL` / `NEXT_PUBLIC_*` override a stale `api-settings.json` (common cause of “offline” in dev).
+ */
+export function resolveExplicitEnvBackendUrl(): string | undefined {
+  const v = pickFirstNonEmpty(
+    process.env.BACKEND_URL,
+    process.env.NEXT_PUBLIC_API_URL,
+    process.env.NEXT_PUBLIC_BACKEND_URL,
+    process.env.VLLM_STUDIO_BACKEND_URL,
+  );
+  const t = v?.trim();
+  return t && t.length > 0 ? t : undefined;
+}
+
+/**
  * Server-side API client base URL.
  * Mirrors historical precedence in `src/lib/api.ts`.
  */

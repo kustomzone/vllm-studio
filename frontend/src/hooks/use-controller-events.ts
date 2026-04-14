@@ -28,6 +28,7 @@ export function useControllerEvents(apiBaseUrl: string = resolveControllerEvents
   const setSessionUsage = useAppStore((state) => state.setSessionUsage);
   const setAgentPlan = useAppStore((state) => state.setAgentPlan);
   const setAgentFiles = useAppStore((state) => state.setAgentFiles);
+  const setAgentFilesBrowsePath = useAppStore((state) => state.setAgentFilesBrowsePath);
   const setAgentFilesLoading = useAppStore((state) => state.setAgentFilesLoading);
   const currentSessionId = useAppStore((state) => state.currentSessionId);
 
@@ -68,15 +69,17 @@ export function useControllerEvents(apiBaseUrl: string = resolveControllerEvents
           const data = await api.getAgentFiles(sessionId, { recursive: true });
           const files = Array.isArray(data.files) ? data.files : [];
           setAgentFiles(files);
+          setAgentFilesBrowsePath(typeof data.path === "string" ? data.path : "");
         } catch {
           setAgentFiles([]);
+          setAgentFilesBrowsePath("");
         } finally {
           setAgentFilesLoading(false);
           refreshTimerRef.current = null;
         }
       }, 150);
     },
-    [setAgentFiles, setAgentFilesLoading],
+    [setAgentFiles, setAgentFilesBrowsePath, setAgentFilesLoading],
   );
 
   const handleMessage = useCallback(
@@ -106,6 +109,7 @@ export function useControllerEvents(apiBaseUrl: string = resolveControllerEvents
                 setCurrentSessionTitle("New Chat");
                 setAgentPlan(null);
                 setAgentFiles([]);
+                setAgentFilesBrowsePath("");
               }
             }
             dispatchCustomEvent(CONTROLLER_BROWSER_EVENT_CHANNEL.chat, { type: eventType, data });
@@ -144,7 +148,9 @@ export function useControllerEvents(apiBaseUrl: string = resolveControllerEvents
             const sessionId = String(data["session_id"] ?? "");
             if (sessionId && currentId === sessionId) {
               const files = Array.isArray(data["files"]) ? data["files"] : [];
+              const listedPath = typeof data["path"] === "string" ? data["path"] : "";
               setAgentFiles(files);
+              setAgentFilesBrowsePath(listedPath);
             }
             dispatchCustomEvent(CONTROLLER_BROWSER_EVENT_CHANNEL.chat, { type: eventType, data });
             break;
@@ -188,6 +194,7 @@ export function useControllerEvents(apiBaseUrl: string = resolveControllerEvents
     [
       refreshAgentFiles,
       setAgentFiles,
+      setAgentFilesBrowsePath,
       setAgentPlan,
       setCurrentSessionId,
       setCurrentSessionTitle,

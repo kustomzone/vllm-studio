@@ -391,6 +391,15 @@ export function useChatPageControllerTail({
     onCallModeToggle: toggleCallMode,
   });
 
+  const onOpenComputerPanel = useCallback(() => {
+    setSidebarOpen(true);
+    handleSetSidebarTab("computer");
+  }, [handleSetSidebarTab, setSidebarOpen]);
+
+  const onDismissStreamError = useCallback(() => {
+    setStreamError(null);
+  }, [setStreamError]);
+
   const onReprompt = useCallback(
     async (messageId: string) => {
       await handleReprompt(messageId, messages);
@@ -418,6 +427,7 @@ export function useChatPageControllerTail({
     thinkingActive,
     isLoading,
     streamError,
+    onDismissStreamError,
     streamStalled,
     runStatusLine: thinkingSnippet,
     contextStats,
@@ -442,6 +452,8 @@ export function useChatPageControllerTail({
     selectedAgentFileContent: agentFiles.selectedAgentFileContent,
     selectedAgentFileLoading: agentFiles.selectedAgentFileLoading,
     onSelectAgentFile: handleSelectAgentFile,
+    computerBrowserUrl: store.computerBrowserUrl,
+    setComputerBrowserUrl: store.setComputerBrowserUrl,
     hasSession,
     onOpenAgentFile: handleOpenAgentFile,
 
@@ -455,6 +467,9 @@ export function useChatPageControllerTail({
     listeningPending,
     openActivityPanel,
     openContextPanel,
+    onOpenComputerPanel,
+    agentMode: store.agentMode,
+    executingToolsSize,
 
     handleScroll,
     messagesContainerRef,

@@ -112,6 +112,26 @@ function shouldRefreshAgentFilesForTool(toolName: unknown): boolean {
   return lower.includes("execute_command") || lower.includes("computer_use");
 }
 
+function normalizeToolNameForBrowser(toolName: unknown): string {
+  if (typeof toolName !== "string") return "";
+  return toolName.includes("__") ? toolName.split("__").slice(1).join("__") : toolName.trim();
+}
+
+function extractBrowserUrlFromToolArgs(args: unknown): string | null {
+  if (!args || typeof args !== "object" || Array.isArray(args)) return null;
+  const o = args as Record<string, unknown>;
+  for (const k of ["url", "href", "link", "uri", "website", "target"]) {
+    const v = o[k];
+    if (typeof v === "string" && v.trim().length > 0) return v.trim();
+  }
+  return null;
+}
+
+function isBrowserOpenUrlTool(toolName: unknown): boolean {
+  const n = normalizeToolNameForBrowser(toolName).toLowerCase();
+  return n === "browser_open_url" || n.endsWith("browser_open_url");
+}
+
 export function createRunMachine(
   initialState: RunMachineState = createInitialRunMachineState(),
 ): StateMachineContainer<
@@ -245,18 +265,34 @@ export const transitionRunMachine: StateMachineTransition<
         toolName,
         input: data["args"],
       });
+      if (isBrowserOpenUrlTool(toolName)) {
+        const browserUrl = extractBrowserUrlFromToolArgs(data["args"]);
+        if (browserUrl) {
+          effects.push({ type: "computer-browser/set-url", url: browserUrl });
+        }
+      }
       return { state: baseState, effects };
     }
 
     case "tool_execution_end": {
       const toolCallId = typeof data["toolCallId"] === "string" ? data["toolCallId"] : "";
       if (!toolCallId) return { state: baseState, effects };
+      const isError = data["isError"] === true;
+      const resultText = extractToolResultText(data["result"]);
       effects.push({
         type: "tools/end",
         toolCallId,
-        resultText: extractToolResultText(data["result"]),
-        isError: data["isError"] === true,
+        resultText,
+        isError,
       });
+
+      if (isError) {
+        const toolName =
+          typeof data["toolName"] === "string" && data["toolName"].trim()
+            ? data["toolName"].trim()
+            : "tool";
+        effects.push({ type: "run/abort-after-tool-error", toolName, resultText });
+      }
 
       if (eventSessionId && shouldRefreshAgentFilesForTool(data["toolName"])) {
         effects.push({ type: "agent-files/list", sessionId: eventSessionId });
