@@ -9,7 +9,7 @@ export function buildAgentModeSystemPrompt(plan: AgentPlan | null): string {
   lines.push("Never invent tool names (for example, do not use title-cased names like 'Create Plan').");
   lines.push("");
   lines.push("## Workflow");
-  lines.push("1. If NO <current_plan> exists: call create_plan ONCE with 3-8 steps.");
+  lines.push("1. If NO <current_plan> exists: call create_plan ONCE with 3-8 steps. NEVER call create_plan more than once per conversation.");
   lines.push("2. Before doing work on a step, call update_plan({ action: 'status', step_index: N, status: 'running' }).");
   lines.push("3. Execute the step with tools.");
   lines.push("4. Mark the step complete immediately with update_plan({ action: 'complete', step_index: N }).");
@@ -32,7 +32,7 @@ export function buildAgentModeSystemPrompt(plan: AgentPlan | null): string {
   lines.push("  - timeout is seconds.");
   lines.push("");
   lines.push("## Rules");
-  lines.push("- Do NOT loop on plan creation. Create plan ONCE.");
+  lines.push("- ABSOLUTELY NEVER call create_plan more than ONCE per conversation. If a plan already exists in <current_plan>, do NOT call create_plan again. Instead use update_plan to modify it.");
   lines.push("- Do NOT describe what you could do — just DO IT with tools.");
   lines.push("- Always keep exactly one active step marked as status='running' until it is complete.");
   lines.push("- Mark each step complete IMMEDIATELY after finishing it.");

@@ -1,9 +1,8 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState, useCallback } from "react";
 import type { ChatMessage, ChatMessagePart, ToolResult } from "@/lib/types";
 import { MessageRenderer } from "@/app/chat/_components/messages/message-renderer";
-import { ThinkingBlock } from "@/app/chat/_components/messages/chat-message-item/thinking-block";
 import { ToolCallRow } from "@/app/chat/_components/messages/chat-message-item/tool-call-row";
 
 interface AssistantMessageProps {
@@ -57,29 +56,37 @@ export const AssistantMessage = memo(function AssistantMessage({
 
   const combinedText = textParts.join("\n");
   const isStreamingThis = isLastMessage && !combinedText && toolParts.length === 0;
+  const isActivelyThinking = isLastMessage && thinkingParts.length > 0 && !combinedText && toolParts.length === 0;
 
   return (
     <div className="flex justify-start">
       <div className="max-w-[90%]">
-        {/* Thinking blocks */}
-        {thinkingParts.map((content, i) => (
-          <ThinkingBlock key={i} content={content} isActive={i === thinkingParts.length - 1 && isLastMessage && !combinedText} />
-        ))}
+        {/* Thinking — single collapsed row */}
+        {thinkingParts.length > 0 && (
+          <ThinkingRow
+            content={thinkingParts.join("\n")}
+            isActive={isActivelyThinking}
+          />
+        )}
 
-        {/* Tool call rows */}
-        {toolParts.map((part) => {
-          const id = String(part.toolCallId);
-          return (
-            <div key={id} onClick={() => onToolClick(id)} className="cursor-pointer">
-              <ToolCallRow
-                part={part}
-                isExecuting={executingTools.has(id)}
-                hasResult={toolResultsMap.has(id) || part.output != null}
-                isError={toolResultsMap.get(id)?.isError ?? false}
-              />
-            </div>
-          );
-        })}
+        {/* Tool calls — compact grouped block */}
+        {toolParts.length > 0 && (
+          <div className="space-y-0.5 mb-1">
+            {toolParts.map((part) => {
+              const id = String(part.toolCallId);
+              return (
+                <div key={id} onClick={() => onToolClick(id)} className="cursor-pointer">
+                  <ToolCallRow
+                    part={part}
+                    isExecuting={executingTools.has(id)}
+                    hasResult={toolResultsMap.has(id) || part.output != null}
+                    isError={toolResultsMap.get(id)?.isError ?? false}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Text content */}
         {combinedText && (
@@ -91,3 +98,28 @@ export const AssistantMessage = memo(function AssistantMessage({
     </div>
   );
 });
+
+function ThinkingRow({ content, isActive }: { content: string; isActive: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const toggle = useCallback(() => setExpanded((p) => !p), []);
+  const preview = content.length > 60 ? content.slice(0, 60) + "…" : content;
+
+  return (
+    <div className="mb-1">
+      <button
+        onClick={toggle}
+        className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-(--fg)/[0.03] transition-colors w-full text-left"
+      >
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? "bg-(--fg) animate-pulse" : "bg-(--dim)/50"}`} />
+        <span className={`text-[11px] flex-1 ${isActive ? "text-(--fg)" : "text-(--dim)"}`}>
+          {isActive ? "Thinking..." : expanded ? "Thought" : preview}
+        </span>
+      </button>
+      {expanded && !isActive && (
+        <div className="ml-[22px] mt-0.5 pl-3 border-l-2 border-(--border) text-[11px] leading-[1.6] text-(--dim) overflow-y-auto max-h-[200px]">
+          <p className="whitespace-pre-wrap break-words">{content}</p>
+        </div>
+      )}
+    </div>
+  );
+}

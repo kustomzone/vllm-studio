@@ -1,3 +1,4 @@
+// CRITICAL
 "use client";
 
 import type { CurrentToolCall } from "@/app/chat/hooks/chat/use-current-tool-call";
@@ -12,41 +13,61 @@ interface ComputerViewProps {
 export function ComputerView({ currentToolCall, runToolCalls, isLoading }: ComputerViewProps) {
   const completedCount = runToolCalls.filter((t) => t.state === "complete" || t.state === "error").length;
   const runningCount = runToolCalls.filter((t) => t.state === "running").length;
+  const hasContent = currentToolCall != null;
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="h-12 px-4 flex items-center justify-between border-b border-(--border)/20 shrink-0">
+      <div className="px-4 py-2 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-(--fg)">Agent Computer</span>
-          <span className={`h-1.5 w-1.5 rounded-full ${runningCount > 0 ? "bg-(--hl2) animate-pulse" : "bg-(--dim)/20"}`} />
+          <span className={`h-1.5 w-1.5 rounded-full ${runningCount > 0 ? "bg-(--hl2)" : "bg-(--dim)/40"}`} />
+          <span className="text-xs font-medium text-(--fg)">
+            {runningCount > 0 ? "Running" : "Computer"}
+          </span>
         </div>
-        <div className="flex items-center gap-2 text-[10px] font-mono text-(--dim)/40 uppercase tracking-wider">
-          {runToolCalls.length > 0 && (
-            <span>{completedCount}/{runToolCalls.length} done</span>
-          )}
-        </div>
+        {runToolCalls.length > 0 && (
+          <span className="text-[10px] font-mono text-(--dim)">
+            {completedCount}/{runToolCalls.length}
+          </span>
+        )}
       </div>
 
-      {/* Viewport */}
-      <div className="flex-1 overflow-y-auto min-h-0">
-        {currentToolCall ? (
-          <ToolRenderer toolCall={currentToolCall} />
+      {/* Viewport — fixed height container prevents layout shift */}
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+        {hasContent ? (
+          <div className="p-4 min-w-0">
+            <ToolRenderer toolCall={currentToolCall!} />
+          </div>
         ) : (
-          <div className="flex items-center justify-center h-full">
+          /* Empty state — computer desktop with smiley */
+          <div className="h-full flex items-center justify-center">
             <div className="text-center">
-              <div className="w-10 h-10 rounded-lg bg-(--surface) border border-(--border)/50 flex items-center justify-center mx-auto mb-3">
-                <svg className="w-5 h-5 text-(--dim)/30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-              </div>
-              <p className="text-[12px] text-(--dim)/40">Waiting for activity...</p>
+              {/* Retro computer icon */}
+              <svg viewBox="0 0 64 64" className="w-16 h-16 mx-auto mb-3 text-(--dim)/40" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                {/* Monitor */}
+                <rect x="8" y="6" width="48" height="34" rx="4" />
+                {/* Screen with smiley */}
+                <rect x="12" y="10" width="40" height="26" rx="2" fill="currentColor" opacity="0.1" stroke="none" />
+                {/* Smiley face */}
+                <circle cx="32" cy="23" r="8" fill="none" strokeWidth="1.5" />
+                <circle cx="29" cy="21" r="1" fill="currentColor" stroke="none" />
+                <circle cx="35" cy="21" r="1" fill="currentColor" stroke="none" />
+                <path d="M28 25.5 Q32 29 36 25.5" fill="none" strokeWidth="1.5" />
+                {/* Stand */}
+                <line x1="32" y1="40" x2="32" y2="48" />
+                <line x1="24" y1="48" x2="40" y2="48" />
+                {/* Desk */}
+                <rect x="14" y="52" width="36" height="4" rx="2" />
+              </svg>
+              <p className="text-xs text-(--dim)">Waiting for tools...</p>
             </div>
           </div>
         )}
       </div>
 
-      {/* Footer — run tool summary */}
+      {/* Footer — tool run summary */}
       {runToolCalls.length > 0 && (
-        <div className="shrink-0 px-4 py-2 border-t border-(--border)/20 bg-(--surface)/30">
+        <div className="shrink-0 px-4 py-2 border-t border-(--border)/20">
           <div className="flex flex-wrap gap-1">
             {runToolCalls.map((tc) => (
               <span
@@ -56,7 +77,7 @@ export function ComputerView({ currentToolCall, runToolCalls, isLoading }: Compu
                     ? "bg-(--hl2)/10 text-(--hl2)"
                     : tc.state === "error"
                       ? "bg-(--err)/10 text-(--err)"
-                      : "bg-(--dim)/5 text-(--dim)/50"
+                      : "bg-(--fg)/5 text-(--dim)"
                 }`}
               >
                 {tc.toolName}

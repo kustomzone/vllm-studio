@@ -132,7 +132,7 @@ export function SectionCard({
 
 function StatusDot({ running }: { running: boolean }) {
   return (
-    <span className={`h-2 w-2 rounded-full ${running ? "bg-(--hl2) animate-pulse" : "bg-(--dim)/60"}`} />
+    <span className={`h-2 w-2 rounded-full ${running ? "bg-(--hl2)" : "bg-(--dim)/60"}`} />
   );
 }
 
