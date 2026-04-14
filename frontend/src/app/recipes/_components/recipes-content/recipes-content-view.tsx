@@ -8,8 +8,7 @@ import { DeleteRecipeConfirmModal } from "./delete-recipe-confirm-modal";
 import { RecipesContentHeader } from "./recipes-content-header";
 import { RecipesTab } from "./recipes-tab";
 import { RecipeModal } from "../recipe-modal/recipe-modal";
-import { VramCalculatorPanel } from "../vram-calculator-panel";
-import { VllmRuntimePanel } from "../vllm-runtime-panel";
+import { ExploreTab } from "./explore-tab";
 
 type Props = {
   tab: RecipesContentTab;
@@ -92,11 +91,7 @@ export function RecipesContentView(props: Props) {
           />
         )}
 
-        {tab === "tools" && (
-          <VramCalculatorPanel availableModels={availableModels} modelServedNames={modelServedNames} />
-        )}
-
-        {tab === "runtime" && <VllmRuntimePanel />}
+        {tab === "explore" && <ExploreTab />}
       </div>
 
       {deleteConfirm && (

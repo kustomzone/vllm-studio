@@ -1,7 +1,7 @@
 // CRITICAL
 "use client";
 
-import { Calculator, Package, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import type { RecipesContentTab } from "./recipes-content-model";
 
 type Props = {
@@ -23,7 +23,7 @@ export function RecipesContentHeader({ tab, setTab, refreshing, onRefresh }: Pro
           paddingBottom: "1rem",
         }}
       >
-        <h1 className="text-xl font-semibold">Recipes</h1>
+        <h1 className="text-xl font-semibold">Models</h1>
         <div className="flex items-center gap-2">
           <button
             onClick={onRefresh}
@@ -43,33 +43,21 @@ export function RecipesContentHeader({ tab, setTab, refreshing, onRefresh }: Pro
           onClick={() => setTab("recipes")}
           className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
             tab === "recipes"
-              ? "text-(--fg) border-(--accent)"
+              ? "text-(--fg) border-(--fg)"
               : "text-(--dim) border-transparent hover:text-(--fg)"
           }`}
         >
-          Recipes
+          Your Models
         </button>
         <button
-          onClick={() => setTab("tools")}
+          onClick={() => setTab("explore")}
           className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-            tab === "tools"
-              ? "text-(--fg) border-(--accent)"
+            tab === "explore"
+              ? "text-(--fg) border-(--fg)"
               : "text-(--dim) border-transparent hover:text-(--fg)"
           }`}
         >
-          <Calculator className="w-4 h-4 inline mr-2" />
-          VRAM Calculator
-        </button>
-        <button
-          onClick={() => setTab("runtime")}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-            tab === "runtime"
-              ? "text-(--fg) border-(--accent)"
-              : "text-(--dim) border-transparent hover:text-(--fg)"
-          }`}
-        >
-          <Package className="w-4 h-4 inline mr-2" />
-          vLLM Runtime
+          Explore
         </button>
       </div>
     </>

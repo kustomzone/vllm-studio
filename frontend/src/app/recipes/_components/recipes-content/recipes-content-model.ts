@@ -10,7 +10,7 @@ import { normalizeRecipeForEditor, prepareRecipeForSave } from "../../recipe-uti
 import { DEFAULT_RECIPE } from "./default-recipe";
 import { useRecipesDerived } from "./use-recipes-derived";
 
-export type RecipesContentTab = "recipes" | "tools" | "runtime";
+export type RecipesContentTab = "recipes" | "explore";
 
 export function useRecipesContentModel() {
   const [tab, setTab] = useState<RecipesContentTab>("recipes");
