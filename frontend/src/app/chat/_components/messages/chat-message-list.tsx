@@ -43,7 +43,7 @@ interface VirtuosoItem {
 
 const VirtuosoList = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={`flex flex-col ${className ?? ""}`} {...props} />
+    <div ref={ref} className={`flex flex-col min-h-full ${className ?? ""}`} {...props} />
   ),
 );
 VirtuosoList.displayName = "VirtuosoList";
@@ -160,21 +160,19 @@ export function ChatMessageList({
     ],
   );
 
-  // Footer is always a fixed-height block while loading — no conditional show/hide that
-  // would shift layout. The dots and status text fade in/out with opacity only.
+  // Footer reserves constant space so messages never shift when loading state changes.
   const Footer = useCallback(
     () => (
       <div className="pt-1 pb-2">
         <div
-          className="flex items-center gap-2.5 overflow-hidden transition-all duration-200 ease-out"
-          style={{ maxHeight: isLoading ? "2rem" : "0px", opacity: isLoading ? 1 : 0 }}
+          className="flex items-center gap-2.5 h-8 overflow-hidden transition-opacity duration-200 ease-out"
+          style={{ opacity: isLoading ? 1 : 0 }}
         >
           <div className="typing-dots shrink-0">
             <span />
             <span />
             <span />
           </div>
-          {/* Status text: opacity transition only, never changes height */}
           <span
             className="text-[11px] text-(--dim)/50 font-mono truncate transition-opacity duration-200"
             style={{ opacity: runStatusLine?.trim() ? 1 : 0 }}
@@ -192,9 +190,10 @@ export function ChatMessageList({
   const itemKey = useCallback((_i: number, item: VirtuosoItem) => item.message.id, []);
 
   return (
-    <div className="px-4 md:px-6 py-3 max-w-3xl mx-auto w-full">
+    <div className="px-4 md:px-6 py-3 max-w-3xl mx-auto w-full h-full">
       <PerfProfiler id="chat-message-list">
         <Virtuoso
+          className="h-full"
           customScrollParent={scrollParent ?? undefined}
           data={items}
           itemContent={renderItem}

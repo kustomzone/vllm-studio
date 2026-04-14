@@ -6,7 +6,7 @@ import {
   BarChart3,
   HardDrive,
   MessageCircle,
-  ScrollText,
+  Server,
   Settings,
   Sun,
   Moon,
@@ -18,8 +18,9 @@ import { useShallow } from "zustand/react/shallow";
 const tabs = [
   { href: "/", label: "Status", icon: BarChart3 },
   { href: "/recipes", label: "Models", icon: HardDrive },
+  { href: "/chat", label: "Chat", icon: MessageCircle },
+  { href: "/logs", label: "Server", icon: Server },
   { href: "/configs", label: "Settings", icon: Settings },
-  { href: "/logs", label: "Logs", icon: ScrollText },
 ];
 
 function ThemeToggle() {
@@ -88,7 +89,9 @@ export function TopNavbar({ children }: { children: React.ReactNode }) {
               const isActive =
                 tab.href === "/"
                   ? pathname === "/" || pathname === "/usage" || pathname === "/discover"
-                  : pathname.startsWith(tab.href);
+                  : tab.href === "/chat"
+                    ? isChat
+                    : pathname.startsWith(tab.href);
 
               return (
                 <Link
@@ -105,17 +108,6 @@ export function TopNavbar({ children }: { children: React.ReactNode }) {
                 </Link>
               );
             })}
-            <Link
-              href="/chat"
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-1.5 ${
-                isChat
-                  ? "bg-(--bg) text-(--fg) shadow-sm border border-(--border)"
-                  : "text-(--dim) hover:text-(--fg)"
-              }`}
-            >
-              <MessageCircle className="w-4 h-4" />
-              Chat
-            </Link>
           </div>
 
           {/* Right side — theme toggle + status */}

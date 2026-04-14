@@ -12,7 +12,7 @@ import {
 } from "@/lib/themes";
 
 const STORE_KEY = "vllm-studio-chat-state";
-const DEFAULT_THEME_ID: ThemeId = "warm-paper";
+const DEFAULT_THEME_ID: ThemeId = "omlx-light";
 
 const THEME_TOKENS_BY_ID = Object.fromEntries(
   Array.from(THEME_BY_ID.entries()).map(([id, theme]) => [id, theme.tokens]),

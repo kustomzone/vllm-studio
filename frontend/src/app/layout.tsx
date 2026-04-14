@@ -2,7 +2,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { AppSidebar } from "@/components/app-sidebar";
+import { TopNavbar } from "@/components/top-navbar";
 import { getThemeBootstrapScript } from "@/lib/theme/runtime";
 import { Providers } from "./providers";
 
@@ -22,7 +22,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#1a1917",
+  themeColor: "#fafafa",
 };
 
 export const metadata: Metadata = {
@@ -65,7 +65,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" data-theme="warm-paper" suppressHydrationWarning>
+    <html lang="en" data-theme="omlx-light" suppressHydrationWarning>
       <head>
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
         <link rel="icon" href="/mocks/logo-1.svg" type="image/svg+xml" />
@@ -78,7 +78,7 @@ export default function RootLayout({
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers>
-          <AppSidebar>{children}</AppSidebar>
+          <TopNavbar>{children}</TopNavbar>
         </Providers>
       </body>
     </html>

@@ -64,38 +64,15 @@ export function buildSidebarContents(props: SidebarContentsProps): SidebarPanelC
   return {
     computer: (
       <PerfProfiler id={`${prefix}computer-viewport`}>
-        <div className="flex flex-col h-full overflow-hidden">
-          <div className="flex-[2] min-h-0 overflow-hidden">
-            <ComputerViewport
-              currentToolCall={props.currentToolCall}
-              runToolCalls={props.runToolCalls}
-              isLoading={props.isLoading}
-              runStatusLine={props.runStatusLine}
-            />
-          </div>
-          <div className="flex-1 min-h-0 overflow-hidden border-t border-(--border)/40 flex flex-col">
-            <div className="px-3 py-1.5 text-[11px] font-medium text-(--dim) border-b border-(--border)/20 bg-(--surface)/30 shrink-0">
-              Browser
-            </div>
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <BrowserPanel activityGroups={props.activityGroups} isLoading={props.isLoading} />
-            </div>
-          </div>
-          <div className="flex-1 min-h-0 overflow-hidden border-t border-(--border)/40">
-            <AgentFilesPanel
-              files={props.agentFiles}
-              plan={props.agentPlan}
-              selectedFilePath={props.selectedAgentFilePath}
-              selectedFileContent={props.selectedAgentFileContent}
-              selectedFileLoading={props.selectedAgentFileLoading}
-              fileVersions={props.agentFileVersions}
-              onSelectFile={props.onSelectAgentFile}
-              hasSession={props.hasSession}
-            />
-          </div>
-        </div>
+        <ComputerViewport
+          currentToolCall={props.currentToolCall}
+          runToolCalls={props.runToolCalls}
+          isLoading={props.isLoading}
+          runStatusLine={props.runStatusLine}
+        />
       </PerfProfiler>
     ),
+    browser: <BrowserPanel activityGroups={props.activityGroups} isLoading={props.isLoading} />,
     activity: (
       <div className="h-full flex flex-col">
         <PerfProfiler id={`${prefix}activity-panel`}>
@@ -127,6 +104,20 @@ export function buildSidebarContents(props: SidebarContentsProps): SidebarPanelC
     artifacts: (
       <PerfProfiler id={`${prefix}artifact-preview-panel`}>
         <ArtifactPreviewPanel artifacts={props.sessionArtifacts} />
+      </PerfProfiler>
+    ),
+    files: (
+      <PerfProfiler id={`${prefix}agent-files-panel`}>
+        <AgentFilesPanel
+          files={props.agentFiles}
+          plan={props.agentPlan}
+          selectedFilePath={props.selectedAgentFilePath}
+          selectedFileContent={props.selectedAgentFileContent}
+          selectedFileLoading={props.selectedAgentFileLoading}
+          fileVersions={props.agentFileVersions}
+          onSelectFile={props.onSelectAgentFile}
+          hasSession={props.hasSession}
+        />
       </PerfProfiler>
     ),
   };

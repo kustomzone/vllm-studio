@@ -1,30 +1,30 @@
 /* CRITICAL — 10-variable theme system */
 :root {
-  --bg: hsl(40, 20%, 96%);
-  --fg: hsl(30, 12%, 15%);
-  --dim: hsl(35, 8%, 40%);
-  --border: hsl(35, 10%, 82%);
-  --surface: hsl(40, 12%, 93%);
-  --accent: hsl(32, 90%, 44%);
-  --hl1: hsl(270, 45%, 52%);
-  --hl2: hsl(142, 45%, 38%);
-  --hl3: hsl(38, 85%, 48%);
-  --err: hsl(0, 60%, 48%);
+  --bg: hsl(40, 20%, 95%);
+  --fg: hsl(30, 10%, 10%);
+  --dim: hsl(30, 5%, 44%);
+  --border: hsl(35, 12%, 87%);
+  --surface: hsl(38, 18%, 91%);
+  --accent: hsl(217, 91%, 60%);
+  --hl1: hsl(217, 91%, 60%);
+  --hl2: hsl(142, 71%, 45%);
+  --hl3: hsl(38, 92%, 50%);
+  --err: hsl(0, 84%, 60%);
   --app-height: 100vh;
   --app-font-size: 16px;
 }
 
 .dark {
-  --bg: hsl(220, 12%, 7%);
-  --fg: hsl(220, 15%, 93%);
-  --dim: hsl(220, 8%, 52%);
-  --border: hsl(220, 8%, 18%);
-  --surface: hsl(220, 10%, 11%);
-  --accent: hsl(32, 90%, 50%);
-  --hl1: hsl(270, 50%, 60%);
-  --hl2: hsl(142, 40%, 50%);
-  --hl3: hsl(38, 80%, 58%);
-  --err: hsl(0, 55%, 58%);
+  --bg: hsl(0, 0%, 4%);
+  --fg: hsl(0, 0%, 92%);
+  --dim: hsl(0, 0%, 46%);
+  --border: hsl(0, 0%, 14%);
+  --surface: hsl(0, 0%, 8%);
+  --accent: hsl(217, 91%, 65%);
+  --hl1: hsl(217, 70%, 60%);
+  --hl2: hsl(142, 50%, 50%);
+  --hl3: hsl(38, 80%, 55%);
+  --err: hsl(0, 70%, 60%);
 }
 
 @supports (height: 100dvh) {

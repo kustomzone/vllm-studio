@@ -1,5 +1,7 @@
 // CRITICAL
 export type ThemeId =
+  | "omlx-light"
+  | "omlx-dark"
   | "warm-paper"
   | "midnight-blue"
   | "nord"
@@ -178,6 +180,32 @@ const createTheme = (
 });
 
 export const THEMES: ThemeMeta[] = [
+  createTheme("omlx-light", "oMLX Light", "Warm cream paper with amber neutrals and blue accents", "Classic", {
+    bg: "hsl(40, 20%, 95%)",
+    fg: "hsl(30, 10%, 10%)",
+    dim: "hsl(30, 5%, 44%)",
+    border: "hsl(35, 12%, 87%)",
+    surface: "hsl(38, 18%, 91%)",
+    accent: "hsl(217, 91%, 60%)",
+    hl1: "hsl(217, 91%, 60%)",
+    hl2: "hsl(142, 71%, 45%)",
+    hl3: "hsl(38, 92%, 50%)",
+    err: "hsl(0, 84%, 60%)",
+  }),
+
+  createTheme("omlx-dark", "oMLX Dark", "True black with cool zinc grays and blue accents", "Classic", {
+    bg: "hsl(0, 0%, 4%)",
+    fg: "hsl(0, 0%, 92%)",
+    dim: "hsl(0, 0%, 46%)",
+    border: "hsl(0, 0%, 14%)",
+    surface: "hsl(0, 0%, 8%)",
+    accent: "hsl(217, 91%, 65%)",
+    hl1: "hsl(217, 70%, 60%)",
+    hl2: "hsl(142, 50%, 50%)",
+    hl3: "hsl(38, 80%, 55%)",
+    err: "hsl(0, 70%, 60%)",
+  }),
+
   createTheme("warm-paper", "Warm Paper", "Warm browns and tans with amber accents", "Classic", {
     bg: "hsl(30, 5%, 9%)",
     fg: "hsl(40, 20%, 92%)",

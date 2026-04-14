@@ -74,14 +74,14 @@ const copyDirectory = (source: string, target: string): void => {
 
 export const deriveRecommendationVramGb = (gpus: GpuInfo[]): number => {
   if (gpus.length === 0) return 0;
-  return gpus.reduce((max, gpu) => {
-    const next =
+  return gpus.reduce((sum, gpu) => {
+    const gb =
       gpu.memory_total_mb > 0
         ? gpu.memory_total_mb / 1024
         : gpu.memory_total > 0
           ? gpu.memory_total / 1024 ** 3
           : 0;
-    return Math.max(max, next);
+    return sum + gb;
   }, 0);
 };
 

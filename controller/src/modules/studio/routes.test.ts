@@ -21,12 +21,21 @@ const gpu = (overrides: Partial<GpuInfo>): GpuInfo => ({
 });
 
 describe("deriveRecommendationVramGb", () => {
-  it("uses per-GPU capacity instead of summing across devices", () => {
+  it("sums total VRAM across all GPUs", () => {
     const value = deriveRecommendationVramGb([
       gpu({ index: 0, memory_total_mb: 8192 }),
       gpu({ index: 1, memory_total_mb: 8192 }),
     ]);
-    expect(value).toBe(8);
+    expect(value).toBe(16);
+  });
+
+  it("sums pooled VRAM for 8x RTX 3090", () => {
+    const value = deriveRecommendationVramGb(
+      Array.from({ length: 8 }, (_, i) =>
+        gpu({ index: i, memory_total_mb: 24576 }),
+      ),
+    );
+    expect(value).toBe(192);
   });
 
   it("falls back to byte-based memory_total when memory_total_mb is unavailable", () => {
