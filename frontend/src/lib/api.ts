@@ -8,6 +8,7 @@
 import { createApiClient } from "./api/create-api-client";
 import { resolveApiServerBaseUrl } from "./backend-config";
 export type { ChatRunStreamEvent } from "./api/core";
+export { scrubTransportFetchErrorMessage } from "./api/core";
 
 // For client-side calls, use the proxy which handles authentication
 // The proxy adds the API key server-side, avoiding CORS and auth issues

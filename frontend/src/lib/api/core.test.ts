@@ -146,4 +146,41 @@ describe("createApiCore", () => {
     expect(events[1]?.data["run_id"]).toBe("legacy-2");
     expect(events[1]?.data["status"]).toBe("completed");
   });
+
+  it("ends SSE stream gracefully when the body reader throws a transport close (no Bun hint surfaced)", async () => {
+    let pulls = 0;
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        new ReadableStream<Uint8Array>({
+          pull(controller) {
+            pulls += 1;
+            if (pulls === 1) {
+              controller.enqueue(encode('event: run_start\ndata: {"run_id":"t1"}\n\n'));
+              return;
+            }
+            return Promise.reject(
+              new Error(
+                "The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()",
+              ),
+            );
+          },
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream", "X-Run-Id": "t1" },
+        },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const core = createApiCore({ baseUrl: "/api/proxy", useProxy: true });
+    const { stream } = await core.postSseJson("/chats/s1/turn", { content: "hello" });
+
+    const events: Array<{ event: string; data: Record<string, unknown> }> = [];
+    for await (const entry of stream) {
+      events.push(entry);
+    }
+
+    expect(events.map((e) => e.event)).toEqual(["run_start"]);
+  });
 });

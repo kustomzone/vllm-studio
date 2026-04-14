@@ -109,6 +109,41 @@ export interface ChatRunStreamEvent {
   data: Record<string, unknown>;
 }
 
+/** Strip Bun-only debugging suffix from fetch/SSE errors so the UI stays readable. */
+export function scrubTransportFetchErrorMessage(message: string): string {
+  return message
+    .replace(
+      /\s*For more information, pass `verbose:\s*true`\s+in the second argument to fetch\(\)\.?\s*$/i,
+      "",
+    )
+    .trimEnd();
+}
+
+/** Mid-stream TCP/TLS drops often surface as TypeError or runtime-specific messages (e.g. Bun). Treat as EOF for SSE. */
+function isBenignSseTransportFailure(error: unknown, signal?: AbortSignal): boolean {
+  if (signal?.aborted) return true;
+  if (!error) return false;
+  if (error instanceof DOMException) {
+    if (error.name === "AbortError") return true;
+    if (error.name === "NetworkError") return true;
+  }
+  if (error instanceof Error) {
+    if (error.name === "AbortError") return true;
+    const msg = error.message.toLowerCase();
+    if (msg.includes("abort")) return true;
+    if (msg.includes("failed to fetch")) return true;
+    if (msg.includes("networkerror") || msg.includes("network error")) return true;
+    if (msg.includes("load failed")) return true;
+    if (msg.includes("terminated")) return true;
+    if (msg.includes("socket") && msg.includes("closed")) return true;
+    if (msg.includes("connection reset")) return true;
+    if (msg.includes("econnreset")) return true;
+    if (msg.includes("broken pipe")) return true;
+  }
+  if (error instanceof TypeError) return true;
+  return false;
+}
+
 export type ApiCore = ReturnType<typeof createApiCore>;
 
 export function createApiCore(params: { baseUrl: string; useProxy: boolean }) {
@@ -264,6 +299,7 @@ export function createApiCore(params: { baseUrl: string; useProxy: boolean }) {
 
   const parseSseStream = async function* (
     reader: ReadableStreamDefaultReader<Uint8Array>,
+    signal?: AbortSignal,
   ): AsyncGenerator<ChatRunStreamEvent> {
     const decoder = new TextDecoder();
     let buffer = "";
@@ -286,10 +322,21 @@ export function createApiCore(params: { baseUrl: string; useProxy: boolean }) {
     };
 
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+      let chunk: Uint8Array | undefined;
+      try {
+        const result = await reader.read();
+        if (result.done) break;
+        chunk = result.value;
+      } catch (err) {
+        if (isBenignSseTransportFailure(err, signal)) {
+          break;
+        }
+        throw err;
+      }
 
-      buffer += decoder.decode(value, { stream: true });
+      if (!chunk) break;
+
+      buffer += decoder.decode(chunk, { stream: true });
       const lines = buffer.split(/\r?\n/);
       buffer = lines.pop() || "";
 
@@ -330,13 +377,24 @@ export function createApiCore(params: { baseUrl: string; useProxy: boolean }) {
     const url = buildUrl(endpoint);
     const headers = buildHeaders({ Accept: "text/event-stream" });
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload),
-      signal: options.signal,
-      credentials: "include",
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+        signal: options.signal,
+        credentials: "include",
+      });
+    } catch (err) {
+      if (err instanceof Error) {
+        const cleaned = scrubTransportFetchErrorMessage(err.message);
+        if (cleaned && cleaned !== err.message) {
+          throw new Error(cleaned);
+        }
+      }
+      throw err;
+    }
     maybeClearInvalidBackendOverride(response);
 
     if (!response.ok || !response.body) {
@@ -348,7 +406,24 @@ export function createApiCore(params: { baseUrl: string; useProxy: boolean }) {
 
     const runId = response.headers.get("x-run-id");
     const reader = response.body.getReader();
-    return { runId, stream: parseSseStream(reader) };
+    const signal = options.signal;
+
+    if (signal) {
+      const onAbort = () => {
+        try {
+          void reader.cancel();
+        } catch {
+          /* ignore */
+        }
+      };
+      if (signal.aborted) {
+        onAbort();
+      } else {
+        signal.addEventListener("abort", onAbort, { once: true });
+      }
+    }
+
+    return { runId, stream: parseSseStream(reader, signal) };
   };
 
   return {

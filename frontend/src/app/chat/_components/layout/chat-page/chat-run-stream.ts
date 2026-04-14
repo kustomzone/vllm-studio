@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
-import api, { type ChatRunStreamEvent } from "@/lib/api";
+import api, { scrubTransportFetchErrorMessage, type ChatRunStreamEvent } from "@/lib/api";
 import type { ToolResult } from "@/lib/types";
 import { pushStreamErrorToast } from "./controller/internal/use-stream-error-toast";
 
@@ -222,7 +222,8 @@ export function useChatRunStream({
         }
       } catch (err) {
         if (!abortController.signal.aborted && !runCompletedRef.current) {
-          const message = err instanceof Error ? err.message : String(err);
+          const raw = err instanceof Error ? err.message : String(err);
+          const message = scrubTransportFetchErrorMessage(raw);
           setStreamError(message);
           pushStreamErrorToast(message, {
             activeRunId: activeRunIdRef.current,
