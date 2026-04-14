@@ -1,7 +1,7 @@
 // CRITICAL
 "use client";
 
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Monitor,
   Terminal,
@@ -23,6 +23,7 @@ import { BrowserView } from "./browser-view";
 import { TodoView } from "./todo-view";
 import { ComputerEmbeddedBrowser } from "./computer-embedded-browser";
 import { AgentFilePreview } from "./agent-file-preview";
+import { sanitizeEmbeddedBrowserUrl } from "@/lib/sanitize-embedded-browser-url";
 
 type ViewType = "terminal" | "file" | "browser" | "todo" | "idle";
 
@@ -88,6 +89,30 @@ export const ComputerViewport = memo(function ComputerViewport({
 }: ComputerViewportProps) {
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [subView, setSubView] = useState<"tools" | "files" | "browser">("tools");
+  const lastSyncedBrowserUrl = useRef<string>("");
+
+  const safeBrowserSrc = useMemo(
+    () => sanitizeEmbeddedBrowserUrl(computerBrowserUrl) ?? "",
+    [computerBrowserUrl],
+  );
+
+  /** When the model pushes a URL (browser_open_url), bring the user to Browser without dropping the in-flight run. */
+  useEffect(() => {
+    if (!safeBrowserSrc) {
+      lastSyncedBrowserUrl.current = "";
+      return;
+    }
+    if (safeBrowserSrc === lastSyncedBrowserUrl.current) return;
+    lastSyncedBrowserUrl.current = safeBrowserSrc;
+    setSubView("browser");
+  }, [safeBrowserSrc]);
+
+  const handleComputerBrowserUrlChange = useCallback(
+    (next: string) => {
+      onComputerBrowserUrlChange?.(next);
+    },
+    [onComputerBrowserUrlChange],
+  );
 
   const runningId = currentToolCall?.state === "running" ? currentToolCall.toolCallId : null;
   const effectiveFocusedId = runningId ? null : focusedId;
@@ -152,7 +177,9 @@ export const ComputerViewport = memo(function ComputerViewport({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+        {subView !== "browser" ? (
+          <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
         {subView === "tools" && (
           <div className="flex min-h-0 flex-1 flex-row overflow-hidden">
             {runToolCalls.length > 0 ? (
@@ -224,11 +251,23 @@ export const ComputerViewport = memo(function ComputerViewport({
             hasSession={hasSession ?? false}
           />
         )}
-        {subView === "browser" && (
-          <ComputerEmbeddedBrowser
-            url={computerBrowserUrl}
-            onUrlChange={(next) => onComputerBrowserUrlChange?.(next)}
-          />
+          </div>
+        ) : null}
+
+        {(safeBrowserSrc || subView === "browser") && (
+          <div
+            className={
+              subView === "browser"
+                ? "relative z-20 flex min-h-0 flex-1 flex-col overflow-hidden"
+                : "pointer-events-none absolute inset-0 z-0 flex min-h-0 flex-col overflow-hidden opacity-0"
+            }
+            aria-hidden={subView !== "browser"}
+          >
+            <ComputerEmbeddedBrowser
+              url={computerBrowserUrl}
+              onUrlChange={handleComputerBrowserUrlChange}
+            />
+          </div>
         )}
       </div>
     </div>

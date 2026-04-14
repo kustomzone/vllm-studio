@@ -30,6 +30,9 @@ export const ComputerEmbeddedBrowser = memo(function ComputerEmbeddedBrowser({
       return;
     }
     setIframeLoaded(false);
+    // Many sites never fire onLoad when X-Frame-Options blocks framing — avoid an infinite spinner.
+    const loadCap = window.setTimeout(() => setIframeLoaded(true), 28_000);
+    return () => window.clearTimeout(loadCap);
   }, [safeSrc, iframeNonce]);
 
   const submitUrl = useCallback(() => {
@@ -94,9 +97,10 @@ export const ComputerEmbeddedBrowser = memo(function ComputerEmbeddedBrowser({
             <Globe className="h-10 w-10 opacity-20" strokeWidth={1.25} />
             <p>Enter a public <span className="font-mono">http(s)</span> URL to preview here.</p>
             <p className="max-w-sm text-[11px] leading-snug text-(--dim)/70">
-              Embedded frame (same security model as this browser). Many sites refuse to load in an
-              iframe; use “Open in system browser” if the page stays blank. When the model calls{" "}
-              <span className="font-mono">browser_open_url</span>, the URL syncs here automatically.
+              Embedded preview uses the same browser engine as this app. Some sites block iframes
+              (blank frame); use “Open in system browser”. Switching Computer tabs does not unload
+              this frame while a URL is set, so long pages stay connected.{" "}
+              <span className="font-mono">browser_open_url</span> opens this tab automatically.
             </p>
           </div>
         ) : (
@@ -111,8 +115,8 @@ export const ComputerEmbeddedBrowser = memo(function ComputerEmbeddedBrowser({
               title="Computer browser"
               src={safeSrc}
               className="h-full w-full border-0"
-              sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
-              referrerPolicy="no-referrer"
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals"
+              referrerPolicy="strict-origin-when-cross-origin"
               onLoad={() => setIframeLoaded(true)}
             />
           </>
