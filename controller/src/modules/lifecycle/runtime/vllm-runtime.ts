@@ -120,6 +120,19 @@ const resolvePythonBinary = (): string | null => {
   return null;
 };
 
+/**
+ * Collect all usable python paths in priority order for vllm probing.
+ */
+const collectPythonCandidates = (): string[] => {
+  const candidates: string[] = [];
+  const runtimePython = resolveVllmPythonPath();
+  if (runtimePython) candidates.push(runtimePython);
+  const override = process.env["VLLM_STUDIO_RUNTIME_PYTHON"];
+  if (override) candidates.push(override);
+  candidates.push("python3", "python");
+  return candidates.filter((c, i, arr) => arr.indexOf(c) === i);
+};
+
 const resolveBundledWheel = (): { path: string; version: string | null } | null => {
   const runtimeDirectory = resolve(process.cwd(), "runtime", "wheels");
   if (!existsSync(runtimeDirectory)) {
@@ -159,6 +172,9 @@ const resolveVllmBinary = (pythonPath: string | null): string | null => {
   return resolveBinary("vllm");
 };
 
+const VLLM_IMPORT_PROBE =
+  "import json, sys\ntry:\n import vllm\n print(json.dumps({'version': vllm.__version__, 'python': sys.executable}))\nexcept Exception:\n print(json.dumps({'version': None, 'python': sys.executable}))";
+
 export const getVllmRuntimeInfo = async (): Promise<{
   installed: boolean;
   version: string | null;
@@ -167,50 +183,50 @@ export const getVllmRuntimeInfo = async (): Promise<{
   upgrade_command_available: boolean;
   bundled_wheel: { path: string; version: string | null } | null;
 }> => {
-  const pythonPath = resolvePythonBinary();
-  const vllmBin = resolveVllmBinary(pythonPath);
   const bundledWheel = resolveBundledWheel();
+  const candidates = collectPythonCandidates();
 
-  if (!pythonPath) {
-    return {
-      installed: false,
-      version: null,
-      python_path: null,
-      vllm_bin: vllmBin,
-      upgrade_command_available: false,
-      bundled_wheel: bundledWheel,
-    };
+  // Try each python candidate until one can actually import vllm.
+  for (const candidate of candidates) {
+    try {
+      const check = spawnSync(candidate, ["--version"], { timeout: 2000 });
+      if (check.status !== 0) continue;
+    } catch {
+      continue;
+    }
+
+    const result = await runCommand(candidate, ["-c", VLLM_IMPORT_PROBE]);
+    if (result.code !== 0) continue;
+
+    let parsed: { version?: string | null; python?: string | null } | null = null;
+    try {
+      parsed = JSON.parse(result.stdout) as { version?: string | null; python?: string | null };
+    } catch {
+      continue;
+    }
+
+    if (parsed?.version) {
+      const vllmBin = resolveVllmBinary(parsed.python ?? candidate);
+      return {
+        installed: true,
+        version: parsed.version,
+        python_path: parsed.python ?? candidate,
+        vllm_bin: vllmBin,
+        upgrade_command_available: true,
+        bundled_wheel: bundledWheel,
+      };
+    }
   }
 
-  const result = await runCommand(pythonPath, [
-    "-c",
-    "import json, sys\ntry:\n import vllm\n print(json.dumps({'version': vllm.__version__, 'python': sys.executable}))\nexcept Exception:\n print(json.dumps({'version': None, 'python': sys.executable}))",
-  ]);
-
-  if (result.code !== 0) {
-    return {
-      installed: false,
-      version: null,
-      python_path: pythonPath,
-      vllm_bin: vllmBin,
-      upgrade_command_available: false,
-      bundled_wheel: bundledWheel,
-    };
-  }
-
-  let parsed: { version?: string | null; python?: string | null } | null = null;
-  try {
-    parsed = JSON.parse(result.stdout) as { version?: string | null; python?: string | null };
-  } catch {
-    parsed = null;
-  }
-
+  // None of the candidates had vllm -- fall back to first usable python.
+  const fallbackPython = resolvePythonBinary();
+  const vllmBin = resolveVllmBinary(fallbackPython);
   return {
-    installed: Boolean(parsed?.version),
-    version: parsed?.version ?? null,
-    python_path: parsed?.python ?? pythonPath,
+    installed: false,
+    version: null,
+    python_path: fallbackPython,
     vllm_bin: vllmBin,
-    upgrade_command_available: true,
+    upgrade_command_available: Boolean(fallbackPython),
     bundled_wheel: bundledWheel,
   };
 };

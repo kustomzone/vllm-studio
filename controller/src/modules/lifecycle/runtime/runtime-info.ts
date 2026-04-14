@@ -86,35 +86,47 @@ export const detectPlatformKind = (args: {
   return "unknown";
 };
 
+const SGLANG_IMPORT_PROBE =
+  "import json, sys\ntry:\n import sglang\n print(json.dumps({'version': getattr(sglang, '__version__', None), 'python': sys.executable}))\nexcept Exception:\n print(json.dumps({'version': None, 'python': sys.executable}))";
+
 export const getSglangRuntimeInfo = (config: Config): RuntimeBackendInfo => {
-  const python = config.sglang_python || resolveVllmPythonPath() || "python3";
-  const pythonAvailable = runCommand(python, ["-V"]).status === 0;
-  const result = runCommand(python, [
-    "-c",
-    "import json, sys\ntry:\n import sglang\n print(json.dumps({'version': getattr(sglang, '__version__', None), 'python': sys.executable}))\nexcept Exception:\n print(json.dumps({'version': None, 'python': sys.executable}))",
-  ]);
+  // Build candidate list: configured python first, then canonical venv, then system.
+  const candidates: string[] = [];
+  if (config.sglang_python) candidates.push(config.sglang_python);
+  const canonical = resolveVllmPythonPath();
+  if (canonical) candidates.push(canonical);
+  candidates.push("python3", "python");
+  const unique = candidates.filter((c, i, a) => a.indexOf(c) === i);
 
-  if (result.status !== 0) {
-    return {
-      installed: false,
-      version: null,
-      python_path: config.sglang_python ?? null,
-      upgrade_command_available: pythonAvailable,
-    };
+  for (const python of unique) {
+    if (runCommand(python, ["-V"]).status !== 0) continue;
+    const result = runCommand(python, ["-c", SGLANG_IMPORT_PROBE]);
+    if (result.status !== 0) continue;
+
+    let parsed: { version?: string | null; python?: string | null } | null = null;
+    try {
+      parsed = JSON.parse(result.stdout) as { version?: string | null; python?: string | null };
+    } catch {
+      continue;
+    }
+
+    if (parsed?.version) {
+      return {
+        installed: true,
+        version: parsed.version,
+        python_path: parsed.python ?? python,
+        upgrade_command_available: true,
+      };
+    }
   }
 
-  let parsed: { version?: string | null; python?: string | null } | null = null;
-  try {
-    parsed = JSON.parse(result.stdout) as { version?: string | null; python?: string | null };
-  } catch {
-    parsed = null;
-  }
-
+  // No candidate had sglang.
+  const fallback = unique.find((p) => runCommand(p, ["-V"]).status === 0) ?? null;
   return {
-    installed: Boolean(parsed?.version),
-    version: parsed?.version ?? null,
-    python_path: parsed?.python ?? config.sglang_python ?? null,
-    upgrade_command_available: pythonAvailable,
+    installed: false,
+    version: null,
+    python_path: fallback ?? config.sglang_python ?? null,
+    upgrade_command_available: Boolean(fallback),
   };
 };
 
