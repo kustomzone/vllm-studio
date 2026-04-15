@@ -58,6 +58,19 @@ export function useChatPageController(): ChatPageViewProps {
     sessionIdRef.current = sessions.currentSessionId;
   }, [sessions.currentSessionId]);
 
+  /**
+   * Messages live on the controller (loaded via API); they are not in Zustand persist.
+   * `/chat?session=<id>` is how refresh, bookmarks, and shares reopen the same thread.
+   * Keep the query param aligned whenever `currentSessionId` changes (e.g. compaction,
+   * first message creating a session already calls replaceUrl — this covers every other path).
+   */
+  useEffect(() => {
+    const sid = sessions.currentSessionId;
+    if (!sid) return;
+    if (sessionFromUrl === sid) return;
+    router.replace(`/chat?session=${encodeURIComponent(sid)}`);
+  }, [router, sessionFromUrl, sessions.currentSessionId]);
+
   const messageMapping = Hooks.useChatMessageMapping({ setMessages });
   const toolResults = Hooks.useChatToolResults({
     setMessages,
