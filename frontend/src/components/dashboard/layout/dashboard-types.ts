@@ -23,7 +23,6 @@ export interface DashboardLayoutProps {
   services?: ServiceEntry[];
   lease?: LeaseInfo | null;
   isConnected: boolean;
-  reconnectAttempts: number;
   inferencePort?: number;
   onNavigateChat: () => void;
   onNavigateLogs: () => void;

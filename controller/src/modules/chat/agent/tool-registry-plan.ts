@@ -5,7 +5,7 @@ import type { TSchema } from "@sinclair/typebox";
 import type { AppContext } from "../../../types/context";
 import { Event } from "../../monitoring/event-manager";
 import { createTextResult } from "./tool-registry-common";
-import type { AgentToolRegistryOptions } from "./tool-registry";
+import type { AgentToolRegistryOptions } from "./tool-registry-types";
 import { AGENT_RUN_EVENT_TYPES } from "./contracts";
 
 const loadAgentPlan = (context: AppContext, sessionId: string): Record<string, unknown> | null => {

@@ -1,19 +1,10 @@
 // CRITICAL
 import type { ModelDownload } from "@/lib/types";
+import { formatBytes } from "@/lib/formatters";
 
 export const setupSteps = ["Welcome", "Hardware", "Model", "Download", "Launch", "Benchmark"];
 
-export const formatBytes = (bytes: number | null): string => {
-  if (!bytes || bytes <= 0) return "-";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let value = bytes;
-  let unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
-};
+export { formatBytes };
 
 export const progressPercent = (download: ModelDownload | null): number => {
   if (!download?.total_bytes) return 0;

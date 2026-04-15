@@ -3,8 +3,8 @@
  * Recipe types (model launch configuration).
  */
 
-export type { Backend } from "../../../../../../shared/src";
-import type { Backend, RecipeBase } from "../../../../../../shared/src";
+export type { Backend } from "../../../../../shared/src";
+import type { Backend, RecipeBase } from "../../../../../shared/src";
 
 /**
  * Canonical recipe shape as returned by the controller API (stored/normalized).

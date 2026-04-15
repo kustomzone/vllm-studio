@@ -1,7 +1,3 @@
-export const MODELS_MODULE_DEFAULTS = {
-  includeLegacyModels: true,
-};
-
 export const MODEL_BROWSER_WEIGHT_EXTENSIONS = [".safetensors", ".bin", ".gguf"] as const;
 
 export const MODEL_BROWSER_CONFIG_FILENAMES = ["config.json"] as const;

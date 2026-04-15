@@ -56,4 +56,28 @@ function formatDate(dateStr: string): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export { toGB, toGBFromMB, formatNumber, formatDuration, formatDate };
+/**
+ * Format bytes into a human-readable string (B, KB, MB, GB, TB).
+ */
+function formatBytes(bytes: number | null): string {
+  if (!bytes || bytes <= 0) return "-";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+/**
+ * Format seconds as mm:ss (e.g. recording/timer display).
+ */
+function formatDurationMmSs(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
+export { toGB, toGBFromMB, formatNumber, formatDuration, formatDate, formatBytes, formatDurationMmSs };

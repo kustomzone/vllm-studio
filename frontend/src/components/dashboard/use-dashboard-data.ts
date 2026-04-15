@@ -41,7 +41,6 @@ export function useDashboardData() {
     services: realtime.services,
     lease: realtime.lease,
     isConnected: realtime.isConnected,
-    reconnectAttempts: realtime.reconnectAttempts,
     inferencePort: realtime.status?.inference_port,
     benchmarking: actions.benchmarking,
     launching: actions.launching,

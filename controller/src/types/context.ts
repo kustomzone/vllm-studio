@@ -6,13 +6,33 @@ import type { ControllerMetrics, MetricsRegistry } from "../modules/monitoring/m
 import type { ProcessManager } from "../modules/lifecycle/process/process-manager";
 import type { LifecycleCoordinator } from "../modules/lifecycle/state/lifecycle-coordinator";
 import type { DownloadManager } from "../modules/downloads/manager";
-import type { ChatRunManager } from "../modules/chat/agent/run-manager";
+import type { ChatRunOptions, ChatRunStream } from "../modules/chat/agent/run-manager-types";
 import type { ChatStore } from "../modules/chat/store";
 import type { DownloadStore } from "../modules/downloads/store";
 import type { LifetimeMetricsStore, PeakMetricsStore } from "../modules/monitoring/metrics-store";
 import type { RecipeStore } from "../modules/lifecycle/recipes/recipe-store";
 import type { JobStore } from "../stores/job-store";
-import type { JobManager } from "../modules/jobs/job-manager";
+import type { JobType } from "../modules/jobs/types";
+
+/**
+ * Minimal interface for the chat run manager as seen through the app context.
+ * The concrete ChatRunManager class satisfies this interface structurally.
+ */
+export interface IChatRunManager {
+  startRun(options: ChatRunOptions): Promise<ChatRunStream>;
+  abortRun(runId: string): boolean;
+  abortRunsForModel(modelName: string): number;
+}
+
+/**
+ * Minimal interface for the job manager as seen through the app context.
+ * The concrete JobManager class satisfies this interface structurally.
+ */
+export interface IJobManager {
+  createJob(type: JobType, input: Record<string, unknown>): Promise<Record<string, unknown>>;
+  getJob(id: string): Record<string, unknown> | null;
+  listJobs(limit?: number): Record<string, unknown>[];
+}
 
 /**
  * Application-wide dependency container.
@@ -27,8 +47,8 @@ export interface AppContext {
   processManager: ProcessManager;
   lifecycleCoordinator: LifecycleCoordinator;
   downloadManager: DownloadManager;
-  runManager: ChatRunManager;
-  jobManager: JobManager;
+  runManager: IChatRunManager;
+  jobManager: IJobManager;
   stores: {
     recipeStore: RecipeStore;
     chatStore: ChatStore;

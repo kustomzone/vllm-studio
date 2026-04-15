@@ -12,7 +12,6 @@ export function useRealtimeStatus() {
   const snap = useRealtimeStatusStore();
   const connected = Boolean(snap.status);
 
-  // Preserve the old return shape to avoid touching call sites.
   return useMemo(
     () => ({
       status: snap.status,
@@ -25,8 +24,6 @@ export function useRealtimeStatus() {
       lease: snap.lease,
       jobs: snap.jobs,
       isConnected: connected,
-      error: null,
-      reconnectAttempts: 0,
     }),
     [connected, snap.gpus, snap.jobs, snap.launchProgress, snap.lease, snap.metrics, snap.platformKind, snap.runtimeSummary, snap.services, snap.status],
   );

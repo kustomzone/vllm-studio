@@ -2,6 +2,7 @@
 "use client";
 
 import type { ChatMessage, ChatMessagePart, ToolResult } from "@/lib/types";
+import { formatDurationMmSs } from "@/lib/formatters";
 
 const MAX_STATUS_CHARS = 120;
 const PHRASE_CYCLE_SECONDS = 2;
@@ -30,13 +31,6 @@ function truncateStatus(value: string): string {
   const single = toSingleLine(value);
   if (single.length <= MAX_STATUS_CHARS) return single;
   return `${single.slice(0, MAX_STATUS_CHARS).trim()}...`;
-}
-
-function formatDuration(secondsRaw: number): string {
-  const seconds = Math.max(0, Math.floor(secondsRaw));
-  const mm = Math.floor(seconds / 60);
-  const ss = (seconds % 60).toString().padStart(2, "0");
-  return `${mm}:${ss}`;
 }
 
 function formatToolDisplayName(toolName: string): string {
@@ -284,7 +278,7 @@ export function buildRunStatusText({
   }
 
   if (streamStalled) {
-    return `Still cooking... quiet for ${formatDuration(elapsedSeconds)}`;
+    return `Still cooking... quiet for ${formatDurationMmSs(elapsedSeconds)}`;
   }
 
   return pickThinkingPhrase(elapsedSeconds);

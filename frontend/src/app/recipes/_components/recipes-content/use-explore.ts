@@ -16,11 +16,7 @@ import {
   resolveGroupNeedGb,
 } from "@/app/recipes/_components/recipes-content/explore-model-stats";
 
-function normalizeModelId(modelId: string): string {
-  return modelId
-    .toLowerCase()
-    .replace(/[-_](awq|gptq|gguf|exl2|fp8|fp16|bf16|int8|int4|w4a16|w8a16)[-_]?/gi, "");
-}
+import { normalizeModelId } from "@/app/discover/_components/utils";
 
 export interface ModelGroup {
   key: string;

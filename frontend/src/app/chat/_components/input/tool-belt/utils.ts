@@ -1,4 +1,5 @@
 import type { Attachment } from "../../../types";
+import { formatBytes, formatDurationMmSs } from "@/lib/formatters";
 
 export function maybeRevokeObjectUrl(url: string | undefined) {
   if (!url) return;
@@ -6,17 +7,11 @@ export function maybeRevokeObjectUrl(url: string | undefined) {
   URL.revokeObjectURL(url);
 }
 
-export function formatDuration(seconds: number) {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
-}
+/** @deprecated Use `formatDurationMmSs` from `@/lib/formatters` directly. Re-exported for backwards compatibility. */
+export const formatDuration = formatDurationMmSs;
 
-export function formatFileSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+/** @deprecated Use `formatBytes` from `@/lib/formatters` directly. Re-exported for backwards compatibility. */
+export const formatFileSize = formatBytes;
 
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

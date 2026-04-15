@@ -6,15 +6,10 @@ import { buildAgentFsTools } from "./tool-registry-agentfs";
 import { createTextResult } from "./tool-registry-common";
 import { buildLocalTools } from "./tool-registry-local";
 import { buildPlanTools } from "./tool-registry-plan";
-import type { AgentEventType } from "./contracts";
 import { wrapToolsWithCircuitBreaker } from "./tool-circuit-breaker";
 
-export interface AgentToolRegistryOptions {
-  sessionId: string;
-  agentMode: boolean;
-  agentFiles?: boolean;
-  emitEvent?: (type: AgentEventType, data: Record<string, unknown>) => void;
-}
+export type { AgentToolRegistryOptions } from "./tool-registry-types";
+import type { AgentToolRegistryOptions } from "./tool-registry-types";
 
 /**
  * Build tools available to the agent for a session, based on enabled capabilities.

@@ -10,7 +10,6 @@ export function DashboardLayout(props: DashboardLayoutProps) {
     <div className="min-h-full bg-background text-foreground">
       <DashboardConnectionBanner
         isConnected={props.isConnected}
-        reconnectAttempts={props.reconnectAttempts}
       />
       <div className="max-w-7xl mx-auto px-6 py-6 pb-[calc(2rem+env(safe-area-inset-bottom))] overflow-x-hidden">
         <ControlPanel {...props} />

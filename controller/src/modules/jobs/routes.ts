@@ -1,7 +1,6 @@
 // CRITICAL
 import type { Hono } from "hono";
-import type { AppContext } from "../../types/context";
-import type { JobManager } from "./job-manager";
+import type { AppContext, IJobManager } from "../../types/context";
 import type { JobType } from "./types";
 import { badRequest, notFound } from "../../core/errors";
 import { SUPPORTED_JOB_TYPES } from "./configs";
@@ -15,7 +14,7 @@ import { SUPPORTED_JOB_TYPES } from "./configs";
 export const registerJobsRoutes = (
   app: Hono,
   _context: AppContext,
-  jobManager: JobManager,
+  jobManager: IJobManager,
 ): void => {
   app.post("/jobs", async (ctx) => {
     const body = await ctx.req.json().catch(() => null);
