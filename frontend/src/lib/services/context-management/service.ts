@@ -131,7 +131,7 @@ export class ContextManagementService implements IContextManagementService {
     messages: ContextMessage[],
     maxContext: number,
     systemPrompt?: string,
-    tools?: unknown[],
+    tools?: Record<string, unknown>[],
   ): Omit<
     ContextStats,
     "compactionHistory" | "lastCompaction" | "totalCompactions" | "totalTokensCompacted"

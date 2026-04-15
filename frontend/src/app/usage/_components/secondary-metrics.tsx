@@ -160,7 +160,7 @@ export function SecondaryMetrics(stats: SecondaryMetricsStats) {
           </div>
 
           <div className="flex items-end gap-0.5 h-20">
-            {Array.from({ length: 24 }, (_: unknown, i: number) => {
+            {Array.from({ length: 24 }, (_: undefined, i: number) => {
               const hourData = stats.hourly_pattern.find((h: HourlyPatternData) => h.hour === i);
               const requests = hourData?.requests || 0;
               const height = (requests / maxHourlyRequests) * 100;

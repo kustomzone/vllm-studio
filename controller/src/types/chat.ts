@@ -23,7 +23,7 @@ export type ChatSessionSummary = Record<string, unknown> & {
   title: string;
   model: string | null;
   parent_id: string | null;
-  agent_state: unknown | null;
+  agent_state: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 };
@@ -37,7 +37,7 @@ export type ChatMessage = Record<string, unknown> & {
   tool_call_id: string | null;
   name: string | null;
   parts: unknown[] | null;
-  metadata: unknown | null;
+  metadata: Record<string, unknown> | null;
   request_prompt_tokens: number | null;
   request_tools_tokens: number | null;
   request_total_input_tokens: number | null;
@@ -73,7 +73,7 @@ export type ChatRunEvent = Record<string, unknown> & {
   run_id: string;
   seq: number;
   type: string;
-  data: unknown | null;
+  data: Record<string, unknown> | null;
   created_at: string;
 };
 

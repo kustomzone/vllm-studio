@@ -3,10 +3,10 @@ import type { ApiCore } from "./core";
 export interface JobRecord {
   id: string;
   type: string;
-  status: string;
+  status: "pending" | "running" | "completed" | "failed" | "cancelled";
   progress: number;
-  input: unknown;
-  result: unknown;
+  input: Record<string, unknown>;
+  result: Record<string, unknown> | null;
   error: string | null;
   logs: string[];
   created_at: string;

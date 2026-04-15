@@ -55,8 +55,8 @@ export function createSystemApi(core: ApiCore) {
 
     tokenizeChatCompletions: (data: {
       model: string;
-      messages: unknown[];
-      tools?: unknown[];
+      messages: Record<string, unknown>[];
+      tools?: Record<string, unknown>[];
     }): Promise<{ input_tokens?: number; breakdown?: { messages?: number; tools?: number } }> =>
       core.request("/v1/tokenize-chat-completions", {
         method: "POST",

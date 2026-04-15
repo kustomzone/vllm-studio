@@ -25,7 +25,7 @@ export function useChatTools() {
     })),
   );
 
-  const getToolDefinitions = useCallback((): unknown[] => [], []);
+  const getToolDefinitions = useCallback((): Record<string, unknown>[] => [], []);
 
   const clearToolResults = useCallback(() => {
     setToolResultsMap(new Map());

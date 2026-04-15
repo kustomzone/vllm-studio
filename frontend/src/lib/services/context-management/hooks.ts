@@ -49,7 +49,7 @@ export function useContextManagement() {
   );
 
   const calculateStats = useCallback(
-    (messages: ContextMessage[], maxContext: number, systemPrompt?: string, tools?: unknown[]) =>
+    (messages: ContextMessage[], maxContext: number, systemPrompt?: string, tools?: Record<string, unknown>[]) =>
       service.calculateStats(messages, maxContext, systemPrompt, tools),
     [service],
   );

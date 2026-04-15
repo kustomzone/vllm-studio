@@ -4,7 +4,7 @@ import { Activity } from "lucide-react";
 
 interface PageStateOptions {
   loading: boolean;
-  data: unknown | null;
+  data: unknown;
   hasData: boolean;
   error?: string | null;
   onLoad: () => void;

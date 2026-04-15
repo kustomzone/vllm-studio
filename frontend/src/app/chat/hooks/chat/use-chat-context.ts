@@ -28,7 +28,7 @@ type UseChatContextArgs = {
   availableModels: AvailableModel[];
   effectiveSystemPrompt: string;
   contextPanelVisible: boolean;
-  getToolDefinitions: (() => unknown[]) | null;
+  getToolDefinitions: (() => Record<string, unknown>[]) | null;
   isToolPart: (part: ChatMessagePart) => boolean;
 };
 
