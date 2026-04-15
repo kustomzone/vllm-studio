@@ -22,6 +22,8 @@ export interface UseChatPageControllerTailArgs {
   agentFiles: AgentFilesService;
   router: RouterLike;
   sessionFromUrl: string | null;
+  /** When true, ignore missing `session` in URL for sync (new-chat / reset in flight). */
+  sessionUrlSyncSuppressedRef: MutableRefObject<boolean>;
 
   sidebarOpen: boolean;
   setSidebarOpen: (next: boolean) => void;
@@ -41,7 +43,6 @@ export interface UseChatPageControllerTailArgs {
 
   clearPlan: () => void;
   lastUserInputRef: MutableRefObject<string>;
-  generateTitle: (sessionId: string, user: string, assistant: string) => Promise<string | null>;
   handleRunEvent: (event: ChatRunEvent) => void;
 
   activeRunIdRef: { current: string | null };
@@ -76,4 +77,8 @@ export interface UseChatPageControllerTailArgs {
   handleScroll: () => void;
   messagesContainerRef: MessagesContainerRef;
   messagesEndRef: MessagesEndRef;
+
+  activateSessionFromHistory: (sessionId: string) => Promise<void>;
+  openNewChatFromSidebar: () => void;
+  deleteChatSessionFromSidebar: (sessionId: string) => Promise<void>;
 }

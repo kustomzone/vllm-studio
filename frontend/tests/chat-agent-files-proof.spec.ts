@@ -1,5 +1,6 @@
 // CRITICAL
 import { test, expect } from "@playwright/test";
+import { e2eChatTitle } from "./constants";
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 const BACKEND_URL = process.env.PLAYWRIGHT_BACKEND_URL ?? "http://localhost:8080";
@@ -21,7 +22,7 @@ test("chat: multi-step + agent files panel shows file content", async ({ page, r
 
   // Create a dedicated session to avoid relying on initial UI bootstrapping state.
   const created = await request.post(`${BACKEND_URL}/chats`, {
-    data: { title: "Playwright Chat", model: null },
+    data: { title: e2eChatTitle("agent files"), model: null },
   });
   test.skip(!created.ok(), `Chat session API unavailable (${created.status()})`);
   const createdJson = await created.json() as { session?: { id: string } };

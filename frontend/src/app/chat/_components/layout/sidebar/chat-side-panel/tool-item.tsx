@@ -33,7 +33,7 @@ function dotClass(state?: ActivityItem["state"]) {
 }
 
 export const ToolItem = memo(
-  function ToolItem({ item }: { item: ActivityItem }) {
+  function ToolItem({ item, variant = "default" }: { item: ActivityItem; variant?: "default" | "embedded" }) {
     const [expanded, setExpanded] = useState(false);
     const hasDetails = item.input != null || item.output != null;
     const toggle = useCallback(() => {
@@ -48,16 +48,19 @@ export const ToolItem = memo(
     const dot = useMemo(() => dotClass(item.state), [item.state]);
 
     return (
-      <div className="flex flex-col items-start gap-1 px-1">
+      <div className={`flex flex-col items-start gap-1 ${variant === "embedded" ? "px-0" : "px-1"}`}>
         <button
+          type="button"
           onClick={toggle}
           disabled={!hasDetails}
           className={`inline-flex max-w-full items-center gap-1.5 py-0.5 text-[10px] leading-4 transition-colors text-(--dim) ${
             hasDetails ? "cursor-pointer hover:text-(--fg)" : "cursor-default"
           }`}
         >
-          <span className={`h-1 w-1 shrink-0 rounded-full ${dot}`} />
-          <span className="truncate max-w-[180px]">{name}</span>
+          {variant === "default" && <span className={`h-1 w-1 shrink-0 rounded-full ${dot}`} />}
+          <span className={`truncate ${variant === "embedded" ? "max-w-[min(100%,220px)]" : "max-w-[180px]"}`}>
+            {name}
+          </span>
           {hasDetails && (
             <ChevronRight
               className={`h-2.5 w-2.5 shrink-0 opacity-60 transition-transform ${expanded ? "rotate-90" : ""}`}
@@ -66,7 +69,11 @@ export const ToolItem = memo(
         </button>
 
         {expanded && hasDetails && (
-          <div className="ml-2 w-[calc(100%-0.5rem)] rounded-lg px-2.5 py-2 space-y-1.5 bg-(--fg)/[0.02]">
+          <div
+            className={`w-[calc(100%-0.5rem)] rounded-lg px-2.5 py-2 space-y-1.5 bg-(--fg)/[0.02] ${
+              variant === "embedded" ? "ml-0" : "ml-2"
+            }`}
+          >
             {item.input != null && (
               <div>
                 <span className="text-[9px] uppercase tracking-wide text-(--dim)/50">Input</span>
@@ -100,7 +107,8 @@ export const ToolItem = memo(
       a.isActive === b.isActive &&
       a.content === b.content &&
       a.input === b.input &&
-      a.output === b.output
+      a.output === b.output &&
+      prev.variant === next.variant
     );
   },
 );

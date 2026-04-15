@@ -7,9 +7,10 @@ import * as Icons from "../../icons";
 import { MessageRenderer } from "../message-renderer";
 import { MiniArtifactCard } from "../../artifacts/mini-artifact-card";
 import { PerfProfiler } from "../../perf/perf-profiler";
-import type { Artifact, ChatMessage, ChatMessageMetadata } from "@/lib/types";
+import type { AgentFileEntry, Artifact, ChatMessage, ChatMessageMetadata } from "@/lib/types";
 import { useMessageDerived } from "./use-message-derived";
 import { UserMessage } from "./user-message";
+import { ReferencedAgentFilePreviews } from "../referenced-agent-file-previews";
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -24,6 +25,10 @@ interface ChatMessageItemProps {
   onListen?: (messageId: string) => void;
   isListening?: boolean;
   isListenPending?: boolean;
+  currentSessionId?: string | null;
+  agentFiles?: AgentFileEntry[];
+  agentFilesBrowsePath?: string;
+  onOpenAgentFile?: (path: string) => void;
   onExport: (payload: {
     messageId: string;
     role: "user" | "assistant";
@@ -47,6 +52,10 @@ function ChatMessageItemBase({
   isListenPending = false,
   onExport,
   onOpenContext,
+  currentSessionId = null,
+  agentFiles = [],
+  agentFilesBrowsePath = "",
+  onOpenAgentFile,
 }: ChatMessageItemProps) {
   const messageId = message.id;
   const isUser = message.role === "user";
@@ -137,6 +146,16 @@ function ChatMessageItemBase({
         <PerfProfiler id={`message-renderer:${messageId}`}>
           <MessageRenderer content={textContent} isStreaming={isStreaming} />
         </PerfProfiler>
+      ) : null}
+
+      {onOpenAgentFile && agentFiles.length > 0 ? (
+        <ReferencedAgentFilePreviews
+          text={textContent}
+          agentFiles={agentFiles}
+          agentFilesBrowsePath={agentFilesBrowsePath}
+          sessionId={currentSessionId}
+          onOpenFile={onOpenAgentFile}
+        />
       ) : null}
 
       {artifactsEnabled && artifacts && artifacts.length > 0 && (

@@ -4,7 +4,7 @@
  * Run with: bun run scripts/retitle-chats.ts
  */
 import { Database } from "bun:sqlite";
-import path from "node:path";
+import { createConfig } from "../src/config/env";
 
 /**
  * Generates a short title from user message content.
@@ -40,8 +40,8 @@ function generateTitleFromMessage(content: string): string {
  * Main script entry point for retitling chat sessions.
  */
 async function main(): Promise<void> {
-  const dataDirectory = process.env["VLLM_STUDIO_DATA_DIR"] || path.join(process.cwd(), "..", "data");
-  const dbPath = path.join(dataDirectory, "chats.db");
+  const config = createConfig();
+  const dbPath = config.chats_db_path;
 
   console.log(`Opening database: ${dbPath}`);
 

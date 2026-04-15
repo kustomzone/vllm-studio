@@ -52,8 +52,9 @@ export function useChatDerived({
     const latestGroup = activityGroups[0];
     if (!latestGroup) return { content: "", isComplete: true };
 
-    // Find the latest thinking item
-    const thinkingItems = latestGroup.items.filter((i) => i.type === "thinking");
+    const thinkingItems = latestGroup.items
+      .filter((i) => i.type === "thinking")
+      .sort((a, b) => a.timestamp - b.timestamp);
     const latestThinking = thinkingItems[thinkingItems.length - 1];
 
     return {

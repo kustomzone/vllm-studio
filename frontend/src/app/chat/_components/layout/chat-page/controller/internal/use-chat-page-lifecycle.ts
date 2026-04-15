@@ -42,6 +42,7 @@ export interface UseChatPageLifecycleArgs {
 
   getLastSessionId: () => string | null;
   setLastSessionId: (sessionId: string) => void;
+  sessionUrlSyncSuppressedRef: MutableRefObject<boolean>;
 }
 
 export function useChatPageLifecycle({
@@ -65,6 +66,7 @@ export function useChatPageLifecycle({
   setStreamStalled,
   getLastSessionId,
   setLastSessionId,
+  sessionUrlSyncSuppressedRef,
 }: UseChatPageLifecycleArgs) {
   const { clearAgentFiles, loadAgentFiles } = agentFiles;
   const messagesLength = useAppStore((state) => state.messages.length);
@@ -105,6 +107,7 @@ export function useChatPageLifecycle({
     runAbortControllerRef,
     getLastSessionId,
     setLastSessionId,
+    sessionUrlSyncSuppressedRef,
   });
 
   // Load agent files when agent mode is enabled

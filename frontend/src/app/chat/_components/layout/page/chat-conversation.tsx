@@ -1,7 +1,7 @@
 // CRITICAL
 "use client";
 
-import { memo, useCallback, useState, type ReactNode, type RefObject } from "react";
+import { memo, useCallback, type ReactNode, type RefObject } from "react";
 import type { AgentFileEntry, Artifact, ChatMessage } from "@/lib/types";
 import { ChatMessageList } from "../../messages/chat-message-list";
 
@@ -18,8 +18,9 @@ interface ChatConversationProps {
   selectedModel?: string;
   contextUsageLabel?: string | null;
   agentFiles?: AgentFileEntry[];
-  selectedAgentFilePath?: string | null;
   onOpenAgentFile?: (path: string) => void;
+  currentSessionId?: string | null;
+  agentFilesBrowsePath?: string;
   onFork?: (messageId: string) => void;
   onReprompt?: (messageId: string) => void;
   onListen?: (messageId: string) => void;
@@ -47,8 +48,9 @@ function ChatConversationBase({
   selectedModel,
   contextUsageLabel,
   agentFiles,
-  selectedAgentFilePath,
   onOpenAgentFile,
+  currentSessionId,
+  agentFilesBrowsePath = "",
   onFork,
   onReprompt,
   onListen,
@@ -62,14 +64,12 @@ function ChatConversationBase({
   messagesContainerRef,
   messagesEndRef,
 }: ChatConversationProps) {
-  const [scrollParent, setScrollParent] = useState<HTMLDivElement | null>(null);
   const showComputerHint =
     Boolean(agentMode && onOpenComputerPanel && (isLoading || executingToolsSize > 0));
 
-  const handleRef = useCallback(
+  const handleEmptyStateScrollRef = useCallback(
     (node: HTMLDivElement | null) => {
       messagesContainerRef.current = node;
-      setScrollParent(node);
     },
     [messagesContainerRef],
   );
@@ -106,19 +106,21 @@ function ChatConversationBase({
           ) : null}
         </div>
       )}
-      <div
-        ref={handleRef}
-        onScroll={onScroll}
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden chat-scroll-pad flex flex-col"
-      >
-        {showEmptyState ? (
+      {showEmptyState ? (
+        <div
+          ref={handleEmptyStateScrollRef}
+          onScroll={onScroll}
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden chat-scroll-pad flex flex-col"
+        >
           <div className="h-full flex items-center justify-center px-4 md:px-6 py-10">
             <div className="w-full max-w-2xl">
               <div className="hidden md:block">{toolBelt}</div>
             </div>
           </div>
-        ) : (
-          <div className="flex w-full min-h-full flex-col justify-end">
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-h-0 w-full flex-1 flex-col justify-end">
             <ChatMessageList
               messages={messages}
               isLoading={isLoading}
@@ -127,9 +129,11 @@ function ChatConversationBase({
               selectedModel={selectedModel}
               contextUsageLabel={contextUsageLabel}
               agentFiles={agentFiles}
-              selectedAgentFilePath={selectedAgentFilePath}
               onOpenAgentFile={onOpenAgentFile}
-              scrollParent={scrollParent}
+              currentSessionId={currentSessionId}
+              agentFilesBrowsePath={agentFilesBrowsePath}
+              messagesContainerRef={messagesContainerRef}
+              onScroll={onScroll}
               messagesEndRef={messagesEndRef}
               onFork={onFork}
               onReprompt={onReprompt}
@@ -140,8 +144,8 @@ function ChatConversationBase({
               runStatusLine={runStatusLine}
             />
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

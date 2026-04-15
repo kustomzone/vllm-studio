@@ -77,7 +77,10 @@ export function createAgentActions(set: Set) {
       const safe = sanitizeEmbeddedBrowserUrl(trimmed);
       if (safe) set({ computerBrowserUrl: safe });
     },
-    setSidebarWidth: (width: number) => set({ sidebarWidth: width }),
+    setSidebarWidth: (width: number) =>
+      set({
+        sidebarWidth: Math.min(1200, Math.max(280, Math.round(width))),
+      }),
     setResultsLastTab: (tab: ChatSlice["resultsLastTab"]) => set({ resultsLastTab: tab }),
     setMobilePlanChipHidden: (hidden: boolean) => set({ mobilePlanChipHidden: hidden }),
   } as const;

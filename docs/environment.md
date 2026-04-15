@@ -11,6 +11,7 @@ This list documents environment variables referenced in code or docker-compose. 
 | VLLM_STUDIO_API_KEY              | -                          | Optional API key for authenticated requests.                                                          |
 | VLLM_STUDIO_INFERENCE_PORT       | 8000                       | Port used to reach the inference backend.                                                             |
 | VLLM_STUDIO_DATA_DIR             | ./data or ../data          | Data directory (depends on working directory).                                                        |
+| VLLM_STUDIO_CHATS_DB             | -                          | Optional path to the **chat** SQLite file (sessions + messages). Defaults to `<VLLM_STUDIO_DATA_DIR>/chats.db`. Set a separate file for Playwright/E2E so tests do not share your dev chat history. |
 | VLLM_STUDIO_DB_PATH              | <data>/controller.db       | SQLite database path.                                                                                 |
 | VLLM_STUDIO_MODELS_DIR           | /models                    | Models directory (overridden by persisted config).                                                    |
 | VLLM_STUDIO_LITELLM_DATABASE_URL | -                          | Preferred LiteLLM database URL (falls back to LITELLM_DATABASE_URL or DATABASE_URL).                  |

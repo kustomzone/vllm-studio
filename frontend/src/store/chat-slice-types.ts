@@ -98,6 +98,8 @@ export interface ChatState {
   /** URL for the Computer → Browser tab (embedded iframe); synced from browser_open_url. */
   computerBrowserUrl: string;
   sidebarWidth: number;
+  /** Desktop: hide the chat history rail for more canvas width. */
+  chatLeftRailCollapsed: boolean;
   resultsLastTab: SidebarTab | null;
   mobilePlanChipHidden: boolean;
 
@@ -227,6 +229,8 @@ export interface ChatActions {
   clearAgentFileVersions: () => void;
   setComputerBrowserUrl: (url: string) => void;
   setSidebarWidth: (width: number) => void;
+  setChatLeftRailCollapsed: (collapsed: boolean) => void;
+  toggleChatLeftRailCollapsed: () => void;
   setResultsLastTab: (tab: SidebarTab | null) => void;
   setMobilePlanChipHidden: (hidden: boolean) => void;
 

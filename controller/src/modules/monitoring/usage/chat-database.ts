@@ -1,12 +1,11 @@
 // CRITICAL
 import Database from "bun:sqlite";
-import { resolve } from "node:path";
 import { calcChange } from "./usage-utilities";
 
-export const getUsageFromChatDatabase = (dataDirectory: string): Record<string, unknown> | null => {
+export const getUsageFromChatDatabase = (chatsDatabasePath: string): Record<string, unknown> | null => {
   let db: Database | null = null;
   try {
-    const chatDatabasePath = resolve(dataDirectory, "chats.db");
+    const chatDatabasePath = chatsDatabasePath;
     db = new Database(chatDatabasePath, { readonly: true });
     const tableCheck = db
       .query<{ name: string }, []>(

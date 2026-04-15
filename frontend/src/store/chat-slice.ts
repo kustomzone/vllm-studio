@@ -119,6 +119,10 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set)
       sidebar: { ...state.sidebar, mobileOpen: !state.sidebar.mobileOpen },
     })),
 
+  setChatLeftRailCollapsed: (chatLeftRailCollapsed) => set({ chatLeftRailCollapsed }),
+  toggleChatLeftRailCollapsed: () =>
+    set((state) => ({ chatLeftRailCollapsed: !state.chatLeftRailCollapsed })),
+
   // Tooling
   setToolsEnabled: (toolsEnabled) => set({ toolsEnabled }),
   setArtifactsEnabled: (artifactsEnabled) => set({ artifactsEnabled }),

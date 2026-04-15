@@ -22,6 +22,7 @@ export function useAgentFiles() {
   const {
     currentSessionId,
     agentFiles,
+    agentFilesBrowsePath,
     agentFilesLoading,
     setAgentFiles,
     setAgentFilesBrowsePath,
@@ -306,6 +307,7 @@ export function useAgentFiles() {
 
   return {
     agentFiles,
+    agentFilesBrowsePath,
     agentFilesLoading,
     agentFileVersions,
     loadAgentFiles,

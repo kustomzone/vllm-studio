@@ -15,7 +15,7 @@ export interface ActivityPanelProps {
   runStatusLine?: string;
 }
 
-/* ── Category config ── */
+/* ── Category labels (shown on each row, in timeline order) ── */
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
   web: { label: "Browser", color: "var(--accent)" },
   file: { label: "File System", color: "var(--hl2)" },
@@ -26,102 +26,33 @@ const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
   other: { label: "Tools", color: "var(--dim)" },
 };
 
-/* ── Category section — dot-style, no borders ── */
-interface CategorySectionProps {
-  category: string;
-  items: ActivityItem[];
-  isActive: boolean;
-}
-
-const CategorySection = memo(function CategorySection({
-  category,
-  items,
-  isActive,
-}: CategorySectionProps) {
-  const [collapsed, setCollapsed] = useState(false);
-  const config = CATEGORY_LABELS[category] ?? CATEGORY_LABELS.other;
-  const activeItems = items.filter((i) => i.state === "running");
-  const toggle = useCallback(() => setCollapsed((p) => !p), []);
-
-  return (
-    <div>
-      <button
-        onClick={toggle}
-        className="w-full flex items-center gap-1.5 px-1 py-0.5 hover:bg-(--fg)/[0.02] transition-colors rounded"
-      >
-        <span
-          className={`h-1.5 w-1.5 shrink-0 rounded-full bg-(--dim)/40 ${isActive ? "animate-pulse" : ""}`}
-        />
-        <span className="text-[10px] font-medium text-(--fg)/70 flex-1 text-left">
-          {config.label}
-        </span>
-        <span className="text-[9px] text-(--dim)/50 font-mono tabular-nums">{items.length}</span>
-        <ChevronRight
-          className={`h-2.5 w-2.5 text-(--dim)/40 transition-transform duration-150 ${
-            !collapsed ? "rotate-90" : ""
-          }`}
-        />
-      </button>
-
-      {!collapsed && (
-        <div className="ml-2 pl-2 border-l border-(--border)/20 space-y-0.5 mt-0.5">
-          {isActive && activeItems.length > 0 && (
-            <p className="text-[10px] font-mono py-0.5 px-1" style={{ color: config.color }}>
-              {activeItems[0].toolName
-                ? activeItems[0].toolName.split("__").pop()?.replace(/_/g, " ")
-                : "running…"}
-            </p>
-          )}
-          {items.map((item) =>
-            item.type === "thinking" ? (
-              <ThinkingItem key={item.id} content={item.content} isActive={item.isActive} />
-            ) : (
-              <ToolItem key={item.id} item={item} />
-            ),
-          )}
-        </div>
-      )}
-    </div>
-  );
-});
-
-/* ── Turn group with categories ── */
-interface CategorizedTurnGroupProps {
+/* ── One turn: single chronological timeline ── */
+interface ChronologicalTurnGroupProps {
   group: ActivityGroup;
   hasActiveThinking: boolean;
 }
 
-const CategorizedTurnGroup = memo(function CategorizedTurnGroup({
+const ChronologicalTurnGroup = memo(function ChronologicalTurnGroup({
   group,
   hasActiveThinking,
-}: CategorizedTurnGroupProps) {
+}: ChronologicalTurnGroupProps) {
   const [collapsed, setCollapsed] = useState(!group.isLatest);
   const isCollapsed = group.isLatest ? false : collapsed;
   const toggle = useCallback(() => {
     if (!group.isLatest) setCollapsed((p) => !p);
   }, [group.isLatest]);
 
-  const categorized = useMemo(() => {
-    const cats = new Map<string, ActivityItem[]>();
-    const thinkingItems = group.items.filter((i) => i.type === "thinking");
-    if (thinkingItems.length > 0) {
-      cats.set("thinking", thinkingItems);
-    }
-    for (const item of group.items) {
-      if (item.type === "thinking") continue;
-      const cat = categorize(item.toolName);
-      const list = cats.get(cat) ?? [];
-      list.push(item);
-      cats.set(cat, list);
-    }
-    return cats;
-  }, [group.items]);
+  const orderedItems = useMemo(
+    () => [...group.items].sort((a, b) => a.timestamp - b.timestamp),
+    [group.items],
+  );
 
   const totalTools = group.items.filter((i) => i.type !== "thinking").length;
 
   return (
     <div>
       <button
+        type="button"
         onClick={toggle}
         className={`w-full px-1 py-1 text-left ${
           !group.isLatest ? "cursor-pointer hover:text-(--fg)" : "cursor-default"
@@ -149,18 +80,80 @@ const CategorizedTurnGroup = memo(function CategorizedTurnGroup({
         </div>
       </button>
 
-      {!isCollapsed && (
-        <div className="space-y-1 pb-2">
-          {Array.from(categorized.entries()).map(([cat, items]) => {
-            const hasActiveItem = items.some(
-              (i) => i.state === "running" || (i.type === "thinking" && i.isActive),
-            );
-            return (
-              <CategorySection key={cat} category={cat} items={items} isActive={hasActiveItem} />
-            );
-          })}
-        </div>
-      )}
+      {!isCollapsed &&
+        (group.isLatest ? (
+          <div className="rounded-lg border border-(--border)/20 bg-(--fg)/[0.02] px-2 py-2 pb-2.5">
+            <div className="relative pl-2">
+              <div
+                className="pointer-events-none absolute left-[5px] top-1.5 bottom-1.5 w-px bg-(--border)/35 rounded-full"
+                aria-hidden
+              />
+              <div className="space-y-0">
+                {orderedItems.map((item, idx) => {
+                  const cat = item.type === "thinking" ? "thinking" : categorize(item.toolName);
+                  const config = CATEGORY_LABELS[cat] ?? CATEGORY_LABELS.other;
+                  const rowActive =
+                    item.state === "running" || (item.type === "thinking" && item.isActive);
+                  const isLast = idx === orderedItems.length - 1;
+                  return (
+                    <div
+                      key={item.id}
+                      className={`relative flex gap-2.5 pl-1 ${!isLast ? "pb-2.5" : ""}`}
+                    >
+                      <div className="relative z-[1] flex w-3 shrink-0 flex-col items-center pt-1">
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ring-2 ring-(--bg) ${rowActive ? "animate-pulse" : ""}`}
+                          style={{ background: config.color }}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-0.5 pt-0.5">
+                        <span className="text-[9px] font-medium tracking-wide text-(--dim)/45">
+                          {config.label}
+                        </span>
+                        {item.type === "thinking" ? (
+                          <ThinkingItem
+                            variant="embedded"
+                            content={item.content}
+                            isActive={item.isActive}
+                          />
+                        ) : (
+                          <ToolItem variant="embedded" item={item} />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2 border-l border-(--border)/20 ml-1.5 pl-2.5 pb-2">
+            {orderedItems.map((item) => {
+              const cat = item.type === "thinking" ? "thinking" : categorize(item.toolName);
+              const config = CATEGORY_LABELS[cat] ?? CATEGORY_LABELS.other;
+              const rowActive =
+                item.state === "running" || (item.type === "thinking" && item.isActive);
+              return (
+                <div key={item.id} className="space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${rowActive ? "animate-pulse" : ""}`}
+                      style={{ background: config.color }}
+                    />
+                    <span className="text-[9px] font-medium uppercase tracking-wide text-(--dim)/55">
+                      {config.label}
+                    </span>
+                  </div>
+                  {item.type === "thinking" ? (
+                    <ThinkingItem content={item.content} isActive={item.isActive} />
+                  ) : (
+                    <ToolItem item={item} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
     </div>
   );
 });
@@ -218,7 +211,7 @@ export function ActivityPanel({
       <div className="flex-1 overflow-y-auto">
         <div className="px-2.5 py-2 space-y-2">
           {activityGroups.map((group) => (
-            <CategorizedTurnGroup
+            <ChronologicalTurnGroup
               key={`${group.id}:${group.isLatest ? "latest" : "past"}`}
               group={group}
               hasActiveThinking={

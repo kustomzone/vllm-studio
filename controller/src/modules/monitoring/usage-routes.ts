@@ -22,14 +22,14 @@ export const registerUsageRoutes = (app: Hono, context: AppContext): void => {
       const sqliteUsage = getUsageFromSqliteSpendLogs(context.config.db_path);
       if (sqliteUsage) return ctx.json(sqliteUsage);
 
-      const chatUsage = getUsageFromChatDatabase(context.config.data_dir);
+      const chatUsage = getUsageFromChatDatabase(context.config.chats_db_path);
       if (chatUsage) return ctx.json(chatUsage);
 
       return ctx.json(emptyResponse());
     } catch (error) {
       console.error("[Usage] Error fetching usage stats:", error);
       try {
-        const chatUsage = getUsageFromChatDatabase(context.config.data_dir);
+        const chatUsage = getUsageFromChatDatabase(context.config.chats_db_path);
         if (chatUsage) return ctx.json(chatUsage);
       } catch (fallbackError) {
         console.error("[Usage] Fallback also failed:", fallbackError);

@@ -8,6 +8,7 @@ const createConfig = (overrides: Partial<Config> = {}): Config => ({
   port: 8080,
   inference_port: 8000,
   data_dir: "/tmp/vllm-studio",
+  chats_db_path: "/tmp/vllm-studio/chats.db",
   db_path: "/tmp/vllm-studio/controller.db",
   models_dir: "/models",
   strict_openai_models: false,

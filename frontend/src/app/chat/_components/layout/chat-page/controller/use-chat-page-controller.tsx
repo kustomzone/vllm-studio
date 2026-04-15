@@ -58,18 +58,8 @@ export function useChatPageController(): ChatPageViewProps {
     sessionIdRef.current = sessions.currentSessionId;
   }, [sessions.currentSessionId]);
 
-  /**
-   * Messages live on the controller (loaded via API); they are not in Zustand persist.
-   * `/chat?session=<id>` is how refresh, bookmarks, and shares reopen the same thread.
-   * Keep the query param aligned whenever `currentSessionId` changes (e.g. compaction,
-   * first message creating a session already calls replaceUrl — this covers every other path).
-   */
-  useEffect(() => {
-    const sid = sessions.currentSessionId;
-    if (!sid) return;
-    if (sessionFromUrl === sid) return;
-    router.replace(`/chat?session=${encodeURIComponent(sid)}`);
-  }, [router, sessionFromUrl, sessions.currentSessionId]);
+  /** Prevents session↔URL sync and bootstrap restore from fighting bare `/chat` / `?new=1`. */
+  const sessionUrlSyncSuppressedRef = useRef(false);
 
   const messageMapping = Hooks.useChatMessageMapping({ setMessages });
   const toolResults = Hooks.useChatToolResults({
@@ -231,6 +221,101 @@ export function useChatPageController(): ChatPageViewProps {
     resetCompaction,
   } = compaction;
 
+  const activateSessionFromHistory = useCallback(
+    async (sessionId: string) => {
+      if (!sessionId) return;
+
+      sessionUrlSyncSuppressedRef.current = false;
+
+      const controllerSnapshot = runAbortControllerRef.current;
+      if (controllerSnapshot) {
+        controllerSnapshot.abort();
+        runAbortControllerRef.current = null;
+      }
+      activeRunIdRef.current = null;
+
+      setIsLoading(false);
+      setStreamError(null);
+      setStreamStalled(false);
+      store.setExecutingTools(new Set());
+      store.setToolResultsMap(new Map());
+      resetCompaction();
+      clearArtifactsCache();
+
+      const detail = await sessions.loadSession(sessionId);
+      if (!detail) return;
+
+      sessionIdRef.current = sessionId;
+
+      if (detail.model && detail.model !== store.selectedModel) {
+        store.setSelectedModel(detail.model);
+      }
+      setMessages(messageMapping.mapStoredMessages(detail.messages ?? []));
+      hydrateAgentState(detail);
+      agentFilesService.clearAgentFiles();
+      void agentFilesService.loadAgentFiles({ sessionId });
+    },
+    [
+      agentFilesService,
+      clearArtifactsCache,
+      hydrateAgentState,
+      messageMapping,
+      resetCompaction,
+      sessions,
+      sessionIdRef,
+      setIsLoading,
+      setMessages,
+      setStreamError,
+      setStreamStalled,
+      store,
+    ],
+  );
+
+  const openNewChatFromSidebar = useCallback(() => {
+    const controllerSnapshot = runAbortControllerRef.current;
+    if (controllerSnapshot) {
+      controllerSnapshot.abort();
+      runAbortControllerRef.current = null;
+    }
+    activeRunIdRef.current = null;
+    setIsLoading(false);
+    setStreamError(null);
+    setStreamStalled(false);
+    store.setExecutingTools(new Set());
+    store.setToolResultsMap(new Map());
+    resetCompaction();
+    clearArtifactsCache();
+    sessions.startNewSession();
+    agentFilesService.clearAgentFiles();
+    setLastSessionId("");
+    sessionUrlSyncSuppressedRef.current = true;
+    router.replace("/chat?new=1");
+  }, [
+    agentFilesService,
+    clearArtifactsCache,
+    resetCompaction,
+    router,
+    sessions,
+    sessionUrlSyncSuppressedRef,
+    setIsLoading,
+    setStreamError,
+    setStreamStalled,
+    store,
+  ]);
+
+  const deleteChatSessionFromSidebar = useCallback(
+    async (sessionId: string) => {
+      const wasCurrent = sessions.currentSessionId === sessionId;
+      await sessions.deleteSession(sessionId);
+      if (wasCurrent) {
+        setLastSessionId("");
+        sessionUrlSyncSuppressedRef.current = true;
+        router.replace("/chat?new=1");
+      }
+    },
+    [router, sessions, sessionUrlSyncSuppressedRef],
+  );
+
   useChatPageLifecycle({
     store,
     sessions,
@@ -252,6 +337,7 @@ export function useChatPageController(): ChatPageViewProps {
     setStreamStalled,
     getLastSessionId,
     setLastSessionId,
+    sessionUrlSyncSuppressedRef,
   });
 
   // Wrap setUsageOpen to refresh usage when opening the modal
@@ -272,6 +358,7 @@ export function useChatPageController(): ChatPageViewProps {
     agentFiles: agentFilesService,
     router,
     sessionFromUrl,
+    sessionUrlSyncSuppressedRef,
     sidebarOpen,
     setSidebarOpen,
     sidebarTab,
@@ -287,7 +374,6 @@ export function useChatPageController(): ChatPageViewProps {
     setUsageOpen: setUsageOpenWithRefresh,
     clearPlan,
     lastUserInputRef,
-    generateTitle,
     handleRunEvent,
     activeRunIdRef,
     runAbortControllerRef,
@@ -317,5 +403,8 @@ export function useChatPageController(): ChatPageViewProps {
     handleScroll,
     messagesContainerRef,
     messagesEndRef,
+    activateSessionFromHistory,
+    openNewChatFromSidebar,
+    deleteChatSessionFromSidebar,
   });
 }

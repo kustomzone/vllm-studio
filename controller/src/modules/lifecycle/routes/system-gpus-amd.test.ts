@@ -51,6 +51,7 @@ exit 2
       port: 8080,
       inference_port: 8000,
       data_dir: "./data",
+      chats_db_path: "./data/chats.db",
       db_path: ":memory:",
       models_dir: "/models",
       strict_openai_models: false,

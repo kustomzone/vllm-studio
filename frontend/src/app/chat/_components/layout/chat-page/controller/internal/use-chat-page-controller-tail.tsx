@@ -102,6 +102,7 @@ export function useChatPageControllerTail({
   agentFiles,
   router,
   sessionFromUrl,
+  sessionUrlSyncSuppressedRef,
   sidebarOpen,
   setSidebarOpen,
   sidebarTab,
@@ -117,7 +118,6 @@ export function useChatPageControllerTail({
   setUsageOpen,
   clearPlan,
   lastUserInputRef,
-  generateTitle,
   handleRunEvent,
   activeRunIdRef,
   runAbortControllerRef,
@@ -147,6 +147,9 @@ export function useChatPageControllerTail({
   handleScroll,
   messagesContainerRef,
   messagesEndRef,
+  activateSessionFromHistory,
+  openNewChatFromSidebar,
+  deleteChatSessionFromSidebar,
 }: UseChatPageControllerTailArgs): ChatPageViewProps {
   const [listeningMessageId, setListeningMessageId] = useState<string | null>(null);
   const [listeningPending, setListeningPending] = useState(false);
@@ -318,10 +321,23 @@ export function useChatPageControllerTail({
 
   const replaceUrlToSession = useCallback(
     (sessionId: string) => {
+      sessionUrlSyncSuppressedRef.current = false;
       router.replace(`/chat?session=${encodeURIComponent(sessionId)}`);
     },
-    [router],
+    [router, sessionUrlSyncSuppressedRef],
   );
+
+  useEffect(() => {
+    const sid = sessions.currentSessionId;
+    if (!sid) return;
+    if (sessionFromUrl === sid) {
+      sessionUrlSyncSuppressedRef.current = false;
+      return;
+    }
+    if (!sessionFromUrl && sessionUrlSyncSuppressedRef.current) return;
+    sessionUrlSyncSuppressedRef.current = false;
+    router.replace(`/chat?session=${encodeURIComponent(sid)}`);
+  }, [router, sessionFromUrl, sessions.currentSessionId, sessionUrlSyncSuppressedRef]);
 
   const { onExportJson, onExportMarkdown } = useChatExportActions({
     currentSessionId: sessions.currentSessionId,
@@ -339,7 +355,6 @@ export function useChatPageControllerTail({
     setStreamError,
     lastUserInputRef,
     replaceUrlToSession,
-    generateTitle,
     setLastSessionId: setLastSessionIdStorage,
     activeRunIdRef,
     runAbortControllerRef,
@@ -456,6 +471,8 @@ export function useChatPageControllerTail({
     setComputerBrowserUrl: store.setComputerBrowserUrl,
     hasSession,
     onOpenAgentFile: handleOpenAgentFile,
+    currentSessionId: sessions.currentSessionId,
+    agentFilesBrowsePath: agentFiles.agentFilesBrowsePath,
 
     messages,
     selectedModel: store.selectedModel,
@@ -468,6 +485,11 @@ export function useChatPageControllerTail({
     openActivityPanel,
     openContextPanel,
     onOpenComputerPanel,
+    onRefreshChatSessions: sessions.loadSessions,
+    onActivateChatSession: activateSessionFromHistory,
+    onNewChatSession: openNewChatFromSidebar,
+    onDeleteChatSession: deleteChatSessionFromSidebar,
+    onRenameChatSession: sessions.updateSessionTitle,
     agentMode: store.agentMode,
     executingToolsSize,
 

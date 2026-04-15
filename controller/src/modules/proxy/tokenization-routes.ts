@@ -216,12 +216,14 @@ export const registerTokenizationRoutes = (app: Hono, context: AppContext): void
         return ctx.json({ title: "New Chat" });
       }
 
-      const prompt = `Generate a short, descriptive title (3-6 words) for this conversation. Only output the title, nothing else.
+      const prompt = `You label developer chat threads. Reply with ONE short title only: 3–8 words, Title Case, no quotes, no markdown, no trailing punctuation.
 
-User: ${userMessage.slice(0, 500)}
-Assistant: ${assistantMessage ? assistantMessage.slice(0, 500) : "(response pending)"}
+Focus on the user's goal: bug, feature, refactor, question, or error. Prefer concrete nouns and verbs from the user message. If the assistant only acknowledged, still name the topic from the user.
 
-Title:`;
+User message:
+${userMessage.slice(0, 700)}
+
+${assistantMessage.trim() ? `Assistant (for context, may be partial):\n${assistantMessage.slice(0, 500)}` : "Assistant reply not included yet — infer the topic from the user message only."}`;
 
       const inferenceKey = process.env["INFERENCE_API_KEY"] ?? "";
       const response = await fetchInference(context, "/v1/chat/completions", {
@@ -233,8 +235,8 @@ Title:`;
         body: JSON.stringify({
           model,
           messages: [{ role: "user", content: prompt }],
-          max_tokens: 20,
-          temperature: 0.7,
+          max_tokens: 36,
+          temperature: 0.35,
         }),
       });
 

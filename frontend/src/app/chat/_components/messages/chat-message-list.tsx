@@ -9,7 +9,7 @@ import {
   type HTMLAttributes,
   type RefObject,
 } from "react";
-import { Virtuoso } from "react-virtuoso";
+import { Virtuoso, type ScrollerProps } from "react-virtuoso";
 import { ChatMessageItem } from "./chat-message-item";
 import { PerfProfiler } from "../perf/perf-profiler";
 import type { AgentFileEntry, Artifact, ChatMessage } from "@/lib/types";
@@ -23,9 +23,12 @@ interface ChatMessageListProps {
   selectedModel?: string;
   contextUsageLabel?: string | null;
   agentFiles?: AgentFileEntry[];
-  selectedAgentFilePath?: string | null;
   onOpenAgentFile?: (path: string) => void;
-  scrollParent?: HTMLElement | null;
+  currentSessionId?: string | null;
+  agentFilesBrowsePath?: string;
+  /** Scroll surface for Virtuoso + useChatScroll (must be the element that actually scrolls). */
+  messagesContainerRef: RefObject<HTMLDivElement | null>;
+  onScroll: () => void;
   messagesEndRef?: RefObject<HTMLDivElement | null>;
   onFork?: (messageId: string) => void;
   onReprompt?: (messageId: string) => void;
@@ -55,7 +58,12 @@ export function ChatMessageList({
   artifactsByMessage,
   selectedModel,
   contextUsageLabel,
-  scrollParent,
+  agentFiles = [],
+  onOpenAgentFile,
+  currentSessionId,
+  agentFilesBrowsePath = "",
+  messagesContainerRef,
+  onScroll,
   messagesEndRef,
   onFork,
   onReprompt,
@@ -135,6 +143,10 @@ export function ChatMessageList({
         selectedModel={selectedModel}
         contextUsageLabel={contextUsageLabel}
         onOpenContext={onOpenContext}
+        currentSessionId={currentSessionId}
+        agentFiles={agentFiles}
+        agentFilesBrowsePath={agentFilesBrowsePath}
+        onOpenAgentFile={onOpenAgentFile}
         onFork={item.message.role === "assistant" ? onFork : undefined}
         onReprompt={item.message.role === "assistant" ? onReprompt : undefined}
         onListen={item.message.role === "assistant" ? onListen : undefined}
@@ -152,6 +164,10 @@ export function ChatMessageList({
       onFork,
       onListen,
       onOpenContext,
+      agentFiles,
+      agentFilesBrowsePath,
+      currentSessionId,
+      onOpenAgentFile,
       onReprompt,
       selectedModel,
       listeningMessageId,
@@ -186,22 +202,52 @@ export function ChatMessageList({
     [isLoading, messagesEndRef, runStatusLine],
   );
 
-  const components = useMemo(() => ({ List: VirtuosoList, Footer }), [Footer]);
+  const Scroller = useMemo(() => {
+    const C = forwardRef<HTMLDivElement, ScrollerProps>(function ChatVirtuosoScroller(props, ref) {
+      const { style, children, tabIndex, "data-testid": dataTestId, "data-virtuoso-scroller": dataVirtuosoScroller } =
+        props;
+      return (
+        <div
+          data-testid={dataTestId}
+          data-virtuoso-scroller={dataVirtuosoScroller}
+          style={style}
+          tabIndex={tabIndex}
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden chat-scroll-pad flex flex-col"
+          ref={(node) => {
+            messagesContainerRef.current = node;
+            if (typeof ref === "function") ref(node);
+            else if (ref) ref.current = node;
+          }}
+          onScroll={onScroll}
+        >
+          {children}
+        </div>
+      );
+    });
+    C.displayName = "ChatVirtuosoScroller";
+    return C;
+  }, [messagesContainerRef, onScroll]);
+
+  const components = useMemo(
+    () => ({ List: VirtuosoList, Footer, Scroller }),
+    [Footer, Scroller],
+  );
   const itemKey = useCallback((_i: number, item: VirtuosoItem) => item.message.id, []);
 
+  const followOutput = useCallback((isAtBottom: boolean) => (isAtBottom ? ("smooth" as const) : false), []);
+
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-3 md:px-6">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col px-4 py-3 md:px-6">
       <PerfProfiler id="chat-message-list">
         <Virtuoso
-          className="w-full"
-          customScrollParent={scrollParent ?? undefined}
+          className="flex min-h-0 w-full flex-1 flex-col"
           data={items}
           itemContent={renderItem}
           components={components}
           computeItemKey={itemKey}
           initialTopMostItemIndex={items.length > 0 ? items.length - 1 : 0}
           alignToBottom
-          followOutput="smooth"
+          followOutput={followOutput}
         />
       </PerfProfiler>
     </div>

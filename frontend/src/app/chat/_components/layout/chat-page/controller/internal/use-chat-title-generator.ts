@@ -23,7 +23,10 @@ export function useChatTitleGenerator({
         let trimmed = title?.trim() ?? "";
         trimmed = trimmed.replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, "").trim();
         trimmed = trimmed.replace(/<\/?think(?:ing)?[^>]*>/gi, "").trim();
-        if (!trimmed || trimmed === "New Chat") return null;
+        trimmed = trimmed.replace(/^title\s*:\s*/i, "").trim();
+        trimmed = trimmed.replace(/^["'`]+|["'`]+$/g, "").trim();
+        trimmed = trimmed.replace(/[.?!…]+$/g, "").trim();
+        if (!trimmed || trimmed === "New Chat" || trimmed.toLowerCase() === "untitled chat") return null;
 
         // Avoid overwriting an already-titled session (e.g. if run_end triggers later).
         const state = useAppStore.getState();

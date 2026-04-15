@@ -242,6 +242,21 @@ export const transitionRunMachine: StateMachineTransition<
         toolResults: parseTurnToolResults(data),
         assistantContentForTitle: extractAssistantContentForTitle(mapped),
       });
+
+      const titleSnippet = extractAssistantContentForTitle(mapped);
+      if (
+        titleSnippet.trim().length > 0 &&
+        (context.currentSessionTitle === "New Chat" || context.currentSessionTitle === "Chat")
+      ) {
+        effects.push({
+          type: "title/maybe-generate",
+          sessionId: context.currentSessionId || eventSessionId || null,
+          currentTitle: context.currentSessionTitle,
+          lastUserInput: context.lastUserInput,
+          lastAssistantContent: titleSnippet,
+        });
+      }
+
       // Do not clear executing tools here if we are still active, they'll clear on run_end
       // Wait, we need to clear loading state only when the whole run is done?
       // actually, if we keep executing tools we shouldn't set loading false?
@@ -361,14 +376,6 @@ export const transitionRunMachine: StateMachineTransition<
           lastEventTime: now,
         });
       }
-
-      effects.push({
-        type: "title/maybe-generate",
-        sessionId: context.currentSessionId || eventSessionId || null,
-        currentTitle: context.currentSessionTitle,
-        lastUserInput: context.lastUserInput,
-        lastAssistantContent: context.lastAssistantContent,
-      });
 
       return {
         state: withState(baseState, {

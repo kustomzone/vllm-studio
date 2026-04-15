@@ -20,6 +20,7 @@ function createContext(apiKey?: string): AppContext {
       port: 8080,
       inference_port: 8000,
       data_dir: "/tmp",
+      chats_db_path: "/tmp/chats.db",
       db_path: "/tmp/controller.db",
       models_dir: "/tmp/models",
       strict_openai_models: false,

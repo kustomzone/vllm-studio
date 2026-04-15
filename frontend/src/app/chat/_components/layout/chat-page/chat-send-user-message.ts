@@ -23,7 +23,6 @@ export interface UseChatSendUserMessageArgs {
   deepResearchEnabled: boolean;
   agentMode: boolean;
   currentSessionId: string | null;
-  currentSessionTitle: string;
   isLoading: boolean;
   agentFiles: Array<{ name: string; type: "file" | "dir"; children?: unknown[] }>;
   agentFileVersions: Record<string, unknown>;
@@ -35,11 +34,6 @@ export interface UseChatSendUserMessageArgs {
   createSession: (title: string, model: string) => Promise<{ id: string } | null>;
   setLastSessionId: (id: string) => void;
   replaceUrlToSession: (sessionId: string) => void;
-  generateTitle: (
-    sessionId: string,
-    userContent: string,
-    assistantContent: string,
-  ) => Promise<string | null>;
   startRunStream: (
     sessionId: string,
     payload: {
@@ -63,7 +57,6 @@ export function useChatSendUserMessage({
   deepResearchEnabled,
   agentMode,
   currentSessionId,
-  currentSessionTitle,
   isLoading,
   agentFiles,
   agentFileVersions,
@@ -75,7 +68,6 @@ export function useChatSendUserMessage({
   createSession,
   setLastSessionId,
   replaceUrlToSession,
-  generateTitle,
   startRunStream,
   loadAgentFiles,
 }: UseChatSendUserMessageArgs) {
@@ -220,15 +212,6 @@ export function useChatSendUserMessage({
           replaceUrlToSession(sessionId);
         }
 
-        // Title as soon as the first user message lands (prefer LLM, fallback heuristic).
-        if (
-          sessionId &&
-          (currentSessionTitle === "New Chat" || currentSessionTitle === "Chat") &&
-          safeText
-        ) {
-          void generateTitle(sessionId, messageText, "");
-        }
-
         // Upload non-image files to agent filesystem
         let attachmentsBlock: string | undefined;
         const hasAgentFiles = agentFiles.length > 0 || Object.keys(agentFileVersions).length > 0;
@@ -301,9 +284,7 @@ export function useChatSendUserMessage({
       agentMode,
       createSession,
       currentSessionId,
-      currentSessionTitle,
       deepResearchEnabled,
-      generateTitle,
       isLoading,
       lastUserInputRef,
       replaceUrlToSession,

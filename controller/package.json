@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "standards": "bun scripts/controller-standards-audit.ts",
     "script:util:compare": "bun scripts/utilities/compare-controllers.ts",
+    "script:chats:purge-test-sessions": "bun scripts/delete-test-chat-sessions.ts",
     "prepare": "cd ../.. && husky controller/.husky",
     "test": "bun test",
     "check": "knip && jscpd src && depcheck --ignores=\"swagger-ui-dist,lint-staged,bun:test\" --skip-missing",

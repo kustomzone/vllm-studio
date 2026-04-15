@@ -55,6 +55,11 @@ export function useChatScroll({ isLoading, messageCount }: UseChatScrollArgs): {
     if (!endNode) return;
 
     const maybePinToBottom = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      // Live geometry check: avoids pinning when Virtuoso used a nested scroller briefly or
+      // `userScrolledUpRef` lagged behind the actual scroll position.
+      if (distanceFromBottom >= BOTTOM_STICKY_THRESHOLD_PX) return;
       if (userScrolledUpRef.current) return;
       const now = Date.now();
       // Guard against ResizeObserver cascades triggering too many scroll operations.

@@ -35,7 +35,6 @@ export interface UseChatRunActionsArgs {
 
   lastUserInputRef: MutableRefObject<string>;
   replaceUrlToSession: (sessionId: string) => void;
-  generateTitle: (sessionId: string, user: string, assistant: string) => Promise<string | null>;
   setLastSessionId: (sessionId: string) => void;
 
   activeRunIdRef: MutableRefObject<string | null>;
@@ -60,7 +59,6 @@ export function useChatRunActions({
   setStreamError,
   lastUserInputRef,
   replaceUrlToSession,
-  generateTitle,
   setLastSessionId,
   activeRunIdRef,
   runAbortControllerRef,
@@ -127,7 +125,6 @@ export function useChatRunActions({
     deepResearchEnabled: store.deepResearch.enabled,
     agentMode: store.agentMode,
     currentSessionId: sessions.currentSessionId,
-    currentSessionTitle: sessions.currentSessionTitle,
     isLoading,
     agentFiles: agentFiles.agentFiles,
     agentFileVersions: agentFiles.agentFileVersions,
@@ -139,7 +136,6 @@ export function useChatRunActions({
     createSession: sessions.createSession,
     setLastSessionId,
     replaceUrlToSession,
-    generateTitle,
     startRunStream,
     loadAgentFiles: agentFiles.loadAgentFiles,
   });

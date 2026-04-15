@@ -142,14 +142,15 @@ export function SidebarPane({
       >
 
         <div
-          className={`absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10 group flex items-center justify-center ${
-            isResizing ? "bg-(--hl2)/30" : "hover:bg-(--hl2)/20"
+          title="Drag to resize sidebar"
+          className={`absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 group flex items-center justify-center border-l border-(--border)/25 bg-(--border)/15 ${
+            isResizing ? "bg-(--hl2)/25 border-(--hl2)/35" : "hover:bg-(--hl2)/15"
           }`}
           onMouseDown={handleResizeStart}
         >
           <div
-            className={`absolute left-0 w-4 h-12 flex items-center justify-center rounded-r transition-opacity ${
-              isResizing ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            className={`pointer-events-none absolute left-0 w-5 h-14 flex items-center justify-center rounded-r transition-opacity ${
+              isResizing ? "opacity-100" : "opacity-40 group-hover:opacity-100"
             }`}
           >
             <GripVertical className="h-4 w-4 text-(--hl2)/70" />

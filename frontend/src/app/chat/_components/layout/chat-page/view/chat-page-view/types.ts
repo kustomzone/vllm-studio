@@ -80,6 +80,8 @@ export interface ChatPageViewProps {
 
   // Messages + list refs
   messages: ChatMessage[];
+  currentSessionId: string | null;
+  agentFilesBrowsePath: string;
   selectedModel: string;
   showEmptyState: boolean;
   onForkMessage: (messageId: string) => void;
@@ -91,6 +93,12 @@ export interface ChatPageViewProps {
   openContextPanel: () => void;
   /** Agent mode: open sidebar to Computer (files + tool output). */
   onOpenComputerPanel: () => void;
+  /** Left chat rail / mobile drawer: actions (list state is read inside `ChatHistoryDock`). */
+  onRefreshChatSessions: () => void;
+  onActivateChatSession: (sessionId: string) => void | Promise<void>;
+  onNewChatSession: () => void;
+  onDeleteChatSession: (sessionId: string) => void | Promise<void>;
+  onRenameChatSession: (sessionId: string, title: string) => void | Promise<void>;
   agentMode: boolean;
   executingToolsSize: number;
   handleScroll: () => void;

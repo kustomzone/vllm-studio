@@ -38,6 +38,8 @@ export const useAppStore = create<AppStore>()(
         fontFamilyId: state.fontFamilyId,
         fontSizeId: state.fontSizeId,
         sidebarCollapsed: state.sidebar.collapsed,
+        sidebarWidth: state.sidebarWidth,
+        chatLeftRailCollapsed: state.chatLeftRailCollapsed,
       }),
       merge: (persisted, current) => ({
         ...current,

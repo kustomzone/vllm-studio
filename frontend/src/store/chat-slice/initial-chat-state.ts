@@ -84,6 +84,7 @@ export const initialChatState: ChatState = {
   agentFileVersions: {},
   computerBrowserUrl: "",
   sidebarWidth: 400,
+  chatLeftRailCollapsed: false,
   resultsLastTab: null,
   mobilePlanChipHidden: false,
 

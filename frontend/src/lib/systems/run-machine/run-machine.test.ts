@@ -149,7 +149,45 @@ describe("run-machine", () => {
     expect(ended.effects).toContainEqual({ type: "agent-files/list", sessionId: "session-1" });
   });
 
-  it("completes run and emits title generation effect on run_end", () => {
+  it("emits title generation on turn_end when assistant text is available", () => {
+    const state = {
+      ...createInitialRunMachineState(),
+      phase: "active" as const,
+      activeRunId: "run-1",
+    };
+
+    const assistantMessage = {
+      id: "a1",
+      role: "assistant" as const,
+      parts: [{ type: "text" as const, text: "Here is how to fix the layout issue." }],
+    };
+
+    const machine = createRunMachine(state);
+    const next = machine.dispatch(
+      {
+        event: {
+          event: "turn_end",
+          data: {
+            run_id: "run-1",
+            session_id: "session-1",
+            message: { role: "assistant", parts: assistantMessage.parts },
+            message_id: "a1",
+          },
+        },
+        now: 150,
+        mapAgentMessageToChatMessage: () => assistantMessage,
+      },
+      makeContext({ lastUserInput: "Help with my layout" }),
+    );
+
+    const titleFx = next.effects.find((effect) => effect.type === "title/maybe-generate");
+    expect(titleFx).toBeDefined();
+    if (titleFx && titleFx.type === "title/maybe-generate") {
+      expect(titleFx.lastAssistantContent.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("completes run on run_end without a duplicate title effect", () => {
     const state = {
       ...createInitialRunMachineState(),
       phase: "active" as const,
@@ -171,6 +209,6 @@ describe("run-machine", () => {
 
     expect(next.state.phase).toBe("completed");
     expect(next.state.activeRunId).toBeNull();
-    expect(next.effects.some((effect) => effect.type === "title/maybe-generate")).toBe(true);
+    expect(next.effects.some((effect) => effect.type === "title/maybe-generate")).toBe(false);
   });
 });

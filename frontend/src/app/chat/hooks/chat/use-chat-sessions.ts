@@ -71,7 +71,6 @@ export function useChatSessions() {
 
   const loadSession = useCallback(
     async (sessionId: string) => {
-      if (activeSessionRef.current === sessionId && currentSessionId === sessionId) return;
       activeSessionRef.current = sessionId;
 
       // Optimistically set session id and title from the cached session list
@@ -99,7 +98,6 @@ export function useChatSessions() {
       }
     },
     [
-      currentSessionId,
       sessions,
       setCurrentSessionId,
       setCurrentSessionTitle,

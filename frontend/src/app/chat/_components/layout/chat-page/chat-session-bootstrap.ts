@@ -12,7 +12,7 @@ export interface UseChatSessionBootstrapArgs {
   selectedModel: string;
   setSelectedModel: (modelId: string) => void;
   loadSessions: () => void;
-  loadSession: (sessionId: string) => Promise<ChatSessionDetail | null | undefined>;
+  loadSession: (sessionId: string) => Promise<ChatSessionDetail | null>;
   startNewSession: () => void;
   router: { replace: (href: string) => void };
   setMessages: (messages: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
@@ -30,6 +30,8 @@ export interface UseChatSessionBootstrapArgs {
   runAbortControllerRef: MutableRefObject<AbortController | null>;
   getLastSessionId: () => string | null;
   setLastSessionId: (sessionId: string) => void;
+  /** When set, ignore `session` query for restore until URL/sync catches up (avoids stale `useSearchParams`). */
+  sessionUrlSyncSuppressedRef?: MutableRefObject<boolean>;
 }
 
 export function resolveNewChatResetGate({
@@ -73,6 +75,7 @@ export function useChatSessionBootstrap({
   runAbortControllerRef,
   getLastSessionId,
   setLastSessionId,
+  sessionUrlSyncSuppressedRef,
 }: UseChatSessionBootstrapArgs) {
   const clearActiveRun = useCallback((snapshotController?: AbortController | null) => {
     const controller = snapshotController !== undefined ? snapshotController : runAbortControllerRef.current;
@@ -148,7 +151,11 @@ export function useChatSessionBootstrap({
     handledNewChatResetRef.current = gate.hasHandledNewChatReset;
 
     if (gate.shouldReset) {
+      if (sessionUrlSyncSuppressedRef) {
+        sessionUrlSyncSuppressedRef.current = true;
+      }
       startNewSession();
+      setLastSessionId("");
       clearActiveRun(controllerSnapshot);
       setExecutingTools(new Set());
       setToolResultsMap(new Map());
@@ -159,7 +166,9 @@ export function useChatSessionBootstrap({
     }
     if (newChatFromUrl) return;
 
-    const targetSessionId = sessionFromUrl || getLastSessionId();
+    const effectiveSessionFromUrl =
+      sessionUrlSyncSuppressedRef?.current ? null : sessionFromUrl;
+    const targetSessionId = effectiveSessionFromUrl || getLastSessionId();
     if (!targetSessionId) return;
 
     // Avoid re-loading the same session repeatedly
@@ -173,7 +182,7 @@ export function useChatSessionBootstrap({
     resetCompaction();
 
     // If the URL is missing session but we have a remembered one, reflect it in the URL
-    if (!sessionFromUrl) {
+    if (!effectiveSessionFromUrl) {
       router.replace(`/chat?session=${encodeURIComponent(targetSessionId)}`);
     }
 
@@ -217,6 +226,7 @@ export function useChatSessionBootstrap({
     runAbortControllerRef,
     selectedModel,
     sessionFromUrl,
+    sessionUrlSyncSuppressedRef,
     setExecutingTools,
     setLastSessionId,
     setMessages,
