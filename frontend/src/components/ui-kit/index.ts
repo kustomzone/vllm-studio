@@ -5,9 +5,4 @@ export {
   UiInsetSurface,
   UiModal,
   UiModalHeader,
-  UiStatusBadge,
-  UiTimelineMarker,
-  UiPulseLabel,
-  UiStatusPill,
-  UiMetricTile,
 } from "./primitives";

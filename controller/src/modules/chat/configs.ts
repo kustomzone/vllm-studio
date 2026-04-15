@@ -27,5 +27,3 @@ export const COMPACTION_SYSTEM_PROMPT = [
 ].join("\n\n");
 
 export const COMPACTION_USER_PROMPT = "Summarize the conversation above for context compaction.";
-
-export const CHAT_THINKING_LEVELS: readonly ThinkingLevel[] = THINKING_LEVELS;

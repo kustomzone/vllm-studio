@@ -7,14 +7,14 @@ import { badRequest, notFound } from "../../core/errors";
 import { compactChatSession } from "./compaction";
 import { Event } from "../monitoring/event-manager";
 import { buildSseHeaders, streamAsyncStrings } from "../../http/sse";
-import { CHAT_THINKING_LEVELS } from "./configs";
+import { THINKING_LEVELS } from "./configs";
 import { AGENT_RUN_EVENT_TYPES } from "./agent/contracts";
 
-const THINKING_LEVELS = new Set<ThinkingLevel>(CHAT_THINKING_LEVELS);
+const THINKING_LEVELS_SET = new Set<ThinkingLevel>(THINKING_LEVELS);
 
 const toThinkingLevel = (value: unknown): ThinkingLevel | undefined => {
   if (typeof value !== "string") return undefined;
-  return THINKING_LEVELS.has(value as ThinkingLevel) ? (value as ThinkingLevel) : undefined;
+  return THINKING_LEVELS_SET.has(value as ThinkingLevel) ? (value as ThinkingLevel) : undefined;
 };
 
 /**
