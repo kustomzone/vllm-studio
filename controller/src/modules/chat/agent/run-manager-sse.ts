@@ -4,23 +4,10 @@ import type { AppContext } from "../../../types/context";
 import { AGENT_RUN_KEEPALIVE_INTERVAL_MS } from "./configs";
 import type { AgentEventType } from "./contracts";
 
-/**
- * Encode a server-sent event payload.
- * @param type - Event type.
- * @param data - Event data.
- * @returns SSE formatted string.
- */
 export function encodeSseEvent(type: string, data: Record<string, unknown>): string {
   return `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-/**
- * Create an async SSE stream from the queue.
- * @param queue - Outgoing SSE queue.
- * @param abort - Abort controller for stream lifecycle.
- * @param runPromise - Promise that resolves when the run finishes.
- * @returns Async iterable of SSE chunks.
- */
 export async function* createSseStream(
   queue: AsyncQueue<string>,
   abort: AbortController,
@@ -79,15 +66,7 @@ export async function* createSseStream(
   }
 }
 
-/**
- * Create a publisher that both persists run events and pushes SSE chunks.
- * @param context - Application context.
- * @param params - Publisher parameters.
- * @param params.runId - Run identifier.
- * @param params.sessionId - Session identifier.
- * @param params.queue - Outgoing SSE queue.
- * @returns Publisher functions.
- */
+/** Creates a publisher that both persists run events and pushes SSE chunks. */
 export function createRunPublisher(
   context: AppContext,
   params: {

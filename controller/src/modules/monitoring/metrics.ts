@@ -6,18 +6,12 @@ import {
   Registry,
 } from "prom-client";
 
-/**
- * Metrics registry wrapper.
- */
 export interface MetricsRegistry {
   registry: Registry;
   contentType: string;
   getMetrics: () => Promise<string>;
 }
 
-/**
- * Controller metrics collection.
- */
 export interface ControllerMetrics {
   recordModelSwitch: (recipeId: string, backend: string, durationSeconds: number, success: boolean) => void;
   updateActiveModel: (modelPath?: string | null, backend?: string | null, servedName?: string | null) => void;
@@ -25,10 +19,6 @@ export interface ControllerMetrics {
   updateSseMetrics: (stats: Record<string, unknown>) => void;
 }
 
-/**
- * Create a Prometheus metrics registry and helpers.
- * @returns Registry helpers and metric update functions.
- */
 export const createMetrics = (): { registry: MetricsRegistry; metrics: ControllerMetrics } => {
   const registry = new Registry();
 

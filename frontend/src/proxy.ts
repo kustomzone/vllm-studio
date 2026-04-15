@@ -9,7 +9,6 @@ import type { NextRequest } from "next/server";
 export function proxy(request: NextRequest) {
   const start = Date.now();
 
-  // Extract client info
   const clientIp =
     request.headers.get("CF-Connecting-IP") ||
     request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ||
@@ -22,20 +21,15 @@ export function proxy(request: NextRequest) {
   const userAgent = request.headers.get("User-Agent")?.slice(0, 100) || "unknown";
   const referer = request.headers.get("Referer")?.slice(0, 200) || "-";
 
-  // Check for API key in various places
   const authHeader = request.headers.get("Authorization") || "";
   const hasAuth = Boolean(authHeader);
 
-  // Country info from Cloudflare
   const country = request.headers.get("CF-IPCountry") || "-";
 
-  // Create response
   const response = NextResponse.next();
 
-  // Calculate duration after response
   const duration = Date.now() - start;
 
-  // Build log message
   const timestamp = new Date().toISOString();
   const logParts = [
     `ip=${clientIp}`,
@@ -53,10 +47,8 @@ export function proxy(request: NextRequest) {
 
   const logMsg = `${timestamp} ACCESS ${logParts.join(" | ")}`;
 
-  // Log to console (will appear in container logs)
   console.log(logMsg);
 
-  // Add security headers
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("X-XSS-Protection", "1; mode=block");

@@ -2,25 +2,14 @@
 import type { Database } from "bun:sqlite";
 import { openSqliteDatabase } from "../../stores/sqlite";
 
-/**
- * SQLite-backed storage for peak metrics per model.
- */
 export class PeakMetricsStore {
   private readonly db: Database;
 
-  /**
-   * Create a peak metrics store.
-   * @param dbPath - SQLite database path.
-   */
   public constructor(dbPath: string) {
     this.db = openSqliteDatabase(dbPath);
     this.migrate();
   }
 
-  /**
-   * Initialize schema.
-   * @returns void
-   */
   private migrate(): void {
     this.db.run(`
       CREATE TABLE IF NOT EXISTS peak_metrics (
@@ -35,11 +24,6 @@ export class PeakMetricsStore {
     `);
   }
 
-  /**
-   * Get peak metrics for a model.
-   * @param modelId - Model id.
-   * @returns Metrics row or null.
-   */
   public get(modelId: string): Record<string, unknown> | null {
     const row = this.db
       .query("SELECT * FROM peak_metrics WHERE model_id = ?")
@@ -47,14 +31,7 @@ export class PeakMetricsStore {
     return row ? { ...row } : null;
   }
 
-  /**
-   * Update metrics if new values are better.
-   * @param modelId - Model id.
-   * @param prefillTps - Prefill tokens per second.
-   * @param generationTps - Generation tokens per second.
-   * @param ttftMs - Time-to-first-token in ms.
-   * @returns Updated metrics.
-   */
+  /** Upserts peak values — only overwrites if the new value is better. */
   public updateIfBetter(
     modelId: string,
     prefillTps?: number,
@@ -126,13 +103,6 @@ export class PeakMetricsStore {
     return this.get(modelId) ?? {};
   }
 
-  /**
-   * Add cumulative token and request counts.
-   * @param modelId - Model id.
-   * @param tokens - Tokens count.
-   * @param requests - Request count.
-   * @returns void
-   */
   public addTokens(modelId: string, tokens: number, requests = 1): void {
     this.db
       .query(
@@ -148,10 +118,6 @@ export class PeakMetricsStore {
       .run(modelId, tokens, requests);
   }
 
-  /**
-   * Get all peak metrics.
-   * @returns List of metrics rows.
-   */
   public getAll(): Array<Record<string, unknown>> {
     const rows = this.db.query("SELECT * FROM peak_metrics ORDER BY model_id").all() as Array<
       Record<string, unknown>
@@ -160,25 +126,14 @@ export class PeakMetricsStore {
   }
 }
 
-/**
- * SQLite-backed storage for lifetime metrics.
- */
 export class LifetimeMetricsStore {
   private readonly db: Database;
 
-  /**
-   * Create a lifetime metrics store.
-   * @param dbPath - SQLite database path.
-   */
   public constructor(dbPath: string) {
     this.db = openSqliteDatabase(dbPath);
     this.migrate();
   }
 
-  /**
-   * Initialize schema and defaults.
-   * @returns void
-   */
   private migrate(): void {
     this.db.run(`
       CREATE TABLE IF NOT EXISTS lifetime_metrics (
@@ -203,11 +158,6 @@ export class LifetimeMetricsStore {
     }
   }
 
-  /**
-   * Get a lifetime metric value.
-   * @param key - Metric key.
-   * @returns Metric value.
-   */
   public get(key: string): number {
     const row = this.db.query("SELECT value FROM lifetime_metrics WHERE key = ?").get(key) as {
       value?: number;
@@ -215,10 +165,6 @@ export class LifetimeMetricsStore {
     return row?.value ?? 0;
   }
 
-  /**
-   * Get all lifetime metrics.
-   * @returns Map of metric values.
-   */
   public getAll(): Record<string, number> {
     const rows = this.db.query("SELECT key, value FROM lifetime_metrics").all() as Array<{
       key: string;
@@ -227,12 +173,6 @@ export class LifetimeMetricsStore {
     return Object.fromEntries(rows.map((row) => [row.key, row.value]));
   }
 
-  /**
-   * Set a lifetime metric.
-   * @param key - Metric key.
-   * @param value - Metric value.
-   * @returns void
-   */
   public set(key: string, value: number): void {
     this.db
       .query(
@@ -243,12 +183,6 @@ export class LifetimeMetricsStore {
       .run(key, value);
   }
 
-  /**
-   * Increment a lifetime metric.
-   * @param key - Metric key.
-   * @param delta - Increment value.
-   * @returns Updated value.
-   */
   public increment(key: string, delta: number): number {
     this.db
       .query(
@@ -260,10 +194,6 @@ export class LifetimeMetricsStore {
     return this.get(key);
   }
 
-  /**
-   * Ensure first_started_at is set.
-   * @returns void
-   */
   public ensureFirstStarted(): void {
     const current = this.get("first_started_at");
     if (current === 0) {
@@ -271,56 +201,26 @@ export class LifetimeMetricsStore {
     }
   }
 
-  /**
-   * Add energy consumption in watt-hours.
-   * @param wattHours - Watt hours to add.
-   * @returns void
-   */
   public addEnergy(wattHours: number): void {
     this.increment("energy_wh", wattHours);
   }
 
-  /**
-   * Add total tokens.
-   * @param tokens - Tokens to add.
-   * @returns void
-   */
   public addTokens(tokens: number): void {
     this.increment("tokens_total", tokens);
   }
 
-  /**
-   * Add prompt tokens.
-   * @param tokens - Tokens to add.
-   * @returns void
-   */
   public addPromptTokens(tokens: number): void {
     this.increment("prompt_tokens_total", tokens);
   }
 
-  /**
-   * Add completion tokens.
-   * @param tokens - Tokens to add.
-   * @returns void
-   */
   public addCompletionTokens(tokens: number): void {
     this.increment("completion_tokens_total", tokens);
   }
 
-  /**
-   * Add uptime in seconds.
-   * @param seconds - Seconds to add.
-   * @returns void
-   */
   public addUptime(seconds: number): void {
     this.increment("uptime_seconds", seconds);
   }
 
-  /**
-   * Add request count.
-   * @param count - Requests to add.
-   * @returns void
-   */
   public addRequests(count = 1): void {
     this.increment("requests_total", count);
   }

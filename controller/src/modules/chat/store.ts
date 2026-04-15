@@ -17,33 +17,18 @@ import type {
   ChatUsage,
 } from "../../types/chat";
 
-/**
- * SQLite-backed chat session storage.
- */
 export class ChatStore {
   private readonly db: ReturnType<typeof openSqliteDatabase>;
 
-  /**
-   * Create a chat store.
-   * @param dbPath - SQLite database path.
-   */
   public constructor(dbPath: string) {
     this.db = openSqliteDatabase(dbPath);
     this.migrate();
   }
 
-  /**
-   * Initialize schema.
-   * @returns void
-   */
   private migrate(): void {
     migrateChatStore(this.db);
   }
 
-  /**
-   * List all chat sessions.
-   * @returns List of sessions.
-   */
   public listSessions(): Array<ChatSessionListItem> {
     const rows = this.db
       .query(
@@ -57,11 +42,6 @@ export class ChatStore {
     return rows.map((row) => ({ ...row }) as ChatSessionListItem);
   }
 
-  /**
-   * Get a session summary without messages.
-   * @param sessionId - Session identifier.
-   * @returns Session summary or null.
-   */
   public getSessionSummary(sessionId: string): ChatSessionSummary | null {
     const session = hydrateSessionRow(
       this.db
@@ -73,11 +53,6 @@ export class ChatStore {
     return session ? ({ ...session } as ChatSessionSummary) : null;
   }
 
-  /**
-   * Get a session and its messages.
-   * @param sessionId - Session identifier.
-   * @returns Session object or null.
-   */
   public getSession(sessionId: string): ChatSession | null {
     const rawSession = this.db
       .query(
@@ -103,15 +78,6 @@ export class ChatStore {
     return { ...session, messages: hydrated } as ChatSession;
   }
 
-  /**
-   * Create a new chat session.
-   * @param sessionId - Session identifier.
-   * @param title - Session title.
-   * @param model - Model name.
-   * @param parentId - Parent session id.
-   * @param agentState
-   * @returns Created session.
-   */
   public createSession(
     sessionId: string,
     title = "New Chat",
@@ -135,14 +101,6 @@ export class ChatStore {
     return { ...(hydrated ?? row) } as ChatSessionSummary;
   }
 
-  /**
-   * Update session title or model.
-   * @param sessionId - Session identifier.
-   * @param title - New title.
-   * @param model - New model.
-   * @param agentState
-   * @returns True if updated.
-   */
   public updateSession(
     sessionId: string,
     title?: string,
@@ -174,35 +132,12 @@ export class ChatStore {
     return result.changes > 0;
   }
 
-  /**
-   * Delete a chat session and its messages.
-   * @param sessionId - Session identifier.
-   * @returns True if deleted.
-   */
   public deleteSession(sessionId: string): boolean {
     this.db.query("DELETE FROM chat_messages WHERE session_id = ?").run(sessionId);
     const result = this.db.query("DELETE FROM chat_sessions WHERE id = ?").run(sessionId);
     return result.changes > 0;
   }
 
-  /**
-   * Add a message to a session.
-   * @param sessionId - Session identifier.
-   * @param messageId - Message identifier.
-   * @param role - Message role.
-   * @param content - Message content.
-   * @param model - Model name.
-   * @param toolCalls - Tool call array.
-   * @param promptTokens - Prompt token count.
-   * @param toolsTokens - Tools token count.
-   * @param totalInputTokens - Total input tokens.
-   * @param completionTokens - Completion tokens.
-   * @param parts - Structured message parts.
-   * @param metadata - Message metadata.
-   * @param toolCallId - Tool call identifier.
-   * @param name - Tool name (for tool messages).
-   * @returns Stored message.
-   */
   public addMessage(
     sessionId: string,
     messageId: string,
@@ -272,11 +207,6 @@ export class ChatStore {
     return hydrateMessageRow(row);
   }
 
-  /**
-   * Get usage totals for a session.
-   * @param sessionId - Session identifier.
-   * @returns Usage stats.
-   */
   public getUsage(sessionId: string): ChatUsage {
     const row = this.db
       .query(
@@ -305,15 +235,6 @@ export class ChatStore {
     };
   }
 
-  /**
-   * Fork an existing session.
-   * @param sessionId - Original session id.
-   * @param newId - New session id.
-   * @param messageId - Optional message id to stop copying.
-   * @param model - New model.
-   * @param title - New title.
-   * @returns Forked session or null.
-   */
   public forkSession(
     sessionId: string,
     newId: string,
@@ -409,18 +330,6 @@ export class ChatStore {
     return { ...(hydrated ?? row) } as ChatSessionSummary;
   }
 
-  /**
-   * Create a run record.
-   * @param runId - Run identifier.
-   * @param sessionId - Session identifier.
-   * @param options - Optional run fields.
-   * @param options.userMessageId - User message id.
-   * @param options.model - Model name.
-   * @param options.system - System prompt.
-   * @param options.toolsetId - Toolset identifier.
-   * @param options.status - Run status.
-   * @returns Run record.
-   */
   public createRun(
     runId: string,
     sessionId: string,
@@ -435,15 +344,6 @@ export class ChatStore {
     return RunOps.createRun(this.db, runId, sessionId, options);
   }
 
-  /**
-   * Add a run event.
-   * @param runId - Run identifier.
-   * @param seq - Sequence number.
-   * @param type - Event type.
-   * @param data - Event payload.
-   * @param eventId - Optional event id override.
-   * @returns Stored event record.
-   */
   public addRunEvent(
     runId: string,
     seq: number,
@@ -454,21 +354,6 @@ export class ChatStore {
     return RunOps.addRunEvent(this.db, runId, seq, type, data, eventId);
   }
 
-  /**
-   * Add a tool execution record.
-   * @param runId - Run identifier.
-   * @param toolCallId - Tool call id.
-   * @param toolName - Tool name (canonical server__tool).
-   * @param options - Optional fields.
-   * @param options.toolServer - MCP server id.
-   * @param options.arguments - Tool arguments payload.
-   * @param options.resultText - Tool result text.
-   * @param options.isError - Whether the tool errored.
-   * @param options.startedAt - Execution start timestamp.
-   * @param options.finishedAt - Execution finish timestamp.
-   * @param options.id - Override record id.
-   * @returns Stored tool execution record.
-   */
   public addToolExecution(
     runId: string,
     toolCallId: string,
@@ -486,14 +371,6 @@ export class ChatStore {
     return RunOps.addToolExecution(this.db, runId, toolCallId, toolName, options);
   }
 
-  /**
-   * Update a run record.
-   * @param runId - Run identifier.
-   * @param updates - Fields to update.
-   * @param updates.status - Run status.
-   * @param updates.finishedAt - Finish timestamp.
-   * @returns True if updated.
-   */
   public updateRun(
     runId: string,
     updates: {
@@ -504,16 +381,7 @@ export class ChatStore {
     return RunOps.updateRun(this.db, runId, updates);
   }
 
-  /**
-   * Append a version snapshot for an agent workspace file.
-   * Versions are session-scoped and monotonically increasing per path.
-   * Dedupe: if the latest stored content matches, no new version is created.
-   * @param sessionId - Session identifier.
-   * @param path - File path within the agent workspace.
-   * @param content - File content to store.
-   * @param bytes - Optional byte count for the content.
-   * @returns Version info with version number and creation timestamp.
-   */
+  /** Append a version snapshot, deduplicating if content hasn't changed. */
   public addAgentFileVersion(
     sessionId: string,
     path: string,
@@ -546,12 +414,6 @@ export class ChatStore {
     return { version: nextVersion, created_at_ms: createdAtMs };
   }
 
-  /**
-   * List all versions for an agent workspace file.
-   * @param sessionId - Session identifier.
-   * @param path - File path within the agent workspace.
-   * @returns Array of file version records.
-   */
   public listAgentFileVersions(sessionId: string, path: string): Array<ChatAgentFileVersion> {
     const rows = this.db
       .query(
@@ -561,13 +423,7 @@ export class ChatStore {
     return rows.map((row) => ({ ...row }) as ChatAgentFileVersion);
   }
 
-  /**
-   * Delete agent file versions for a file or directory prefix.
-   * If `path` is a file path, deletes exact match.
-   * If `path` is a directory, deletes all descendants as well.
-   * @param sessionId - Session identifier.
-   * @param path - File or directory path to delete.
-   */
+  /** Deletes exact path or all descendants if path is a directory. */
   public deleteAgentFileVersionsForPath(sessionId: string, path: string): void {
     const trimmed = (path ?? "").trim();
     if (!trimmed) {
@@ -581,13 +437,7 @@ export class ChatStore {
       .run(sessionId, trimmed, `${trimmed}/%`);
   }
 
-  /**
-   * Move agent file versions when a file is renamed/moved.
-   * If destination already has versions, the moved versions are appended after the last destination version.
-   * @param sessionId - Session identifier.
-   * @param from - Source file path.
-   * @param to - Destination file path.
-   */
+  /** Re-parents file versions from `from` to `to`, continuing the version sequence. */
   public moveAgentFileVersions(sessionId: string, from: string, to: string): void {
     if (!from || !to || from === to) return;
 

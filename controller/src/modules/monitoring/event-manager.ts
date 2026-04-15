@@ -2,9 +2,6 @@
 import { AsyncLock, AsyncQueue } from "../../core/async";
 import { CONTROLLER_EVENTS } from "../../contracts/controller-events";
 
-/**
- * SSE event payload structure.
- */
 export interface EventPayload {
   type: string;
   data: Record<string, unknown>;
@@ -12,20 +9,12 @@ export interface EventPayload {
   id: string;
 }
 
-/**
- * SSE event with serialization helpers.
- */
 export class Event {
   public readonly type: string;
   public readonly data: Record<string, unknown>;
   public readonly timestamp: string;
   public readonly id: string;
 
-  /**
-   * Create an event.
-   * @param type - Event type.
-   * @param data - Event payload.
-   */
   public constructor(type: string, data: Record<string, unknown>) {
     this.type = type;
     this.data = data;
@@ -33,29 +22,18 @@ export class Event {
     this.id = `${Date.now()}`;
   }
 
-  /**
-   * Convert event to SSE wire format.
-   * @returns SSE string.
-   */
   public toSse(): string {
     const payload = { data: this.data, timestamp: this.timestamp };
     return `id: ${this.id}\nevent: ${this.type}\ndata: ${JSON.stringify(payload)}\n\n`;
   }
 }
 
-/**
- * SSE event manager with channels and backpressure handling.
- */
+/** SSE event manager with channels and backpressure handling. */
 export class EventManager {
   private readonly subscribers = new Map<string, Set<AsyncQueue<Event>>>();
   private readonly lock = new AsyncLock();
   private eventCount = 0;
 
-  /**
-   * Subscribe to a channel as an async iterator.
-   * @param channel - Channel name.
-   * @returns Async iterable of events.
-   */
   public async *subscribe(channel = "default"): AsyncIterable<Event> {
     const queue = new AsyncQueue<Event>(100);
     const release = await this.lock.acquire();
@@ -93,12 +71,6 @@ export class EventManager {
     }
   }
 
-  /**
-   * Publish an event to a channel.
-   * @param event - Event to broadcast.
-   * @param channel - Channel name.
-   * @returns Promise that resolves after publishing.
-   */
   public async publish(event: Event, channel = "default"): Promise<void> {
     const release = await this.lock.acquire();
     try {
@@ -125,57 +97,26 @@ export class EventManager {
     }
   }
 
-  /**
-   * Publish status updates.
-   * @param statusData - Status payload.
-   * @returns Promise that resolves after publish.
-   */
   public async publishStatus(statusData: Record<string, unknown>): Promise<void> {
     await this.publish(new Event(CONTROLLER_EVENTS.STATUS, statusData));
   }
 
-  /**
-   * Publish GPU updates.
-   * @param gpuData - GPU info list.
-   * @returns Promise that resolves after publish.
-   */
   public async publishGpu(gpuData: Record<string, unknown>[]): Promise<void> {
     await this.publish(new Event(CONTROLLER_EVENTS.GPU, { gpus: gpuData, count: gpuData.length }));
   }
 
-  /**
-   * Publish vLLM metrics updates.
-   * @param metricsData - Metrics payload.
-   * @returns Promise that resolves after publish.
-   */
   public async publishMetrics(metricsData: Record<string, unknown>): Promise<void> {
     await this.publish(new Event(CONTROLLER_EVENTS.METRICS, metricsData));
   }
 
-  /**
-   * Publish runtime summary updates (platform/tooling/backends).
-   * @param summaryData - Runtime summary payload.
-   * @returns Promise that resolves after publish.
-   */
   public async publishRuntimeSummary(summaryData: Record<string, unknown>): Promise<void> {
     await this.publish(new Event(CONTROLLER_EVENTS.RUNTIME_SUMMARY, summaryData));
   }
 
-  /**
-   * Publish job lifecycle updates.
-   * @param jobData - Job record payload.
-   * @returns Promise that resolves after publish.
-   */
   public async publishJobUpdated(jobData: Record<string, unknown>): Promise<void> {
     await this.publish(new Event(CONTROLLER_EVENTS.JOB_UPDATED, jobData));
   }
 
-  /**
-   * Publish log line updates to a session channel.
-   * @param sessionId - Log session identifier.
-   * @param line - Log line contents.
-   * @returns Promise that resolves after publish.
-   */
   public async publishLogLine(sessionId: string, line: string): Promise<void> {
     await this.publish(
       new Event(CONTROLLER_EVENTS.LOG, { session_id: sessionId, line }),
@@ -183,14 +124,6 @@ export class EventManager {
     );
   }
 
-  /**
-   * Publish model launch progress.
-   * @param recipeId - Recipe identifier.
-   * @param stage - Lifecycle stage.
-   * @param message - Status message.
-   * @param progress - Progress ratio.
-   * @returns Promise that resolves after publish.
-   */
   public async publishLaunchProgress(
     recipeId: string,
     stage: string,
@@ -204,10 +137,6 @@ export class EventManager {
     await this.publish(new Event(CONTROLLER_EVENTS.LAUNCH_PROGRESS, payload));
   }
 
-  /**
-   * Return event manager statistics.
-   * @returns Stats payload.
-   */
   public getStats(): Record<string, unknown> {
     const channels: Record<string, number> = {};
     let totalSubscribers = 0;
@@ -223,8 +152,4 @@ export class EventManager {
   }
 }
 
-/**
- * Create a new EventManager instance.
- * @returns EventManager.
- */
 export const createEventManager = (): EventManager => new EventManager();

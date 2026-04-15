@@ -5,27 +5,16 @@ import type { Recipe } from "../types";
 import { openSqliteDatabase } from "../../../stores/sqlite";
 import { resolveVllmRecipePythonPath } from "../runtime/vllm-python-path";
 
-/**
- * SQLite-backed recipe storage.
- */
 export class RecipeStore {
   private readonly db: ReturnType<typeof openSqliteDatabase>;
   private useJsonColumn = false;
 
-  /**
-   * Create a new recipe store.
-   * @param dbPath - SQLite database path.
-   */
   public constructor(dbPath: string) {
     this.db = openSqliteDatabase(dbPath);
     this.migrate();
     this.normalizeVllmRecipes();
   }
 
-  /**
-   * Migrate schema as needed.
-   * @returns void
-   */
   private migrate(): void {
     const table = this.db
       .query("SELECT name FROM sqlite_master WHERE type='table' AND name='recipes'")
@@ -52,11 +41,7 @@ export class RecipeStore {
     this.useJsonColumn = false;
   }
 
-  /**
-   * Normalize all stored vLLM recipes to a valid runtime Python path.
-   *
-   * Migrates legacy values on startup so stale/invalid paths are corrected.
-   */
+  /** Fixes stale python_path values on all vLLM recipes at startup. */
   private normalizeVllmRecipes(): void {
     const update = this.db.prepare(
       `UPDATE recipes SET ${this.useJsonColumn ? "json" : "data"} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
@@ -99,10 +84,6 @@ export class RecipeStore {
     }
   }
 
-  /**
-   * List all recipes.
-   * @returns Array of recipes.
-   */
   public list(): Recipe[] {
     const column = this.useJsonColumn ? "json" : "data";
     const rows = this.db.query(`SELECT ${column} FROM recipes ORDER BY id`).all() as Array<
@@ -124,11 +105,6 @@ export class RecipeStore {
     return recipes;
   }
 
-  /**
-   * Get a recipe by id.
-   * @param recipeId - Recipe identifier.
-   * @returns Recipe or null.
-   */
   public get(recipeId: string): Recipe | null {
     const column = this.useJsonColumn ? "json" : "data";
     const row = this.db.query(`SELECT ${column} FROM recipes WHERE id = ?`).get(recipeId) as Record<
@@ -149,11 +125,6 @@ export class RecipeStore {
     }
   }
 
-  /**
-   * Save a recipe.
-   * @param recipe - Recipe data.
-   * @returns void
-   */
   public save(recipe: Recipe): void {
     const normalizedRecipe = {
       ...recipe,
@@ -184,21 +155,11 @@ export class RecipeStore {
       .run(recipe.id, data);
   }
 
-  /**
-   * Delete a recipe by id.
-   * @param recipeId - Recipe identifier.
-   * @returns True if deleted.
-   */
   public delete(recipeId: string): boolean {
     const result = this.db.query("DELETE FROM recipes WHERE id = ?").run(recipeId);
     return result.changes > 0;
   }
 
-  /**
-   * Import recipes from a JSON file.
-   * @param jsonPath - Path to JSON file.
-   * @returns Number of imported recipes.
-   */
   public importFromJson(jsonPath: string): number {
     const content = readFileSync(jsonPath, "utf-8");
     const parsed = JSON.parse(content) as unknown;

@@ -17,24 +17,14 @@ export interface JobRecord {
 
 const MAX_LOGS_PER_JOB = 200;
 
-/**
- * SQLite-backed durable job store.
- */
 export class JobStore {
   private readonly db: Database;
 
-  /**
-   * Create a job store.
-   * @param dbPath - SQLite database path.
-   */
   public constructor(dbPath: string) {
     this.db = openSqliteDatabase(dbPath);
     this.migrate();
   }
 
-  /**
-   * Create jobs table when missing.
-   */
   private migrate(): void {
     this.db.run(`
       CREATE TABLE IF NOT EXISTS jobs (
@@ -52,13 +42,6 @@ export class JobStore {
     `);
   }
 
-  /**
-   * Create a new job record.
-   * @param id - Job identifier.
-   * @param type - Job type.
-   * @param input - JSON-serialized input.
-   * @returns Created job record.
-   */
   public create(id: string, type: string, input: Record<string, unknown>): JobRecord {
     const now = new Date().toISOString();
     this.db
@@ -70,11 +53,6 @@ export class JobStore {
     return this.get(id)!;
   }
 
-  /**
-   * Get a job by id.
-   * @param id - Job identifier.
-   * @returns Job record or null.
-   */
   public get(id: string): JobRecord | null {
     return (this.db.query("SELECT * FROM jobs WHERE id = ?").get(id) as JobRecord) ?? null;
   }

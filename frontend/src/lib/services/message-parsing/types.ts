@@ -1,35 +1,18 @@
 // CRITICAL
-/**
- * Message Parsing Service Types
- * Defines all types specific to message parsing functionality
- */
-
 import type { IParser, ICacheableService, IServiceFactory } from "../types";
 import type { Artifact, ArtifactType } from "../../types/chat/artifacts";
 export type { Artifact, ArtifactType };
-
-// ============================================================================
-// Artifact Types
-// ============================================================================
 
 export interface ArtifactsResult {
   text: string;
   artifacts: Artifact[];
 }
 
-// ============================================================================
-// Thinking Types
-// ============================================================================
-
 export interface ThinkingResult {
   thinkingContent: string | null;
   mainContent: string;
   isThinkingComplete: boolean;
 }
-
-// ============================================================================
-// Markdown Types
-// ============================================================================
 
 export type MarkdownSegmentType = "markdown" | "code";
 
@@ -38,10 +21,6 @@ export interface MarkdownSegment {
   content: string;
   language?: string;
 }
-
-// ============================================================================
-// Parsed Message (Full Result)
-// ============================================================================
 
 export interface ParsedMessage {
   /** Original raw content */
@@ -62,10 +41,6 @@ export interface ParsedMessage {
   parsedAt: number;
 }
 
-// ============================================================================
-// Parser Interfaces
-// ============================================================================
-
 export interface IBoxTagsParser extends IParser<string, string> {
   readonly name: "box-tags";
 }
@@ -83,10 +58,6 @@ export interface IMarkdownParser extends IParser<string, MarkdownSegment[]> {
   readonly name: "markdown";
   renderToHtml(markdown: string): string;
 }
-
-// ============================================================================
-// Service Configuration
-// ============================================================================
 
 export interface MessageParsingConfig {
   /** Enable artifact extraction */
@@ -106,10 +77,6 @@ export const DEFAULT_CONFIG: MessageParsingConfig = {
   cacheSize: 100,
 };
 
-// ============================================================================
-// Parse Options (per-call overrides)
-// ============================================================================
-
 export interface ParseOptions {
   /** Whether the message is currently streaming */
   isStreaming?: boolean;
@@ -120,10 +87,6 @@ export interface ParseOptions {
   /** Override thinking extraction for this call */
   extractThinking?: boolean;
 }
-
-// ============================================================================
-// Service Interface
-// ============================================================================
 
 export interface IMessageParsingService extends ICacheableService<string, ParsedMessage> {
   readonly name: "message-parsing";
@@ -171,10 +134,6 @@ export interface IMessageParsingService extends ICacheableService<string, Parsed
   getArtifactType(language: string): ArtifactType | null;
 }
 
-// ============================================================================
-// Factory Interface
-// ============================================================================
-
 export interface IMessageParsingServiceFactory extends IServiceFactory<
   Partial<MessageParsingConfig>,
   IMessageParsingService
@@ -182,10 +141,6 @@ export interface IMessageParsingServiceFactory extends IServiceFactory<
   create(config: Partial<MessageParsingConfig>): IMessageParsingService;
   createDefault(): IMessageParsingService;
 }
-
-// ============================================================================
-// React Context Types
-// ============================================================================
 
 export interface MessageParsingContextValue {
   service: IMessageParsingService;

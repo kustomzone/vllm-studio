@@ -1,9 +1,4 @@
 // CRITICAL
-/**
- * Context Management Service Types
- * Defines all types for context/token management
- */
-
 import type { IService } from "../types";
 
 export interface ContextConfig {

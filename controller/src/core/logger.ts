@@ -1,7 +1,4 @@
 // CRITICAL
-/**
- * Logging levels.
- */
 import { createWriteStream, mkdirSync } from "node:fs";
 import type { WriteStream } from "node:fs";
 import { dirname } from "node:path";
@@ -10,16 +7,10 @@ export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export interface LoggerOptions {
   filePath?: string;
-  /**
-   * Called after formatting a log line (best-effort, fire-and-forget).
-   * Useful for pushing logs to SSE channels in addition to console/disk.
-   */
+  /** Called after formatting a log line (best-effort). Useful for pushing logs to SSE channels. */
   onLine?: (line: string, meta: { level: LogLevel }) => void | Promise<void>;
 }
 
-/**
- * Logger contract.
- */
 export interface Logger {
   debug: (message: string, details?: Record<string, unknown>) => void;
   info: (message: string, details?: Record<string, unknown>) => void;
@@ -27,12 +18,6 @@ export interface Logger {
   error: (message: string, details?: Record<string, unknown>) => void;
 }
 
-/**
- * Create a logger with a minimum level.
- * @param level - Minimum log level.
- * @param options - Optional sinks (file, callbacks).
- * @returns Logger instance.
- */
 export const createLogger = (level: LogLevel, options: LoggerOptions = {}): Logger => {
   const stream = ((): WriteStream | null => {
     if (!options.filePath) return null;
@@ -114,11 +99,6 @@ export const createLogger = (level: LogLevel, options: LoggerOptions = {}): Logg
   };
 };
 
-/**
- * Resolve the log level from environment variables.
- * @param fallback - Default log level.
- * @returns Resolved log level.
- */
 export const resolveLogLevel = (fallback: LogLevel): LogLevel => {
   const raw = process.env["VLLM_STUDIO_LOG_LEVEL"]?.toLowerCase();
   if (raw === "debug" || raw === "info" || raw === "warn" || raw === "error") {

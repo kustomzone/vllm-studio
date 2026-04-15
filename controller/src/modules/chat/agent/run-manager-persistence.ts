@@ -4,11 +4,6 @@ import { Event } from "../../monitoring/event-manager";
 import type { AppContext } from "../../../types/context";
 import { AGENT_RUN_EVENT_TYPES } from "./contracts";
 
-/**
- * Convert model usage to stored usage format.
- * @param usage - Usage payload.
- * @returns Normalized usage or undefined.
- */
 export function toLanguageUsage(
   usage: Usage | undefined
 ): { inputTokens: number; outputTokens: number; totalTokens: number } | undefined {
@@ -20,11 +15,6 @@ export function toLanguageUsage(
   };
 }
 
-/**
- * Extract a displayable string from a tool result.
- * @param result - Tool result content.
- * @returns Text content.
- */
 export function extractToolResultText(result: unknown): string {
   if (Array.isArray(result)) {
     return result
@@ -42,18 +32,6 @@ export function extractToolResultText(result: unknown): string {
   return typeof result === "string" ? result : JSON.stringify(result ?? "");
 }
 
-/**
- * Persist an assistant message and tool calls to storage and publish websocket events.
- * @param context - Application context.
- * @param params - Persistence payload.
- * @param params.sessionId - Session identifier.
- * @param params.messageId - Message identifier.
- * @param params.assistant - Assistant message payload.
- * @param params.toolResults - Tool results for the turn.
- * @param params.runId - Run identifier.
- * @param params.turnIndex - Optional turn index for the message.
- * @returns void
- */
 export function persistAssistantMessage(
   context: AppContext,
   params: {

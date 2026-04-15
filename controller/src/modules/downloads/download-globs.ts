@@ -8,12 +8,6 @@ const compileGlob = (pattern: string): RegExp => {
   return new RegExp(regex, "i");
 };
 
-/**
- * Returns true if value matches any glob pattern (supports `*`).
- * @param value - String to test.
- * @param patterns - Glob patterns.
- * @returns Whether any pattern matches.
- */
 export const matchesAny = (value: string, patterns: string[]): boolean => {
   if (patterns.length === 0) {
     return false;

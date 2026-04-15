@@ -8,13 +8,6 @@ export type HuggingFaceModelInfo = {
   siblings?: Array<{ rfilename: string; size?: number | null }>;
 };
 
-/**
- * Fetches model metadata from the Hugging Face API.
- * @param modelId - Hugging Face model id.
- * @param revision - Optional revision/branch/tag.
- * @param hfToken - Optional token.
- * @returns Model info payload.
- */
 export const fetchHuggingFaceModelInfo = async (
   modelId: string,
   revision?: string | null,
@@ -36,13 +29,7 @@ export const fetchHuggingFaceModelInfo = async (
   return (await response.json()) as HuggingFaceModelInfo;
 };
 
-/**
- * Builds a file download list from model metadata and allow/ignore patterns.
- * @param modelInfo - Hugging Face model metadata.
- * @param allowPatterns - If provided, only matching files are included.
- * @param ignorePatterns - Matching files are excluded.
- * @returns Download file list.
- */
+/** Builds a file download list from model metadata, filtering by allow/ignore glob patterns. */
 export const buildHuggingFaceFileList = (
   modelInfo: HuggingFaceModelInfo,
   allowPatterns: string[],

@@ -3,25 +3,14 @@ import type { ModelDownload } from "./types";
 import { openSqliteDatabase } from "../../stores/sqlite";
 import { parseJsonOrNull } from "../../core/json";
 
-/**
- * SQLite-backed download storage.
- */
 export class DownloadStore {
   private readonly db: ReturnType<typeof openSqliteDatabase>;
 
-  /**
-   * Create a download store.
-   * @param dbPath - SQLite database path.
-   */
   public constructor(dbPath: string) {
     this.db = openSqliteDatabase(dbPath);
     this.migrate();
   }
 
-  /**
-   * Ensure database schema exists.
-   * @returns void
-   */
   private migrate(): void {
     this.db.run(`
       CREATE TABLE IF NOT EXISTS model_downloads (
@@ -33,10 +22,6 @@ export class DownloadStore {
     `);
   }
 
-  /**
-   * List downloads.
-   * @returns Array of downloads.
-   */
   public list(): ModelDownload[] {
     const rows = this.db
       .query("SELECT data FROM model_downloads ORDER BY updated_at DESC")
@@ -54,11 +39,6 @@ export class DownloadStore {
     return downloads;
   }
 
-  /**
-   * Get a download by id.
-   * @param id - Download id.
-   * @returns Download entry or null.
-   */
   public get(id: string): ModelDownload | null {
     const row = this.db.query("SELECT data FROM model_downloads WHERE id = ?").get(id) as {
       data: string;
@@ -73,11 +53,6 @@ export class DownloadStore {
     return record as unknown as ModelDownload;
   }
 
-  /**
-   * Save a download entry.
-   * @param download - Download record.
-   * @returns void
-   */
   public save(download: ModelDownload): void {
     const data = JSON.stringify(download);
     this.db
@@ -91,11 +66,6 @@ export class DownloadStore {
       .run(download.id, data);
   }
 
-  /**
-   * Delete a download entry.
-   * @param id - Download id.
-   * @returns True if deleted.
-   */
   public delete(id: string): boolean {
     const result = this.db.query("DELETE FROM model_downloads WHERE id = ?").run(id);
     return result.changes > 0;

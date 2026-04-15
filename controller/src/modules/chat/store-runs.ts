@@ -4,19 +4,6 @@ import { randomUUID } from "node:crypto";
 import { parseJsonOrNull } from "./store-hydration";
 import type { ChatRun, ChatRunEvent, ChatToolExecution } from "../../types/chat";
 
-/**
- * Create a run record.
- * @param db - SQLite database.
- * @param runId - Run identifier.
- * @param sessionId - Session identifier.
- * @param options - Optional run fields.
- * @param options.userMessageId - User message id.
- * @param options.model - Model name.
- * @param options.system - System prompt.
- * @param options.toolsetId - Toolset identifier.
- * @param options.status - Run status.
- * @returns Run row.
- */
 export function createRun(
   db: Database,
   runId: string,
@@ -50,16 +37,6 @@ export function createRun(
     .get(runId) as ChatRun;
 }
 
-/**
- * Store a run event record.
- * @param db - SQLite database.
- * @param runId - Run identifier.
- * @param seq - Sequence number.
- * @param type - Event type.
- * @param data - Event payload.
- * @param eventId - Optional event id override.
- * @returns Event row.
- */
 export function addRunEvent(
   db: Database,
   runId: string,
@@ -82,22 +59,6 @@ export function addRunEvent(
   return row as ChatRunEvent;
 }
 
-/**
- * Store a tool execution record.
- * @param db - SQLite database.
- * @param runId - Run identifier.
- * @param toolCallId - Tool call identifier.
- * @param toolName - Tool name (canonical server__tool).
- * @param options - Optional fields.
- * @param options.toolServer - MCP server id.
- * @param options.arguments - Tool arguments payload.
- * @param options.resultText - Tool result text.
- * @param options.isError - Whether the tool errored.
- * @param options.startedAt - Execution start timestamp.
- * @param options.finishedAt - Execution finish timestamp.
- * @param options.id - Override record id.
- * @returns Tool execution row.
- */
 export function addToolExecution(
   db: Database,
   runId: string,
@@ -140,15 +101,6 @@ export function addToolExecution(
     .get(id) as ChatToolExecution;
 }
 
-/**
- * Update a run record.
- * @param db - SQLite database.
- * @param runId - Run identifier.
- * @param updates - Fields to update.
- * @param updates.status - Run status.
- * @param updates.finishedAt - Finish timestamp.
- * @returns True if updated.
- */
 export function updateRun(
   db: Database,
   runId: string,

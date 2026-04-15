@@ -32,19 +32,10 @@ type ActiveDownload = {
 
 const toTimestamp = (): string => new Date().toISOString();
 
-/**
- * Manages model downloads (queue/pause/resume/cancel), persisting state and emitting progress events.
- */
+/** Manages model downloads (queue/pause/resume/cancel), persisting state and emitting progress events. */
 export class DownloadManager {
   private readonly active = new Map<string, ActiveDownload>();
 
-  /**
-   * Creates a new DownloadManager instance.
-   * @param config - Application configuration.
-   * @param store - Download persistence store.
-   * @param eventManager - Event broadcasting manager.
-   * @param logger - Logger instance.
-   */
   public constructor(
     private readonly config: Config,
     private readonly store: DownloadStore,
@@ -54,10 +45,7 @@ export class DownloadManager {
     this.rehydrate();
   }
 
-  /**
-   * Reset in-flight downloads after restart.
-   * @returns void
-   */
+  /** Marks in-flight downloads as paused after a process restart. */
   private rehydrate(): void {
     const downloads = this.store.list();
     for (const download of downloads) {
@@ -72,28 +60,14 @@ export class DownloadManager {
     }
   }
 
-  /**
-   * List downloads.
-   * @returns Downloads list.
-   */
   public list(): ModelDownload[] {
     return this.store.list();
   }
 
-  /**
-   * Get a download entry.
-   * @param id - Download id.
-   * @returns Download or null.
-   */
   public get(id: string): ModelDownload | null {
     return this.store.get(id);
   }
 
-  /**
-   * Start a new download.
-   * @param request - Download request payload.
-   * @returns Download record.
-   */
   public async start(request: DownloadRequest): Promise<ModelDownload> {
     const modelId = request.model_id?.trim();
     if (!modelId) {
@@ -133,11 +107,6 @@ export class DownloadManager {
     return download;
   }
 
-  /**
-   * Pause a download.
-   * @param id - Download id.
-   * @returns Updated download.
-   */
   public pause(id: string): ModelDownload {
     const download = this.store.get(id);
     if (!download) {
@@ -151,12 +120,6 @@ export class DownloadManager {
     return download;
   }
 
-  /**
-   * Resume a download.
-   * @param id - Download id.
-   * @param hfToken
-   * @returns Updated download.
-   */
   public resume(id: string, hfToken: string | null = null): ModelDownload {
     const download = this.store.get(id);
     if (!download) {
@@ -174,11 +137,6 @@ export class DownloadManager {
     return download;
   }
 
-  /**
-   * Cancel a download.
-   * @param id - Download id.
-   * @returns Updated download.
-   */
   public cancel(id: string): ModelDownload {
     const download = this.store.get(id);
     if (!download) {
@@ -192,10 +150,6 @@ export class DownloadManager {
     return download;
   }
 
-  /**
-   * Aborts an active download by id.
-   * @param id - Download id to abort.
-   */
   private abortActive(id: string): void {
     const active = this.active.get(id);
     if (active) {
@@ -204,11 +158,6 @@ export class DownloadManager {
     }
   }
 
-  /**
-   * Runs the download process for a given download id.
-   * @param id - Download id to process.
-   * @param hfToken - Optional HuggingFace token.
-   */
   private async runDownload(id: string, hfToken: string | null): Promise<void> {
     const download = this.store.get(id);
     if (!download || download.status === "completed" || download.status === "canceled") {
@@ -277,13 +226,6 @@ export class DownloadManager {
     }
   }
 
-  /**
-   * Downloads a single file from HuggingFace.
-   * @param download - The parent download record.
-   * @param file - File information to download.
-   * @param controller - Abort controller for cancellation.
-   * @param hfToken - Optional HuggingFace token.
-   */
   private async downloadFile(
     download: ModelDownload,
     file: DownloadFileInfo,
@@ -398,12 +340,6 @@ export class DownloadManager {
     this.publishProgress(currentDownload, file);
   }
 
-  /**
-   * Persists file download progress to the store.
-   * @param download - The parent download record.
-   * @param file - Updated file information.
-   * @returns Updated download record.
-   */
   private persistFileUpdate(download: ModelDownload, file: DownloadFileInfo): ModelDownload {
     const latest = this.store.get(download.id) ?? download;
     const updatedFiles = latest.files.map((entry) =>
@@ -420,11 +356,6 @@ export class DownloadManager {
     return updated;
   }
 
-  /**
-   * Publishes download progress event.
-   * @param download - The download record.
-   * @param file - Current file being processed.
-   */
   private publishProgress(download: ModelDownload, file: DownloadFileInfo): void {
     const payload = {
       id: download.id,
@@ -442,11 +373,6 @@ export class DownloadManager {
     void this.eventManager.publish(new Event(CONTROLLER_EVENTS.DOWNLOAD_PROGRESS, payload));
   }
 
-  /**
-   * Publishes download state change event.
-   * @param download - The download record.
-   * @param status - New status value.
-   */
   private publishState(download: ModelDownload, status: DownloadStatus): void {
     const payload = {
       id: download.id,
