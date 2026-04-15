@@ -20,3 +20,32 @@ export type {
   ControllerEventType,
   ControllerStreamEventType,
 } from "./controller-events";
+
+export type {
+  DownloadStatus,
+  DownloadFileStatus,
+  DownloadFileInfo,
+  ModelDownload,
+} from "./downloads";
+
+export type {
+  ServiceInfo,
+  SystemConfig,
+  EnvironmentInfo,
+  RuntimeBackendInfo,
+  RuntimePlatformKind,
+  RuntimeRocmSmiTool,
+  RuntimeGpuMonitoringTool,
+  RuntimeCudaInfo,
+  RuntimeRocmInfo,
+  RuntimeTorchBuildInfo,
+  RuntimePlatformInfo,
+  RuntimeGpuMonitoringInfo,
+  RuntimeGpuInfoSummary,
+  CompatibilitySeverity,
+  CompatibilityCheck,
+  SystemRuntimeInfo,
+  CompatibilityReport,
+} from "./system";
+
+export type { AgentFileEntry } from "./agent";

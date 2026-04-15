@@ -25,12 +25,7 @@ export interface AgentPlan {
   updatedAt: number;
 }
 
-export interface AgentFileEntry {
-  name: string;
-  type: "file" | "dir";
-  size?: number;
-  children?: AgentFileEntry[];
-}
+export type { AgentFileEntry } from "../../../../../shared/src";
 
 export interface AgentFileVersion {
   version: number;

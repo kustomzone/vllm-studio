@@ -1,9 +1,4 @@
-export interface AgentFileEntry {
-  name: string;
-  type: "file" | "dir";
-  size?: number;
-  children?: AgentFileEntry[];
-}
+export type { AgentFileEntry } from "../../../../../shared/src";
 
 export interface AgentFsDirStats {
   isDirectory: () => boolean;

@@ -3,47 +3,16 @@
  * Recipe types (model launch configuration).
  */
 
-export type Backend =
-  | "vllm"
-  | "mlx"
-  | "sglang"
-  | "llamacpp"
-  | "transformers"
-  | "tabbyapi"
-  | "exllamav3";
+export type { Backend } from "../../../../../../shared/src";
+import type { Backend, RecipeBase } from "../../../../../../shared/src";
 
 /**
  * Canonical recipe shape as returned by the controller API (stored/normalized).
  *
- * Note: this file must be self-contained for the frontend Docker build context (which may not
- * include repo-root shared types).
+ * This is identical to the shared RecipeBase type. It is re-exported as RecipeStored
+ * for backwards compatibility with existing frontend code.
  */
-export interface RecipeStored {
-  id: string;
-  name: string;
-  model_path: string;
-  backend: Backend;
-  env_vars: Record<string, string> | null;
-  tensor_parallel_size: number;
-  pipeline_parallel_size: number;
-  max_model_len: number;
-  gpu_memory_utilization: number;
-  kv_cache_dtype: string;
-  max_num_seqs: number;
-  trust_remote_code: boolean;
-  tool_call_parser: string | null;
-  reasoning_parser: string | null;
-  enable_auto_tool_choice: boolean;
-  quantization: string | null;
-  dtype: string | null;
-  host: string;
-  port: number;
-  served_model_name: string | null;
-  python_path: string | null;
-  extra_args: Record<string, unknown>;
-  max_thinking_tokens: number | null;
-  thinking_mode: string;
-}
+export type RecipeStored = RecipeBase;
 
 /**
  * Recipe payload shape accepted by the controller for create/update.
