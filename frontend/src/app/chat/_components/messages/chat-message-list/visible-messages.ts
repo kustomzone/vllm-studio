@@ -66,8 +66,10 @@ export function filterVisibleMessages({
     // This prevents intermediate tool-call turns from adding and removing height in the chat.
     if (currentRunStart >= 0 && idx >= currentRunStart) {
       if (m.id !== lastRawMessageId) return false;
-      // Show the streaming message if it has visible content.
-      // Tool-only messages during streaming are handled by the Computer viewport sidebar.
+      // Keep the live assistant row mounted for the whole stream (including before the
+      // first visible text token). Otherwise the list collapses and Virtuoso snaps to top.
+      if (isLoading) return true;
+      // Completed: require visible content; tool-only turns stay in Computer.
       return hasNonEmptyText(m);
     }
 

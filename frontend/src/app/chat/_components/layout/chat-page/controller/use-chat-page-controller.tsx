@@ -163,10 +163,7 @@ export function useChatPageController(): ChatPageViewProps {
     customChatModels: store.customChatModels,
   });
 
-  const { messagesContainerRef, messagesEndRef, handleScroll } = Hooks.useChatScroll({
-    isLoading,
-    messageCount: messages.length,
-  });
+  const { messagesContainerRef, messagesEndRef, handleScroll } = Hooks.useChatScroll();
 
   const { sessionArtifacts, artifactsByMessage, activeArtifact, clearArtifactsCache } =
     Hooks.useChatArtifacts({

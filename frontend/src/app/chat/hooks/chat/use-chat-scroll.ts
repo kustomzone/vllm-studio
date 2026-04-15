@@ -1,17 +1,15 @@
 // CRITICAL
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 import { useRafThrottle } from "../ui/use-raf-throttle";
 
-const BOTTOM_STICKY_THRESHOLD_PX = 160;
-
-type UseChatScrollArgs = {
-  isLoading: boolean;
-  messageCount: number;
-};
-
-export function useChatScroll({ isLoading, messageCount }: UseChatScrollArgs): {
+/**
+ * Exposes refs for the Virtuoso scroller and list end marker. Scrolling is intentionally
+ * not driven from here — Virtuoso `followOutput` and its size-based bottom correction
+ * own “latest at the bottom” behavior without snapping the thread to the top.
+ */
+export function useChatScroll(): {
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   messagesContainerRef: React.RefObject<HTMLDivElement | null>;
   handleScroll: () => void;
@@ -19,69 +17,8 @@ export function useChatScroll({ isLoading, messageCount }: UseChatScrollArgs): {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-  const userScrolledUpRef = useRef(false);
-
-  const handleScroll = useRafThrottle(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    userScrolledUpRef.current = distanceFromBottom >= BOTTOM_STICKY_THRESHOLD_PX;
-  });
-
-  const prevMessageCountRef = useRef(messageCount);
-  useEffect(() => {
-    // Only scroll when message count changes (new message added) or loading state changes.
-    if (messageCount === prevMessageCountRef.current && isLoading) return;
-    prevMessageCountRef.current = messageCount;
-
-    if (!userScrolledUpRef.current) {
-      messagesEndRef.current?.scrollIntoView({
-        behavior: isLoading ? "auto" : "smooth",
-      });
-    }
-  }, [isLoading, messageCount]);
-
-  // While streaming, the last assistant message grows without changing `messageCount`.
-  // Keep the view pinned to bottom unless the user has scrolled up.
-  // IMPORTANT: avoid polling scrollHeight (expensive) — use ResizeObserver instead.
-  const lastPinnedAtRef = useRef<number>(0);
-  useEffect(() => {
-    if (!isLoading) return;
-    const container = messagesContainerRef.current;
-    if (!container) return;
-
-    const endNode = messagesEndRef.current;
-    if (!endNode) return;
-
-    const maybePinToBottom = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-      // Live geometry check: avoids pinning when Virtuoso used a nested scroller briefly or
-      // `userScrolledUpRef` lagged behind the actual scroll position.
-      if (distanceFromBottom >= BOTTOM_STICKY_THRESHOLD_PX) return;
-      if (userScrolledUpRef.current) return;
-      const now = Date.now();
-      // Guard against ResizeObserver cascades triggering too many scroll operations.
-      if (now - lastPinnedAtRef.current < 80) return;
-      lastPinnedAtRef.current = now;
-      endNode.scrollIntoView({ behavior: "auto" });
-    };
-
-    const ro = new ResizeObserver(() => {
-      // Schedule after layout; avoids scroll jitter during streaming.
-      window.requestAnimationFrame(maybePinToBottom);
-    });
-
-    ro.observe(container);
-
-    // Initial pin when streaming starts.
-    window.requestAnimationFrame(maybePinToBottom);
-
-    return () => {
-      ro.disconnect();
-    };
-  }, [isLoading]);
+  const noop = useCallback(() => {}, []);
+  const handleScroll = useRafThrottle(noop);
 
   return {
     messagesEndRef,

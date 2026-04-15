@@ -64,8 +64,9 @@ function ChatConversationBase({
   messagesContainerRef,
   messagesEndRef,
 }: ChatConversationProps) {
-  const showComputerHint =
-    Boolean(agentMode && onOpenComputerPanel && (isLoading || executingToolsSize > 0));
+  const showComputerHint = Boolean(
+    agentMode && onOpenComputerPanel && (isLoading || executingToolsSize > 0),
+  );
 
   const handleEmptyStateScrollRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -120,7 +121,7 @@ function ChatConversationBase({
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="flex min-h-0 w-full flex-1 flex-col justify-end">
+          <div className="flex min-h-0 w-full flex-1 flex-col">
             <ChatMessageList
               messages={messages}
               isLoading={isLoading}
@@ -133,7 +134,6 @@ function ChatConversationBase({
               currentSessionId={currentSessionId}
               agentFilesBrowsePath={agentFilesBrowsePath}
               messagesContainerRef={messagesContainerRef}
-              onScroll={onScroll}
               messagesEndRef={messagesEndRef}
               onFork={onFork}
               onReprompt={onReprompt}

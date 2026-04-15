@@ -1,4 +1,4 @@
-import { app, shell, type BrowserWindow, type WebContents } from "electron";
+import { app, shell, BrowserWindow, type WebContents } from "electron";
 import { isHttpUrl } from "../helpers/url";
 import { log } from "../helpers/logger";
 
@@ -10,7 +10,8 @@ export function hardenWebContents(window: BrowserWindow, appOrigin: string): voi
     return { action: "deny" };
   });
 
-  window.webContents.on("will-navigate", (event, targetUrl) => {
+  window.webContents.on("will-navigate", (event) => {
+    const targetUrl = event.url;
     const targetOrigin = safeOrigin(targetUrl);
     if (!targetOrigin || targetOrigin !== appOrigin) {
       event.preventDefault();
@@ -28,7 +29,13 @@ export function registerNavigationPolicy(appOrigin: string): void {
       log.warn("Blocked webview attach attempt");
     });
 
-    contents.on("will-navigate", (event, targetUrl) => {
+    contents.on("will-navigate", (event) => {
+      // Guest WebContents (cross-origin iframes / OOPIF) are not owned by a BrowserWindow.
+      // Origin-locking those navigations leaves the Computer sidebar iframe permanently blank.
+      if (BrowserWindow.fromWebContents(contents) == null) {
+        return;
+      }
+      const targetUrl = event.url;
       const targetOrigin = safeOrigin(targetUrl);
       if (!targetOrigin || targetOrigin !== appOrigin) {
         event.preventDefault();

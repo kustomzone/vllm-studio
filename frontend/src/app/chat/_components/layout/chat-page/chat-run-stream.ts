@@ -6,6 +6,11 @@ import type { MutableRefObject } from "react";
 import api, { scrubTransportFetchErrorMessage, type ChatRunStreamEvent } from "@/lib/api";
 import type { ToolResult } from "@/lib/types";
 import { pushStreamErrorToast } from "./controller/internal/use-stream-error-toast";
+import {
+  CHAT_RUN_END_GRACE_MS,
+  CHAT_STREAM_MAX_SILENCE_MINUTES,
+  CHAT_STREAM_MAX_SILENCE_MS,
+} from "./stream-timeouts";
 
 export type AgentFinalReplyIssueKind =
   | "turn_gap_no_run_end"
@@ -100,11 +105,8 @@ export function useChatRunStream({
 
       let runIdForLifecycle: string | null = null;
 
-      // Safety timeout: if no SSE event arrives for 120s, abort the stream
-      // to prevent the UI from getting stuck forever on a hung connection.
-      const STREAM_IDLE_TIMEOUT_MS = 120_000;
-      // If a turn finishes but backend never emits `run_end`, auto-close the stream.
-      const RUN_END_GRACE_MS = 8_000;
+      const STREAM_IDLE_TIMEOUT_MS = CHAT_STREAM_MAX_SILENCE_MS;
+      const RUN_END_GRACE_MS = CHAT_RUN_END_GRACE_MS;
       let idleTimer: ReturnType<typeof setTimeout> | null = null;
       let runEndGraceTimer: ReturnType<typeof setTimeout> | null = null;
       const resetIdleTimer = () => {
@@ -114,7 +116,7 @@ export function useChatRunStream({
           if (!abortController.signal.aborted && !runCompletedRef.current) {
             console.warn("[stream] Idle timeout reached — aborting hung stream");
             abortController.abort();
-            const timeoutMsg = "Stream timed out (no events for 2 minutes)";
+            const timeoutMsg = `Stream timed out (no events for ${CHAT_STREAM_MAX_SILENCE_MINUTES} minutes)`;
             setStreamError(timeoutMsg);
             pushStreamErrorToast(timeoutMsg, {
               activeRunId: activeRunIdRef.current,
@@ -199,10 +201,7 @@ export function useChatRunStream({
         const userStopped = userStoppedStreamRef?.current === true;
         if (guard?.isAgentMode() && !userStopped) {
           if (sawRunEndRef.current) {
-            if (
-              !guard.currentRunHasFinalAssistantText() &&
-              !incompleteHandledRef.current
-            ) {
+            if (!guard.currentRunHasFinalAssistantText() && !incompleteHandledRef.current) {
               incompleteHandledRef.current = true;
               guard.onMissingFinalAssistant("run_end_without_visible_reply");
             }

@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, type MutableRefObject } from "react";
+import { CHAT_STREAM_STALL_WARN_MS } from "../stream-timeouts";
 
 export interface UseChatPageTimersArgs {
   isLoading: boolean;
@@ -71,7 +72,7 @@ export function useChatPageTimers({
       };
     }
 
-    const STALL_THRESHOLD_MS = 60000; // 60 seconds
+    const STALL_THRESHOLD_MS = CHAT_STREAM_STALL_WARN_MS;
     const checkInterval = setInterval(() => {
       if (executingToolsSize > 0) {
         setStreamStalled(false);
