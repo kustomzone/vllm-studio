@@ -548,13 +548,13 @@ export const buildSglangCommand = (recipe: Recipe, config: Config): string[] => 
     command.push("--kv-cache-dtype", recipe.kv_cache_dtype);
   }
 
+  // Note: sglang auto-enables tool choice when --tool-call-parser is set; no equivalent
+  // to vLLM's --enable-auto-tool-choice flag. The recipe.enable_auto_tool_choice field is
+  // honored by the vLLM builder only.
   const toolCallParser =
     recipe.tool_call_parser !== null ? recipe.tool_call_parser : getDefaultToolCallParser(recipe);
   if (toolCallParser) {
     command.push("--tool-call-parser", toolCallParser);
-    if (recipe.enable_auto_tool_choice) {
-      command.push("--enable-auto-tool-choice");
-    }
   }
   const reasoningParser =
     recipe.reasoning_parser !== null ? recipe.reasoning_parser : getDefaultReasoningParser(recipe);
