@@ -5,6 +5,8 @@ import { useEffect, useSyncExternalStore } from "react";
 import api from "@/lib/api";
 import type { LaunchStage } from "@/lib/types";
 
+const FAST_STATUS_REQUEST = { timeout: 5_000, retries: 0 } as const;
+
 export type SidebarStatusSnapshot = {
   online: boolean;
   inferenceOnline: boolean;
@@ -101,7 +103,10 @@ function updateFromLaunchProgressPayload(payload: Record<string, unknown>) {
 }
 
 async function fetchNow() {
-  const [healthResult, statusResult] = await Promise.allSettled([api.getHealth(), api.getStatus()]);
+  const [healthResult, statusResult] = await Promise.allSettled([
+    api.getHealth(FAST_STATUS_REQUEST),
+    api.getStatus(FAST_STATUS_REQUEST),
+  ]);
 
   const health = healthResult.status === "fulfilled" ? healthResult.value : null;
   const status = statusResult.status === "fulfilled" ? statusResult.value : null;

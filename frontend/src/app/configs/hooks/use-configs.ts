@@ -8,6 +8,10 @@ import { resolveSettingsDefaultBackendUrl } from "@/lib/backend-config";
 import { getStoredBackendUrl, setStoredBackendUrl, clearStoredBackendUrl } from "@/lib/backend-url";
 import type { CompatibilityReport, ConfigData } from "@/lib/types";
 
+const FAST_STATUS_REQUEST = { timeout: 5_000, retries: 0 } as const;
+const FAST_COMPAT_REQUEST = { timeout: 5_000, retries: 0 } as const;
+const FAST_CONFIG_REQUEST = { timeout: 8_000, retries: 0 } as const;
+
 export interface ApiConnectionSettings {
   backendUrl: string;
   apiKey: string;
@@ -121,7 +125,7 @@ export function useConfigs() {
 
   const checkBackendHealth = async () => {
     try {
-      const health = await api.getHealth();
+      const health = await api.getHealth(FAST_STATUS_REQUEST);
       setBackendOnline(health.status === "ok");
       return health.status === "ok";
     } catch {
@@ -134,10 +138,18 @@ export function useConfigs() {
     try {
       setLoading(true);
       setError(null);
-      const [configData, compatibility] = await Promise.all([
-        api.getSystemConfig(),
-        api.getCompatibility().catch(() => null),
+      const [configResult, compatibilityResult] = await Promise.allSettled([
+        api.getSystemConfig(FAST_CONFIG_REQUEST),
+        api.getCompatibility(FAST_COMPAT_REQUEST),
       ]);
+
+      if (configResult.status !== "fulfilled") {
+        throw configResult.reason;
+      }
+
+      const configData = configResult.value;
+      const compatibility =
+        compatibilityResult.status === "fulfilled" ? compatibilityResult.value : null;
       setData(configData);
       setCompatibilityReport(compatibility);
       setBackendOnline(true);

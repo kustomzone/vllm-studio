@@ -29,6 +29,10 @@ import {
   areStatusEqual,
 } from "./realtime-status-store/equality";
 
+const FAST_STATUS_REQUEST = { timeout: 5_000, retries: 0 } as const;
+const FAST_COMPAT_REQUEST = { timeout: 5_000, retries: 0 } as const;
+const FAST_GPU_REQUEST = { timeout: 5_000, retries: 0 } as const;
+
 const unavailableBackend = (): RuntimeBackendInfo => ({
   installed: false,
   version: null,
@@ -100,19 +104,20 @@ function scheduleLaunchClear(stage: LaunchProgressData["stage"]) {
 }
 
 async function fetchStatusNow() {
-  try {
-    const [{ running, process, inference_port }, compatibility] = await Promise.all([
-      api.getStatus(),
-      api.getCompatibility().catch(() => null),
-    ]);
+  const [statusResult, compatibilityResult, gpuResult] = await Promise.allSettled([
+    api.getStatus(FAST_STATUS_REQUEST),
+    api.getCompatibility(FAST_COMPAT_REQUEST),
+    api.getGPUs(FAST_GPU_REQUEST),
+  ]);
 
-    let gpus: GPU[] = snapshot.gpus;
-    try {
-      const { gpus: gpuList } = await api.getGPUs();
-      gpus = gpuList ?? [];
-    } catch {
-      // ignore
-    }
+  const status = statusResult.status === "fulfilled" ? statusResult.value : null;
+  const compatibility =
+    compatibilityResult.status === "fulfilled" ? compatibilityResult.value : null;
+  const gpus =
+    gpuResult.status === "fulfilled" ? (gpuResult.value.gpus ?? snapshot.gpus) : snapshot.gpus;
+
+  if (status) {
+    const { running, process, inference_port } = status;
 
     // Hydrate runtime summary from /compat fallback
     let runtimeSummary = snapshot.runtimeSummary;
@@ -142,30 +147,31 @@ async function fetchStatusNow() {
       jobs: snapshot.jobs,
       lastEventAt: Date.now(),
     });
-  } catch {
-    try {
-      const health = await api.getHealth();
-      if (health?.status === "ok") {
-        emitIfChanged({
-          status: snapshot.status ?? {
-            running: false,
-            process: null,
-            inference_port: 8000,
-          },
-          gpus: snapshot.gpus,
-          metrics: snapshot.metrics,
-          launchProgress: snapshot.launchProgress,
-          platformKind: snapshot.platformKind,
-          runtimeSummary: snapshot.runtimeSummary,
-          services: snapshot.services,
-          lease: snapshot.lease,
-          jobs: snapshot.jobs,
-          lastEventAt: Date.now(),
-        });
-      }
-    } catch {
-      // ignore; keep last known values
+    return;
+  }
+
+  try {
+    const health = await api.getHealth(FAST_STATUS_REQUEST);
+    if (health?.status === "ok") {
+      emitIfChanged({
+        status: snapshot.status ?? {
+          running: false,
+          process: null,
+          inference_port: 8000,
+        },
+        gpus: snapshot.gpus,
+        metrics: snapshot.metrics,
+        launchProgress: snapshot.launchProgress,
+        platformKind: snapshot.platformKind,
+        runtimeSummary: snapshot.runtimeSummary,
+        services: snapshot.services,
+        lease: snapshot.lease,
+        jobs: snapshot.jobs,
+        lastEventAt: Date.now(),
+      });
     }
+  } catch {
+    // ignore; keep last known values
   }
 }
 

@@ -9,29 +9,12 @@ import type {
   UsageStats,
   VRAMCalculation,
 } from "../types";
-import type { ApiCore } from "./core";
+import type { ApiCore, RequestOptions } from "./core";
 
 export function createSystemApi(core: ApiCore) {
   return {
-    getHealth: (): Promise<HealthResponse> => core.request("/health"),
-
-    getStatus: async (): Promise<{
-      running: boolean;
-      process: ProcessInfo | null;
-      inference_port: number;
-    }> => {
-      const data = await core.request<{
-        running: boolean;
-        process: ProcessInfo | null;
-        inference_port: number;
-      }>("/status");
-
-      return {
-        running: data.running ?? !!data.process,
-        process: data.process ?? null,
-        inference_port: data.inference_port || 8000,
-      };
-    },
+    getHealth: (options?: RequestOptions): Promise<HealthResponse> =>
+      core.request("/health", options),
 
     launch: (
       recipeId: string,
@@ -66,7 +49,7 @@ export function createSystemApi(core: ApiCore) {
     countTextTokens: (data: { model: string; text: string }): Promise<{ num_tokens?: number }> =>
       core.request("/v1/tokens/count", { method: "POST", body: JSON.stringify(data) }),
 
-    getGPUs: (): Promise<{ gpus: GPU[] }> => core.request("/gpus"),
+    getGPUs: (options?: RequestOptions): Promise<{ gpus: GPU[] }> => core.request("/gpus", options),
 
     calculateVRAM: (data: {
       model: string;
@@ -105,7 +88,9 @@ export function createSystemApi(core: ApiCore) {
         method: "POST",
       }),
 
-    getPeakMetrics: (modelId?: string): Promise<{
+    getPeakMetrics: (
+      modelId?: string,
+    ): Promise<{
       metrics?: Array<{
         model_id: string;
         prefill_tps: number;
@@ -122,8 +107,30 @@ export function createSystemApi(core: ApiCore) {
 
     getUsageStats: (): Promise<UsageStats> => core.request("/usage"),
 
-    getSystemConfig: (): Promise<ConfigData> => core.request("/config"),
+    getStatus: async (
+      options?: RequestOptions,
+    ): Promise<{
+      running: boolean;
+      process: ProcessInfo | null;
+      inference_port: number;
+    }> => {
+      const data = await core.request<{
+        running: boolean;
+        process: ProcessInfo | null;
+        inference_port: number;
+      }>("/status", options);
 
-    getCompatibility: (): Promise<CompatibilityReport> => core.request("/compat"),
+      return {
+        running: data.running ?? !!data.process,
+        process: data.process ?? null,
+        inference_port: data.inference_port || 8000,
+      };
+    },
+
+    getSystemConfig: (options?: RequestOptions): Promise<ConfigData> =>
+      core.request("/config", options),
+
+    getCompatibility: (options?: RequestOptions): Promise<CompatibilityReport> =>
+      core.request("/compat", options),
   };
 }
