@@ -385,6 +385,18 @@ export const createToolCallStream = (
   let thinkCarry = "";
   let inThink = false;
   let emittedLines = 0;
+  // Downstream (client) has closed their end. Once set, every subsequent
+  // enqueue becomes a no-op, and the pull loop returns immediately. This
+  // prevents "controller.enqueue on a cancelled stream" throws from
+  // escaping into Hono's onError as spurious AbortError 500s.
+  let downstreamClosed = false;
+  const tearDownUpstream = async (): Promise<void> => {
+    try {
+      await reader.cancel();
+    } catch {
+      // upstream already torn down; ignore.
+    }
+  };
   const thinkingOpenPrefixes = ["<thinking", "<analysis", "<think"];
   const thinkingClosePrefixes = ["</thinking", "</analysis", "</think"];
   const thinkingAllPrefixes = [...thinkingOpenPrefixes, ...thinkingClosePrefixes];
@@ -507,8 +519,16 @@ export const createToolCallStream = (
     controller: ReadableStreamDefaultController<Uint8Array>,
     line: string
   ): void => {
-    controller.enqueue(encoder.encode(`${line}\n`));
-    emittedLines += 1;
+    if (downstreamClosed) return;
+    try {
+      controller.enqueue(encoder.encode(`${line}\n`));
+      emittedLines += 1;
+    } catch {
+      // Downstream was cancelled between our check and the enqueue.
+      // Flip the flag, stop trying to write, and let pull() wind down.
+      downstreamClosed = true;
+      void tearDownUpstream();
+    }
   };
 
   const buildToolCallChunk = (toolCalls: ToolCall[]): string => {
@@ -702,53 +722,88 @@ export const createToolCallStream = (
         enqueueLine(controller, `data: ${JSON.stringify(parsed)}`);
       };
 
+      if (downstreamClosed) {
+        try {
+          controller.close();
+        } catch {
+          // already closed
+        }
+        await tearDownUpstream();
+        return;
+      }
+
       const emittedBeforePull = emittedLines;
 
-      while (emittedLines === emittedBeforePull) {
-        let result: ReaderResult;
-        try {
-          result = await reader.read();
-        } catch {
-          controller.close();
-          return;
-        }
-        if (result.done) {
-          if (buffer) {
-            const trailing = buffer.endsWith("\r") ? buffer.slice(0, -1) : buffer;
-            if (trailing.length > 0) {
-              pendingEventLines.push(trailing);
+      try {
+        while (!downstreamClosed && emittedLines === emittedBeforePull) {
+          let result: ReaderResult;
+          try {
+            result = await reader.read();
+          } catch {
+            // Upstream (sglang) pipe errored out, typically because the
+            // client already cancelled us and reader.cancel() propagated.
+            downstreamClosed = true;
+            try {
+              controller.close();
+            } catch {
+              // already closed
             }
-            buffer = "";
+            return;
           }
-          if (pendingEventLines.length > 0) {
-            flushEvent(pendingEventLines);
-            pendingEventLines = [];
+          if (result.done) {
+            if (buffer) {
+              const trailing = buffer.endsWith("\r") ? buffer.slice(0, -1) : buffer;
+              if (trailing.length > 0) {
+                pendingEventLines.push(trailing);
+              }
+              buffer = "";
+            }
+            if (pendingEventLines.length > 0) {
+              flushEvent(pendingEventLines);
+              pendingEventLines = [];
+            }
+            maybeInjectToolCalls(controller);
+            flushThinkCarry(controller);
+            try {
+              controller.close();
+            } catch {
+              // already closed
+            }
+            return;
           }
-          maybeInjectToolCalls(controller);
-          flushThinkCarry(controller);
-          controller.close();
-          return;
+
+          const chunk = result.value ?? new Uint8Array();
+          buffer += decoder.decode(chunk, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            const normalized = line.endsWith("\r") ? line.slice(0, -1) : line;
+            if (normalized === "") {
+              flushEvent(pendingEventLines);
+              pendingEventLines = [];
+              enqueueLine(controller, "");
+              continue;
+            }
+            pendingEventLines.push(normalized);
+          }
         }
-
-        const chunk = result.value ?? new Uint8Array();
-        buffer += decoder.decode(chunk, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          const normalized = line.endsWith("\r") ? line.slice(0, -1) : line;
-          if (normalized === "") {
-            flushEvent(pendingEventLines);
-            pendingEventLines = [];
-            enqueueLine(controller, "");
-            continue;
-          }
-          pendingEventLines.push(normalized);
+      } catch {
+        // Any unexpected throw (e.g. controller.enqueue on a cancelled
+        // ReadableStream) is swallowed here so Hono's global onError
+        // never sees it. Client is gone; we just need to wind down.
+        downstreamClosed = true;
+        await tearDownUpstream();
+        try {
+          controller.close();
+        } catch {
+          // already closed
         }
       }
     },
     async cancel(): Promise<void> {
-      await reader.cancel();
+      downstreamClosed = true;
+      await tearDownUpstream();
     },
   });
 };

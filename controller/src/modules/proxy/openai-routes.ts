@@ -95,6 +95,13 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
     try {
       bodyBuffer = await ctx.req.arrayBuffer();
     } catch {
+      // If the client already disconnected (e.g. Droid cancelled the
+      // stream before finishing its POST body), don't report this as a
+      // "400 Invalid request body" — that ends up as `400 (no body)` on
+      // the SDK side, which looks like a real server bug.
+      if (ctx.req.raw.signal.aborted) {
+        return ctx.body(null, { status: 499 });
+      }
       throw new HttpStatus(400, "Invalid request body");
     }
 
@@ -187,9 +194,34 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
       ? new TextEncoder().encode(JSON.stringify(parsed)).buffer
       : bodyBuffer;
 
+    const clientSignal = ctx.req.raw.signal;
+
     if (!isStreaming) {
-      const response = await fetch(upstreamUrl, { method: "POST", headers, body: finalBody });
-      const result = (await response.json()) as Record<string, unknown>;
+      let response: Response;
+      try {
+        response = await fetch(upstreamUrl, {
+          method: "POST",
+          headers,
+          body: finalBody,
+          signal: clientSignal,
+        });
+      } catch (err) {
+        if (clientSignal.aborted) {
+          return ctx.body(null, { status: 499 });
+        }
+        throw err;
+      }
+      let result: Record<string, unknown>;
+      try {
+        result = (await response.json()) as Record<string, unknown>;
+      } catch {
+        if (clientSignal.aborted) {
+          return ctx.body(null, { status: 499 });
+        }
+        // Upstream returned non-JSON body (empty or error text). Pass the
+        // status through but don't pretend we got a structured response.
+        return ctx.body(null, { status: response.status });
+      }
 
       const usage = result["usage"] as Record<string, number> | undefined;
       if (usage) {
@@ -224,7 +256,20 @@ export const registerOpenAIRoutes = (app: Hono, context: AppContext): void => {
       return ctx.json(result, { status: response.status });
     }
 
-    const upstreamResponse = await fetch(upstreamUrl, { method: "POST", headers, body: finalBody });
+    let upstreamResponse: Response;
+    try {
+      upstreamResponse = await fetch(upstreamUrl, {
+        method: "POST",
+        headers,
+        body: finalBody,
+        signal: clientSignal,
+      });
+    } catch (err) {
+      if (clientSignal.aborted) {
+        return ctx.body(null, { status: 499 });
+      }
+      throw err;
+    }
     if (!upstreamResponse.ok) {
       const errorText = await upstreamResponse.text();
       return new Response(errorText, {

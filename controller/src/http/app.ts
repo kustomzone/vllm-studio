@@ -77,7 +77,31 @@ export const createApp = (context: AppContext): Hono => {
     if (isHttpStatus(error)) {
       return ctx.json({ detail: error.detail }, { status: error.status });
     }
-    context.logger.error("Unhandled error", { error: String(error) });
+    // Client-initiated disconnects (stream cancel, page close, Droid
+    // cancelling an in-flight request to start a new turn) are not our
+    // bug. They must NEVER surface as 500 "Internal Server Error" or log
+    // as "Unhandled error". The client's socket is already closed so the
+    // response body will never reach them anyway; emit a terminal 499
+    // (client closed request) and move on.
+    const name = (error as { name?: string })?.name ?? "";
+    const message = String(error);
+    if (
+      name === "AbortError" ||
+      message.includes("AbortError") ||
+      message.includes("connection was closed") ||
+      message.includes("ERR_STREAM_PREMATURE_CLOSE") ||
+      message.includes("Stream was cancelled") ||
+      message.includes("stream was cancelled") ||
+      message.includes("The operation was aborted") ||
+      message.includes("readable stream is cancelled")
+    ) {
+      context.logger.debug("client disconnected mid-request", {
+        method: ctx.req.method,
+        path: ctx.req.path,
+      });
+      return ctx.body(null, { status: 499 });
+    }
+    context.logger.error("Unhandled error", { error: message });
     return ctx.json({ detail: "Internal Server Error" }, { status: 500 });
   });
 
