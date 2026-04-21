@@ -91,6 +91,12 @@ export const getDefaultReasoningParser = (recipe: Recipe): string | undefined =>
   ) {
     return "glm45";
   }
+  if (
+    modelId.includes("glm") &&
+    ["5.0", "5.1", "5-0", "5-1"].some((tag) => modelId.includes(tag))
+  ) {
+    return "glm45";
+  }
   if (modelId.includes("mirothinker")) {
     return "deepseek_r1";
   }
@@ -122,6 +128,12 @@ export const getDefaultToolCallParser = (recipe: Recipe): string | undefined => 
     ["4.5", "4.6", "4.7", "4-5", "4-6", "4-7"].some((tag) => modelId.includes(tag))
   ) {
     return "glm45";
+  }
+  if (
+    modelId.includes("glm") &&
+    ["5.0", "5.1", "5-0", "5-1"].some((tag) => modelId.includes(tag))
+  ) {
+    return "glm47";
   }
   if (modelId.includes("intellect") && modelId.includes("3")) {
     return "qwen3_xml";
@@ -534,6 +546,20 @@ export const buildSglangCommand = (recipe: Recipe, config: Config): string[] => 
   }
   if (recipe.kv_cache_dtype && recipe.kv_cache_dtype !== "auto") {
     command.push("--kv-cache-dtype", recipe.kv_cache_dtype);
+  }
+
+  const toolCallParser =
+    recipe.tool_call_parser !== null ? recipe.tool_call_parser : getDefaultToolCallParser(recipe);
+  if (toolCallParser) {
+    command.push("--tool-call-parser", toolCallParser);
+    if (recipe.enable_auto_tool_choice) {
+      command.push("--enable-auto-tool-choice");
+    }
+  }
+  const reasoningParser =
+    recipe.reasoning_parser !== null ? recipe.reasoning_parser : getDefaultReasoningParser(recipe);
+  if (reasoningParser) {
+    command.push("--reasoning-parser", reasoningParser);
   }
 
   return appendExtraArguments(command, recipe.extra_args);
