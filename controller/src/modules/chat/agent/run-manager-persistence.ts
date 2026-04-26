@@ -1,9 +1,14 @@
 // CRITICAL
-import type { AssistantMessage, ToolResultMessage, Usage } from "@mariozechner/pi-ai";
 import { Event } from "../../monitoring/event-manager";
 import type { AppContext } from "../../../types/context";
 import { AGENT_RUN_EVENT_TYPES } from "./contracts";
+import type { AssistantMessage, ToolResultMessage, Usage } from "./pi-agent-types";
 
+/**
+ * Convert Pi usage counters into the controller chat usage shape.
+ * @param usage - Usage payload from an assistant message.
+ * @returns Language usage counters, or undefined when absent.
+ */
 export function toLanguageUsage(
   usage: Usage | undefined
 ): { inputTokens: number; outputTokens: number; totalTokens: number } | undefined {
@@ -15,6 +20,11 @@ export function toLanguageUsage(
   };
 }
 
+/**
+ * Convert a tool result payload into persisted text output.
+ * @param result - Tool result content from the agent runtime.
+ * @returns Text representation of the tool result.
+ */
 export function extractToolResultText(result: unknown): string {
   if (Array.isArray(result)) {
     return result
@@ -32,6 +42,17 @@ export function extractToolResultText(result: unknown): string {
   return typeof result === "string" ? result : JSON.stringify(result ?? "");
 }
 
+/**
+ * Persist an assistant message and publish chat update events.
+ * @param context - Application context.
+ * @param params - Assistant message persistence parameters.
+ * @param params.sessionId - Chat session id.
+ * @param params.messageId - Assistant message id.
+ * @param params.assistant - Assistant message emitted by the agent runtime.
+ * @param params.toolResults - Tool results associated with the assistant turn.
+ * @param params.runId - Chat run id.
+ * @param params.turnIndex - Optional turn index for multi-turn agent loops.
+ */
 export function persistAssistantMessage(
   context: AppContext,
   params: {

@@ -5,12 +5,9 @@
 #
 # ─── Connection ───────────────────────────────────────────────────────────
 #
-#   Host:   192.168.1.70  (Linux, AMD EPYC 7443P, 8× RTX 3090)
-#   User:   ser
-#   Key:    ~/.ssh/linux-ai
-#   Path:   /home/ser/workspace/projects/lmvllm
-#
-#   Test:   ssh -i ~/.ssh/linux-ai ser@192.168.1.70 hostname
+#   Remote connection values are intentionally loaded from .env.local.
+#   Required: REMOTE_HOST, REMOTE_USER, REMOTE_PATH.
+#   Optional: REMOTE_SSH_KEY (defaults to ~/.ssh/id_ed25519).
 #
 # ─── What runs where ─────────────────────────────────────────────────────
 #
@@ -41,13 +38,24 @@
 #   ./scripts/deploy-remote.sh status       Check what's running (no changes)
 
 set -euo pipefail
+cd "$(dirname "$0")/.."
 
 # ─── Config ───────────────────────────────────────────────────────────────
 
-SSH_KEY="$HOME/.ssh/linux-ai"
-REMOTE_USER="ser"
-REMOTE_HOST="192.168.1.70"
-REMOTE_DIR="/home/ser/vllm/lmvllm"
+if [[ -f .env.local ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env.local
+  set +a
+fi
+
+: "${REMOTE_HOST:?Set REMOTE_HOST in .env.local}"
+: "${REMOTE_USER:?Set REMOTE_USER in .env.local}"
+: "${REMOTE_PATH:?Set REMOTE_PATH in .env.local}"
+
+SSH_KEY="${REMOTE_SSH_KEY:-$HOME/.ssh/id_ed25519}"
+REMOTE_DIR="$REMOTE_PATH"
+REMOTE_DIR_SHELL="$(printf '%q' "$REMOTE_DIR")"
 
 SSH_OPTS="-T -i $SSH_KEY -o ConnectTimeout=5"
 REMOTE="$REMOTE_USER@$REMOTE_HOST"
@@ -112,10 +120,19 @@ sync_controller() {
 sync_frontend() {
   step "Syncing frontend"
   sync_dir frontend/src/ "$REMOTE_DIR/frontend/src/"
+  local frontend_files=(
+    frontend/package.json
+    frontend/tsconfig.json
+    frontend/next.config.ts
+    frontend/tailwind.config.ts
+    frontend/postcss.config.mjs
+  )
+  local existing_frontend_files=()
+  for file in "${frontend_files[@]}"; do
+    [[ -e "$file" ]] && existing_frontend_files+=("$file")
+  done
   rsync -az -e "ssh $SSH_OPTS" \
-    frontend/package.json frontend/tsconfig.json \
-    frontend/next.config.ts frontend/tailwind.config.ts \
-    frontend/postcss.config.mjs \
+    "${existing_frontend_files[@]}" \
     "$REMOTE:$REMOTE_DIR/frontend/" 2>/dev/null
   ok "frontend/src → remote"
 }
@@ -146,24 +163,37 @@ sync_all() {
 
 install_controller() {
   step "Installing controller deps"
-  remote "cd $REMOTE_DIR/controller && ~/.bun/bin/bun install --frozen-lockfile 2>&1 | tail -1" || \
-  remote "cd $REMOTE_DIR/controller && ~/.bun/bin/bun install 2>&1 | tail -1"
+  remote "cd $REMOTE_DIR_SHELL/controller && ~/.bun/bin/bun install --frozen-lockfile 2>&1 | tail -1" || \
+  remote "cd $REMOTE_DIR_SHELL/controller && ~/.bun/bin/bun install 2>&1 | tail -1"
   ok "bun install"
 }
 
 install_frontend() {
   step "Installing frontend deps"
-  remote "cd $REMOTE_DIR/frontend && npm install --silent 2>&1 | tail -3"
+  remote "cd $REMOTE_DIR_SHELL/frontend && npm install --silent 2>&1 | tail -3"
   ok "npm install"
+}
+
+build_frontend_local() {
+  step "Building frontend locally"
+  (cd frontend && npm run build)
+  ok "local next build"
+
+  step "Syncing frontend build"
+  rsync -az --delete \
+    --exclude 'cache' \
+    -e "ssh $SSH_OPTS" \
+    frontend/.next/ "$REMOTE:$REMOTE_DIR/frontend/.next/" 2>/dev/null
+  ok ".next/ → remote"
 }
 
 # ─── Restart ──────────────────────────────────────────────────────────────
 
 restart_controller() {
   step "Restarting controller on :8080"
-  remote bash <<'REMOTE'
+  remote bash <<REMOTE
 set -e
-cd /home/ser/vllm/lmvllm
+cd $REMOTE_DIR_SHELL
 docker compose stop controller 2>/dev/null || true
 pkill -f "bun.*controller/src/main.ts" 2>/dev/null || true
 fuser -k 8080/tcp >/dev/null 2>&1 || true
@@ -176,21 +206,10 @@ REMOTE
 }
 
 restart_frontend() {
-  step "Building frontend"
-  remote bash <<'REMOTE'
-set -euo pipefail
-cd /home/ser/vllm/lmvllm/frontend
-export BACKEND_URL=http://localhost:8080
-export LITELLM_URL=http://localhost:4100
-export LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-sk-master}
-npx next build 2>&1 | tail -5
-REMOTE
-  ok "next build"
-
   step "Restarting frontend on :3000"
-  remote bash <<'REMOTE'
+  remote bash <<REMOTE
 set -euo pipefail
-cd /home/ser/vllm/lmvllm/frontend
+cd $REMOTE_DIR_SHELL/frontend
 docker compose -f ../docker-compose.yml stop frontend 2>/dev/null || true
 pkill -f "next start" 2>/dev/null || true
 pkill -f "next dev" 2>/dev/null || true
@@ -198,7 +217,7 @@ fuser -k 3000/tcp >/dev/null 2>&1 || true
 sleep 1
 export BACKEND_URL=http://localhost:8080
 export LITELLM_URL=http://localhost:4100
-export LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-sk-master}
+export LITELLM_MASTER_KEY=\${LITELLM_MASTER_KEY:-}
 nohup npx next start > /tmp/frontend-stdout.log 2>&1 &
 REMOTE
   wait_port 3000 frontend 15 || return 1
@@ -209,7 +228,7 @@ REMOTE
 
 start_infra() {
   step "Starting Docker infra (postgres + litellm)"
-  remote "cd $REMOTE_DIR && docker compose up -d postgres litellm 2>&1 | tail -5"
+  remote "cd $REMOTE_DIR_SHELL && docker compose up -d postgres litellm 2>&1 | tail -5"
   ok "postgres :5432, litellm :4100"
 }
 
@@ -276,14 +295,12 @@ REMOTE
 
 # ─── Commands ─────────────────────────────────────────────────────────────
 
-cd "$(dirname "$0")/.."
-
 case "${1:-}" in
   controller)
     sync_controller; sync_shared; install_controller; restart_controller
     echo ""; show_status ;;
   frontend)
-    sync_frontend; install_frontend; restart_frontend
+    sync_frontend; install_frontend; build_frontend_local; restart_frontend
     echo ""; show_status ;;
   infra)
     sync_config; start_infra ;;
@@ -293,7 +310,7 @@ case "${1:-}" in
     sync_all
     install_controller; install_frontend
     start_infra
-    restart_controller; restart_frontend
+    restart_controller; build_frontend_local; restart_frontend
     echo ""; show_status ;;
   *)
     echo "Usage: $(basename "$0") [all|controller|frontend|infra|status]"

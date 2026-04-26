@@ -2,7 +2,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { TopNavbar } from "@/components/top-navbar";
+import { LeftSidebar } from "@/components/left-sidebar";
 import { getThemeBootstrapScript } from "@/lib/theme/runtime";
 import { Providers } from "./providers";
 
@@ -78,7 +78,7 @@ export default function RootLayout({
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers>
-          <TopNavbar>{children}</TopNavbar>
+          <LeftSidebar>{children}</LeftSidebar>
         </Providers>
       </body>
     </html>

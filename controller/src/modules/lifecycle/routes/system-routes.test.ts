@@ -24,7 +24,6 @@ describe("System Routes", () => {
       inference_port: 8000,
 
       data_dir: "./data",
-      chats_db_path: "./data/chats.db",
       db_path: ":memory:",
       models_dir: "/models",
       strict_openai_models: false,
@@ -92,17 +91,6 @@ describe("System Routes", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-  });
-
-  describe("GET /health", () => {
-    it("returns health status", async () => {
-      const res = await app.request("/health");
-      expect(res.status).toBe(200);
-
-      const json = await res.json();
-      expect(json).toHaveProperty("status");
-      expect(json).toHaveProperty("inference_ready");
-    });
   });
 
   describe("GET /gpus", () => {

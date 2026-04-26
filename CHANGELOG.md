@@ -2,23 +2,40 @@
 
 All notable changes to this project are documented in this file.
 
+## [v1.18.5] - 2026-04-26
+
+### Changed
+
+- performance-simplifications: enable SGLang metrics by default for controller launches and command previews.
+- performance-simplifications: expose live metrics snapshots through the controller polling endpoint.
+- performance-simplifications: render dashboard logs verbatim and support container-backed log sessions.
+
+### Fixed
+
+- Fixed SGLang decode, prefill, TTFT, and request counters staying blank when metrics were not enabled.
+- Scoped Tailwind CSS source scanning to the frontend tree to prevent runaway dev workers.
+
 ## [v1.17.0] - 2026-04-14
 
 ### Added
+
 - Computer sidebar **Browser** tab (embedded `http(s)` preview, URL allow-list) and richer **Files** previews (Markdown, HTML, JSON/code).
 - `browser_open_url` streams sync the Browser tab URL; agent system prompt notes the behavior.
 
 ### Fixed
+
 - GitHub **Release** workflow: semantic-release no longer requires a root `package.json` or pushes commits to protected `main` (tag + GitHub Release only).
 
 ## [v1.13.0] - 2026-03-02
 
 ### Added
+
 - controller tests for SSE run termination and stricter agent system prompt contracts
 - Daytona tool registry tests for command alias handling (`cmd`, `workdir`, `timeout_ms`)
 - Daytona toolbox client tests for legacy route fallback and sandbox quota-recovery flow
 
 ### Changed
+
 - OpenAI proxy model activation now supports policy control via `VLLM_STUDIO_OPENAI_MODEL_ACTIVATION_POLICY`:
   - `load_if_idle` (default): reuse currently running model and rewrite request model when needed
   - `switch_on_request`: switch active model to requested recipe before proxying
@@ -30,6 +47,7 @@ All notable changes to this project are documented in this file.
 - Dashboard launch state now clears reliably when launch stages enter a done state
 
 ### Fixed
+
 - reduced LiteLLM retry layering by setting router and client retries to zero in `config/litellm.yaml`
 - frontend launch API timeout reduced to avoid long-hanging launch calls
 

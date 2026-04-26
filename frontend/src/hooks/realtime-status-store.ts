@@ -104,10 +104,11 @@ function scheduleLaunchClear(stage: LaunchProgressData["stage"]) {
 }
 
 async function fetchStatusNow() {
-  const [statusResult, compatibilityResult, gpuResult] = await Promise.allSettled([
+  const [statusResult, compatibilityResult, gpuResult, metricsResult] = await Promise.allSettled([
     api.getStatus(FAST_STATUS_REQUEST),
     api.getCompatibility(FAST_COMPAT_REQUEST),
     api.getGPUs(FAST_GPU_REQUEST),
+    api.getMetrics().catch(() => null),
   ]);
 
   const status = statusResult.status === "fulfilled" ? statusResult.value : null;
@@ -115,6 +116,10 @@ async function fetchStatusNow() {
     compatibilityResult.status === "fulfilled" ? compatibilityResult.value : null;
   const gpus =
     gpuResult.status === "fulfilled" ? (gpuResult.value.gpus ?? snapshot.gpus) : snapshot.gpus;
+  const polledMetrics =
+    metricsResult.status === "fulfilled" && metricsResult.value
+      ? (metricsResult.value as Metrics)
+      : snapshot.metrics;
 
   if (status) {
     const { running, process, inference_port } = status;
@@ -138,7 +143,7 @@ async function fetchStatusNow() {
     emitIfChanged({
       status: { running, process, inference_port },
       gpus,
-      metrics: snapshot.metrics,
+      metrics: polledMetrics,
       launchProgress: snapshot.launchProgress,
       platformKind: compatibility?.platform?.kind ?? snapshot.platformKind,
       runtimeSummary,
@@ -147,31 +152,6 @@ async function fetchStatusNow() {
       jobs: snapshot.jobs,
       lastEventAt: Date.now(),
     });
-    return;
-  }
-
-  try {
-    const health = await api.getHealth(FAST_STATUS_REQUEST);
-    if (health?.status === "ok") {
-      emitIfChanged({
-        status: snapshot.status ?? {
-          running: false,
-          process: null,
-          inference_port: 8000,
-        },
-        gpus: snapshot.gpus,
-        metrics: snapshot.metrics,
-        launchProgress: snapshot.launchProgress,
-        platformKind: snapshot.platformKind,
-        runtimeSummary: snapshot.runtimeSummary,
-        services: snapshot.services,
-        lease: snapshot.lease,
-        jobs: snapshot.jobs,
-        lastEventAt: Date.now(),
-      });
-    }
-  } catch {
-    // ignore; keep last known values
   }
 }
 
@@ -210,9 +190,11 @@ function start() {
     }
 
     if (type === "metrics") {
+      // Merge with previous so a partial event doesn't blank fields.
+      const merged = { ...(snapshot.metrics ?? {}), ...(data as Metrics) } as Metrics;
       emitIfChanged({
         ...snapshot,
-        metrics: data as Metrics,
+        metrics: merged,
         lastEventAt: now,
       });
       return;

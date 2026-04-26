@@ -24,7 +24,7 @@ export function SortHeader({
 
   return (
     <th
-      className={`py-3 px-3 sm:px-4 text-xs text-(--dim) font-normal cursor-pointer hover:text-(--fg) transition-colors select-none ${
+      className={`cursor-pointer select-none px-3 py-3 font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-(--dim) transition-colors hover:text-(--fg) sm:px-4 ${
         align === "right" ? "text-right" : "text-left"
       }`}
       onClick={onClick}
@@ -49,6 +49,9 @@ export function StatusPill({ value, type }: { value: number; type: "success" | "
     return "text-(--err)";
   };
 
-  return <span className={`text-sm tabular-nums ${getColor()}`}>{type === "success" ? `${value.toFixed(1)}%` : formatDuration(value)}</span>;
+  return (
+    <span className={`font-mono text-sm tabular-nums ${getColor()}`}>
+      {type === "success" ? `${value.toFixed(1)}%` : formatDuration(value)}
+    </span>
+  );
 }
-

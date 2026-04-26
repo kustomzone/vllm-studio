@@ -6,7 +6,7 @@ export * from "./model-factory";
 export * from "./run-manager";
 export * from "./run-registry";
 export * from "./run-manager-types";
-export * from "./run-manager-utils";
+export * from "./run-manager-utilities";
 export * from "./run-manager-utf8";
 export * from "./run-manager-model-resolver";
 export * from "./chat-run-factory";

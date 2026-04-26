@@ -341,7 +341,7 @@ const hasCommandFlag = (command: string[], flag: string): boolean => command.inc
  * @param recipe - Recipe data.
  * @returns Updated command tokens.
  */
-const appendRuntimeCoreArgs = (command: string[], recipe: Recipe): string[] => {
+const appendRuntimeCoreArguments = (command: string[], recipe: Recipe): string[] => {
   if (!hasCommandFlag(command, "--host")) {
     command.push("--host", recipe.host);
   }
@@ -365,14 +365,13 @@ const appendRuntimeCoreArgs = (command: string[], recipe: Recipe): string[] => {
  * @returns CLI command array.
  */
 export const buildExllamav3Command = (recipe: Recipe, config: Config): string[] | null => {
-  const commandTemplate =
-    String(
-      getExtraArgument(recipe.extra_args, "exllama_command") ??
-        getExtraArgument(recipe.extra_args, "exllamav3_command") ??
-        getExtraArgument(recipe.extra_args, "exllama-cmd") ??
-        config.exllamav3_command ??
-        ""
-    ).trim();
+  const commandTemplate = String(
+    getExtraArgument(recipe.extra_args, "exllama_command") ??
+      getExtraArgument(recipe.extra_args, "exllamav3_command") ??
+      getExtraArgument(recipe.extra_args, "exllama-cmd") ??
+      config.exllamav3_command ??
+      ""
+  ).trim();
   if (!commandTemplate) {
     return null;
   }
@@ -380,7 +379,7 @@ export const buildExllamav3Command = (recipe: Recipe, config: Config): string[] 
   if (command.length === 0) {
     return null;
   }
-  const commandWithDefaults = appendRuntimeCoreArgs([...command], recipe);
+  const commandWithDefaults = appendRuntimeCoreArguments([...command], recipe);
   if (
     !hasCommandFlag(commandWithDefaults, "--model") &&
     !hasCommandFlag(commandWithDefaults, "--model-path") &&
@@ -408,12 +407,16 @@ export const buildBackendCommand = (recipe: Recipe, config: Config): string[] =>
   if (recipe.backend === "exllamav3") {
     const command = buildExllamav3Command(recipe, config);
     if (!command) {
-      throw new Error("Missing ExLLaMA v3 command. Set extra_args.exllama_command or VLLM_STUDIO_EXLLAMAV3_COMMAND.");
+      throw new Error(
+        "Missing ExLLaMA v3 command. Set extra_args.exllama_command or VLLM_STUDIO_EXLLAMAV3_COMMAND."
+      );
     }
     return command;
   }
   if (recipe.backend === "tabbyapi") {
-    throw new Error("TabbyAPI backend launching is not supported by this controller lifecycle path.");
+    throw new Error(
+      "TabbyAPI backend launching is not supported by this controller lifecycle path."
+    );
   }
   if (recipe.backend === "transformers") {
     return buildVllmCommand(recipe);
@@ -546,6 +549,9 @@ export const buildSglangCommand = (recipe: Recipe, config: Config): string[] => 
   }
   if (recipe.kv_cache_dtype && recipe.kv_cache_dtype !== "auto") {
     command.push("--kv-cache-dtype", recipe.kv_cache_dtype);
+  }
+  if (getExtraArgument(recipe.extra_args, "enable-metrics") === undefined) {
+    command.push("--enable-metrics");
   }
 
   // Note: sglang auto-enables tool choice when --tool-call-parser is set; no equivalent

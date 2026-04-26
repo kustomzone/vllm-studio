@@ -16,7 +16,7 @@ describe("GET /api/proxy/[...path]", () => {
     vi.restoreAllMocks();
     delete process.env[ALLOWLIST_ENV_KEY];
     getApiSettingsMock.mockResolvedValue({
-      backendUrl: "https://api.homelabai.org",
+      backendUrl: "https://api.example.test",
       apiKey: "test-key",
       voiceUrl: "",
       voiceModel: "whisper-large-v3-turbo",
@@ -61,7 +61,7 @@ describe("GET /api/proxy/[...path]", () => {
 
     expect(upstreamFetch).toHaveBeenCalledTimes(2);
     expect(upstreamFetch.mock.calls[0]?.[0]).toBe("https://override.example.com:8080/status");
-    expect(upstreamFetch.mock.calls[1]?.[0]).toBe("https://api.homelabai.org/status");
+    expect(upstreamFetch.mock.calls[1]?.[0]).toBe("https://api.example.test/status");
   });
 
   it("falls back to configured backend when override request throws a network error", async () => {
@@ -93,7 +93,7 @@ describe("GET /api/proxy/[...path]", () => {
 
     expect(upstreamFetch).toHaveBeenCalledTimes(2);
     expect(upstreamFetch.mock.calls[0]?.[0]).toBe("https://override.example.com:8080/health");
-    expect(upstreamFetch.mock.calls[1]?.[0]).toBe("https://api.homelabai.org/health");
+    expect(upstreamFetch.mock.calls[1]?.[0]).toBe("https://api.example.test/health");
   });
 
   it("blocks private network override URLs provided via header when not allowlisted", async () => {
@@ -103,7 +103,7 @@ describe("GET /api/proxy/[...path]", () => {
     const request = new NextRequest("http://localhost/api/proxy/status", {
       method: "GET",
       headers: {
-        "X-Backend-Url": "http://192.168.1.70:8080",
+        "X-Backend-Url": "http://10.0.0.10:8080",
       },
     });
 
@@ -125,7 +125,7 @@ describe("GET /api/proxy/[...path]", () => {
     const request = new NextRequest("http://localhost/api/proxy/health", {
       method: "GET",
       headers: {
-        Cookie: "vllmstudio_backend_url=http%3A%2F%2F192.168.1.70%3A8080",
+        Cookie: "vllmstudio_backend_url=http%3A%2F%2F10.0.0.10%3A8080",
       },
     });
 
@@ -135,11 +135,11 @@ describe("GET /api/proxy/[...path]", () => {
     expect(response.headers.get("x-backend-override-invalid")).toBe("1");
     expect(response.headers.get("set-cookie")).toContain("vllmstudio_backend_url=");
     expect(upstreamFetch).toHaveBeenCalledTimes(1);
-    expect(upstreamFetch.mock.calls[0]?.[0]).toBe("https://api.homelabai.org/health");
+    expect(upstreamFetch.mock.calls[0]?.[0]).toBe("https://api.example.test/health");
   });
 
   it("allows private network override URLs when allowlisted", async () => {
-    process.env[ALLOWLIST_ENV_KEY] = "http://192.168.1.70:8080";
+    process.env[ALLOWLIST_ENV_KEY] = "http://10.0.0.10:8080";
 
     const upstreamFetch = vi.fn().mockResolvedValueOnce(
       new Response(JSON.stringify({ running: true }), {
@@ -152,7 +152,7 @@ describe("GET /api/proxy/[...path]", () => {
     const request = new NextRequest("http://localhost/api/proxy/status", {
       method: "GET",
       headers: {
-        "X-Backend-Url": "http://192.168.1.70:8080",
+        "X-Backend-Url": "http://10.0.0.10:8080",
       },
     });
 
@@ -160,7 +160,7 @@ describe("GET /api/proxy/[...path]", () => {
 
     expect(response.status).toBe(200);
     expect(upstreamFetch).toHaveBeenCalledTimes(1);
-    expect(upstreamFetch.mock.calls[0]?.[0]).toBe("http://192.168.1.70:8080/status");
+    expect(upstreamFetch.mock.calls[0]?.[0]).toBe("http://10.0.0.10:8080/status");
   });
 
   it("uses override when it succeeds and does not fallback", async () => {

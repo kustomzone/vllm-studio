@@ -2,7 +2,7 @@
 /**
  * Lists chat sessions that look like E2E / Playwright / automation tests and optionally deletes them.
  *
- * Uses the same chat DB path as the controller (`VLLM_STUDIO_CHATS_DB` or `<data_dir>/chats.db`).
+ * Uses the same unified SQLite database as the controller (`VLLM_STUDIO_DB_PATH`).
  *
  * Dry run (default):
  *   bun run scripts/delete-test-chat-sessions.ts
@@ -29,8 +29,13 @@ const matchesTestTitle = (title: string): boolean => {
   return false;
 };
 
-const deleteSessionCascade = (db: ReturnType<typeof openSqliteDatabase>, sessionId: string): void => {
-  const runs = db.query("SELECT id FROM chat_runs WHERE session_id = ?").all(sessionId) as Array<{ id: string }>;
+const deleteSessionCascade = (
+  db: ReturnType<typeof openSqliteDatabase>,
+  sessionId: string
+): void => {
+  const runs = db.query("SELECT id FROM chat_runs WHERE session_id = ?").all(sessionId) as Array<{
+    id: string;
+  }>;
   for (const r of runs) {
     db.query("DELETE FROM chat_tool_executions WHERE run_id = ?").run(r.id);
     db.query("DELETE FROM chat_run_events WHERE run_id = ?").run(r.id);
@@ -41,16 +46,16 @@ const deleteSessionCascade = (db: ReturnType<typeof openSqliteDatabase>, session
   db.query("DELETE FROM chat_sessions WHERE id = ?").run(sessionId);
 };
 
-const cleanupSessionArtifacts = (dataDir: string, sessionId: string): void => {
-  const agentFsDb = resolve(dataDir, "agentfs", `${sanitizeSessionId(sessionId)}.db`);
-  if (existsSync(agentFsDb)) {
+const cleanupSessionArtifacts = (dataDirectory: string, sessionId: string): void => {
+  const agentFsDatabase = resolve(dataDirectory, "agentfs", `${sanitizeSessionId(sessionId)}.db`);
+  if (existsSync(agentFsDatabase)) {
     try {
-      unlinkSync(agentFsDb);
+      unlinkSync(agentFsDatabase);
     } catch {
       /* ignore */
     }
   }
-  const localTools = resolve(dataDir, "agent-tools-shell", sanitizeSessionId(sessionId));
+  const localTools = resolve(dataDirectory, "agent-tools-shell", sanitizeSessionId(sessionId));
   if (existsSync(localTools)) {
     try {
       rmSync(localTools, { recursive: true, force: true });
@@ -63,17 +68,22 @@ const cleanupSessionArtifacts = (dataDir: string, sessionId: string): void => {
 const execute = process.argv.includes("--execute");
 
 const config = createConfig();
-const dbPath = config.chats_db_path;
+const dbPath = config.db_path;
 mkdirSync(dirname(dbPath), { recursive: true });
 
 const db = openSqliteDatabase(dbPath);
 migrateChatStore(db);
 
-const rows = db.query("SELECT id, title FROM chat_sessions").all() as Array<{ id: string; title: string }>;
+const rows = db.query("SELECT id, title FROM chat_sessions").all() as Array<{
+  id: string;
+  title: string;
+}>;
 const victims = rows.filter((r) => matchesTestTitle(r.title));
 
 console.log(`Chat database: ${dbPath}`);
-console.log(`Matched ${victims.length} session(s)${execute ? "" : " (dry run — add --execute to delete)"}:`);
+console.log(
+  `Matched ${victims.length} session(s)${execute ? "" : " (dry run — add --execute to delete)"}:`
+);
 for (const v of victims) {
   console.log(`  - ${v.id}  "${v.title}"`);
 }

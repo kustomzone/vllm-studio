@@ -1,17 +1,17 @@
 // CRITICAL
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type {
+  AgentModel,
   AssistantMessage,
   ImageContent,
-  Message,
-  Model,
+  LlmMessage,
   TextContent,
   ThinkingContent,
   ToolCall,
   ToolResultMessage,
   Usage,
   UserMessage,
-} from "@mariozechner/pi-ai";
+} from "./pi-agent-types";
 import { AGENT_TOOL_NAMES, type AgentToolName } from "./contracts";
 
 type StoredMessageRecord = Record<string, unknown>;
@@ -239,7 +239,7 @@ const buildToolResults = (message: StoredMessageRecord): ToolResultMessage[] => 
 
 export const mapStoredMessagesToAgentMessages = (
   storedMessages: StoredMessageRecord[],
-  fallbackModel: Model<"openai-completions">
+  fallbackModel: AgentModel<"openai-completions">
 ): AgentMessage[] => {
   const mapped: AgentMessage[] = [];
 
@@ -306,7 +306,7 @@ export const mapStoredMessagesToAgentMessages = (
   return mapped;
 };
 
-export const mapAgentMessagesToLlm = (messages: AgentMessage[]): Message[] =>
+export const mapAgentMessagesToLlm = (messages: AgentMessage[]): LlmMessage[] =>
   messages.filter(
     (m) => m.role === "user" || m.role === "assistant" || m.role === "toolResult"
-  ) as Message[];
+  ) as LlmMessage[];

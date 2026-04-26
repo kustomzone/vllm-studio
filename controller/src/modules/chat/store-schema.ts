@@ -115,7 +115,19 @@ export function migrateChatStore(db: Database): void {
       UNIQUE (session_id, path, version)
     )
   `);
-  db.run("CREATE INDEX IF NOT EXISTS idx_agent_file_versions_session_path ON chat_agent_file_versions(session_id, path)");
+  db.run(
+    "CREATE INDEX IF NOT EXISTS idx_agent_file_versions_session_path ON chat_agent_file_versions(session_id, path)"
+  );
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS chat_agent_directories (
+      session_id TEXT NOT NULL,
+      path TEXT NOT NULL,
+      created_at_ms INTEGER NOT NULL,
+      FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE,
+      PRIMARY KEY (session_id, path)
+    )
+  `);
 
   // Forward-compatible columns
   ensureColumn(db, "chat_sessions", "agent_state", "TEXT");

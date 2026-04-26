@@ -30,7 +30,7 @@ export const createAppContext = (): AppContext => {
   const dbPath = resolve(config.db_path);
 
   const recipeStore = new RecipeStore(dbPath);
-  const chatStore = new ChatStore(config.chats_db_path);
+  const chatStore = new ChatStore(dbPath);
   const downloadStore = new DownloadStore(dbPath);
   const peakMetricsStore = new PeakMetricsStore(dbPath);
   const lifetimeMetricsStore = new LifetimeMetricsStore(dbPath);

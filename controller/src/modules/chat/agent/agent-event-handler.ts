@@ -1,8 +1,8 @@
 // CRITICAL
 import type { AgentEvent, AgentMessage } from "@mariozechner/pi-agent-core";
-import type { AssistantMessage, ToolResultMessage } from "@mariozechner/pi-ai";
 import { AGENT_RUN_EVENT_TYPES } from "./contracts";
 import type { AgentRunEventType } from "./contracts";
+import type { AssistantMessage, ToolResultMessage } from "./pi-agent-types";
 
 export type ToolExecutionInfo = {
   toolName: string;
@@ -32,7 +32,7 @@ export type AgentEventHandlerOptions = {
   mapToolCallsToMessage: (
     assistant: AssistantMessage,
     messageId: string | null,
-    toolCallToMessageId: Map<string, string>,
+    toolCallToMessageId: Map<string, string>
   ) => void;
   persistAssistantMessage: (
     sessionId: string,
@@ -40,7 +40,7 @@ export type AgentEventHandlerOptions = {
     assistant: AssistantMessage,
     toolResults: ToolResultMessage[],
     runId: string,
-    turnIndex?: number,
+    turnIndex?: number
   ) => void;
   addToolExecution: (
     runId: string,
@@ -53,7 +53,7 @@ export type AgentEventHandlerOptions = {
       finishedAt: string;
       startedAt?: string;
       toolServer?: string;
-    },
+    }
   ) => void;
   parseToolServer: (toolName: string) => string | null;
   extractToolResultText: (result: unknown) => string;
@@ -69,7 +69,7 @@ export type AgentEventHandlerOptions = {
 export function handleAgentEvent(
   event: AgentEvent,
   helpers: AgentEventHandlerHelpers,
-  options: AgentEventHandlerOptions,
+  options: AgentEventHandlerOptions
 ): void {
   switch (event.type) {
     case AGENT_RUN_EVENT_TYPES.TURN_START: {
@@ -88,7 +88,11 @@ export function handleAgentEvent(
       if (message.role === "assistant") {
         const id = options.createMessageId();
         helpers.setAssistantId(id);
-        helpers.publish(AGENT_RUN_EVENT_TYPES.MESSAGE_START, { message_id: id, message, ...turnPayload });
+        helpers.publish(AGENT_RUN_EVENT_TYPES.MESSAGE_START, {
+          message_id: id,
+          message,
+          ...turnPayload,
+        });
         return;
       }
       if (message.role === "user") {
@@ -124,7 +128,11 @@ export function handleAgentEvent(
       if (message.role === "assistant") {
         const messageId = helpers.getAssistantId();
         helpers.setLastAssistantId(messageId);
-        options.mapToolCallsToMessage(message as AssistantMessage, messageId, helpers.toolCallToMessageId);
+        options.mapToolCallsToMessage(
+          message as AssistantMessage,
+          messageId,
+          helpers.toolCallToMessageId
+        );
         helpers.publish(AGENT_RUN_EVENT_TYPES.MESSAGE_END, {
           ...(messageId ? { message_id: messageId } : {}),
           message,
@@ -188,7 +196,12 @@ export function handleAgentEvent(
         ...(started?.startedAt ? { startedAt: started.startedAt } : {}),
       };
 
-      options.addToolExecution(helpers.runId, event.toolCallId, event.toolName, toolExecutionOptions);
+      options.addToolExecution(
+        helpers.runId,
+        event.toolCallId,
+        event.toolName,
+        toolExecutionOptions
+      );
       helpers.publish(AGENT_RUN_EVENT_TYPES.TOOL_EXECUTION_END, {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
@@ -208,7 +221,7 @@ export function handleAgentEvent(
       if (assistant.stopReason === "error" || assistant.stopReason === "aborted") {
         helpers.markError(
           assistant.errorMessage ?? "Agent error",
-          assistant.stopReason === "aborted" ? "aborted" : "error",
+          assistant.stopReason === "aborted" ? "aborted" : "error"
         );
       }
       if (messageId) {
@@ -218,7 +231,7 @@ export function handleAgentEvent(
           assistant,
           event.toolResults ?? [],
           helpers.runId,
-          turnIndex >= 0 ? turnIndex : undefined,
+          turnIndex >= 0 ? turnIndex : undefined
         );
       }
       helpers.publish(AGENT_RUN_EVENT_TYPES.TURN_END, {

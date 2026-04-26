@@ -48,35 +48,39 @@ export function DailyUsageChart(
 
   return (
     <section className="mb-6 sm:mb-8">
-      <div className="bg-(--surface) rounded-lg overflow-hidden">
+      <div className="border border-(--border) bg-(--surface) overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-(--border)">
+        <div className="flex items-center justify-between border-b border-(--border) bg-(--bg)/55 px-4 py-3 sm:px-5">
           <div className="flex items-center gap-2 text-(--dim)">
-            <BarChart3 className="h-4 w-4" />
-            <span className="text-xs uppercase tracking-wider">Daily Usage</span>
+            <BarChart3 className="h-3.5 w-3.5" />
+            <span className="font-mono text-[11px] uppercase tracking-[0.22em]">Daily Usage</span>
           </div>
-          <div className="flex items-center gap-3 text-xs text-(--dim)">
+          <div className="flex items-center gap-3 font-mono text-[11px] text-(--dim)">
             <div className="flex items-center gap-1.5">
-              <Calendar className="h-3.5 w-3.5" />
+              <Calendar className="h-3 w-3" />
               <span>{chartDates.length} days</span>
             </div>
             <span className="hidden sm:inline">
-              <span className="text-(--fg) tabular-nums">{formatNumber(avgDailyTokens)}</span> avg/day
+              <span className="text-(--fg) tabular-nums">{formatNumber(avgDailyTokens)}</span>{" "}
+              avg/day
             </span>
           </div>
         </div>
 
         {/* Chart Area */}
-        <div className="p-4 sm:p-6">
-          <div className="flex items-end gap-1 sm:gap-1.5 h-56 sm:h-64 overflow-x-auto pb-2">
+        <div className="p-4 sm:p-5">
+          <div className="flex h-44 items-end gap-1 overflow-x-auto border border-(--border) bg-(--bg) p-3 pb-2 sm:h-52 sm:gap-1.5">
             {chartDates.map((date: string) => {
               const dateData = stats.daily.find((d: DailyStat) => d.date === date);
               const dateTotalTokens = dateData?.total_tokens || 0;
 
               return (
-                <div key={date} className="flex-1 flex flex-col items-center gap-1.5 group min-w-[24px]">
-                  <div className="w-full relative" style={{ height: "180px" }}>
-                    {(dailyByModel.size > 0 && dateTotalTokens > 0
+                <div
+                  key={date}
+                  className="group flex min-w-[24px] flex-1 flex-col items-center gap-1.5"
+                >
+                  <div className="w-full relative" style={{ height: "140px" }}>
+                    {dailyByModel.size > 0 && dateTotalTokens > 0
                       ? (() => {
                           const modelDataForDate: Array<{
                             model: string;
@@ -95,7 +99,9 @@ export function DailyUsageChart(
                             }
                           }
 
-                          modelDataForDate.sort((a: ModelDataItem, b: ModelDataItem) => b.tokens - a.tokens);
+                          modelDataForDate.sort(
+                            (a: ModelDataItem, b: ModelDataItem) => b.tokens - a.tokens,
+                          );
 
                           if (modelDataForDate.length === 0) {
                             return null;
@@ -106,23 +112,16 @@ export function DailyUsageChart(
                             const height = (item.tokens / maxDailyTokensFinal) * 100;
                             const bottom = cumulativeBottom;
                             cumulativeBottom += height;
-                            const isTop = idx === 0;
-                            const isBottom = idx === modelDataForDate.length - 1;
 
                             return (
                               <div
                                 key={`${date}-${item.model}`}
-                                className="absolute w-full left-0 transition-opacity group-hover:opacity-80"
+                                className="absolute left-0 w-full transition-opacity group-hover:opacity-80"
                                 style={{
                                   height: `${height}%`,
                                   bottom: `${bottom}%`,
                                   backgroundColor: item.color,
                                   minHeight: height > 0.5 ? "2px" : "0",
-                                  borderRadius: isTop
-                                    ? "2px 2px 0 0"
-                                    : isBottom
-                                      ? "0 0 2px 2px"
-                                      : "0",
                                 }}
                                 title={`${item.model}: ${formatNumber(item.tokens)} tokens (${((item.tokens / dateTotalTokens) * 100).toFixed(1)}%)`}
                               />
@@ -140,7 +139,7 @@ export function DailyUsageChart(
                             <>
                               {completionHeight > 0 && (
                                 <div
-                                  className="absolute w-full left-0 bg-(--hl2)/60 rounded-t"
+                                  className="absolute left-0 w-full bg-(--hl2)/60"
                                   style={{
                                     height: `${completionHeight}%`,
                                     bottom: `${promptHeight}%`,
@@ -151,7 +150,7 @@ export function DailyUsageChart(
                               )}
                               {promptHeight > 0 && (
                                 <div
-                                  className="absolute w-full left-0 bg-(--fg)/20 rounded-b"
+                                  className="absolute left-0 w-full bg-(--fg)/20"
                                   style={{
                                     height: `${promptHeight}%`,
                                     bottom: "0%",
@@ -162,16 +161,16 @@ export function DailyUsageChart(
                               )}
                             </>
                           );
-                        })())}
+                        })()}
                   </div>
 
                   {/* Date label */}
-                  <div className="text-[10px] text-(--dim) truncate w-full text-center">
+                  <div className="w-full truncate text-center font-mono text-[10px] text-(--dim)">
                     {formatDate(date)}
                   </div>
 
                   {/* Requests count */}
-                  <div className="text-[9px] text-(--dim)/60 tabular-nums">
+                  <div className="font-mono text-[9px] tabular-nums text-(--dim)/60">
                     {dateData?.requests || 0} req
                   </div>
                 </div>
@@ -181,21 +180,26 @@ export function DailyUsageChart(
 
           {/* Legend */}
           {dailyByModel.size > 0 && modelsForChart.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-(--border)">
+            <div className="mt-4 border-t border-(--border) pt-4">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 {modelsForChart.slice(0, 8).map((model: string) => {
-                  const hasData = chartDates.some((date: string) => dailyByModel.get(model)?.has(date));
+                  const hasData = chartDates.some((date: string) =>
+                    dailyByModel.get(model)?.has(date),
+                  );
                   if (!hasData) return null;
                   return (
                     <div key={model} className="flex items-center gap-1.5">
                       <div
-                        className="w-2 h-2 rounded-full shrink-0"
+                        className="h-2 w-2 shrink-0"
                         style={{
                           backgroundColor: getModelColor(model),
                         }}
                       />
-                      <span className="truncate max-w-[100px] text-[11px] text-(--dim)" title={model}>
-                        {model.split('/').pop()}
+                      <span
+                        className="max-w-[100px] truncate font-mono text-[11px] text-(--dim)"
+                        title={model}
+                      >
+                        {model.split("/").pop()}
                       </span>
                     </div>
                   );
@@ -210,18 +214,26 @@ export function DailyUsageChart(
           )}
 
           {/* Summary Stats */}
-          <div className="mt-4 pt-4 border-t border-(--border) grid grid-cols-3 gap-4">
-            <div className="text-center">
-              <p className="text-[10px] text-(--dim) uppercase tracking-wider">Total Tokens</p>
-              <p className="text-base font-medium tabular-nums">{formatNumber(totalTokensInPeriod)}</p>
+          <div className="mt-4 grid grid-cols-3 border border-(--border)">
+            <div className="px-3 py-2.5 text-center">
+              <p className="font-mono text-[10px] uppercase tracking-wider text-(--dim)">
+                Total Tokens
+              </p>
+              <p className="font-mono text-sm tabular-nums">{formatNumber(totalTokensInPeriod)}</p>
             </div>
-            <div className="text-center border-x border-(--border)">
-              <p className="text-[10px] text-(--dim) uppercase tracking-wider">Total Requests</p>
-              <p className="text-base font-medium tabular-nums">{formatNumber(totalRequestsInPeriod)}</p>
+            <div className="border-x border-(--border) px-3 py-2.5 text-center">
+              <p className="font-mono text-[10px] uppercase tracking-wider text-(--dim)">
+                Total Requests
+              </p>
+              <p className="font-mono text-sm tabular-nums">
+                {formatNumber(totalRequestsInPeriod)}
+              </p>
             </div>
-            <div className="text-center">
-              <p className="text-[10px] text-(--dim) uppercase tracking-wider">Peak Day</p>
-              <p className="text-base font-medium tabular-nums">{formatNumber(maxDailyTokens)}</p>
+            <div className="px-3 py-2.5 text-center">
+              <p className="font-mono text-[10px] uppercase tracking-wider text-(--dim)">
+                Peak Day
+              </p>
+              <p className="font-mono text-sm tabular-nums">{formatNumber(maxDailyTokens)}</p>
             </div>
           </div>
         </div>

@@ -4,7 +4,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  Remote host: 192.168.1.70  (AMD EPYC 7443P, 504 GB, 8× 3090) │
+│  Remote host: 10.0.0.10  (AMD EPYC 7443P, 504 GB, 8× 3090) │
 │                                                                  │
 │  ┌─────────────────────────────────────────────────────────────┐ │
 │  │  Native on host                                             │ │
@@ -53,33 +53,33 @@ The script does four things in order:
 ### SSH access
 
 ```bash
-ssh -i ~/.ssh/linux-ai ser@192.168.1.70
+ssh -i ~/.ssh/linux-ai <remote-user>@<remote-host>
 ```
 
 Key file: `~/.ssh/linux-ai` (RSA key, no passphrase).
-Remote project path: `/home/ser/workspace/projects/lmvllm`.
+Remote project path: `<remote-project-path>`.
 
 ### Logs
 
 ```bash
-ssh -i ~/.ssh/linux-ai ser@192.168.1.70 tail -f /tmp/controller-stdout.log
-ssh -i ~/.ssh/linux-ai ser@192.168.1.70 tail -f /tmp/frontend-stdout.log
-ssh -i ~/.ssh/linux-ai ser@192.168.1.70 docker logs -f vllm-studio-litellm
+ssh -i ~/.ssh/linux-ai <remote-user>@<remote-host> tail -f /tmp/controller-stdout.log
+ssh -i ~/.ssh/linux-ai <remote-user>@<remote-host> tail -f /tmp/frontend-stdout.log
+ssh -i ~/.ssh/linux-ai <remote-user>@<remote-host> docker logs -f vllm-studio-litellm
 ```
 
 ## Health endpoints
 
-| Endpoint | URL |
-|---|---|
-| Controller health | `GET :8080/health` |
-| Controller status | `GET :8080/status` |
-| GPU list | `GET :8080/gpus` |
-| OpenAPI spec | `GET :8080/api/spec` |
-| Swagger UI | `GET :8080/api/docs` |
-| Frontend | `GET :3000` |
-| Frontend proxy | `GET :3000/api/proxy/health` |
-| LiteLLM | `GET :4100/health` (requires API key header) |
-| vLLM | `GET :8000/v1/models` |
+| Endpoint          | URL                                          |
+| ----------------- | -------------------------------------------- |
+| Controller health | `GET :8080/health`                           |
+| Controller status | `GET :8080/status`                           |
+| GPU list          | `GET :8080/gpus`                             |
+| OpenAPI spec      | `GET :8080/api/spec`                         |
+| Swagger UI        | `GET :8080/api/docs`                         |
+| Frontend          | `GET :3000`                                  |
+| Frontend proxy    | `GET :3000/api/proxy/health`                 |
+| LiteLLM           | `GET :4100/health` (requires API key header) |
+| vLLM              | `GET :8000/v1/models`                        |
 
 ## Local development
 

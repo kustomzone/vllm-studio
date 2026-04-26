@@ -1,22 +1,32 @@
 // CRITICAL
-import {
-  parseStreamingJson,
-  streamSimple,
-} from "@mariozechner/pi-ai";
+import { Agent } from "@mariozechner/pi-agent-core";
 import type {
-  Api,
   AssistantMessage,
   AssistantMessageEvent,
-  Context,
-  Model,
-  SimpleStreamOptions,
+  AssistantStream,
+  StreamContext,
+  StreamModel,
+  StreamOptions,
   ToolCall,
-} from "@mariozechner/pi-ai";
-import { createAssistantMessageEventStream } from "@mariozechner/pi-ai/dist/utils/event-stream.js";
+} from "./pi-agent-types";
 import type { StreamFn } from "@mariozechner/pi-agent-core";
 
 type ToolCallWithPartialArguments = ToolCall & { partialArgs?: string };
-type AssistantStream = ReturnType<typeof streamSimple>;
+type WritableAssistantStream = AssistantStream & {
+  push: (event: AssistantMessageEvent) => void;
+  end: () => void;
+};
+
+const defaultStreamFunction = new Agent().streamFn as (
+  model: StreamModel,
+  context: StreamContext,
+  options?: StreamOptions
+) => AssistantStream;
+
+const createStreamLike = (baseStream: AssistantStream): WritableAssistantStream => {
+  const StreamConstructor = baseStream.constructor as new () => WritableAssistantStream;
+  return new StreamConstructor();
+};
 
 const isToolCallParseError = (message: AssistantMessage): boolean => {
   if (!message.errorMessage) {
@@ -25,13 +35,15 @@ const isToolCallParseError = (message: AssistantMessage): boolean => {
   const lower = message.errorMessage.toLowerCase();
   // pi-ai may surface JSON parsing failures using different phrasing depending on provider/runtime.
   // Example: "JSON Parse error: Expected '}'" (MiniMax M2.*).
-  return lower.includes("json parse error") ||
+  return (
+    lower.includes("json parse error") ||
     lower.includes("unexpected token") ||
     lower.includes("unexpected identifier") ||
     lower.includes("unexpected end of json") ||
     lower.includes("expected '}'") ||
     lower.includes("expected ']'") ||
-    (lower.includes("parse error") && lower.includes("json"));
+    (lower.includes("parse error") && lower.includes("json"))
+  );
 };
 
 const coerceArgumentsObject = (value: unknown, raw: string): Record<string, unknown> => {
@@ -46,7 +58,11 @@ const tryParseJsonObjectFromString = (raw: string): Record<string, unknown> | nu
   const firstBrace = trimmed.indexOf("{");
   const firstBracket = trimmed.indexOf("[");
   const start =
-    firstBrace === -1 ? firstBracket : firstBracket === -1 ? firstBrace : Math.min(firstBrace, firstBracket);
+    firstBrace === -1
+      ? firstBracket
+      : firstBracket === -1
+        ? firstBrace
+        : Math.min(firstBrace, firstBracket);
   if (start === -1) return null;
 
   const input = trimmed.slice(start);
@@ -66,13 +82,13 @@ const tryParseJsonObjectFromString = (raw: string): Record<string, unknown> | nu
         escaped = true;
         continue;
       }
-      if (c === "\"") {
+      if (c === '"') {
         inString = false;
       }
       continue;
     }
 
-    if (c === "\"") {
+    if (c === '"') {
       inString = true;
       continue;
     }
@@ -117,9 +133,7 @@ const tryParseJsonObjectFromString = (raw: string): Record<string, unknown> | nu
   return null;
 };
 
-const buildToolCallEndEvents = (
-  message: AssistantMessage,
-): AssistantMessageEvent[] => {
+const buildToolCallEndEvents = (message: AssistantMessage): AssistantMessageEvent[] => {
   const events: AssistantMessageEvent[] = [];
   message.content.forEach((block, index): void => {
     if (block.type !== "toolCall") {
@@ -130,11 +144,16 @@ const buildToolCallEndEvents = (
       return;
     }
     try {
-      toolBlock.arguments = coerceArgumentsObject(parseStreamingJson(toolBlock.partialArgs), toolBlock.partialArgs);
+      toolBlock.arguments = coerceArgumentsObject(
+        JSON.parse(toolBlock.partialArgs),
+        toolBlock.partialArgs
+      );
     } catch {
       // If the provider stream ended mid-JSON (common with tool calling), salvage what we can so the
       // agent can proceed and surface tool errors as tool failures instead of aborting the run.
-      toolBlock.arguments = tryParseJsonObjectFromString(toolBlock.partialArgs) ?? { raw: toolBlock.partialArgs };
+      toolBlock.arguments = tryParseJsonObjectFromString(toolBlock.partialArgs) ?? {
+        raw: toolBlock.partialArgs,
+      };
     }
     const toolBlockRecord = toolBlock as unknown as Record<string, unknown>;
     delete toolBlockRecord["partialArgs"];
@@ -169,16 +188,16 @@ const finalizeRecoveredMessage = (message: AssistantMessage): void => {
 };
 
 export const streamOpenAiCompletionsSafe: StreamFn = (
-  model: Model<Api>,
-  context: Context,
-  options?: SimpleStreamOptions,
+  model: StreamModel,
+  context: StreamContext,
+  options?: StreamOptions
 ): AssistantStream => {
   if (model.api !== "openai-completions") {
-    return streamSimple(model, context, options);
+    return defaultStreamFunction(model, context, options);
   }
 
-  const baseStream = streamSimple(model, context, options);
-  const stream = createAssistantMessageEventStream();
+  const baseStream = defaultStreamFunction(model, context, options);
+  const stream = createStreamLike(baseStream);
 
   (async (): Promise<void> => {
     try {

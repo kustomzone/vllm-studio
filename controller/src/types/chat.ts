@@ -101,3 +101,10 @@ export type ChatAgentFileVersionWrite = {
   created_at_ms: number;
 };
 
+export type ChatAgentFileRecord = {
+  path: string;
+  version: number;
+  content: string;
+  bytes: number | null;
+  created_at_ms: number;
+};

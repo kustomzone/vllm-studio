@@ -87,4 +87,12 @@ describe("event-manager", () => {
     await iteratorA.return?.();
     await iteratorB.return?.();
   });
+
+  it("keeps a snapshot of the latest metrics payload for polling fallback", async () => {
+    const manager = new EventManager();
+
+    await manager.publishMetrics({ generation_throughput: 42, running_requests: 2 });
+
+    expect(manager.getLatestMetrics()).toEqual({ generation_throughput: 42, running_requests: 2 });
+  });
 });

@@ -1,5 +1,4 @@
 // CRITICAL
-import { posix } from "node:path";
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { TSchema } from "@sinclair/typebox";
 import type { AppContext } from "../../../types/context";
@@ -8,13 +7,13 @@ import { AGENT_FILE_EVENT_TYPES, AGENT_TOOL_NAMES, type AgentEventType } from ".
 import { createTextResult } from "./tool-registry-common";
 import type { AgentToolRegistryOptions } from "./tool-registry-types";
 import {
-  buildAgentFileTree,
-  mkdirp,
-  normalizeAgentPath,
-  toFsPath,
-} from "../agent-files/helpers";
-import { getSessionAgentFs } from "../agent-files/service";
-import type { AgentFsApi } from "../agent-files/types";
+  createAgentDirectory,
+  deleteAgentPath,
+  listAgentFiles,
+  moveAgentPath,
+  readAgentFile,
+  writeAgentFile,
+} from "../agent-files/service";
 
 /**
  * Build agent filesystem tools.
@@ -28,11 +27,6 @@ export const buildAgentFsTools = (
 ): AgentTool[] => {
   const sessionId = options.sessionId;
   const emit = options.emitEvent;
-
-  const withAgentFs = async <T>(operation: (fs: AgentFsApi) => Promise<T>): Promise<T> => {
-    const agent = await getSessionAgentFs(context, sessionId);
-    return operation(agent);
-  };
   const publishAgentFsEvent = async (
     eventName: AgentEventType,
     payload: Record<string, unknown>
@@ -54,18 +48,18 @@ export const buildAgentFsTools = (
     } as unknown as TSchema,
     execute: async (_toolCallId, params): Promise<AgentToolResult<Record<string, unknown>>> => {
       const raw = params as Record<string, unknown>;
-      const normalized = normalizeAgentPath(typeof raw["path"] === "string" ? raw["path"] : "");
+      const rawPath = typeof raw["path"] === "string" ? raw["path"] : "";
       const recursive = raw["recursive"] !== false;
-      const files = await withAgentFs((fs) => buildAgentFileTree(fs, normalized, recursive));
+      const files = await listAgentFiles(context, sessionId, rawPath, recursive);
       await publishAgentFsEvent(AGENT_FILE_EVENT_TYPES.AGENT_FILES_LISTED, {
         session_id: sessionId,
-        path: normalized || null,
+        path: rawPath || null,
         recursive,
         files,
       });
       return createTextResult(JSON.stringify(files, null, 2), {
         files,
-        path: normalized,
+        path: rawPath,
         recursive,
       });
     },
@@ -82,16 +76,16 @@ export const buildAgentFsTools = (
     } as unknown as TSchema,
     execute: async (_toolCallId, params): Promise<AgentToolResult<Record<string, unknown>>> => {
       const raw = params as Record<string, unknown>;
-      const path = normalizeAgentPath(typeof raw["path"] === "string" ? raw["path"] : "");
+      const path = typeof raw["path"] === "string" ? raw["path"] : "";
       if (!path) throw new Error("Path is required.");
-      const content = await withAgentFs((fs) => fs.readFile(toFsPath(path), "utf8"));
+      const { normalizedPath, content } = await readAgentFile(context, sessionId, path);
       const bytes = Buffer.byteLength(content, "utf8");
       await publishAgentFsEvent(AGENT_FILE_EVENT_TYPES.AGENT_FILE_READ, {
         session_id: sessionId,
-        path,
+        path: normalizedPath,
         bytes,
       });
-      return createTextResult(content, { path });
+      return createTextResult(content, { path: normalizedPath });
     },
   };
 
@@ -107,28 +101,17 @@ export const buildAgentFsTools = (
     } as unknown as TSchema,
     execute: async (_toolCallId, params): Promise<AgentToolResult<Record<string, unknown>>> => {
       const raw = params as Record<string, unknown>;
-      const path = normalizeAgentPath(typeof raw["path"] === "string" ? raw["path"] : "");
+      const path = typeof raw["path"] === "string" ? raw["path"] : "";
       if (!path) throw new Error("Path is required.");
       const content = typeof raw["content"] === "string" ? raw["content"] : "";
-      const parentDirectory = posix.dirname(path);
-      if (parentDirectory && parentDirectory !== ".") {
-        await withAgentFs((fs) => mkdirp(fs, parentDirectory));
-      }
-      await withAgentFs((fs) => fs.writeFile(toFsPath(path), content));
-      context.stores.chatStore.addAgentFileVersion(
-        sessionId,
-        path,
-        content,
-        Buffer.byteLength(content, "utf8")
-      );
-      const bytes = Buffer.byteLength(content, "utf8");
+      const { normalizedPath, bytes } = await writeAgentFile(context, sessionId, path, content);
       await publishAgentFsEvent(AGENT_FILE_EVENT_TYPES.AGENT_FILE_WRITTEN, {
         session_id: sessionId,
-        path,
+        path: normalizedPath,
         bytes,
         encoding: "utf8",
       });
-      return createTextResult(`Wrote ${path}`, { path });
+      return createTextResult(`Wrote ${normalizedPath}`, { path: normalizedPath });
     },
   };
 
@@ -143,12 +126,14 @@ export const buildAgentFsTools = (
     } as unknown as TSchema,
     execute: async (_toolCallId, params): Promise<AgentToolResult<Record<string, unknown>>> => {
       const raw = params as Record<string, unknown>;
-      const path = normalizeAgentPath(typeof raw["path"] === "string" ? raw["path"] : "");
+      const path = typeof raw["path"] === "string" ? raw["path"] : "";
       if (!path) throw new Error("Path is required.");
-      await withAgentFs((fs) => fs.rm(toFsPath(path), { recursive: true, force: true }));
-      context.stores.chatStore.deleteAgentFileVersionsForPath(sessionId, path);
-      await publishAgentFsEvent(AGENT_FILE_EVENT_TYPES.AGENT_FILE_DELETED, { session_id: sessionId, path });
-      return createTextResult(`Deleted ${path}`, { path });
+      const normalizedPath = await deleteAgentPath(context, sessionId, path);
+      await publishAgentFsEvent(AGENT_FILE_EVENT_TYPES.AGENT_FILE_DELETED, {
+        session_id: sessionId,
+        path: normalizedPath,
+      });
+      return createTextResult(`Deleted ${normalizedPath}`, { path: normalizedPath });
     },
   };
 
@@ -163,14 +148,14 @@ export const buildAgentFsTools = (
     } as unknown as TSchema,
     execute: async (_toolCallId, params): Promise<AgentToolResult<Record<string, unknown>>> => {
       const raw = params as Record<string, unknown>;
-      const path = normalizeAgentPath(typeof raw["path"] === "string" ? raw["path"] : "");
+      const path = typeof raw["path"] === "string" ? raw["path"] : "";
       if (!path) throw new Error("Path is required.");
-      await withAgentFs((fs) => mkdirp(fs, path));
+      const normalizedPath = await createAgentDirectory(context, sessionId, path);
       await publishAgentFsEvent(AGENT_FILE_EVENT_TYPES.AGENT_DIRECTORY_CREATED, {
         session_id: sessionId,
-        path,
+        path: normalizedPath,
       });
-      return createTextResult(`Created directory ${path}`, { path });
+      return createTextResult(`Created directory ${normalizedPath}`, { path: normalizedPath });
     },
   };
 
@@ -185,21 +170,16 @@ export const buildAgentFsTools = (
     } as unknown as TSchema,
     execute: async (_toolCallId, params): Promise<AgentToolResult<Record<string, unknown>>> => {
       const raw = params as Record<string, unknown>;
-      const from = normalizeAgentPath(typeof raw["from"] === "string" ? raw["from"] : "");
-      const to = normalizeAgentPath(typeof raw["to"] === "string" ? raw["to"] : "");
+      const from = typeof raw["from"] === "string" ? raw["from"] : "";
+      const to = typeof raw["to"] === "string" ? raw["to"] : "";
       if (!from || !to) throw new Error("from and to are required.");
-      const targetDirectory = posix.dirname(to);
-      if (targetDirectory && targetDirectory !== ".") {
-        await withAgentFs((fs) => mkdirp(fs, targetDirectory));
-      }
-      await withAgentFs((fs) => fs.rename(toFsPath(from), toFsPath(to)));
-      context.stores.chatStore.moveAgentFileVersions(sessionId, from, to);
+      const payload = await moveAgentPath(context, sessionId, from, to);
       await publishAgentFsEvent(AGENT_FILE_EVENT_TYPES.AGENT_FILE_MOVED, {
         session_id: sessionId,
-        from,
-        to,
+        from: payload.from,
+        to: payload.to,
       });
-      return createTextResult(`Moved ${from} to ${to}`, { from, to });
+      return createTextResult(`Moved ${payload.from} to ${payload.to}`, payload);
     },
   };
 

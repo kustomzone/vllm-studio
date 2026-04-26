@@ -1,10 +1,14 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import type { AssistantMessage } from "@mariozechner/pi-ai";
 import { cleanUtf8StreamContent } from "../../proxy/proxy-parsers";
 import type { Utf8State } from "../../proxy/types";
+import type { AssistantMessage } from "./pi-agent-types";
 
 export type MessageCleaner = (message: AgentMessage) => void;
 
+/**
+ * Create a stateful cleaner for streamed assistant UTF-8 fragments.
+ * @returns Message cleaner function.
+ */
 export function createMessageCleaner(): MessageCleaner {
   const utf8State: Utf8State = { pendingContent: "", pendingReasoning: "" };
 
@@ -23,7 +27,10 @@ export function createMessageCleaner(): MessageCleaner {
         continue;
       }
 
-      if (block.type === "thinking" && typeof (block as { thinking?: unknown }).thinking === "string") {
+      if (
+        block.type === "thinking" &&
+        typeof (block as { thinking?: unknown }).thinking === "string"
+      ) {
         const reasoningState = {
           pendingContent: utf8State.pendingReasoning,
           pendingReasoning: "",

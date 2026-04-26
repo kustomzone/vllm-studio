@@ -41,7 +41,7 @@ function generateTitleFromMessage(content: string): string {
  */
 async function main(): Promise<void> {
   const config = createConfig();
-  const dbPath = config.chats_db_path;
+  const dbPath = config.db_path;
 
   console.log(`Opening database: ${dbPath}`);
 

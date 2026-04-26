@@ -62,7 +62,15 @@ const appendExtraArgsToCommand = (args: string[], extraArgs: Record<string, unkn
   return args;
 };
 
-const appendLlamacppArgsToCommand = (args: string[], extraArgs: Record<string, unknown>): string[] => {
+const hasExtraArgument = (extraArgs: Record<string, unknown>, key: string): boolean => {
+  const normalized = normalizeExtraArgKey(key);
+  return Object.keys(extraArgs).some((entry) => normalizeExtraArgKey(entry) === normalized);
+};
+
+const appendLlamacppArgsToCommand = (
+  args: string[],
+  extraArgs: Record<string, unknown>,
+): string[] => {
   const internalKeys = new Set([
     "venv_path",
     "env_vars",
@@ -176,6 +184,10 @@ export const generateCommand = (recipe: RecipeEditor): string => {
     }
 
     if (payload.reasoning_parser) args.push(`--reasoning-parser ${payload.reasoning_parser}`);
+
+    if (backend === "sglang" && !hasExtraArgument(payload.extra_args ?? {}, "enable-metrics")) {
+      args.push("--enable-metrics");
+    }
 
     appendExtraArgsToCommand(args, payload.extra_args ?? {});
   } else {

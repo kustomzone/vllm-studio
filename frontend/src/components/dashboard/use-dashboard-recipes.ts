@@ -18,14 +18,21 @@ export function useDashboardRecipes(currentProcess: ProcessInfo | null) {
         backend?: string;
         model_path?: string;
         model?: string;
+        started_at?: string;
+        created_at?: string;
       }>,
       runningRecipe: RecipeWithStatus | null,
     ) => {
       if (sessions.length === 0) return null;
 
+      // Sort newest-first so we always prefer the most recently started session.
+      const ts = (s: { started_at?: string; created_at?: string }) =>
+        Date.parse(s.started_at || s.created_at || "") || 0;
+      const sorted = [...sessions].sort((a, b) => ts(b) - ts(a));
+      const running = sorted.filter((s) => s.status === "running");
+
       if (currentProcess) {
-        const byProcess = sessions.find((session) => {
-          if (session.status !== "running") return false;
+        const matches = (session: (typeof sorted)[number]) => {
           if (session.model_path && currentProcess.model_path) {
             return session.model_path === currentProcess.model_path;
           }
@@ -33,12 +40,13 @@ export function useDashboardRecipes(currentProcess: ProcessInfo | null) {
             return session.model === currentProcess.served_model_name;
           }
           return session.backend === currentProcess.backend;
-        });
+        };
+        const byProcess = running.find(matches) || sorted.find(matches);
         if (byProcess) return byProcess;
 
         const servedModel = currentProcess.served_model_name?.toLowerCase();
         if (servedModel) {
-          const byName = sessions.find((session) =>
+          const byName = sorted.find((session) =>
             (session.id ?? "").toLowerCase().includes(servedModel),
           );
           if (byName) return byName;
@@ -46,13 +54,14 @@ export function useDashboardRecipes(currentProcess: ProcessInfo | null) {
       }
 
       if (runningRecipe) {
-        const byRecipe = sessions.find(
-          (session) => session.status === "running" || session.recipe_id === runningRecipe.id,
-        );
+        const byRecipe =
+          running.find((s) => s.recipe_id === runningRecipe.id) ||
+          sorted.find((s) => s.recipe_id === runningRecipe.id);
         if (byRecipe) return byRecipe;
       }
 
-      return sessions[0];
+      // Fall back to newest running, then newest of any status.
+      return running[0] || sorted[0];
     },
     [currentProcess],
   );

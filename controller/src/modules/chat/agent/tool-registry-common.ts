@@ -1,6 +1,6 @@
 // CRITICAL
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
-import type { TextContent } from "@mariozechner/pi-ai";
+import type { TextContent } from "./pi-agent-types";
 
 /**
  * Build a standard `AgentToolResult` with a single text block and optional details.
@@ -10,9 +10,8 @@ import type { TextContent } from "@mariozechner/pi-ai";
  */
 export const createTextResult = (
   text: string,
-  details: Record<string, unknown> = {},
+  details: Record<string, unknown> = {}
 ): AgentToolResult<Record<string, unknown>> => ({
   content: [{ type: "text", text } satisfies TextContent],
   details,
 });
-

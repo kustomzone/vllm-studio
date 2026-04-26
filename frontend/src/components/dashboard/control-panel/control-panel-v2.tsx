@@ -4,15 +4,14 @@
 import type { DashboardLayoutProps } from "../layout/dashboard-types";
 import { StatusSection } from "./status-section";
 import { GpuSection } from "./gpu-section";
-import { ModelsSection } from "./models-section";
 import { LogSection } from "./log-section";
 
 export function ControlPanel(props: DashboardLayoutProps) {
   const { currentProcess, currentRecipe, metrics, gpus, recipes, logs } = props;
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-8">
-      {/* Status — always visible */}
+    <div className="mx-auto w-full space-y-4">
+      {/* Status — header bar with inline Models dropdown */}
       <StatusSection
         currentProcess={currentProcess}
         currentRecipe={currentRecipe}
@@ -26,22 +25,17 @@ export function ControlPanel(props: DashboardLayoutProps) {
         onBenchmark={props.onBenchmark}
         benchmarking={props.benchmarking}
         onStop={props.onStop}
+        recipes={recipes}
+        launching={props.launching}
+        onLaunch={props.onLaunch}
+        onNewRecipe={props.onNewRecipe}
+        onViewAll={props.onViewAll}
       />
 
       {/* GPU — when GPUs exist */}
       {gpus.length > 0 && (
         <GpuSection metrics={metrics} gpus={gpus} currentProcess={currentProcess} logs={logs} />
       )}
-
-      {/* Models */}
-      <ModelsSection
-        recipes={recipes}
-        launching={props.launching}
-        onLaunch={props.onLaunch}
-        onNewRecipe={props.onNewRecipe}
-        onViewAll={props.onViewAll}
-        currentRecipeId={currentRecipe?.id}
-      />
 
       {/* Logs */}
       <LogSection logs={logs} />

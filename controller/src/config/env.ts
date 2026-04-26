@@ -18,10 +18,7 @@ export interface Config {
   inference_port: number;
 
   data_dir: string;
-  /** SQLite path for chat sessions + messages (defaults to `<data_dir>/chats.db`). */
-  chats_db_path: string;
   db_path: string;
-  litellm_database_url?: string;
   models_dir: string;
   sglang_python?: string;
   tabby_api_dir?: string;
@@ -96,7 +93,13 @@ export const createConfig = (): Config => {
     ];
     const candidates =
       value && value.trim().length > 0 ? value.split(",").map((entry) => entry.trim()) : defaults;
-    return [...new Set(candidates.map((entry) => normalizeOrigin(entry)).filter((entry): entry is string => Boolean(entry)))];
+    return [
+      ...new Set(
+        candidates
+          .map((entry) => normalizeOrigin(entry))
+          .filter((entry): entry is string => Boolean(entry))
+      ),
+    ];
   };
 
   const schema = z.object({
@@ -108,13 +111,8 @@ export const createConfig = (): Config => {
     VLLM_STUDIO_INFERENCE_PORT: z.coerce.number().int().positive().default(8000),
 
     VLLM_STUDIO_DATA_DIR: z.string().default(defaultDataDirectory),
-    /** Override chat SQLite path (Playwright / CI should set this to avoid polluting dev chats.db). */
-    VLLM_STUDIO_CHATS_DB: z.string().optional(),
     VLLM_STUDIO_DB_PATH: z.string().default(defaultDatabasePath),
     VLLM_STUDIO_MODELS_DIR: z.string().default("/models"),
-    VLLM_STUDIO_LITELLM_DATABASE_URL: z.string().optional(),
-    LITELLM_DATABASE_URL: z.string().optional(),
-    DATABASE_URL: z.string().optional(),
     VLLM_STUDIO_SGLANG_PYTHON: z.string().optional(),
     VLLM_STUDIO_TABBY_API_DIR: z.string().optional(),
     VLLM_STUDIO_LLAMA_BIN: z.string().optional(),
@@ -130,9 +128,8 @@ export const createConfig = (): Config => {
   const strictOpenAIModelsEnabled = strictOpenAIModels
     ? ["1", "true", "yes", "on"].includes(strictOpenAIModels.trim().toLowerCase())
     : false;
-  const activationPolicyRaw = parsed.VLLM_STUDIO_OPENAI_MODEL_ACTIVATION_POLICY
-    ?.trim()
-    .toLowerCase();
+  const activationPolicyRaw =
+    parsed.VLLM_STUDIO_OPENAI_MODEL_ACTIVATION_POLICY?.trim().toLowerCase();
   const openaiModelActivationPolicy: OpenAIModelActivationPolicy =
     activationPolicyRaw === "switch_on_request" ? "switch_on_request" : "load_if_idle";
 
@@ -142,9 +139,6 @@ export const createConfig = (): Config => {
     inference_port: parsed.VLLM_STUDIO_INFERENCE_PORT,
 
     data_dir: resolve(parsed.VLLM_STUDIO_DATA_DIR),
-    chats_db_path: parsed.VLLM_STUDIO_CHATS_DB?.trim()
-      ? resolve(parsed.VLLM_STUDIO_CHATS_DB.trim())
-      : resolve(parsed.VLLM_STUDIO_DATA_DIR, "chats.db"),
     db_path: resolve(parsed.VLLM_STUDIO_DB_PATH),
     models_dir: resolve(parsed.VLLM_STUDIO_MODELS_DIR),
     strict_openai_models: strictOpenAIModelsEnabled,
@@ -152,12 +146,6 @@ export const createConfig = (): Config => {
     cors_origins: parseCorsOrigins(parsed.VLLM_STUDIO_CORS_ORIGINS),
     providers: [],
   };
-
-  const litellmDatabaseUrl =
-    parsed.VLLM_STUDIO_LITELLM_DATABASE_URL ?? parsed.LITELLM_DATABASE_URL ?? parsed.DATABASE_URL;
-  if (litellmDatabaseUrl) {
-    config.litellm_database_url = litellmDatabaseUrl;
-  }
 
   if (parsed.VLLM_STUDIO_API_KEY) {
     config.api_key = parsed.VLLM_STUDIO_API_KEY;

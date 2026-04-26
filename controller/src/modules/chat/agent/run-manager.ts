@@ -2,7 +2,7 @@
 import type { AppContext } from "../../../types/context";
 import { createChatRun } from "./chat-run-factory";
 import { createMockChatRun } from "./chat-run-factory-mock";
-import { isMockInferenceEnabled } from "./run-manager-utils";
+import { isMockInferenceEnabled } from "./run-manager-utilities";
 import type { ChatRunOptions, ChatRunStream } from "./run-manager-types";
 import { createRunRegistry, type RunRegistry } from "./run-registry";
 import { parseProviderModel } from "../../../services/provider-routing";

@@ -5,6 +5,7 @@ import { migrateChatStore } from "./store-schema";
 import * as RunOps from "./store-runs";
 import { openSqliteDatabase } from "../../stores/sqlite";
 import type {
+  ChatAgentFileRecord,
   ChatAgentFileVersion,
   ChatAgentFileVersionWrite,
   ChatMessage,
@@ -17,18 +18,31 @@ import type {
   ChatUsage,
 } from "../../types/chat";
 
+/** SQLite-backed chat, run, usage, and agent-file store. */
 export class ChatStore {
   private readonly db: ReturnType<typeof openSqliteDatabase>;
 
+  /**
+   * Open the chat store and ensure its schema exists.
+   * @param dbPath - SQLite database path.
+   */
   public constructor(dbPath: string) {
     this.db = openSqliteDatabase(dbPath);
     this.migrate();
   }
 
+  /**
+   * Apply chat schema migrations.
+   * @returns Nothing.
+   */
   private migrate(): void {
     migrateChatStore(this.db);
   }
 
+  /**
+   * List chat sessions in reverse update order.
+   * @returns Session list rows.
+   */
   public listSessions(): Array<ChatSessionListItem> {
     const rows = this.db
       .query(
@@ -42,6 +56,11 @@ export class ChatStore {
     return rows.map((row) => ({ ...row }) as ChatSessionListItem);
   }
 
+  /**
+   * Fetch a session summary without messages.
+   * @param sessionId - Session id.
+   * @returns Session summary, or null when not found.
+   */
   public getSessionSummary(sessionId: string): ChatSessionSummary | null {
     const session = hydrateSessionRow(
       this.db
@@ -53,6 +72,11 @@ export class ChatStore {
     return session ? ({ ...session } as ChatSessionSummary) : null;
   }
 
+  /**
+   * Fetch a session with hydrated messages.
+   * @param sessionId - Session id.
+   * @returns Session with messages, or null when not found.
+   */
   public getSession(sessionId: string): ChatSession | null {
     const rawSession = this.db
       .query(
@@ -78,6 +102,15 @@ export class ChatStore {
     return { ...session, messages: hydrated } as ChatSession;
   }
 
+  /**
+   * Create a new chat session.
+   * @param sessionId - Session id.
+   * @param title - Session title.
+   * @param model - Optional model name.
+   * @param parentId - Optional fork parent id.
+   * @param agentState - Optional persisted agent state.
+   * @returns Created session summary.
+   */
   public createSession(
     sessionId: string,
     title = "New Chat",
@@ -101,6 +134,14 @@ export class ChatStore {
     return { ...(hydrated ?? row) } as ChatSessionSummary;
   }
 
+  /**
+   * Update mutable session fields.
+   * @param sessionId - Session id.
+   * @param title - Optional title update.
+   * @param model - Optional model update.
+   * @param agentState - Optional agent state update.
+   * @returns True when the session exists or no updates were requested.
+   */
   public updateSession(
     sessionId: string,
     title?: string,
@@ -132,12 +173,35 @@ export class ChatStore {
     return result.changes > 0;
   }
 
+  /**
+   * Delete a chat session and its messages.
+   * @param sessionId - Session id.
+   * @returns True when a session was deleted.
+   */
   public deleteSession(sessionId: string): boolean {
     this.db.query("DELETE FROM chat_messages WHERE session_id = ?").run(sessionId);
     const result = this.db.query("DELETE FROM chat_sessions WHERE id = ?").run(sessionId);
     return result.changes > 0;
   }
 
+  /**
+   * Insert or replace a chat message.
+   * @param sessionId - Session id.
+   * @param messageId - Message id.
+   * @param role - Message role.
+   * @param content - Optional text content.
+   * @param model - Optional model name.
+   * @param toolCalls - Optional tool-call payloads.
+   * @param promptTokens - Optional prompt token count.
+   * @param toolsTokens - Optional tool schema token count.
+   * @param totalInputTokens - Optional total input token count.
+   * @param completionTokens - Optional completion token count.
+   * @param parts - Optional structured message parts.
+   * @param metadata - Optional message metadata.
+   * @param toolCallId - Optional tool call id for tool results.
+   * @param name - Optional tool name.
+   * @returns Hydrated message row.
+   */
   public addMessage(
     sessionId: string,
     messageId: string,
@@ -207,6 +271,11 @@ export class ChatStore {
     return hydrateMessageRow(row);
   }
 
+  /**
+   * Sum token usage for a session.
+   * @param sessionId - Session id.
+   * @returns Token usage totals.
+   */
   public getUsage(sessionId: string): ChatUsage {
     const row = this.db
       .query(
@@ -235,6 +304,15 @@ export class ChatStore {
     };
   }
 
+  /**
+   * Fork a session and optionally stop at a message.
+   * @param sessionId - Source session id.
+   * @param newId - Destination session id.
+   * @param messageId - Optional final copied message id.
+   * @param model - Optional destination model override.
+   * @param title - Optional destination title override.
+   * @returns Created fork summary, or null when the source session is missing.
+   */
   public forkSession(
     sessionId: string,
     newId: string,
@@ -330,6 +408,18 @@ export class ChatStore {
     return { ...(hydrated ?? row) } as ChatSessionSummary;
   }
 
+  /**
+   * Create a chat run record.
+   * @param runId - Run id.
+   * @param sessionId - Session id.
+   * @param options - Optional run fields.
+   * @param options.userMessageId - Optional user message id.
+   * @param options.model - Optional model name.
+   * @param options.system - Optional system prompt.
+   * @param options.toolsetId - Optional toolset id.
+   * @param options.status - Optional run status.
+   * @returns Created run.
+   */
   public createRun(
     runId: string,
     sessionId: string,
@@ -344,6 +434,15 @@ export class ChatStore {
     return RunOps.createRun(this.db, runId, sessionId, options);
   }
 
+  /**
+   * Append an event to a chat run.
+   * @param runId - Run id.
+   * @param seq - Monotonic event sequence.
+   * @param type - Event type.
+   * @param data - Event payload.
+   * @param eventId - Optional event id.
+   * @returns Created run event.
+   */
   public addRunEvent(
     runId: string,
     seq: number,
@@ -354,6 +453,21 @@ export class ChatStore {
     return RunOps.addRunEvent(this.db, runId, seq, type, data, eventId);
   }
 
+  /**
+   * Record a tool execution for a run.
+   * @param runId - Run id.
+   * @param toolCallId - Tool call id.
+   * @param toolName - Tool name.
+   * @param options - Optional execution fields.
+   * @param options.toolServer - Optional tool server name.
+   * @param options.arguments - Optional tool arguments.
+   * @param options.resultText - Optional result text.
+   * @param options.isError - Optional error flag.
+   * @param options.startedAt - Optional start timestamp.
+   * @param options.finishedAt - Optional finish timestamp.
+   * @param options.id - Optional execution id.
+   * @returns Created tool execution.
+   */
   public addToolExecution(
     runId: string,
     toolCallId: string,
@@ -371,6 +485,14 @@ export class ChatStore {
     return RunOps.addToolExecution(this.db, runId, toolCallId, toolName, options);
   }
 
+  /**
+   * Update a chat run.
+   * @param runId - Run id.
+   * @param updates - Run status fields to update.
+   * @param updates.status - Optional run status.
+   * @param updates.finishedAt - Optional finish timestamp.
+   * @returns True when a run was updated.
+   */
   public updateRun(
     runId: string,
     updates: {
@@ -381,7 +503,14 @@ export class ChatStore {
     return RunOps.updateRun(this.db, runId, updates);
   }
 
-  /** Append a version snapshot, deduplicating if content hasn't changed. */
+  /**
+   * Append a version snapshot, deduplicating if content has not changed.
+   * @param sessionId - Session id.
+   * @param path - Agent file path.
+   * @param content - File content snapshot.
+   * @param bytes - Optional byte length.
+   * @returns Created or reused version metadata.
+   */
   public addAgentFileVersion(
     sessionId: string,
     path: string,
@@ -414,6 +543,12 @@ export class ChatStore {
     return { version: nextVersion, created_at_ms: createdAtMs };
   }
 
+  /**
+   * List all versions for an agent file path.
+   * @param sessionId - Session id.
+   * @param path - Agent file path.
+   * @returns Version history in ascending order.
+   */
   public listAgentFileVersions(sessionId: string, path: string): Array<ChatAgentFileVersion> {
     const rows = this.db
       .query(
@@ -423,49 +558,173 @@ export class ChatStore {
     return rows.map((row) => ({ ...row }) as ChatAgentFileVersion);
   }
 
-  /** Deletes exact path or all descendants if path is a directory. */
+  /**
+   * Fetch the latest snapshot for an agent file path.
+   * @param sessionId - Session id.
+   * @param path - Agent file path.
+   * @returns Latest file record, or null when missing.
+   */
+  public getLatestAgentFile(sessionId: string, path: string): ChatAgentFileRecord | null {
+    const row = this.db
+      .query(
+        `SELECT path, version, content, bytes, created_at_ms
+         FROM chat_agent_file_versions
+         WHERE session_id = ? AND path = ?
+         ORDER BY version DESC LIMIT 1`
+      )
+      .get(sessionId, path) as ChatAgentFileRecord | null;
+    return row ? { ...row } : null;
+  }
+
+  /**
+   * List latest snapshots for all agent files in a session.
+   * @param sessionId - Session id.
+   * @returns Latest file records ordered by path.
+   */
+  public listLatestAgentFiles(sessionId: string): ChatAgentFileRecord[] {
+    const rows = this.db
+      .query(
+        `SELECT v.path, v.version, v.content, v.bytes, v.created_at_ms
+         FROM chat_agent_file_versions v
+         INNER JOIN (
+           SELECT path, MAX(version) AS version
+           FROM chat_agent_file_versions
+           WHERE session_id = ?
+           GROUP BY path
+         ) latest ON latest.path = v.path AND latest.version = v.version
+         WHERE v.session_id = ?
+         ORDER BY v.path`
+      )
+      .all(sessionId, sessionId) as ChatAgentFileRecord[];
+    return rows.map((row) => ({ ...row }));
+  }
+
+  /**
+   * List explicit agent directory records for a session.
+   * @param sessionId - Session id.
+   * @returns Directory paths ordered by path.
+   */
+  public listAgentDirectories(sessionId: string): string[] {
+    const rows = this.db
+      .query("SELECT path FROM chat_agent_directories WHERE session_id = ? ORDER BY path")
+      .all(sessionId) as Array<{ path: string }>;
+    return rows.map((row) => row.path);
+  }
+
+  /**
+   * Add an explicit agent directory record.
+   * @param sessionId - Session id.
+   * @param path - Directory path.
+   * @returns Nothing.
+   */
+  public addAgentDirectory(sessionId: string, path: string): void {
+    if (!path) return;
+    this.db
+      .query(
+        `INSERT OR IGNORE INTO chat_agent_directories (session_id, path, created_at_ms)
+         VALUES (?, ?, ?)`
+      )
+      .run(sessionId, path, Date.now());
+  }
+
+  /**
+   * Determine whether an agent path is a file, directory, or missing.
+   * @param sessionId - Session id.
+   * @param path - Agent path.
+   * @returns Path kind, or null when missing.
+   */
+  public getAgentPathKind(sessionId: string, path: string): "file" | "dir" | null {
+    if (!path) return "dir";
+    if (this.getLatestAgentFile(sessionId, path)) return "file";
+    const directory = this.db
+      .query("SELECT path FROM chat_agent_directories WHERE session_id = ? AND path = ?")
+      .get(sessionId, path) as { path: string } | null;
+    if (directory) return "dir";
+    const descendantFile = this.db
+      .query(
+        "SELECT path FROM chat_agent_file_versions WHERE session_id = ? AND path LIKE ? LIMIT 1"
+      )
+      .get(sessionId, `${path}/%`) as { path: string } | null;
+    if (descendantFile) return "dir";
+    const descendantDirectory = this.db
+      .query("SELECT path FROM chat_agent_directories WHERE session_id = ? AND path LIKE ? LIMIT 1")
+      .get(sessionId, `${path}/%`) as { path: string } | null;
+    return descendantDirectory ? "dir" : null;
+  }
+
+  /**
+   * Delete an exact agent path or all descendants if path is a directory.
+   * @param sessionId - Session id.
+   * @param path - Agent path to delete.
+   * @returns Nothing.
+   */
   public deleteAgentFileVersionsForPath(sessionId: string, path: string): void {
     const trimmed = (path ?? "").trim();
     if (!trimmed) {
       this.db.query("DELETE FROM chat_agent_file_versions WHERE session_id = ?").run(sessionId);
+      this.db.query("DELETE FROM chat_agent_directories WHERE session_id = ?").run(sessionId);
       return;
     }
-    this.db
-      .query(
-        "DELETE FROM chat_agent_file_versions WHERE session_id = ? AND (path = ? OR path LIKE ?)"
-      )
-      .run(sessionId, trimmed, `${trimmed}/%`);
+    const tx = this.db.transaction(() => {
+      this.db
+        .query(
+          "DELETE FROM chat_agent_file_versions WHERE session_id = ? AND (path = ? OR path LIKE ?)"
+        )
+        .run(sessionId, trimmed, `${trimmed}/%`);
+      this.db
+        .query(
+          "DELETE FROM chat_agent_directories WHERE session_id = ? AND (path = ? OR path LIKE ?)"
+        )
+        .run(sessionId, trimmed, `${trimmed}/%`);
+    });
+    tx();
   }
 
-  /** Re-parents file versions from `from` to `to`, continuing the version sequence. */
+  /**
+   * Re-parent file and directory records, continuing version sequences.
+   * @param sessionId - Session id.
+   * @param from - Source path.
+   * @param to - Destination path.
+   * @returns Nothing.
+   */
   public moveAgentFileVersions(sessionId: string, from: string, to: string): void {
     if (!from || !to || from === to) return;
 
     const sourceRows = this.db
       .query(
-        "SELECT version, content, bytes, created_at_ms FROM chat_agent_file_versions WHERE session_id = ? AND path = ? ORDER BY version ASC"
+        "SELECT path, version, content, bytes, created_at_ms FROM chat_agent_file_versions WHERE session_id = ? AND (path = ? OR path LIKE ?) ORDER BY path ASC, version ASC"
       )
-      .all(sessionId, from) as Array<{
+      .all(sessionId, from, `${from}/%`) as Array<{
+      path: string;
       version: number;
       content: string;
       bytes?: number | null;
       created_at_ms: number;
     }>;
-
-    if (sourceRows.length === 0) return;
-
-    const destinationMax = this.db
+    const sourceDirectories = this.db
       .query(
-        "SELECT MAX(version) AS max_version FROM chat_agent_file_versions WHERE session_id = ? AND path = ?"
+        "SELECT path, created_at_ms FROM chat_agent_directories WHERE session_id = ? AND (path = ? OR path LIKE ?) ORDER BY path ASC"
       )
-      .get(sessionId, to) as { max_version?: number | null } | null;
-    const offset =
-      (typeof destinationMax?.max_version === "number" ? destinationMax.max_version : 0) ?? 0;
+      .all(sessionId, from, `${from}/%`) as Array<{ path: string; created_at_ms: number }>;
+
+    if (sourceRows.length === 0 && sourceDirectories.length === 0) return;
 
     const tx = this.db.transaction(() => {
-      for (let index = 0; index < sourceRows.length; index += 1) {
-        const row = sourceRows[index]!;
-        const nextVersion = offset + index + 1;
+      const versionsByPath = new Map<string, number>();
+      for (const row of sourceRows) {
+        const suffix = row.path === from ? "" : row.path.slice(from.length);
+        const destinationPath = `${to}${suffix}`;
+        let offset = versionsByPath.get(destinationPath);
+        if (offset === undefined) {
+          const destinationMax = this.db
+            .query(
+              "SELECT MAX(version) AS max_version FROM chat_agent_file_versions WHERE session_id = ? AND path = ?"
+            )
+            .get(sessionId, destinationPath) as { max_version?: number | null } | null;
+          offset = typeof destinationMax?.max_version === "number" ? destinationMax.max_version : 0;
+        }
+        const nextVersion = offset + 1;
+        versionsByPath.set(destinationPath, nextVersion);
         this.db
           .query(
             `INSERT INTO chat_agent_file_versions
@@ -475,16 +734,32 @@ export class ChatStore {
           .run(
             randomUUID(),
             sessionId,
-            to,
+            destinationPath,
             nextVersion,
             row.content,
             row.bytes ?? null,
             row.created_at_ms
           );
       }
+      for (const row of sourceDirectories) {
+        const suffix = row.path === from ? "" : row.path.slice(from.length);
+        this.db
+          .query(
+            `INSERT OR IGNORE INTO chat_agent_directories (session_id, path, created_at_ms)
+             VALUES (?, ?, ?)`
+          )
+          .run(sessionId, `${to}${suffix}`, row.created_at_ms);
+      }
       this.db
-        .query("DELETE FROM chat_agent_file_versions WHERE session_id = ? AND path = ?")
-        .run(sessionId, from);
+        .query(
+          "DELETE FROM chat_agent_file_versions WHERE session_id = ? AND (path = ? OR path LIKE ?)"
+        )
+        .run(sessionId, from, `${from}/%`);
+      this.db
+        .query(
+          "DELETE FROM chat_agent_directories WHERE session_id = ? AND (path = ? OR path LIKE ?)"
+        )
+        .run(sessionId, from, `${from}/%`);
     });
 
     tx();

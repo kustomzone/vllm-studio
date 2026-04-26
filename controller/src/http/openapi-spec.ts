@@ -5,7 +5,7 @@ export const createOpenApiSpec = (context: AppContext): Record<string, unknown> 
   openapi: "3.1.0",
   info: {
     title: "vLLM Studio API",
-    version: "0.3.1",
+    version: "0.3.2",
     description: "Model lifecycle management for vLLM, SGLang, and TabbyAPI inference servers",
   },
   servers: [
@@ -15,31 +15,6 @@ export const createOpenApiSpec = (context: AppContext): Record<string, unknown> 
     },
   ],
   paths: {
-    "/health": {
-      get: {
-        summary: "Health check",
-        description: "Check if the controller and inference backend are healthy",
-        responses: {
-          "200": {
-            description: "Service is healthy",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    status: { type: "string", enum: ["ok"] },
-                    version: { type: "string" },
-                    inference_ready: { type: "boolean" },
-                    backend_reachable: { type: "boolean" },
-                    running_model: { type: ["string", "null"] },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
     "/status": {
       get: {
         summary: "Get status",

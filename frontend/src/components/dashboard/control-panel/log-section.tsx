@@ -1,55 +1,41 @@
 // CRITICAL
 "use client";
 
-import { SectionCard } from "./status-section";
-
 interface LogSectionProps {
   logs: string[];
 }
 
 export function LogSection({ logs }: LogSectionProps) {
   return (
-    <SectionCard label="Logs" icon="file-text">
-      <div className="bg-(--bg) rounded-lg h-72 overflow-auto">
+    <div className="border border-(--border) bg-(--surface)">
+      <div className="flex items-center justify-between border-b border-(--border) px-3 py-1.5">
+        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-(--dim)">Logs</span>
+        <span className="font-mono text-[9px] tabular-nums text-(--dim)">{logs.length} lines</span>
+      </div>
+      <div className="h-72 overflow-auto bg-(--bg)">
         {logs.length > 0 ? (
-          <div className="p-4 font-mono text-[11px] leading-relaxed space-y-0">
+          <pre className="m-0 whitespace-pre-wrap break-normal px-3 py-2 font-mono text-[11px] leading-snug text-(--dim)">
             {logs.map((line, i) => {
               const isError = line.includes("ERROR");
               const isWarning = line.includes("WARNING");
-              const isInfo = line.includes("INFO");
-
-              const tsMatch = line.match(/^(\[?[\d\-:\s.]+\]?)/);
-              const ts = tsMatch ? tsMatch[1] : "";
-              const msg = ts ? line.slice(ts.length).trim() : line;
-
               return (
-                <div key={i} className="flex gap-3 min-w-0">
-                  {ts && (
-                    <span className="text-(--dim)/60 shrink-0 w-28 truncate">{ts}</span>
-                  )}
-                  <span
-                    className={`break-all ${
-                      isError
-                        ? "text-(--fg)"
-                        : isWarning
-                          ? "text-(--fg)/70"
-                          : isInfo
-                            ? "text-(--fg)/70"
-                            : "text-(--dim)"
-                    }`}
-                  >
-                    {msg}
-                  </span>
-                </div>
+                <span
+                  key={i}
+                  className={`block ${
+                    isError ? "text-(--err)" : isWarning ? "text-(--fg)/80" : "text-(--dim)"
+                  }`}
+                >
+                  {line}
+                </span>
               );
             })}
-          </div>
+          </pre>
         ) : (
-          <div className="h-full flex items-center justify-center">
-            <span className="text-xs text-(--dim)">No output</span>
+          <div className="flex h-full items-center justify-center font-mono text-xs text-(--dim)">
+            No output
           </div>
         )}
       </div>
-    </SectionCard>
+    </div>
   );
 }

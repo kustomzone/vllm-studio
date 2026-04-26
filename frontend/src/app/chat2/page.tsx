@@ -1,21 +1,23 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import dynamic from "next/dynamic";
-import { Sparkles } from "lucide-react";
+type Chat2PageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
 
-function LoadingSpinner() {
-  return (
-    <div className="flex items-center justify-center h-full">
-      <Sparkles className="h-8 w-8 text-(--dim)" />
-    </div>
-  );
-}
+export default async function Chat2Page({ searchParams }: Chat2PageProps) {
+  const params = (await searchParams) ?? {};
+  const query = new URLSearchParams();
 
-const ChatLayout = dynamic(() => import("./chat-layout").then((mod) => mod.ChatLayout), {
-  ssr: false,
-  loading: () => <LoadingSpinner />,
-});
+  for (const [key, value] of Object.entries(params)) {
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        query.append(key, entry);
+      }
+    } else if (value !== undefined) {
+      query.set(key, value);
+    }
+  }
 
-export default function Chat2Page() {
-  return <ChatLayout />;
+  const queryString = query.toString();
+  redirect(queryString ? `/chat?${queryString}` : "/chat");
 }

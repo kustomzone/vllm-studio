@@ -7,14 +7,12 @@ import { Event } from "../monitoring/event-manager";
 import {
   createAgentDirectory,
   deleteAgentPath,
-  getSessionAgentFs,
   listAgentFiles,
   moveAgentPath,
   readAgentFile,
   writeAgentFile,
 } from "./agent-files/service";
-import { toFsPath, normalizeAgentPath } from "./agent-files/helpers";
-import type { AgentFsApi } from "./agent-files/types";
+import { normalizeAgentPath } from "./agent-files/helpers";
 
 /**
  * Extract the wildcard path from the URL.
@@ -49,10 +47,6 @@ const normalizeRoutePath = (rawPath: string): string => {
 };
 
 export const registerAgentFilesRoutes = (app: Hono, context: AppContext): void => {
-  const getSessionFs = async (sessionId: string): Promise<AgentFsApi> => {
-    return getSessionAgentFs(context, sessionId);
-  };
-
   app.get("/chats/:sessionId/files", async (ctx) => {
     const sessionId = ctx.req.param("sessionId");
     const pathParameter = ctx.req.query("path") ?? "";
@@ -80,17 +74,13 @@ export const registerAgentFilesRoutes = (app: Hono, context: AppContext): void =
     const sessionId = ctx.req.param("sessionId");
     const rawPath = extractFilePath(ctx.req.path, sessionId) || ctx.req.query("path") || "";
     if (!rawPath) throw badRequest("Path is required");
-    const fs = await getSessionFs(sessionId);
     const normalized = normalizeRoutePath(rawPath);
-    const target = toFsPath(normalized);
     const includeVersions =
       ctx.req.query("versions") === "true" ||
       ctx.req.query("versions") === "1" ||
       ctx.req.query("include_versions") === "true" ||
       ctx.req.query("include_versions") === "1";
     try {
-      const stat = await fs.stat(target);
-      if (stat.isDirectory()) throw badRequest("Path is a directory");
       const { normalizedPath, content } = await readAgentFile(context, sessionId, normalized);
       await context.eventManager.publish(
         new Event(AGENT_FILE_EVENT_TYPES.AGENT_FILE_READ, {
@@ -135,8 +125,6 @@ export const registerAgentFilesRoutes = (app: Hono, context: AppContext): void =
     const encoding = body["encoding"] === "base64" ? "base64" : "utf8";
     const data = encoding === "base64" ? Buffer.from(content, "base64") : content;
     const { normalizedPath, bytes } = await writeAgentFile(context, sessionId, rawPath, data);
-    // Persist a snapshot for sidebar versioning (v1/v2/...).
-    context.stores.chatStore.addAgentFileVersion(sessionId, normalizedPath, content, bytes);
     await context.eventManager.publish(
       new Event(AGENT_FILE_EVENT_TYPES.AGENT_FILE_WRITTEN, {
         session_id: sessionId,
@@ -153,9 +141,11 @@ export const registerAgentFilesRoutes = (app: Hono, context: AppContext): void =
     const rawPath = extractFilePath(ctx.req.path, sessionId) || ctx.req.query("path") || "";
     if (!rawPath) throw badRequest("Path is required");
     const normalized = await deleteAgentPath(context, sessionId, rawPath);
-    context.stores.chatStore.deleteAgentFileVersionsForPath(sessionId, normalized);
     await context.eventManager.publish(
-      new Event(AGENT_FILE_EVENT_TYPES.AGENT_FILE_DELETED, { session_id: sessionId, path: normalized })
+      new Event(AGENT_FILE_EVENT_TYPES.AGENT_FILE_DELETED, {
+        session_id: sessionId,
+        path: normalized,
+      })
     );
     return ctx.json({ success: true });
   });
@@ -167,7 +157,10 @@ export const registerAgentFilesRoutes = (app: Hono, context: AppContext): void =
     if (!rawPath) throw badRequest("Path is required");
     const normalized = await createAgentDirectory(context, sessionId, rawPath);
     await context.eventManager.publish(
-      new Event(AGENT_FILE_EVENT_TYPES.AGENT_DIRECTORY_CREATED, { session_id: sessionId, path: normalized })
+      new Event(AGENT_FILE_EVENT_TYPES.AGENT_DIRECTORY_CREATED, {
+        session_id: sessionId,
+        path: normalized,
+      })
     );
     return ctx.json({ success: true });
   });
@@ -179,7 +172,6 @@ export const registerAgentFilesRoutes = (app: Hono, context: AppContext): void =
     const to = typeof body["to"] === "string" ? body["to"] : "";
     if (!from || !to) throw badRequest("from and to are required");
     const payload = await moveAgentPath(context, sessionId, from, to);
-    context.stores.chatStore.moveAgentFileVersions(sessionId, payload.from, payload.to);
     await context.eventManager.publish(
       new Event(AGENT_FILE_EVENT_TYPES.AGENT_FILE_MOVED, {
         session_id: sessionId,

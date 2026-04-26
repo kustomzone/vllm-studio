@@ -41,10 +41,10 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-(--surface) rounded-lg overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-(--border) text-(--dim)">
+    <div className="border border-(--border) bg-(--surface) overflow-hidden">
+      <div className="flex items-center gap-2 border-b border-(--border) bg-(--bg)/55 px-4 py-4 text-(--dim)">
         <Icon className="h-4 w-4" />
-        <span className="text-xs uppercase tracking-wider">{title}</span>
+        <span className="font-mono text-sm uppercase tracking-[0.3em]">{title}</span>
       </div>
       <div className="p-4">{children}</div>
     </div>
@@ -52,8 +52,14 @@ function SectionCard({
 }
 
 export function SecondaryMetrics(stats: SecondaryMetricsStats) {
-  const maxHourlyRequests = Math.max(...stats.hourly_pattern.map((h: HourlyPatternData) => h.requests), 1);
-  const peakHour = stats.hourly_pattern.reduce((max, h) => h.requests > max.requests ? h : max, stats.hourly_pattern[0]);
+  const maxHourlyRequests = Math.max(
+    ...stats.hourly_pattern.map((h: HourlyPatternData) => h.requests),
+    1,
+  );
+  const peakHour = stats.hourly_pattern.reduce(
+    (max, h) => (h.requests > max.requests ? h : max),
+    stats.hourly_pattern[0],
+  );
 
   return (
     <div className="space-y-4">
@@ -61,28 +67,34 @@ export function SecondaryMetrics(stats: SecondaryMetricsStats) {
       <SectionCard title="Tokens per Request" icon={Hash}>
         <div className="space-y-3">
           <div>
-            <div className="text-xs text-(--dim) mb-1">Average</div>
-            <div className="text-xl font-medium tabular-nums">
+            <div className="mb-1 font-mono text-xs uppercase tracking-[0.18em] text-(--dim)">
+              Average
+            </div>
+            <div className="font-mono text-2xl tabular-nums">
               {formatNumber(stats.tokens_per_request.avg)}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <div className="text-xs text-(--dim) mb-1">Prompt</div>
-              <div className="text-base tabular-nums">
+              <div className="mb-1 font-mono text-xs uppercase tracking-[0.18em] text-(--dim)">
+                Prompt
+              </div>
+              <div className="font-mono text-base tabular-nums">
                 {formatNumber(stats.tokens_per_request.avg_prompt)}
               </div>
             </div>
             <div>
-              <div className="text-xs text-(--dim) mb-1">Completion</div>
-              <div className="text-base tabular-nums">
+              <div className="mb-1 font-mono text-xs uppercase tracking-[0.18em] text-(--dim)">
+                Completion
+              </div>
+              <div className="font-mono text-base tabular-nums">
                 {formatNumber(stats.tokens_per_request.avg_completion)}
               </div>
             </div>
           </div>
 
-          <div className="pt-3 border-t border-(--border) grid grid-cols-2 gap-3 text-xs">
+          <div className="grid grid-cols-2 gap-3 border-t border-(--border) pt-3 font-mono text-xs">
             <div>
               <span className="text-(--dim)">P50: </span>
               <span className="tabular-nums">{formatNumber(stats.tokens_per_request.p50)}</span>
@@ -100,45 +112,47 @@ export function SecondaryMetrics(stats: SecondaryMetricsStats) {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-xs text-(--dim) mb-1">Hit Rate</div>
-              <div className="text-xl font-medium tabular-nums">
+              <div className="mb-1 font-mono text-xs uppercase tracking-[0.18em] text-(--dim)">
+                Hit Rate
+              </div>
+              <div className="font-mono text-2xl tabular-nums">
                 {stats.cache.hit_rate.toFixed(1)}%
               </div>
             </div>
-            <div className="h-10 w-10 relative">
-              <svg className="h-full w-full -rotate-90" viewBox="0 0 36 36">
-                <path
-                  className="text-(--border)"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3"
+            <div className="grid h-12 w-12 grid-cols-4 gap-0.5">
+              {Array.from({ length: 16 }, (_, index) => (
+                <div
+                  key={index}
+                  className={
+                    index < Math.round((stats.cache.hit_rate / 100) * 16)
+                      ? "bg-(--hl2)"
+                      : "bg-(--border)"
+                  }
                 />
-                <path
-                  className="text-(--hl2)"
-                  strokeDasharray={`${stats.cache.hit_rate}, 100`}
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                />
-              </svg>
+              ))}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <div className="text-xs text-(--hl2) mb-1">Hits</div>
-              <div className="text-base tabular-nums">{formatNumber(stats.cache.hits)}</div>
+              <div className="mb-1 font-mono text-xs uppercase tracking-[0.18em] text-(--hl2)">
+                Hits
+              </div>
+              <div className="font-mono text-base tabular-nums">
+                {formatNumber(stats.cache.hits)}
+              </div>
             </div>
             <div>
-              <div className="text-xs text-(--dim) mb-1">Misses</div>
-              <div className="text-base tabular-nums">{formatNumber(stats.cache.misses)}</div>
+              <div className="mb-1 font-mono text-xs uppercase tracking-[0.18em] text-(--dim)">
+                Misses
+              </div>
+              <div className="font-mono text-base tabular-nums">
+                {formatNumber(stats.cache.misses)}
+              </div>
             </div>
           </div>
 
-          <div className="pt-3 border-t border-(--border) grid grid-cols-2 gap-3 text-xs">
+          <div className="grid grid-cols-2 gap-3 border-t border-(--border) pt-3 font-mono text-xs">
             <div>
               <span className="text-(--dim)">Cached: </span>
               <span className="tabular-nums">{formatNumber(stats.cache.hit_tokens)}</span>
@@ -154,8 +168,10 @@ export function SecondaryMetrics(stats: SecondaryMetricsStats) {
       {/* Hourly Pattern */}
       <SectionCard title="Hourly Activity" icon={Clock}>
         <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs text-(--dim)">
-            <span>Peak: {peakHour?.hour}:00 ({formatNumber(peakHour?.requests || 0)} req)</span>
+          <div className="flex items-center justify-between font-mono text-xs text-(--dim)">
+            <span>
+              Peak: {peakHour?.hour}:00 ({formatNumber(peakHour?.requests || 0)} req)
+            </span>
             <span>24h view</span>
           </div>
 
@@ -169,7 +185,7 @@ export function SecondaryMetrics(stats: SecondaryMetricsStats) {
               return (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1 group min-w-0">
                   <div
-                    className={`w-full rounded-t ${isPeak ? "bg-(--hl3)" : "bg-(--fg)/20"}`}
+                    className={`w-full ${isPeak ? "bg-(--hl3)" : "bg-(--fg)/20"}`}
                     style={{
                       height: `${Math.max(height, 3)}%`,
                       minHeight: height > 0 ? "2px" : "0",
@@ -177,22 +193,21 @@ export function SecondaryMetrics(stats: SecondaryMetricsStats) {
                     title={`${i}:00 - ${formatNumber(requests)} requests`}
                   />
                   {i % 6 === 0 && (
-                    <div className="text-[8px] text-(--dim)/60">
-                      {i}:00
-                    </div>
+                    <div className="font-mono text-[8px] text-(--dim)/60">{i}:00</div>
                   )}
                 </div>
               );
             })}
           </div>
 
-          <div className="pt-2 border-t border-(--border) flex items-center justify-between text-xs text-(--dim)">
+          <div className="flex items-center justify-between border-t border-(--border) pt-2 font-mono text-xs text-(--dim)">
             <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-sm bg-(--hl3)" />
+              <div className="h-2 w-2 bg-(--hl3)" />
               <span>Peak hour</span>
             </div>
             <span>
-              Total: {formatNumber(stats.hourly_pattern.reduce((sum, h) => sum + h.requests, 0))} requests
+              Total: {formatNumber(stats.hourly_pattern.reduce((sum, h) => sum + h.requests, 0))}{" "}
+              requests
             </span>
           </div>
         </div>

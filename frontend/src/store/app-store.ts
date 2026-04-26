@@ -7,14 +7,18 @@ import api from "@/lib/api";
 export type AppStore = ChatSlice &
   ThemeSlice & {
     _hasHydrated: boolean;
+    desktopSidebarPinnedOpen: boolean;
     setHasHydrated: (hasHydrated: boolean) => void;
+    setDesktopSidebarPinnedOpen: (open: boolean) => void;
   };
 
 const createAppStore: StateCreator<AppStore, [], [], AppStore> = (set, ...args) => ({
   ...createChatSlice(set, ...args),
   ...createThemeSlice(set, ...args),
   _hasHydrated: false,
+  desktopSidebarPinnedOpen: true,
   setHasHydrated: (hasHydrated) => set({ _hasHydrated: hasHydrated }),
+  setDesktopSidebarPinnedOpen: (desktopSidebarPinnedOpen) => set({ desktopSidebarPinnedOpen }),
 });
 
 const storage = createJSONStorage(() =>
@@ -37,6 +41,7 @@ export const useAppStore = create<AppStore>()(
         themeId: state.themeId,
         fontFamilyId: state.fontFamilyId,
         fontSizeId: state.fontSizeId,
+        desktopSidebarPinnedOpen: state.desktopSidebarPinnedOpen,
         sidebarCollapsed: state.sidebar.collapsed,
         sidebarWidth: state.sidebarWidth,
         chatLeftRailCollapsed: state.chatLeftRailCollapsed,

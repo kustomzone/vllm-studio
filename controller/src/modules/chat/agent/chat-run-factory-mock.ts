@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import type { AssistantMessage } from "@mariozechner/pi-ai";
 import type { AppContext } from "../../../types/context";
 import { buildSystemPrompt } from "./system-prompt-builder";
 import { resolveModel } from "./run-manager-model-resolver";
@@ -8,7 +7,16 @@ import { AsyncQueue } from "../../../core/async";
 import { createRunPublisher, createSseStream } from "./run-manager-sse";
 import { AGENT_RUN_EVENT_TYPES } from "./contracts";
 import { persistAssistantMessage } from "./run-manager-persistence";
+import type { AssistantMessage } from "./pi-agent-types";
 
+/**
+ * Create a deterministic chat run without calling an inference backend.
+ * @param context - Application context.
+ * @param session - Chat session record.
+ * @param options - Run options from the chats route.
+ * @param content - User message content.
+ * @returns Run identifier and SSE stream.
+ */
 export async function createMockChatRun(
   context: AppContext,
   session: Record<string, unknown>,

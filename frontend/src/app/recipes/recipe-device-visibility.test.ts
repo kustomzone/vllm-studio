@@ -56,4 +56,16 @@ describe("recipe device visibility normalization", () => {
     expect(command).not.toContain("--hip-visible-devices");
     expect(command).not.toContain("--rocr-visible-devices");
   });
+
+  it("adds SGLang metrics to command previews by default", () => {
+    const command = generateCommand({
+      id: "r1",
+      name: "test",
+      model_path: "/models/test",
+      backend: "sglang",
+      extra_args: {},
+    });
+
+    expect(command).toContain("--enable-metrics");
+  });
 });

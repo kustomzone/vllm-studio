@@ -35,6 +35,10 @@ export const registerMonitoringRoutes = (app: Hono, context: AppContext): void =
     });
   });
 
+  app.get("/v1/metrics/vllm", (ctx) => {
+    return ctx.json(context.eventManager.getLatestMetrics());
+  });
+
   app.get("/peak-metrics", async (ctx) => {
     const modelId = ctx.req.query("model_id");
     if (modelId) {

@@ -1,8 +1,16 @@
 /* CRITICAL */
-* {
+*,
+*::before,
+*::after {
   border-color: var(--border);
+  border-radius: 0 !important;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--hl1) 18%, transparent) transparent;
+}
+
+:root {
+  --geometry-grid: color-mix(in srgb, var(--fg) 4%, transparent);
+  --geometry-axis: color-mix(in srgb, var(--fg) 7%, transparent);
 }
 
 html,
@@ -19,9 +27,29 @@ html {
 }
 
 body {
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(var(--geometry-axis) 1px, transparent 1px),
+    linear-gradient(90deg, var(--geometry-axis) 1px, transparent 1px),
+    linear-gradient(var(--geometry-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--geometry-grid) 1px, transparent 1px);
+  background-position:
+    0 0,
+    0 0,
+    0 0,
+    0 0;
+  background-size:
+    96px 96px,
+    96px 96px,
+    24px 24px,
+    24px 24px;
   color: var(--fg);
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+:where([class*="shadow"], [class*="backdrop-blur"]) {
+  box-shadow: none !important;
+  backdrop-filter: none !important;
 }
 
 /* Links */
@@ -62,7 +90,6 @@ a.nav-link:hover,
 
 ::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--hl1) 18%, transparent);
-  border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
@@ -92,7 +119,6 @@ a.nav-link:hover,
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
   background: transparent;
-  border-radius: 3px;
 }
 
 .scrollbar-thin:hover::-webkit-scrollbar-thumb {

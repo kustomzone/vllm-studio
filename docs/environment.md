@@ -4,22 +4,22 @@ This list documents environment variables referenced in code or docker-compose. 
 
 ## Controller core
 
-| Variable                         | Default                    | Purpose                                                                                               |
-| -------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------- |
-| VLLM_STUDIO_HOST                 | 0.0.0.0                    | Bind address for the controller server.                                                               |
-| VLLM_STUDIO_PORT                 | 8080                       | Controller HTTP port.                                                                                 |
-| VLLM_STUDIO_API_KEY              | -                          | Optional API key for authenticated requests.                                                          |
-| VLLM_STUDIO_INFERENCE_PORT       | 8000                       | Port used to reach the inference backend.                                                             |
-| VLLM_STUDIO_DATA_DIR             | ./data or ../data          | Data directory (depends on working directory).                                                        |
-| VLLM_STUDIO_CHATS_DB             | -                          | Optional path to the **chat** SQLite file (sessions + messages). Defaults to `<VLLM_STUDIO_DATA_DIR>/chats.db`. Set a separate file for Playwright/E2E so tests do not share your dev chat history. |
-| VLLM_STUDIO_DB_PATH              | <data>/controller.db       | SQLite database path.                                                                                 |
-| VLLM_STUDIO_MODELS_DIR           | /models                    | Models directory (overridden by persisted config).                                                    |
-| VLLM_STUDIO_LITELLM_DATABASE_URL | -                          | Preferred LiteLLM database URL (falls back to LITELLM_DATABASE_URL or DATABASE_URL).                  |
-| LITELLM_DATABASE_URL             | -                          | LiteLLM database URL fallback.                                                                        |
-| DATABASE_URL                     | -                          | Database URL fallback used by LiteLLM.                                                                |
-| VLLM_STUDIO_STRICT_OPENAI_MODELS | -                          | When truthy, restricts to explicit OpenAI models.                                                     |
-| VLLM_STUDIO_VERSION              | dev                        | Version label surfaced in /studio payloads.                                                           |
-| TEMPORAL_ADDRESS                 | localhost:7233             | Temporal server address.                                                                              |
+| Variable                         | Default              | Purpose                                                                                                                                                                                             |
+| -------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| VLLM_STUDIO_HOST                 | 0.0.0.0              | Bind address for the controller server.                                                                                                                                                             |
+| VLLM_STUDIO_PORT                 | 8080                 | Controller HTTP port.                                                                                                                                                                               |
+| VLLM_STUDIO_API_KEY              | -                    | Optional API key for authenticated requests.                                                                                                                                                        |
+| VLLM_STUDIO_INFERENCE_PORT       | 8000                 | Port used to reach the inference backend.                                                                                                                                                           |
+| VLLM_STUDIO_DATA_DIR             | ./data or ../data    | Data directory (depends on working directory).                                                                                                                                                      |
+| VLLM_STUDIO_CHATS_DB             | -                    | Optional path to the **chat** SQLite file (sessions + messages). Defaults to `<VLLM_STUDIO_DATA_DIR>/chats.db`. Set a separate file for Playwright/E2E so tests do not share your dev chat history. |
+| VLLM_STUDIO_DB_PATH              | <data>/controller.db | SQLite database path.                                                                                                                                                                               |
+| VLLM_STUDIO_MODELS_DIR           | /models              | Models directory (overridden by persisted config).                                                                                                                                                  |
+| VLLM_STUDIO_LITELLM_DATABASE_URL | -                    | Preferred LiteLLM database URL (falls back to LITELLM_DATABASE_URL or DATABASE_URL).                                                                                                                |
+| LITELLM_DATABASE_URL             | -                    | LiteLLM database URL fallback.                                                                                                                                                                      |
+| DATABASE_URL                     | -                    | Database URL fallback used by LiteLLM.                                                                                                                                                              |
+| VLLM_STUDIO_STRICT_OPENAI_MODELS | -                    | When truthy, restricts to explicit OpenAI models.                                                                                                                                                   |
+| VLLM_STUDIO_VERSION              | dev                  | Version label surfaced in /studio payloads.                                                                                                                                                         |
+| TEMPORAL_ADDRESS                 | localhost:7233       | Temporal server address.                                                                                                                                                                            |
 
 ## Runtime backends and lifecycle
 
@@ -60,11 +60,11 @@ This list documents environment variables referenced in code or docker-compose. 
 
 ## Downloads and integrations
 
-| Variable             | Default   | Purpose                                                |
-| -------------------- | --------- | ------------------------------------------------------ |
-| VLLM_STUDIO_HF_TOKEN | -         | Hugging Face token for model downloads.                |
-| EXA_API_KEY          | -         | Exa API key for MCP search integration.                |
-| LITELLM_MASTER_KEY   | sk-master | LiteLLM master key (also used by controller to proxy). |
+| Variable             | Default        | Purpose                                                |
+| -------------------- | -------------- | ------------------------------------------------------ |
+| VLLM_STUDIO_HF_TOKEN | -              | Hugging Face token for model downloads.                |
+| EXA_API_KEY          | -              | Exa API key for MCP search integration.                |
+| LITELLM_MASTER_KEY   | dev-master-key | LiteLLM master key (also used by controller to proxy). |
 
 ## Logging and diagnostics
 
@@ -118,7 +118,7 @@ This list documents environment variables referenced in code or docker-compose. 
 | POSTGRES_PASSWORD                         | postgres                                     | Postgres password.                            |
 | POSTGRES_DB                               | litellm                                      | Postgres database name.                       |
 | INFERENCE_API_BASE                        | http://host.docker.internal:8000/v1          | LiteLLM inference endpoint.                   |
-| INFERENCE_API_KEY                         | sk-placeholder                               | LiteLLM inference API key.                    |
+| INFERENCE_API_KEY                         | dev-placeholder-key                          | LiteLLM inference API key.                    |
 | GF_SECURITY_ADMIN_USER                    | admin                                        | Grafana admin username.                       |
 | GF_SECURITY_ADMIN_PASSWORD                | admin                                        | Grafana admin password.                       |
 | GF_AUTH_ANONYMOUS_ENABLED                 | true                                         | Enable anonymous Grafana access.              |
@@ -126,4 +126,4 @@ This list documents environment variables referenced in code or docker-compose. 
 | GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH | /var/lib/grafana/dashboards/vllm-studio.json | Default Grafana dashboard.                    |
 | VLLM_STUDIO_UID                           | 1000                                         | UID for controller/frontend containers.       |
 | VLLM_STUDIO_GID                           | 1000                                         | GID for controller/frontend containers.       |
-| LITELLM_MASTER_KEY                        | sk-master                                    | LiteLLM master key (also used by controller). |
+| LITELLM_MASTER_KEY                        | dev-master-key                               | LiteLLM master key (also used by controller). |

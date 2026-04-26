@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { Agent } from "@mariozechner/pi-agent-core";
-import type { ImageContent } from "@mariozechner/pi-ai";
 import type { AppContext } from "../../../types/context";
 import { AsyncQueue } from "../../../core/async";
 import { handleAgentEvent, type ToolExecutionInfo } from "./agent-event-handler";
@@ -15,8 +14,9 @@ import { AGENT_RUN_EVENT_TYPES, type AgentEventType } from "./contracts";
 import { createMessageCleaner } from "./run-manager-utf8";
 import { resolveModel, resolveApiKey } from "./run-manager-model-resolver";
 import type { ChatRunOptions, ChatRunStream } from "./run-manager-types";
-import { mapToolCallsToMessage, parseToolServer } from "./run-manager-utils";
+import { mapToolCallsToMessage, parseToolServer } from "./run-manager-utilities";
 import type { RunRegistry } from "./run-registry";
+import type { ImageContent } from "./pi-agent-types";
 
 const RUN_EVENT_QUEUE_CAPACITY = 1024;
 
@@ -195,7 +195,12 @@ export async function createChatRun(
           });
         },
         addToolExecution: (rid, toolCallId, toolName, toolExecutionOptions) => {
-          context.stores.chatStore.addToolExecution(rid, toolCallId, toolName, toolExecutionOptions);
+          context.stores.chatStore.addToolExecution(
+            rid,
+            toolCallId,
+            toolName,
+            toolExecutionOptions
+          );
         },
         parseToolServer: (toolName) => parseToolServer(toolName),
         extractToolResultText: (result) => extractToolResultText(result),
