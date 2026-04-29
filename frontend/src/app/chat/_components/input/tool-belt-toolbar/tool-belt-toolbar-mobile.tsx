@@ -2,15 +2,16 @@
 "use client";
 
 import { ArrowUp, PanelRightOpen, Square } from "lucide-react";
-import { buildDisplayModelLabel, type ModelOption } from "../../../types";
 import { ToolBeltToolbarMobileMenu } from "./tool-belt-toolbar-mobile-menu";
+import { ModelSelect } from "./model-select";
+import { type ToolBeltToolbarDesktopRecording } from "./tool-belt-toolbar-desktop";
+import type { ModelOption } from "../../../types";
 
 type Props = {
   isLoading?: boolean;
-  elapsedSeconds?: number;
+  streamingStartTime?: number | null;
   lastRunDurationSeconds?: number | null;
-  isRecording: boolean;
-  isTranscribing: boolean;
+  recording: ToolBeltToolbarDesktopRecording;
   attachmentsCount: number;
   disabled?: boolean;
   canSend: boolean;
@@ -30,8 +31,6 @@ type Props = {
   onTTSToggle?: () => void;
   onAttachFile?: () => void;
   onAttachImage?: () => void;
-  onStartRecording?: () => void;
-  onStopRecording?: () => void;
   onStop?: () => void;
   onSubmit?: () => void;
   callModeEnabled?: boolean;
@@ -40,10 +39,9 @@ type Props = {
 
 export function ToolBeltToolbarMobile({
   isLoading,
-  elapsedSeconds,
+  streamingStartTime,
   lastRunDurationSeconds,
-  isRecording,
-  isTranscribing,
+  recording,
   attachmentsCount,
   disabled,
   canSend,
@@ -63,8 +61,6 @@ export function ToolBeltToolbarMobile({
   onTTSToggle,
   onAttachFile,
   onAttachImage,
-  onStartRecording,
-  onStopRecording,
   onStop,
   onSubmit,
   callModeEnabled,
@@ -77,10 +73,9 @@ export function ToolBeltToolbarMobile({
     <div className="md:hidden flex items-center gap-2">
       <ToolBeltToolbarMobileMenu
         isLoading={isLoading}
-        elapsedSeconds={elapsedSeconds}
+        streamingStartTime={streamingStartTime}
         lastRunDurationSeconds={lastRunDurationSeconds}
-        isRecording={isRecording}
-        isTranscribing={isTranscribing}
+        recording={recording}
         attachmentsCount={attachmentsCount}
         disabled={disabled}
         hasSystemPrompt={hasSystemPrompt}
@@ -96,8 +91,6 @@ export function ToolBeltToolbarMobile({
         onTTSToggle={onTTSToggle}
         onAttachFile={onAttachFile}
         onAttachImage={onAttachImage}
-        onStartRecording={onStartRecording}
-        onStopRecording={onStopRecording}
         callModeEnabled={callModeEnabled}
         onCallModeToggle={onCallModeToggle}
       />
@@ -115,38 +108,13 @@ export function ToolBeltToolbarMobile({
 
       {availableModels.length > 0 && onModelChange && (
         <div className="flex-1 min-w-0">
-          <select
-            value={selectedModel || ""}
-            onChange={(e) => onModelChange(e.target.value)}
+          <ModelSelect
+            availableModels={availableModels}
+            selectedModel={selectedModel}
+            onChange={onModelChange}
             disabled={disabled || isLoading}
-            className="h-10 w-full px-3 font-mono text-[12px] bg-(--border) border border-(--border) rounded-full text-(--dim) focus:outline-none disabled:opacity-50 truncate appearance-none cursor-pointer hover:bg-(--border) transition-colors"
-            title={selectedModel || "Select model"}
-          >
-            {(() => {
-              const grouped = new Map<string, typeof availableModels>();
-              for (const model of availableModels) {
-                const group = model.provider || "local";
-                if (!grouped.has(group)) grouped.set(group, []);
-                grouped.get(group)!.push(model);
-              }
-              if (grouped.size <= 1) {
-                return availableModels.map((model, idx) => (
-                  <option key={`${model.id}-${idx}`} value={model.id}>
-                    {buildDisplayModelLabel(model.id, model.provider)}
-                  </option>
-                ));
-              }
-              return Array.from(grouped.entries()).map(([group, models]) => (
-                <optgroup key={group} label={group}>
-                  {models.map((model, idx) => (
-                    <option key={`${model.id}-${idx}`} value={model.id}>
-                      {buildDisplayModelLabel(model.id, model.provider)}
-                    </option>
-                  ))}
-                </optgroup>
-              ));
-            })()}
-          </select>
+            mobile
+          />
         </div>
       )}
 

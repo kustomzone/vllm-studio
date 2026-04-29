@@ -1,7 +1,7 @@
 // CRITICAL
 "use client";
 
-import type { ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import {
   Paperclip,
   Image as ImageIcon,
@@ -20,7 +20,8 @@ import {
   Phone,
   PhoneOff,
 } from "lucide-react";
-import { ToolDropdown, DropdownItem } from "../tool-dropdown";
+import { ToolDropdown, DropdownItem } from "@/ui/dropdown-menu";
+import type { ToolBeltToolbarDesktopRecording } from "./tool-belt-toolbar-desktop";
 
 function SpinningLoaderIcon({ className }: { className?: string }) {
   return <Loader2 className={`${className ?? ""} animate-spin`} />;
@@ -28,10 +29,9 @@ function SpinningLoaderIcon({ className }: { className?: string }) {
 
 type Props = {
   isLoading?: boolean;
-  elapsedSeconds?: number;
+  streamingStartTime?: number | null;
   lastRunDurationSeconds?: number | null;
-  isRecording: boolean;
-  isTranscribing: boolean;
+  recording: ToolBeltToolbarDesktopRecording;
   attachmentsCount: number;
   disabled?: boolean;
   hasSystemPrompt?: boolean;
@@ -47,18 +47,15 @@ type Props = {
   onTTSToggle?: () => void;
   onAttachFile?: () => void;
   onAttachImage?: () => void;
-  onStartRecording?: () => void;
-  onStopRecording?: () => void;
   callModeEnabled?: boolean;
   onCallModeToggle?: () => void;
 };
 
 export function ToolBeltToolbarMobileMenu({
   isLoading,
-  elapsedSeconds,
+  streamingStartTime,
   lastRunDurationSeconds,
-  isRecording,
-  isTranscribing,
+  recording,
   attachmentsCount,
   disabled,
   hasSystemPrompt,
@@ -74,11 +71,10 @@ export function ToolBeltToolbarMobileMenu({
   onTTSToggle,
   onAttachFile,
   onAttachImage,
-  onStartRecording,
-  onStopRecording,
   callModeEnabled,
   onCallModeToggle,
 }: Props) {
+  const { isRecording, isTranscribing, onStart: onStartRecording, onStop: onStopRecording } = recording;
   const hasActiveTools = Boolean(toolsEnabled || artifactsEnabled || deepResearchEnabled);
   const hasMobileMenuActive = Boolean(
     attachmentsCount > 0 ||
@@ -104,10 +100,23 @@ export function ToolBeltToolbarMobileMenu({
     ? SpinningLoaderIcon
     : VoiceIcon;
 
-  const hasRunTime = typeof elapsedSeconds === "number" && elapsedSeconds >= 0;
+  // Self-ticking elapsed for the runtime chip
+  const [selfElapsed, setSelfElapsed] = useState(0);
+  useEffect(() => {
+    if (isLoading && streamingStartTime != null) {
+      setSelfElapsed(Math.floor((Date.now() - streamingStartTime) / 1000));
+      const id = setInterval(() => {
+        setSelfElapsed(Math.floor((Date.now() - streamingStartTime) / 1000));
+      }, 1000);
+      return () => clearInterval(id);
+    }
+    if (!isLoading) setSelfElapsed(0);
+  }, [isLoading, streamingStartTime]);
+
+  const hasRunTime = isLoading && streamingStartTime != null;
   const hasLastRun = typeof lastRunDurationSeconds === "number" && lastRunDurationSeconds > 0;
-  const showRunChip = Boolean((isLoading && hasRunTime) || (!isLoading && hasLastRun));
-  const runChipLabelSeconds = isLoading ? elapsedSeconds ?? 0 : lastRunDurationSeconds ?? 0;
+  const showRunChip = hasRunTime || hasLastRun;
+  const runChipLabelSeconds = isLoading ? selfElapsed : (lastRunDurationSeconds ?? 0);
   const runChipLabel = `${Math.floor(runChipLabelSeconds / 60)}:${(runChipLabelSeconds % 60).toString().padStart(2, "0")}`;
 
   return (

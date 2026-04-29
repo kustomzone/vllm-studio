@@ -19,7 +19,6 @@ import type { ToolBeltProps } from "./tool-belt/types";
 export function ToolBelt({
   onSubmit,
   isLoading,
-  thinkingSnippet,
   placeholder = "Message...",
   onStop,
   onOpenResults,
@@ -37,6 +36,8 @@ export function ToolBelt({
   planDrawer,
   callModeEnabled = false,
   onCallModeToggle,
+  contextStats,
+  onOpenContext,
 }: ToolBeltProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const isDisabled = false;
@@ -207,31 +208,26 @@ export function ToolBelt({
           onDismissError={handleDismissTranscriptionError}
         />
 
+        {planDrawer ? <div className="hidden md:block mb-2">{planDrawer}</div> : null}
+
         <div
-          className={`relative flex flex-col bg-(--surface) rounded-xl transition-all border ${
+          className={`relative flex flex-col bg-(--surface) rounded-lg transition-colors border ${
             isDragOver
-              ? "border-(--accent)/60 ring-2 ring-(--accent)/20"
+              ? "border-(--accent)/60 ring-1 ring-(--accent)/20"
               : isLoading
-                ? "border-(--border) ring-1 ring-(--accent)/15"
-                : "border-(--border)/70 hover:border-(--border)"
+                ? "border-(--border) ring-1 ring-(--accent)/10"
+                : "border-(--border)/60 focus-within:border-(--border) hover:border-(--border)"
           }`}
-          style={{
-            boxShadow: isDragOver
-              ? "0 0 0 1px var(--accent), 0 4px 20px rgba(0,0,0,0.25)"
-              : isLoading
-                ? "0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent), 0 2px 8px rgba(0,0,0,0.1)"
-                : "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)",
-          }}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
           {isDragOver && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-(--accent)/10 pointer-events-none">
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-(--accent)/10 pointer-events-none">
               <span className="text-sm font-medium text-(--accent)">Drop files here</span>
             </div>
           )}
-          <div className="hidden md:block">{planDrawer}</div>
+
           <textarea
             ref={textareaRef}
             value={isLoading ? queuedContext : value}
@@ -247,8 +243,8 @@ export function ToolBelt({
             }
             disabled={isDisabled}
             rows={1}
-            className="w-full px-3.5 py-3 md:px-4 md:py-3 bg-transparent text-sm resize-none focus:outline-none disabled:opacity-50 placeholder:text-(--dim)/50 overflow-y-hidden min-h-[44px] md:min-h-[44px]"
-            style={{ fontSize: "14px", lineHeight: "1.55" }}
+            className="w-full px-3 py-2.5 md:px-3.5 md:py-2.5 bg-transparent text-[13px] resize-none focus:outline-none disabled:opacity-50 placeholder:text-(--dim)/50 overflow-y-hidden min-h-[40px]"
+            style={{ lineHeight: "1.5" }}
           />
 
           <input
@@ -270,9 +266,7 @@ export function ToolBelt({
 
           <ToolBeltToolbarContainer
             isLoading={isLoading}
-            thinkingSnippet={thinkingSnippet}
-            isRecording={isRecording}
-            isTranscribing={isTranscribing}
+            recording={{ isRecording, isTranscribing, onStart: startRecording, onStop: stopRecording }}
             attachmentsCount={attachments.length}
             disabled={isDisabled}
             canSend={canSend}
@@ -292,12 +286,12 @@ export function ToolBelt({
             onTTSToggle={handleTTSToggle}
             onAttachFile={handleAttachFile}
             onAttachImage={handleAttachImage}
-            onStartRecording={startRecording}
-            onStopRecording={stopRecording}
             onStop={onStop}
             onSubmit={handleSubmit}
             callModeEnabled={callModeEnabled}
             onCallModeToggle={onCallModeToggle}
+            contextStats={contextStats}
+            onOpenContext={onOpenContext}
           />
         </div>
       </div>

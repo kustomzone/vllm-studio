@@ -11,7 +11,6 @@ import {
   Code,
   Brain,
   SlidersHorizontal,
-  Clock,
   Loader2,
   Plus,
   ArrowUp,
@@ -20,15 +19,24 @@ import {
   Phone,
   PhoneOff,
 } from "lucide-react";
-import { ToolDropdown, DropdownItem } from "../tool-dropdown";
-import { buildDisplayModelLabel, type ModelOption } from "../../../types";
+import { ToolDropdown, DropdownItem } from "@/ui/dropdown-menu";
+import { ElapsedTimer } from "./elapsed-timer";
+import { ContextWindowMeter } from "./context-window-meter";
+import { ModelSelect } from "./model-select";
+import type { ModelOption } from "../../../types";
+import type { ContextStats } from "@/lib/services/context-management";
+
+export interface ToolBeltToolbarDesktopRecording {
+  isRecording: boolean;
+  isTranscribing: boolean;
+  onStart?: () => void;
+  onStop?: () => void;
+}
 
 type Props = {
   isLoading?: boolean;
-  elapsedSeconds?: number;
-  thinkingSnippet?: string;
-  isRecording: boolean;
-  isTranscribing: boolean;
+  streamingStartTime?: number | null;
+  recording: ToolBeltToolbarDesktopRecording;
   attachmentsCount: number;
   disabled?: boolean;
   canSend: boolean;
@@ -47,19 +55,18 @@ type Props = {
   onTTSToggle?: () => void;
   onAttachFile?: () => void;
   onAttachImage?: () => void;
-  onStartRecording?: () => void;
-  onStopRecording?: () => void;
   onStop?: () => void;
   onSubmit?: () => void;
   callModeEnabled?: boolean;
   onCallModeToggle?: () => void;
+  contextStats?: Omit<ContextStats, "compactionHistory" | "lastCompaction" | "totalCompactions" | "totalTokensCompacted"> | null;
+  onOpenContext?: () => void;
 };
 
 export function ToolBeltToolbarDesktop({
   isLoading,
-  elapsedSeconds,
-  isRecording,
-  isTranscribing,
+  streamingStartTime,
+  recording,
   attachmentsCount,
   disabled,
   canSend,
@@ -78,61 +85,59 @@ export function ToolBeltToolbarDesktop({
   onTTSToggle,
   onAttachFile,
   onAttachImage,
-  onStartRecording,
-  onStopRecording,
   onStop,
   onSubmit,
   callModeEnabled,
   onCallModeToggle,
+  contextStats,
+  onOpenContext,
 }: Props) {
-  const hasActiveFeatures = Boolean(
-    toolsEnabled || artifactsEnabled || deepResearchEnabled || hasSystemPrompt,
+  const { isRecording, isTranscribing, onStart, onStop: onStopRecording } = recording;
+
+  const hasDropDownActive = Boolean(
+    toolsEnabled ||
+      deepResearchEnabled ||
+      artifactsEnabled ||
+      isTTSEnabled ||
+      callModeEnabled ||
+      hasSystemPrompt ||
+      attachmentsCount > 0,
   );
 
   return (
-    <div className="hidden md:flex items-center justify-between">
-      <div className="flex items-center gap-1 min-w-0">
-        {/* Timer during loading */}
-        {isLoading && elapsedSeconds !== undefined && elapsedSeconds >= 0 && (
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg min-w-0">
-            <Clock className="h-3 w-3 text-(--fg)/40 animate-pulse shrink-0" />
-            <span className="text-xs font-mono text-(--fg)/40 shrink-0">
-              {Math.floor(elapsedSeconds / 60)}:{(elapsedSeconds % 60).toString().padStart(2, "0")}
-            </span>
-          </div>
-        )}
+    <div className="hidden md:flex items-center justify-between gap-2 px-1.5 pb-1.5">
+      <div className="flex items-center gap-0.5 min-w-0">
+        {isLoading && <ElapsedTimer startedAt={streamingStartTime ?? null} />}
 
-        {/* Unified + dropdown: attachments, voice, tools, settings */}
         <ToolDropdown
           icon={Plus}
-          label="Add"
-          isActive={hasActiveFeatures || attachmentsCount > 0}
+          label=""
+          isActive={hasDropDownActive}
           disabled={disabled}
         >
-          <DropdownItem
-            icon={Paperclip}
-            label="Attach file"
-            onClick={onAttachFile}
-            disabled={disabled}
-            closeOnClick
-          />
-          <DropdownItem
-            icon={ImageIcon}
-            label="Attach image"
-            onClick={onAttachImage}
-            disabled={disabled}
-            closeOnClick
-          />
+          <DropdownItem icon={Paperclip} label="Attach file" onClick={onAttachFile} disabled={disabled} closeOnClick />
+          <DropdownItem icon={ImageIcon} label="Attach image" onClick={onAttachImage} disabled={disabled} closeOnClick />
 
           <div className="my-1 mx-2 h-px bg-(--border)" />
 
-          <DropdownItem
-            icon={Globe}
-            label="Web search & tools"
-            isActive={toolsEnabled}
-            onClick={onToolsToggle}
-            disabled={disabled}
-          />
+          {onToolsToggle && (
+            <DropdownItem
+              icon={Globe}
+              label="Web search & tools"
+              isActive={toolsEnabled}
+              onClick={onToolsToggle}
+              disabled={disabled}
+            />
+          )}
+          {onDeepResearchToggle && (
+            <DropdownItem
+              icon={Brain}
+              label="Deep research"
+              isActive={deepResearchEnabled}
+              onClick={onDeepResearchToggle}
+              disabled={disabled}
+            />
+          )}
           {onArtifactsToggle && (
             <DropdownItem
               icon={Code}
@@ -142,17 +147,10 @@ export function ToolBeltToolbarDesktop({
               disabled={disabled}
             />
           )}
-          {onDeepResearchToggle && (
-            <DropdownItem
-              icon={Brain}
-              label="Deep Research"
-              isActive={deepResearchEnabled}
-              onClick={onDeepResearchToggle}
-              disabled={disabled}
-            />
-          )}
 
-          <div className="my-1 mx-2 h-px bg-(--border)" />
+          {(onOpenChatSettings || onTTSToggle || onCallModeToggle) && (
+            <div className="my-1 mx-2 h-px bg-(--border)" />
+          )}
 
           {onOpenChatSettings && (
             <DropdownItem
@@ -183,20 +181,17 @@ export function ToolBeltToolbarDesktop({
           )}
         </ToolDropdown>
 
-        {/* Mic button stays visible — it's a frequently used action */}
         <button
-          onClick={isRecording ? onStopRecording : onStartRecording}
+          onClick={isRecording ? onStopRecording : onStart}
           disabled={disabled || isTranscribing}
-          className={`flex items-center justify-center p-2 rounded-lg transition-all:ease-in:200ms disabled:opacity-50 ${
+          className={`flex items-center justify-center h-7 w-7 rounded-md transition-colors disabled:opacity-50 ${
             isRecording
               ? "bg-(--err)/15 text-(--err)"
               : isTranscribing
                 ? "bg-(--hl1)/15 text-(--hl1)"
                 : "hover:bg-(--fg)/5 text-(--dim)"
           }`}
-          title={
-            isTranscribing ? "Transcribing..." : isRecording ? "Stop recording" : "Voice input"
-          }
+          title={isTranscribing ? "Transcribing..." : isRecording ? "Stop recording" : "Voice input"}
         >
           {isTranscribing ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -208,46 +203,20 @@ export function ToolBeltToolbarDesktop({
         </button>
       </div>
 
-      <div className="flex items-center gap-2">
-        {availableModels.length > 0 && onModelChange && (
-          <select
-            value={selectedModel || ""}
-            onChange={(e) => onModelChange(e.target.value)}
-            disabled={disabled || isLoading}
-            className="max-w-[180px] px-2.5 py-1 font-mono text-[11px] bg-(--surface) border border-(--border)/60 rounded-lg text-(--dim) focus:outline-none focus:border-(--accent)/50 focus:text-(--fg) disabled:opacity-50 truncate appearance-none cursor-pointer hover:text-(--fg) hover:border-(--border) transition-all"
-            title={selectedModel || "Select model"}
-          >
-            {(() => {
-              const grouped = new Map<string, typeof availableModels>();
-              for (const model of availableModels) {
-                const group = model.provider || "local";
-                if (!grouped.has(group)) grouped.set(group, []);
-                grouped.get(group)!.push(model);
-              }
-              if (grouped.size <= 1) {
-                return availableModels.map((model, idx) => (
-                  <option key={`${model.id}-${idx}`} value={model.id}>
-                    {buildDisplayModelLabel(model.id, model.provider)}
-                  </option>
-                ));
-              }
-              return Array.from(grouped.entries()).map(([group, models]) => (
-                <optgroup key={group} label={group}>
-                  {models.map((model, idx) => (
-                    <option key={`${model.id}-${idx}`} value={model.id}>
-                      {buildDisplayModelLabel(model.id, model.provider)}
-                    </option>
-                  ))}
-                </optgroup>
-              ));
-            })()}
-          </select>
-        )}
+      <div className="flex items-center gap-1.5">
+        <ModelSelect
+          availableModels={availableModels}
+          selectedModel={selectedModel}
+          onChange={onModelChange}
+          disabled={disabled || isLoading}
+        />
+
+        <ContextWindowMeter stats={contextStats} onClick={onOpenContext} />
 
         {isLoading ? (
           <button
             onClick={onStop}
-            className="h-8 w-8 flex items-center justify-center rounded-full bg-(--err)/15 text-(--err) hover:bg-(--err)/25 transition-colors:ease-in:200ms shrink-0"
+            className="h-7 w-7 flex items-center justify-center rounded-full bg-(--err)/15 text-(--err) hover:bg-(--err)/25 transition-colors shrink-0"
             title="Stop"
           >
             <Square className="h-3 w-3 fill-current" />
@@ -256,7 +225,7 @@ export function ToolBeltToolbarDesktop({
           <button
             onClick={onSubmit}
             disabled={!canSend}
-            className={`h-8 w-8 flex items-center justify-center rounded-full transition-colors:ease-in:200ms shrink-0 ${
+            className={`h-7 w-7 flex items-center justify-center rounded-full transition-colors shrink-0 ${
               canSend
                 ? "bg-(--fg) text-(--bg) hover:bg-(--fg)/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--bg)"
                 : "bg-(--fg)/10 text-(--dim)/40 cursor-not-allowed"
