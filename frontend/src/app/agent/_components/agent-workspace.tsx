@@ -22,6 +22,13 @@ type WebviewElement = HTMLElement & {
   goForward: () => void;
   reload: () => void;
   src: string;
+  loadURL: (url: string) => Promise<void>;
+  getURL: () => string;
+  getTitle: () => string;
+  executeJavaScript: (script: string, userGesture?: boolean) => Promise<unknown>;
+  capturePage: () => Promise<{ toDataURL: () => string }>;
+  addEventListener: HTMLElement["addEventListener"];
+  removeEventListener: HTMLElement["removeEventListener"];
 };
 
 type AgentModel = {
@@ -84,6 +91,7 @@ const DEFAULT_AGENT_CWD = "";
 const SELECTED_PROJECT_KEY = "vllm-studio.agent.selectedProjectId";
 const SESSIONS_COLLAPSED_KEY = "vllm-studio.agent.sessionsCollapsed";
 const ACTIVE_PI_SESSION_KEY = "vllm-studio.agent.activePiSessionId";
+const BROWSER_TOOL_KEY = "vllm-studio.agent.browserToolEnabled";
 
 function getDesktopBridge(): DesktopBridge | null {
   if (typeof window === "undefined") return null;
@@ -177,6 +185,7 @@ export function AgentWorkspace() {
   const [projectPickerError, setProjectPickerError] = useState("");
   const [activePiSessionId, setActivePiSessionId] = useState<string | null>(null);
   const [sessionsCollapsed, setSessionsCollapsed] = useState(false);
+  const [browserToolEnabled, setBrowserToolEnabled] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const webviewRef = useRef<WebviewElement | null>(null);
@@ -219,14 +228,127 @@ export function AgentWorkspace() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages, status]);
 
-  // Restore the sessions sidebar collapsed/expanded preference + the last
-  // resumed pi session id across reloads.
+  // Run a browser command issued by the agent against the embedded webview.
+  // In dev (iframe) we can only do limited operations because of cross-origin
+  // restrictions; we surface a helpful error so the model can adapt.
+  const runBrowserCommand = useCallback(
+    async (verb: string, payload: Record<string, unknown>): Promise<{ ok: boolean; data?: unknown; error?: string }> => {
+      const webview = webviewRef.current;
+      if (isElectron && webview && typeof webview.executeJavaScript === "function") {
+        try {
+          switch (verb) {
+            case "navigate": {
+              const url = String(payload.url || "");
+              if (!url) return { ok: false, error: "url required" };
+              await webview.loadURL(url);
+              setBrowserUrl(url);
+              setBrowserInput(url);
+              return { ok: true, data: { url } };
+            }
+            case "get-url": {
+              return { ok: true, data: { url: webview.getURL(), title: webview.getTitle() } };
+            }
+            case "get-text": {
+              const text = (await webview.executeJavaScript("document.body && document.body.innerText")) as string | null;
+              return { ok: true, data: { text: text ?? "" } };
+            }
+            case "get-html": {
+              const html = (await webview.executeJavaScript("document.documentElement && document.documentElement.outerHTML")) as string | null;
+              return { ok: true, data: { html: html ?? "" } };
+            }
+            case "screenshot": {
+              const image = await webview.capturePage();
+              return { ok: true, data: { dataUri: image.toDataURL() } };
+            }
+            case "click": {
+              const selector = String(payload.selector || "");
+              if (!selector) return { ok: false, error: "selector required" };
+              const script = `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return { found: false }; (el).click(); return { found: true }; })()`;
+              const result = (await webview.executeJavaScript(script, true)) as { found: boolean };
+              return { ok: result.found, data: result, error: result.found ? undefined : "selector not found" };
+            }
+            case "scroll": {
+              const deltaY = Number(payload.deltaY ?? 0);
+              await webview.executeJavaScript(`window.scrollBy(0, ${deltaY})`);
+              return { ok: true, data: { deltaY, scrollY: await webview.executeJavaScript("window.scrollY") } };
+            }
+            case "fill": {
+              const selector = String(payload.selector || "");
+              const value = String(payload.value ?? "");
+              const script = `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return { found: false }; el.focus(); el.value = ${JSON.stringify(value)}; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return { found: true }; })()`;
+              const result = (await webview.executeJavaScript(script, true)) as { found: boolean };
+              return { ok: result.found, data: result, error: result.found ? undefined : "selector not found" };
+            }
+            default:
+              return { ok: false, error: `Unsupported browser verb: ${verb}` };
+          }
+        } catch (error) {
+          return { ok: false, error: error instanceof Error ? error.message : String(error) };
+        }
+      }
+
+      // Iframe fallback (dev or non-electron). Cross-origin restrictions make
+      // most operations impossible — handle the few that are still useful.
+      const iframe = iframeRef.current;
+      if (!iframe) return { ok: false, error: "Browser panel not mounted" };
+      switch (verb) {
+        case "navigate": {
+          const url = String(payload.url || "");
+          if (!url) return { ok: false, error: "url required" };
+          iframe.src = url;
+          setBrowserUrl(url);
+          setBrowserInput(url);
+          return { ok: true, data: { url } };
+        }
+        case "get-url":
+          return { ok: true, data: { url: iframe.src, title: "" } };
+        default:
+          return {
+            ok: false,
+            error: `Browser tool '${verb}' is only available in the desktop app (cross-origin iframe restriction in dev).`,
+          };
+      }
+    },
+    [isElectron],
+  );
+
+  // Open an SSE subscription to /api/agent/browser/events whenever the
+  // browser tool is enabled. Each command we receive is dispatched to
+  // runBrowserCommand and the result is POSTed back to /result. The renderer
+  // is the only authoritative source for the embedded webview state.
+  useEffect(() => {
+    if (!browserToolEnabled) return;
+    if (typeof window === "undefined") return;
+    const source = new EventSource("/api/agent/browser/events");
+    source.onmessage = async (event) => {
+      try {
+        const command = JSON.parse(event.data) as { id: string; verb: string; payload: Record<string, unknown> };
+        const result = await runBrowserCommand(command.verb, command.payload);
+        await fetch("/api/agent/browser/result", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: command.id, ...result }),
+        });
+      } catch (err) {
+        // Swallow — pi will time out and surface the error to the model.
+        console.warn("[agent] browser bridge dispatch failed", err);
+      }
+    };
+    return () => {
+      source.close();
+    };
+  }, [browserToolEnabled, runBrowserCommand]);
+
+  // Restore preferences across reloads (sessions sidebar collapsed,
+  // last-resumed pi session, browser-tool toggle).
   useEffect(() => {
     if (typeof window === "undefined") return;
     const collapsed = window.localStorage.getItem(SESSIONS_COLLAPSED_KEY);
     if (collapsed === "1") setSessionsCollapsed(true);
     const last = window.localStorage.getItem(ACTIVE_PI_SESSION_KEY);
     if (last) setActivePiSessionId(last);
+    const browserOn = window.localStorage.getItem(BROWSER_TOOL_KEY);
+    if (browserOn === "1") setBrowserToolEnabled(true);
   }, []);
 
   const persistSessionsCollapsed = useCallback((value: boolean) => {
@@ -238,6 +360,16 @@ export function AgentWorkspace() {
     if (typeof window === "undefined") return;
     if (id) window.localStorage.setItem(ACTIVE_PI_SESSION_KEY, id);
     else window.localStorage.removeItem(ACTIVE_PI_SESSION_KEY);
+  }, []);
+
+  const toggleBrowserTool = useCallback(() => {
+    setBrowserToolEnabled((current) => {
+      const next = !current;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(BROWSER_TOOL_KEY, next ? "1" : "0");
+      }
+      return next;
+    });
   }, []);
 
   const loadProjects = useCallback(async (): Promise<ProjectEntry[]> => {
@@ -713,6 +845,7 @@ export function AgentWorkspace() {
           // server-side resolver can fall back to the last-used project / $HOME.
           cwd: agentCwd.trim() || undefined,
           piSessionId: activePiSessionId,
+          browserToolEnabled,
         }),
       });
       if (!response.ok || !response.body) {
@@ -890,6 +1023,28 @@ export function AgentWorkspace() {
           title="Start a fresh thread"
         >
           <Plus className="h-3.5 w-3.5" /> New thread
+        </button>
+
+        <button
+          type="button"
+          onClick={toggleBrowserTool}
+          aria-pressed={browserToolEnabled}
+          title={
+            browserToolEnabled
+              ? "Browser tool: ON — agent can drive the browser"
+              : "Browser tool: OFF — toggle on to let the agent navigate, click, fill, and read pages"
+          }
+          className={`hidden h-7 items-center gap-1.5 rounded border px-2 text-xs xl:inline-flex ${
+            browserToolEnabled
+              ? "border-(--accent) bg-(--accent)/10 text-(--accent)"
+              : "border-transparent text-(--dim) hover:text-(--fg) hover:bg-(--surface)"
+          }`}
+        >
+          Browser tool
+          <span
+            aria-hidden
+            className={`ml-1 inline-block h-1.5 w-1.5 rounded-full ${browserToolEnabled ? "bg-(--accent)" : "bg-(--dim)"}`}
+          />
         </button>
 
         <button

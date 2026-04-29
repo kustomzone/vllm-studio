@@ -99,6 +99,9 @@ export async function startFrontendServer(): Promise<ServerHandle> {
       // to $HOME) when this env is empty, so leave it unset unless the operator
       // explicitly supplied one.
       VLLM_STUDIO_AGENT_CWD: process.env.VLLM_STUDIO_AGENT_CWD || app.getPath("home"),
+      // Expose the embedded server's own URL so the pi browser extension can
+      // call back into /api/agent/browser/*.
+      VLLM_STUDIO_FRONTEND_BASE: url,
     },
   });
 

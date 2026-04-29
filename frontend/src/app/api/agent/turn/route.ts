@@ -12,6 +12,9 @@ type TurnRequest = {
   // Optional pi session UUID to resume a past conversation. Distinct from
   // `sessionId`, which is the in-memory PiRpcSession key (one per browser tab).
   piSessionId?: string | null;
+  // When true, pi-runtime loads the browser extension so the agent can drive
+  // the embedded webview via tool calls.
+  browserToolEnabled?: boolean;
 };
 
 function sse(controller: ReadableStreamDefaultController<Uint8Array>, payload: unknown) {
@@ -36,6 +39,7 @@ export async function POST(request: NextRequest) {
     typeof body.piSessionId === "string" && body.piSessionId.trim()
       ? body.piSessionId.trim()
       : null;
+  const browserToolEnabled = body.browserToolEnabled === true;
 
   if (!message) return Response.json({ error: "message is required" }, { status: 400 });
   if (!modelId) return Response.json({ error: "modelId is required" }, { status: 400 });
@@ -45,7 +49,7 @@ export async function POST(request: NextRequest) {
       try {
         const session = piRuntimeManager.getSession(sessionId);
         sse(controller, { type: "status", phase: "starting", sessionId, modelId, cwd });
-        await session.ensureStarted(modelId, cwd, piSessionId);
+        await session.ensureStarted(modelId, cwd, piSessionId, browserToolEnabled);
         sse(controller, { type: "status", phase: "running", session: session.status });
         await session.prompt(message, (event) => {
           sse(controller, { type: "pi", event });

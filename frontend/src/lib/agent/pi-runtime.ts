@@ -90,6 +90,30 @@ async function resolveAgentCwd(input?: string): Promise<string> {
   return resolved;
 }
 
+// Locate the bundled browser extension. In dev it sits next to the source
+// files; in a packaged Electron app it ships under
+// process.resourcesPath/desktop/resources/pi-extensions/. We accept either.
+function resolveBrowserExtensionPath(): string | null {
+  const candidates = [
+    process.env.VLLM_STUDIO_BROWSER_EXTENSION_PATH,
+    process.resourcesPath
+      ? path.join(process.resourcesPath, "desktop", "resources", "pi-extensions", "browser.ts")
+      : null,
+    path.resolve(process.cwd(), "frontend", "desktop", "resources", "pi-extensions", "browser.ts"),
+    path.resolve(process.cwd(), "desktop", "resources", "pi-extensions", "browser.ts"),
+    path.resolve(process.cwd(), "..", "frontend", "desktop", "resources", "pi-extensions", "browser.ts"),
+  ].filter((value): value is string => Boolean(value));
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+function deriveFrontendBase(): string {
+  const port = process.env.PORT || "3000";
+  return `http://127.0.0.1:${port}`;
+}
+
 function piBinaryPath(): string {
   const local = path.join(
     process.cwd(),
@@ -165,7 +189,14 @@ class PiRpcSession extends EventEmitter {
   private currentPiSessionId: string | null = null;
   private agentDir = "";
 
-  async ensureStarted(modelId: string, cwd?: string, piSessionId?: string | null): Promise<void> {
+  private currentBrowserToolEnabled = false;
+
+  async ensureStarted(
+    modelId: string,
+    cwd?: string,
+    piSessionId?: string | null,
+    browserToolEnabled = false,
+  ): Promise<void> {
     const resolvedCwd = await resolveAgentCwd(cwd);
     const desiredSessionId = piSessionId ?? null;
     const matches =
@@ -173,7 +204,8 @@ class PiRpcSession extends EventEmitter {
       !this.process.killed &&
       this.currentModelId === modelId &&
       this.currentCwd === resolvedCwd &&
-      this.currentPiSessionId === desiredSessionId;
+      this.currentPiSessionId === desiredSessionId &&
+      this.currentBrowserToolEnabled === browserToolEnabled;
     if (matches) return;
 
     if (this.starting) await this.starting;
@@ -182,12 +214,15 @@ class PiRpcSession extends EventEmitter {
       !this.process.killed &&
       this.currentModelId === modelId &&
       this.currentCwd === resolvedCwd &&
-      this.currentPiSessionId === desiredSessionId;
+      this.currentPiSessionId === desiredSessionId &&
+      this.currentBrowserToolEnabled === browserToolEnabled;
     if (matchesAfter) return;
 
-    this.starting = this.start(modelId, resolvedCwd, desiredSessionId).finally(() => {
-      this.starting = null;
-    });
+    this.starting = this.start(modelId, resolvedCwd, desiredSessionId, browserToolEnabled).finally(
+      () => {
+        this.starting = null;
+      },
+    );
     await this.starting;
   }
 
@@ -195,6 +230,7 @@ class PiRpcSession extends EventEmitter {
     modelId: string,
     cwd: string,
     piSessionId: string | null,
+    browserToolEnabled: boolean,
   ): Promise<void> {
     await this.stop();
     const { models, agentDir } = await refreshPiModels();
@@ -206,6 +242,7 @@ class PiRpcSession extends EventEmitter {
     this.currentModelId = modelId;
     this.currentCwd = cwd;
     this.currentPiSessionId = piSessionId;
+    this.currentBrowserToolEnabled = browserToolEnabled;
 
     const args = [
       "--mode",
@@ -223,6 +260,10 @@ class PiRpcSession extends EventEmitter {
       // resolves it within the current cwd's session directory.
       args.push("--session", piSessionId);
     }
+    if (browserToolEnabled) {
+      const extensionPath = resolveBrowserExtensionPath();
+      if (extensionPath) args.push("--extension", extensionPath);
+    }
 
     const child = spawn(piBinaryPath(), args, {
       cwd,
@@ -231,6 +272,10 @@ class PiRpcSession extends EventEmitter {
         PATH: piPathEnv(),
         PI_CODING_AGENT_DIR: agentDir,
         PI_SKIP_VERSION_CHECK: "1",
+        // The browser extension uses this base URL to call back into the
+        // frontend's /api/agent/browser/* endpoints.
+        VLLM_STUDIO_FRONTEND_BASE:
+          process.env.VLLM_STUDIO_FRONTEND_BASE ?? deriveFrontendBase(),
       },
       stdio: ["pipe", "pipe", "pipe"],
     });

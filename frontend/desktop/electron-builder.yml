@@ -23,6 +23,10 @@ extraResources:
     to: app/frontend/.next/standalone/frontend/public
     filter:
       - "**/*"
+  - from: desktop/resources/pi-extensions
+    to: desktop/resources/pi-extensions
+    filter:
+      - "**/*"
 
 directories:
   output: dist-desktop
