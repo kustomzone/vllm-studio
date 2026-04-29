@@ -105,7 +105,9 @@ export function AgentWorkspace() {
   const [loadingModels, setLoadingModels] = useState(true);
   const [modelFilter, setModelFilter] = useState("");
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [isMultiline, setIsMultiline] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const activeModel = useMemo(
     () => models.find((model) => model.id === selectedModel),
@@ -269,6 +271,10 @@ export function AgentWorkspace() {
     const userId = newId("user");
     const assistantId = newId("assistant");
     setInput("");
+    setIsMultiline(false);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "";
+    }
     setError("");
     setStatus("starting");
     setMessages((current) => [
@@ -341,6 +347,10 @@ export function AgentWorkspace() {
       },
     ]);
     setInput("");
+    setIsMultiline(false);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "";
+    }
     setError("");
   }
 
@@ -476,10 +486,29 @@ export function AgentWorkspace() {
               onSubmit={sendMessage}
               className="shrink-0 border-t border-[var(--agent-border)] bg-[var(--agent-bg)] px-4 py-3"
             >
-              <div className="mx-auto max-w-3xl rounded-xl border border-[var(--agent-border)] bg-[var(--agent-card)] shadow-sm">
+              <div
+                className={`mx-auto max-w-3xl rounded-xl border bg-[var(--agent-card)] shadow-sm ${
+                  isMultiline
+                    ? "border-[var(--agent-primary)]/50 ring-1 ring-[var(--agent-primary)]/40"
+                    : "border-[var(--agent-border)]"
+                }`}
+              >
                 <textarea
+                  ref={textareaRef}
                   value={input}
-                  onChange={(event) => setInput(event.target.value)}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setInput(value);
+                    const element = event.currentTarget;
+                    if (!value) {
+                      element.style.height = "";
+                      setIsMultiline(false);
+                      return;
+                    }
+                    element.style.height = "auto";
+                    element.style.height = `${element.scrollHeight}px`;
+                    setIsMultiline(element.scrollHeight > 44);
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey) {
                       event.preventDefault();
@@ -491,7 +520,7 @@ export function AgentWorkspace() {
                       ? `Ask ${activeModel.name} to edit, inspect, or run commands...`
                       : "Load a /v1/models entry first..."
                   }
-                  className="min-h-24 w-full resize-none rounded-t-xl bg-transparent px-3 py-3 text-sm leading-6 outline-none placeholder:text-[var(--agent-muted)]"
+                  className="min-h-[40px] max-h-[240px] w-full resize-none overflow-y-auto rounded-t-xl bg-transparent px-3 py-2 text-sm leading-6 outline-none placeholder:text-[var(--agent-muted)]"
                 />
                 <div className="flex items-center gap-2 border-t border-[var(--agent-border)] px-2 py-2">
                   <select
