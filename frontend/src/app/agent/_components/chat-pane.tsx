@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Globe, Plus, Send, Square, X } from "lucide-react";
+import { FileText, Globe, Paperclip, Plus, Send, Square, X } from "lucide-react";
 import { AssistantMarkdown } from "./assistant-markdown";
 
 export type ToolBlock = {
@@ -26,6 +26,9 @@ export type ChatMessage = {
 export type SessionTab = {
   // Stable id local to this pane, used as a React key for tabs.
   id: string;
+  // In-memory PiRpcSession key. One per tab so tabs can run independent pi
+  // processes instead of sharing a pane-level runtime.
+  runtimeSessionId: string;
   // Pi session UUID (null = unstarted, will be assigned by pi when the first
   // turn runs).
   piSessionId: string | null;
@@ -36,6 +39,15 @@ export type SessionTab = {
   status: string;
   error: string;
   input: string;
+};
+
+type ChatAttachment = {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  mode: "text" | "data-url" | "metadata";
+  content: string;
 };
 
 type Props = {
@@ -73,6 +85,81 @@ function nowLabel() {
   return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(
     new Date(),
   );
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function isTextLike(file: File) {
+  if (file.type.startsWith("text/")) return true;
+  return /\.(md|markdown|txt|json|csv|tsv|log|yaml|yml|xml|html|css|js|jsx|ts|tsx|py|sh|sql)$/i.test(
+    file.name,
+  );
+}
+
+function readFileAsText(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
+    reader.readAsText(file);
+  });
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function createAttachment(file: File): Promise<ChatAttachment> {
+  const id = newId("file");
+  if (isTextLike(file) && file.size <= 350_000) {
+    return {
+      id,
+      name: file.name,
+      type: file.type || "text/plain",
+      size: file.size,
+      mode: "text",
+      content: await readFileAsText(file),
+    };
+  }
+  if (file.size <= 1_500_000) {
+    return {
+      id,
+      name: file.name,
+      type: file.type || "application/octet-stream",
+      size: file.size,
+      mode: "data-url",
+      content: await readFileAsDataUrl(file),
+    };
+  }
+  return {
+    id,
+    name: file.name,
+    type: file.type || "application/octet-stream",
+    size: file.size,
+    mode: "metadata",
+    content: "File is too large to inline; only metadata is attached.",
+  };
+}
+
+function attachmentPrompt(attachments: ChatAttachment[]) {
+  if (attachments.length === 0) return "";
+  return attachments
+    .map((file, index) => {
+      const header = `Attachment ${index + 1}: ${file.name} (${file.type}, ${formatFileSize(file.size)})`;
+      if (file.mode === "text") return `${header}\n\`\`\`\n${file.content}\n\`\`\``;
+      if (file.mode === "data-url") return `${header}\nData URL:\n${file.content}`;
+      return `${header}\n${file.content}`;
+    })
+    .join("\n\n");
 }
 
 function extractToolText(value: unknown): string {
@@ -113,6 +200,7 @@ function upsertTool(
 export function makeFreshTab(): SessionTab {
   return {
     id: newId("tab"),
+    runtimeSessionId: newId("rt"),
     piSessionId: null,
     title: "New session",
     messages: [],
@@ -142,7 +230,10 @@ export function ChatPane({
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+  const [readingAttachments, setReadingAttachments] = useState(false);
 
   const activeTab = useMemo(
     () => tabs.find((tab) => tab.id === activeTabId) ?? tabs[0] ?? null,
@@ -271,12 +362,19 @@ export function ChatPane({
       event.preventDefault();
       if (!activeTab) return;
       const text = activeTab.input.trim();
-      if (!text || !modelId || running) return;
+      if ((!text && attachments.length === 0) || !modelId || running || readingAttachments) return;
 
       const tabId = activeTab.id;
       const userId = newId("user");
       const assistantId = newId("assistant");
-      const userText = text;
+      const attachedText = attachmentPrompt(attachments);
+      const attachmentSummary =
+        attachments.length > 0
+          ? `Attached: ${attachments.map((file) => file.name).join(", ")}`
+          : "";
+      const userText = text || attachmentSummary;
+      const displayText = [text, attachmentSummary].filter(Boolean).join("\n\n");
+      const promptText = [text, attachedText].filter(Boolean).join("\n\n");
 
       // Optimistic update: show the user's turn + a blank assistant message.
       updateTab(tabId, (tab) => ({
@@ -290,7 +388,7 @@ export function ChatPane({
             : tab.title,
         messages: [
           ...tab.messages,
-          { id: userId, role: "user", text: userText, timestamp: nowLabel() },
+          { id: userId, role: "user", text: displayText, timestamp: nowLabel() },
           {
             id: assistantId,
             role: "assistant",
@@ -300,17 +398,19 @@ export function ChatPane({
           },
         ],
       }));
+      setAttachments([]);
       setIsMultiline(false);
       if (textareaRef.current) textareaRef.current.style.height = "";
+      if (fileInputRef.current) fileInputRef.current.value = "";
 
       try {
         const response = await fetch("/api/agent/turn", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            sessionId: runtimeSessionId,
+            sessionId: activeTab.runtimeSessionId || runtimeSessionId,
             modelId,
-            message: userText,
+            message: promptText,
             cwd: cwd.trim() || undefined,
             piSessionId: activeTab.piSessionId,
             browserToolEnabled,
@@ -365,8 +465,10 @@ export function ChatPane({
     },
     [
       activeTab,
+      attachments,
       modelId,
       running,
+      readingAttachments,
       runtimeSessionId,
       cwd,
       browserToolEnabled,
@@ -376,13 +478,34 @@ export function ChatPane({
     ],
   );
 
+  const attachFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0 || !activeTab) return;
+      setReadingAttachments(true);
+      try {
+        const next = await Promise.all(Array.from(files).map((file) => createAttachment(file)));
+        setAttachments((current) => [...current, ...next]);
+        updateTab(activeTab.id, (tab) => ({ ...tab, error: "" }));
+      } catch (err) {
+        updateTab(activeTab.id, (tab) => ({
+          ...tab,
+          error: err instanceof Error ? err.message : "Failed to attach file",
+        }));
+      } finally {
+        setReadingAttachments(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    },
+    [activeTab, updateTab],
+  );
+
   const abortTurn = useCallback(async () => {
     if (!activeTab) return;
     const tabId = activeTab.id;
     await fetch("/api/agent/abort", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId: runtimeSessionId }),
+      body: JSON.stringify({ sessionId: activeTab.runtimeSessionId || runtimeSessionId }),
     }).catch(() => undefined);
     updateTab(tabId, (tab) => ({ ...tab, status: "idle" }));
   }, [activeTab, runtimeSessionId, updateTab]);
@@ -598,8 +721,34 @@ export function ChatPane({
         </div>
       </div>
 
-      <form onSubmit={sendMessage} className="shrink-0 bg-(--bg) px-6 pb-4 pt-2">
-        <div className="mx-auto max-w-3xl rounded-xl bg-(--surface)">
+      <form onSubmit={sendMessage} className="shrink-0 bg-(--bg) px-6 pb-3 pt-1.5">
+        <div className="mx-auto max-w-3xl rounded-lg border border-(--border)/50 bg-(--surface)">
+          {attachments.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5 border-b border-(--border)/50 px-2 py-1.5">
+              {attachments.map((file) => (
+                <span
+                  key={file.id}
+                  className="inline-flex max-w-[220px] items-center gap-1 rounded border border-(--border)/70 bg-(--bg) px-1.5 py-0.5 text-[11px] text-(--dim)"
+                  title={`${file.name} · ${file.type} · ${formatFileSize(file.size)}`}
+                >
+                  <FileText className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{file.name}</span>
+                  <span className="shrink-0 opacity-70">{formatFileSize(file.size)}</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAttachments((current) => current.filter((item) => item.id !== file.id))
+                    }
+                    className="rounded p-0.5 hover:bg-(--surface) hover:text-(--fg)"
+                    aria-label={`Remove ${file.name}`}
+                    title={`Remove ${file.name}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
           <textarea
             ref={textareaRef}
             value={activeTab?.input ?? ""}
@@ -615,7 +764,7 @@ export function ChatPane({
               }
               element.style.height = "auto";
               element.style.height = `${element.scrollHeight}px`;
-              setIsMultiline(element.scrollHeight > 44);
+              setIsMultiline(element.scrollHeight > 38);
             }}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
@@ -630,9 +779,26 @@ export function ChatPane({
                   ? "Loading models…"
                   : "No models available — check /v1/models"
             }
-            className="min-h-[40px] max-h-[240px] w-full resize-none overflow-y-auto bg-transparent px-3 py-2 text-sm leading-6 text-(--fg) outline-none placeholder:text-(--dim)"
+            className="min-h-[34px] max-h-[160px] w-full resize-none overflow-y-auto bg-transparent px-2.5 py-1.5 text-sm leading-5 text-(--fg) outline-none placeholder:text-(--dim)"
           />
-          <div className="flex items-center gap-2 px-2 pb-1.5">
+          <div className="flex items-center gap-1.5 px-2 pb-1.5">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(event) => void attachFiles(event.currentTarget.files)}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={readingAttachments || running}
+              className="inline-flex h-6 w-6 items-center justify-center rounded text-(--dim) hover:bg-(--bg) hover:text-(--fg) disabled:opacity-30"
+              aria-label="Attach files"
+              title="Attach files"
+            >
+              <Paperclip className="h-3.5 w-3.5" />
+            </button>
             <button
               type="button"
               onClick={onToggleBrowserTool}
@@ -642,7 +808,7 @@ export function ChatPane({
                   ? "Browser tool: ON — agent can drive the browser"
                   : "Browser tool: OFF — click to let the agent navigate, click, fill, and read pages"
               }
-              className={`inline-flex h-7 w-7 items-center justify-center rounded border ${
+              className={`inline-flex h-6 w-6 items-center justify-center rounded border ${
                 browserToolEnabled
                   ? "border-(--accent) bg-(--accent)/10 text-(--accent)"
                   : "border-transparent text-(--dim) hover:bg-(--bg) hover:text-(--fg)"
@@ -655,15 +821,19 @@ export function ChatPane({
               <button
                 type="button"
                 onClick={() => void abortTurn()}
-                className="inline-flex h-7 items-center gap-1.5 rounded border border-(--border) bg-(--bg) px-2 text-xs text-(--dim) hover:text-(--fg)"
+                className="inline-flex h-6 items-center gap-1.5 rounded border border-(--border) bg-(--bg) px-2 text-xs text-(--dim) hover:text-(--fg)"
               >
                 <Square className="h-3 w-3" /> Stop
               </button>
             ) : (
               <button
                 type="submit"
-                disabled={!activeTab?.input.trim() || !modelId}
-                className="inline-flex h-7 w-7 items-center justify-center rounded text-(--fg) hover:bg-(--bg) disabled:opacity-30"
+                disabled={
+                  (!activeTab?.input.trim() && attachments.length === 0) ||
+                  !modelId ||
+                  readingAttachments
+                }
+                className="inline-flex h-6 w-6 items-center justify-center rounded text-(--fg) hover:bg-(--bg) disabled:opacity-30"
                 aria-label="Send"
                 title="Send"
               >
@@ -762,6 +932,15 @@ function TabPill({
     <div
       role="tab"
       aria-selected={active}
+      draggable={Boolean(tab.piSessionId)}
+      onDragStart={(event) => {
+        if (!tab.piSessionId) {
+          event.preventDefault();
+          return;
+        }
+        event.dataTransfer.setData("application/x-vllm-session", tab.piSessionId);
+        event.dataTransfer.effectAllowed = "copy";
+      }}
       onClick={onSelect}
       onDoubleClick={(event) => {
         event.stopPropagation();

@@ -38,7 +38,6 @@ type SessionSummary = {
 const DIRECTORY_PICKER_PROPS = { webkitdirectory: "" } as Record<string, string>;
 const ADD_PROJECT_EVENT = "vllm-studio.agent.addProject";
 export const PROJECTS_CHANGED_EVENT = "vllm-studio.agent.projectsChanged";
-const SELECTED_PROJECT_KEY = "vllm-studio.agent.selectedProjectId";
 
 export function triggerAddProjectFlow() {
   if (typeof window === "undefined") return;
@@ -243,11 +242,6 @@ export function ProjectsNavSection({ expanded }: { expanded: boolean }) {
     );
   }
 
-  const quickProject =
-    (typeof window !== "undefined"
-      ? projects.find((project) => project.id === window.localStorage.getItem(SELECTED_PROJECT_KEY))
-      : null) || projects[0];
-
   return (
     <div className="flex flex-col">
       <div className="mt-2 flex h-7 items-center px-3 text-[10px] font-medium uppercase tracking-wide text-(--dim)">
@@ -268,16 +262,6 @@ export function ProjectsNavSection({ expanded }: { expanded: boolean }) {
         <Plus className="w-4 h-4 shrink-0" />
         <span className="truncate text-sm font-medium text-(--fg)">Add project</span>
       </button>
-      {quickProject ? (
-        <Link
-          href={`/agent?project=${encodeURIComponent(quickProject.id)}&new=1`}
-          className="h-9 flex items-center gap-2 px-3 text-(--dim) hover:text-(--fg) hover:bg-(--surface) transition-colors"
-          title={`Start a new session in ${quickProject.name}`}
-        >
-          <Plus className="w-4 h-4 shrink-0" />
-          <span className="truncate text-sm font-medium text-(--fg)">New session</span>
-        </Link>
-      ) : null}
       {projects.length === 0 ? (
         <button
           type="button"
@@ -427,6 +411,11 @@ function ProjectSessions({ project }: { project: ProjectEntry }) {
             key={session.id}
             href={`/agent?project=${encodeURIComponent(project.id)}&session=${encodeURIComponent(session.id)}`}
             title={session.firstUserMessage || "Untitled session"}
+            draggable
+            onDragStart={(event) => {
+              event.dataTransfer.setData("application/x-vllm-session", session.id);
+              event.dataTransfer.effectAllowed = "copy";
+            }}
             className="h-8 flex items-center gap-2 pl-9 pr-3 text-(--dim) hover:text-(--fg) hover:bg-(--surface) transition-colors"
           >
             <MessageSquare className="w-3.5 h-3.5 shrink-0" />
