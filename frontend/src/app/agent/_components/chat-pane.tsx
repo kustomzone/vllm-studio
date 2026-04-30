@@ -172,6 +172,232 @@ function extractToolText(value: unknown): string {
     .join("\n");
 }
 
+function messageText(
+  content: string | Array<Record<string, unknown>> | undefined,
+  separator = "\n",
+): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) => {
+      if (part?.type === "text" && typeof part.text === "string") return part.text;
+      return "";
+    })
+    .filter(Boolean)
+    .join(separator);
+}
+
+function blocksFromMessageContent(content: string | Array<Record<string, unknown>> | undefined) {
+  if (typeof content === "string") {
+    return content ? [{ kind: "text" as const, id: newId("text"), text: content }] : [];
+  }
+  if (!Array.isArray(content)) return [];
+  const blocks: AssistantBlock[] = [];
+  for (const part of content) {
+    if (part?.type === "text" && typeof part.text === "string") {
+      blocks.push({ kind: "text", id: newId("text"), text: part.text });
+    } else if (part?.type === "thinking" && typeof part.thinking === "string") {
+      blocks.push({ kind: "thinking", id: newId("thinking"), text: part.thinking });
+    } else if (part?.type === "toolCall") {
+      blocks.push({
+        kind: "tool",
+        id: typeof part.id === "string" ? part.id : newId("tool"),
+        name: typeof part.name === "string" ? part.name : "tool",
+        status: "running",
+        text: JSON.stringify(part.arguments ?? {}, null, 2),
+      });
+    }
+  }
+  return blocks;
+}
+
+export function replaySessionEvents(events: Record<string, unknown>[]) {
+  const replayed: ChatMessage[] = [];
+  let pendingAssistantId: string | null = null;
+  let title: string | null = null;
+
+  const ensureAssistant = () => {
+    if (pendingAssistantId) return pendingAssistantId;
+    const id = newId("assistant");
+    replayed.push({ id, role: "assistant", text: "", blocks: [], timestamp: nowLabel() });
+    pendingAssistantId = id;
+    return id;
+  };
+  const localPatch = (assistantId: string, patch: (msg: ChatMessage) => ChatMessage) => {
+    const idx = replayed.findIndex((m) => m.id === assistantId);
+    if (idx !== -1) replayed[idx] = patch(replayed[idx]);
+  };
+  const assistantWithTool = (toolCallId: string) => {
+    for (let idx = replayed.length - 1; idx >= 0; idx -= 1) {
+      const message = replayed[idx];
+      if (
+        message.role === "assistant" &&
+        (message.blocks ?? []).some((block) => block.kind === "tool" && block.id === toolCallId)
+      ) {
+        return message.id;
+      }
+    }
+    return null;
+  };
+
+  for (const event of events) {
+    const type = event.type;
+    if (type === "message" || type === "message_end") {
+      const msg = event.message as
+        | {
+            role?: string;
+            content?: string | Array<Record<string, unknown>>;
+            toolCallId?: string;
+            toolName?: string;
+            isError?: boolean;
+          }
+        | undefined;
+      if (msg?.role === "user") {
+        pendingAssistantId = null;
+        const text = messageText(msg.content);
+        if (text) {
+          if (!title) title = text.slice(0, 40);
+          replayed.push({ id: newId("user"), role: "user", text, timestamp: nowLabel() });
+        }
+        continue;
+      }
+      if (msg?.role === "assistant") {
+        pendingAssistantId = null;
+        const blocks = blocksFromMessageContent(msg.content);
+        replayed.push({
+          id: newId("assistant"),
+          role: "assistant",
+          text: blocks
+            .filter((block): block is TextBlock => block.kind === "text")
+            .map((block) => block.text)
+            .join("\n"),
+          blocks,
+          timestamp: nowLabel(),
+        });
+        continue;
+      }
+      if (msg?.role === "toolResult") {
+        const id = msg.toolCallId || String(event.toolCallId || "");
+        if (id) {
+          const resultText = messageText(msg.content);
+          const assistantId = assistantWithTool(id) ?? ensureAssistant();
+          localPatch(assistantId, (message) => ({
+            ...message,
+            blocks: upsertTool(
+              message.blocks ?? [],
+              id,
+              (existing) => ({
+                ...existing,
+                status: msg.isError ? "error" : "done",
+                text: resultText || existing.text,
+              }),
+              () => ({
+                kind: "tool",
+                id,
+                name: msg.toolName || "tool",
+                status: msg.isError ? "error" : "done",
+                text: resultText,
+              }),
+            ),
+          }));
+        }
+        continue;
+      }
+    }
+
+    const eventType = event.type;
+    if (
+      eventType !== "message_update" &&
+      eventType !== "tool_execution_start" &&
+      eventType !== "tool_execution_update" &&
+      eventType !== "tool_execution_end"
+    ) {
+      continue;
+    }
+
+    const assistantId = ensureAssistant();
+    if (eventType === "message_update") {
+      const ame = event.assistantMessageEvent as Record<string, unknown> | undefined;
+      const updateType = ame?.type;
+      if (updateType === "text_delta" && typeof ame?.delta === "string") {
+        const delta = ame.delta;
+        localPatch(assistantId, (msg) => ({
+          ...msg,
+          blocks: appendDelta(msg.blocks ?? [], "text", delta),
+        }));
+      } else if (updateType === "thinking_delta" && typeof ame?.delta === "string") {
+        const delta = ame.delta;
+        localPatch(assistantId, (msg) => ({
+          ...msg,
+          blocks: appendDelta(msg.blocks ?? [], "thinking", delta),
+        }));
+      } else if (updateType === "toolcall_end") {
+        const toolCall = ame?.toolCall as
+          | { id?: string; name?: string; arguments?: unknown }
+          | undefined;
+        if (toolCall) {
+          const id = toolCall.id || newId("tool");
+          const name = toolCall.name || "tool";
+          const text = JSON.stringify(toolCall.arguments ?? {}, null, 2);
+          localPatch(assistantId, (msg) => ({
+            ...msg,
+            blocks: upsertTool(
+              msg.blocks ?? [],
+              id,
+              (existing) => ({ ...existing, text: existing.text || text }),
+              () => ({ kind: "tool", id, name, status: "running", text }),
+            ),
+          }));
+        }
+      }
+    } else if (eventType === "tool_execution_start") {
+      const id = String(event.toolCallId || newId("tool"));
+      const name = String(event.toolName || "tool");
+      localPatch(assistantId, (msg) => ({
+        ...msg,
+        blocks: upsertTool(
+          msg.blocks ?? [],
+          id,
+          (existing) => existing,
+          () => ({ kind: "tool", id, name, status: "running", text: "" }),
+        ),
+      }));
+    } else if (eventType === "tool_execution_update" || eventType === "tool_execution_end") {
+      const id = String(event.toolCallId || "");
+      if (id) {
+        const resultText = extractToolText(event.partialResult || event.result);
+        localPatch(assistantId, (msg) => ({
+          ...msg,
+          blocks: upsertTool(
+            msg.blocks ?? [],
+            id,
+            (existing) => ({
+              ...existing,
+              status:
+                eventType === "tool_execution_end"
+                  ? ((event.isError ? "error" : "done") as ToolBlock["status"])
+                  : existing.status,
+              text: resultText || existing.text,
+            }),
+            () => ({
+              kind: "tool",
+              id,
+              name: "tool",
+              status:
+                eventType === "tool_execution_end"
+                  ? ((event.isError ? "error" : "done") as ToolBlock["status"])
+                  : "running",
+              text: resultText,
+            }),
+          ),
+        }));
+      }
+    }
+  }
+
+  return { messages: replayed, title };
+}
+
 function appendDelta(
   blocks: AssistantBlock[],
   kind: "text" | "thinking",
@@ -528,137 +754,11 @@ export function ChatPane({
         };
         if (!response.ok) throw new Error(payload.error || "Failed to load session");
 
-        const replayed: ChatMessage[] = [];
-        let pendingAssistantId: string | null = null;
-        const ensureAssistant = () => {
-          if (pendingAssistantId) return pendingAssistantId;
-          const id = newId("assistant");
-          replayed.push({ id, role: "assistant", text: "", blocks: [], timestamp: nowLabel() });
-          pendingAssistantId = id;
-          return id;
-        };
-        const localPatch = (assistantId: string, patch: (msg: ChatMessage) => ChatMessage) => {
-          const idx = replayed.findIndex((m) => m.id === assistantId);
-          if (idx !== -1) replayed[idx] = patch(replayed[idx]);
-        };
-
-        let title: string | null = null;
-
-        for (const event of payload.events ?? []) {
-          const type = event.type;
-          if (type === "message_end") {
-            const msg = event.message as
-              | { role?: string; content?: Array<{ type?: string; text?: string }> }
-              | undefined;
-            if (msg?.role === "user") {
-              pendingAssistantId = null;
-              const text = Array.isArray(msg.content)
-                ? msg.content
-                    .filter((p) => p?.type === "text" && typeof p.text === "string")
-                    .map((p) => p.text)
-                    .join("\n")
-                : "";
-              if (text) {
-                if (!title) title = text.slice(0, 40);
-                replayed.push({
-                  id: newId("user"),
-                  role: "user",
-                  text,
-                  timestamp: nowLabel(),
-                });
-              }
-              continue;
-            }
-            if (msg?.role === "assistant" && pendingAssistantId) {
-              pendingAssistantId = null;
-              continue;
-            }
-          }
-
-          const assistantId = ensureAssistant();
-          const eventType = event.type;
-          if (eventType === "message_update") {
-            const ame = event.assistantMessageEvent as Record<string, unknown> | undefined;
-            const updateType = ame?.type;
-            if (updateType === "text_delta" && typeof ame?.delta === "string") {
-              const delta = ame.delta;
-              localPatch(assistantId, (msg) => ({
-                ...msg,
-                blocks: appendDelta(msg.blocks ?? [], "text", delta),
-              }));
-            } else if (updateType === "thinking_delta" && typeof ame?.delta === "string") {
-              const delta = ame.delta;
-              localPatch(assistantId, (msg) => ({
-                ...msg,
-                blocks: appendDelta(msg.blocks ?? [], "thinking", delta),
-              }));
-            } else if (updateType === "toolcall_end") {
-              const toolCall = ame?.toolCall as
-                | { id?: string; name?: string; arguments?: unknown }
-                | undefined;
-              if (toolCall) {
-                const id = toolCall.id || newId("tool");
-                const name = toolCall.name || "tool";
-                const text = JSON.stringify(toolCall.arguments ?? {}, null, 2);
-                localPatch(assistantId, (msg) => ({
-                  ...msg,
-                  blocks: upsertTool(
-                    msg.blocks ?? [],
-                    id,
-                    (existing) => ({ ...existing, text: existing.text || text }),
-                    () => ({ kind: "tool", id, name, status: "running", text }),
-                  ),
-                }));
-              }
-            }
-          } else if (eventType === "tool_execution_start") {
-            const id = String(event.toolCallId || newId("tool"));
-            const name = String(event.toolName || "tool");
-            localPatch(assistantId, (msg) => ({
-              ...msg,
-              blocks: upsertTool(
-                msg.blocks ?? [],
-                id,
-                (existing) => existing,
-                () => ({ kind: "tool", id, name, status: "running", text: "" }),
-              ),
-            }));
-          } else if (eventType === "tool_execution_update" || eventType === "tool_execution_end") {
-            const id = String(event.toolCallId || "");
-            if (id) {
-              const resultText = extractToolText(event.partialResult || event.result);
-              localPatch(assistantId, (msg) => ({
-                ...msg,
-                blocks: upsertTool(
-                  msg.blocks ?? [],
-                  id,
-                  (existing) => ({
-                    ...existing,
-                    status:
-                      eventType === "tool_execution_end"
-                        ? ((event.isError ? "error" : "done") as ToolBlock["status"])
-                        : existing.status,
-                    text: resultText || existing.text,
-                  }),
-                  () => ({
-                    kind: "tool",
-                    id,
-                    name: "tool",
-                    status:
-                      eventType === "tool_execution_end"
-                        ? ((event.isError ? "error" : "done") as ToolBlock["status"])
-                        : "running",
-                    text: resultText,
-                  }),
-                ),
-              }));
-            }
-          }
-        }
+        const { messages, title } = replaySessionEvents(payload.events ?? []);
 
         updateTab(tabId, (tab) => ({
           ...tab,
-          messages: replayed,
+          messages,
           piSessionId,
           title: title ?? tab.title,
           status: "idle",
