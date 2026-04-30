@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { AssistantMarkdown } from "./assistant-markdown";
+import { FilesystemPanel } from "./filesystem-panel";
 import { SessionsSidebar } from "./sessions-sidebar";
 
 type WebviewElement = HTMLElement & {
@@ -92,6 +93,7 @@ const SELECTED_PROJECT_KEY = "vllm-studio.agent.selectedProjectId";
 const SESSIONS_COLLAPSED_KEY = "vllm-studio.agent.sessionsCollapsed";
 const ACTIVE_PI_SESSION_KEY = "vllm-studio.agent.activePiSessionId";
 const BROWSER_TOOL_KEY = "vllm-studio.agent.browserToolEnabled";
+const RIGHT_TOP_HEIGHT_KEY = "vllm-studio.agent.rightTopHeightPct";
 
 function getDesktopBridge(): DesktopBridge | null {
   if (typeof window === "undefined") return null;
@@ -186,6 +188,7 @@ export function AgentWorkspace() {
   const [activePiSessionId, setActivePiSessionId] = useState<string | null>(null);
   const [sessionsCollapsed, setSessionsCollapsed] = useState(false);
   const [browserToolEnabled, setBrowserToolEnabled] = useState(false);
+  const [rightTopHeightPct, setRightTopHeightPct] = useState(60);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const webviewRef = useRef<WebviewElement | null>(null);
@@ -349,6 +352,10 @@ export function AgentWorkspace() {
     if (last) setActivePiSessionId(last);
     const browserOn = window.localStorage.getItem(BROWSER_TOOL_KEY);
     if (browserOn === "1") setBrowserToolEnabled(true);
+    const heightPct = Number(window.localStorage.getItem(RIGHT_TOP_HEIGHT_KEY) ?? "");
+    if (Number.isFinite(heightPct) && heightPct >= 20 && heightPct <= 80) {
+      setRightTopHeightPct(heightPct);
+    }
   }, []);
 
   const persistSessionsCollapsed = useCallback((value: boolean) => {
@@ -1190,78 +1197,109 @@ export function AgentWorkspace() {
 
         {rightPanelOpen ? (
           <aside className="hidden w-[440px] shrink-0 flex-col border-l border-(--border) bg-(--bg) xl:flex">
-            <div className="flex h-9 shrink-0 items-center justify-between border-b border-(--border) px-3 text-xs text-(--dim)">
-              <span className="font-medium uppercase tracking-wide">Browser</span>
-              <button
-                type="button"
-                onClick={() => setRightPanelOpen(false)}
-                className="rounded p-1 hover:bg-(--surface) hover:text-(--fg)"
-                title="Close"
-                aria-label="Close browser"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <form
-              onSubmit={submitBrowserUrl}
-              className="flex shrink-0 items-center gap-1 border-b border-(--border) px-2 py-1.5"
+            <div
+              className="flex shrink-0 flex-col"
+              style={{ height: `${rightTopHeightPct}%` }}
             >
-              <button
-                type="button"
-                onClick={browserBack}
-                className="rounded p-1 text-(--dim) hover:bg-(--surface) hover:text-(--fg)"
-                title="Back"
-                aria-label="Back"
+              <div className="flex h-9 shrink-0 items-center justify-between border-b border-(--border) px-3 text-xs text-(--dim)">
+                <span className="font-medium uppercase tracking-wide">Browser</span>
+                <button
+                  type="button"
+                  onClick={() => setRightPanelOpen(false)}
+                  className="rounded p-1 hover:bg-(--surface) hover:text-(--fg)"
+                  title="Close"
+                  aria-label="Close browser"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <form
+                onSubmit={submitBrowserUrl}
+                className="flex shrink-0 items-center gap-1 border-b border-(--border) px-2 py-1.5"
               >
-                <ArrowLeft className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={browserForward}
-                className="rounded p-1 text-(--dim) hover:bg-(--surface) hover:text-(--fg)"
-                title="Forward"
-                aria-label="Forward"
-              >
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={browserReload}
-                className="rounded p-1 text-(--dim) hover:bg-(--surface) hover:text-(--fg)"
-                title="Reload"
-                aria-label="Reload"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-              </button>
-              <input
-                value={browserInput}
-                onChange={(event) => setBrowserInput(event.target.value)}
-                spellCheck={false}
-                placeholder="Search or enter URL"
-                className="min-w-0 flex-1 rounded border border-(--border) bg-(--surface) px-2 py-1 font-mono text-[11px] text-(--fg) outline-none placeholder:text-(--dim)"
-                aria-label="Browser address"
-              />
-            </form>
-            <div className="min-h-0 flex-1 bg-white">
-              {isElectron ? (
-                <webview
-                  ref={(node) => {
-                    webviewRef.current = (node as unknown as WebviewElement) ?? null;
-                  }}
-                  src={browserUrl}
-                  allowpopups={true}
-                  className="size-full"
-                  style={{ width: "100%", height: "100%", display: "flex" }}
+                <button
+                  type="button"
+                  onClick={browserBack}
+                  className="rounded p-1 text-(--dim) hover:bg-(--surface) hover:text-(--fg)"
+                  title="Back"
+                  aria-label="Back"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={browserForward}
+                  className="rounded p-1 text-(--dim) hover:bg-(--surface) hover:text-(--fg)"
+                  title="Forward"
+                  aria-label="Forward"
+                >
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={browserReload}
+                  className="rounded p-1 text-(--dim) hover:bg-(--surface) hover:text-(--fg)"
+                  title="Reload"
+                  aria-label="Reload"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </button>
+                <input
+                  value={browserInput}
+                  onChange={(event) => setBrowserInput(event.target.value)}
+                  spellCheck={false}
+                  placeholder="Search or enter URL"
+                  className="min-w-0 flex-1 rounded border border-(--border) bg-(--surface) px-2 py-1 font-mono text-[11px] text-(--fg) outline-none placeholder:text-(--dim)"
+                  aria-label="Browser address"
                 />
-              ) : (
-                <iframe
-                  ref={iframeRef}
-                  src={browserUrl}
-                  className="size-full"
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                  title="Agent browser"
-                />
-              )}
+              </form>
+              <div className="min-h-0 flex-1 bg-white">
+                {isElectron ? (
+                  <webview
+                    ref={(node) => {
+                      webviewRef.current = (node as unknown as WebviewElement) ?? null;
+                    }}
+                    src={browserUrl}
+                    allowpopups={true}
+                    className="size-full"
+                    style={{ width: "100%", height: "100%", display: "flex" }}
+                  />
+                ) : (
+                  <iframe
+                    ref={iframeRef}
+                    src={browserUrl}
+                    className="size-full"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                    title="Agent browser"
+                  />
+                )}
+              </div>
+            </div>
+
+            <PaneSplitter
+              onResize={(deltaPx, panelHeight) => {
+                if (panelHeight <= 0) return;
+                const next = Math.min(
+                  80,
+                  Math.max(20, rightTopHeightPct + (deltaPx / panelHeight) * 100),
+                );
+                setRightTopHeightPct(next);
+                if (typeof window !== "undefined") {
+                  window.localStorage.setItem(RIGHT_TOP_HEIGHT_KEY, String(Math.round(next)));
+                }
+              }}
+            />
+
+            <div
+              className="flex min-h-0 flex-1 flex-col"
+              style={{ height: `${100 - rightTopHeightPct}%` }}
+            >
+              <div className="flex h-9 shrink-0 items-center justify-between border-b border-(--border) px-3 text-xs text-(--dim)">
+                <span className="font-medium uppercase tracking-wide">Files</span>
+              </div>
+              <div className="min-h-0 flex-1">
+                <FilesystemPanel cwd={activeProject?.path ?? null} />
+              </div>
             </div>
           </aside>
         ) : null}
@@ -1536,6 +1574,45 @@ function ProjectRow({
         <Trash2 className="h-3 w-3" />
       </button>
     </div>
+  );
+}
+
+// Vertical drag handle separating two stacked panes inside a flex column.
+// Reports the cursor delta (in CSS px) and the parent panel's measured height
+// so the caller can convert to a percentage for layout.
+function PaneSplitter({
+  onResize,
+}: {
+  onResize: (deltaPx: number, panelHeight: number) => void;
+}) {
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startY = event.clientY;
+    const aside = (event.currentTarget.parentElement as HTMLElement | null);
+    const panelHeight = aside?.getBoundingClientRect().height ?? 0;
+    let lastY = startY;
+
+    const onMove = (e: PointerEvent) => {
+      const delta = e.clientY - lastY;
+      lastY = e.clientY;
+      onResize(delta, panelHeight);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="horizontal"
+      onPointerDown={handlePointerDown}
+      className="h-1.5 shrink-0 cursor-row-resize border-y border-(--border) bg-(--bg) hover:bg-(--surface)"
+      title="Drag to resize"
+    />
   );
 }
 
