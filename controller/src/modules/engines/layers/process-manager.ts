@@ -1,5 +1,5 @@
 // CRITICAL
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { createWriteStream, existsSync, readFileSync } from "node:fs";
 import type { WriteStream } from "node:fs";
@@ -162,11 +162,7 @@ export const createProcessManager = (
 
     const signal = force ? "SIGKILL" : "SIGTERM";
     for (const childPid of allPids) {
-      try {
-        process.kill(childPid, signal);
-      } catch {
-        continue;
-      }
+      sendSignal(childPid, signal);
     }
 
     if (!force) {
@@ -178,16 +174,26 @@ export const createProcessManager = (
         await delayTimeout(250);
       }
       if (pidExists(pid)) {
-        try {
-          process.kill(pid, "SIGKILL");
-        } catch {
+        if (!sendSignal(pid, "SIGKILL")) {
           return false;
         }
       }
     }
 
     await delay(force ? 500 : 1000);
-    return true;
+    return !pidExists(pid);
+  };
+
+  const sendSignal = (pid: number, signal: NodeJS.Signals): boolean => {
+    try {
+      process.kill(pid, signal);
+      return true;
+    } catch {
+      const result = spawnSync("sudo", ["-n", "kill", `-${signal}`, String(pid)], {
+        stdio: "ignore",
+      });
+      return result.status === 0;
+    }
   };
 
   /**
